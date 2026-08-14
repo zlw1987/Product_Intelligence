@@ -1,0 +1,10 @@
+[project]
+name = "product-intelligence"
+version = "0.0.1"
+description = "Market price and comparable-product research for a manufacturer part number."
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q"

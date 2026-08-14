@@ -1,0 +1,9 @@
+# Product Intelligence - PRODUCT-INTEL.0A
+#
+# Intentionally minimal. Dependencies are added by the phase that needs them,
+# not in advance. See docs/PRODUCT_INTELLIGENCE_PLAN.md for what is deferred.
+
+Django>=5.0,<6.0
+
+# Development / test
+pytest>=8.0
