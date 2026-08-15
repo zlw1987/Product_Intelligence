@@ -157,13 +157,17 @@ core sees anything. Planned mechanisms:
 | --- | --- | --- |
 | Standalone web form | HTML form POST | 1B |
 | Structured API | `POST /api/v1/research` with a structured body | 5A |
-| Constrained launcher | `GET /research/new?mpn=...&description=...` | 5B |
+| Constrained launcher | `GET /research/new?mpn=<encoded>&description=<encoded>` | 5B |
 | Batch | not designed | `UNDECIDED` |
 
-Capability levels are progressive: a capable client uses the structured API,
-a constrained client uses the plain GET entry point, and both end up at the
-same canonical request. Adding a client means adding an adapter at the intake
-boundary — never a change to the core.
+Capability levels are progressive: a capable client uses the structured API, a
+constrained client percent-encodes its two values and opens the GET entry point
+in a browser, and both end up at the same canonical request. Adding a client
+means adding an adapter at the intake boundary — never a change to the core.
+
+Encoding is the constrained client's own responsibility, and §7.2 explains why:
+a query string cannot carry arbitrary unencoded text losslessly, so no intake
+implementation may be specified as though it could.
 
 Caller metadata (which client, which user, which order line) is an
 **intake-boundary** concern. It may be recorded alongside a run for audit
@@ -199,13 +203,63 @@ The minimum viable integration is conceptually:
 followed by the operating system opening that URL in the user's browser. The
 server responds with the research page, or redirects to a report URL.
 
-Design consequences, all binding:
+### 7.1 What the legacy client must be able to do
 
-* **Plain-text parameters must work.** URL encoding is preferred, but the
-  worst case — an unencoded description containing spaces, `&`, `#`, `%`,
-  quotes, or mangled non-ASCII bytes — must not produce a crash or a silently
-  corrupted request. The web layer performs defensive parsing and
-  normalization.
+Exactly three things:
+
+```text
+string construction
+    + a minimal percent-encoding helper we write
+    + browser launch
+```
+
+A future phase (5B) may ship a small compatibility helper conceptually similar
+to:
+
+```text
+UrlEncodeLegacy(value)
+```
+
+percent-encoding a query-parameter value sufficiently for a browser GET
+launcher. It is a few dozen lines of FoxPro string work over a character
+table — not an HTTP client. **It is not implemented in this phase.**
+
+### 7.2 Arbitrary unencoded text is not a lossless transport
+
+An earlier draft of this document promised that the web layer would tolerate
+arbitrary plain, unencoded parameter values — including `&`, `#`, `%`, `?`,
+`=`, `+`, quotes and non-ASCII bytes — without silent corruption. **That
+promise was impossible and has been withdrawn.**
+
+```text
+/research/new?mpn=ABC&description=SSD & NVMe # New
+```
+
+* `&` begins another query parameter, so the description splits into fragments
+  that were never distinguishable as one value;
+* `#` begins a fragment identifier, which a browser normally does not send to
+  the server at all — those bytes never arrive;
+* `%`, `+`, `?` and `=` are reserved and may be reinterpreted before Django
+  sees the request.
+
+No server-side parsing can reconstruct information the browser or the URL
+parser already discarded or reinterpreted. Claiming otherwise would be a
+correctness bug in the architecture, not a robustness feature.
+
+### 7.3 The capability hierarchy, in order of reliability
+
+| Level | Mechanism | Guarantee |
+| --- | --- | --- |
+| Preferred | `POST /api/v1/research` with structured data (5A) | Lossless; for clients that can do it |
+| **Reliable legacy** | Percent-encode with the minimal helper, then launch the browser (5B) | Lossless for the values the helper encodes |
+| Last resort | Raw, unencoded query values | **Best-effort only**, for URL-safe characters; no guarantee |
+
+The last-resort path exists so a hand-typed or crudely built URL still works
+when it happens to contain nothing reserved. It is explicitly not a supported
+contract for arbitrary text, and 5B must not be designed as though it were.
+
+### 7.4 Remaining binding consequences
+
 * **GET must be enough.** No POST body, no custom headers, no cookies, no
   content negotiation may be required.
 * **No secrets in the client, ever.** Search API keys, LLM keys, tokens, and
@@ -224,9 +278,10 @@ Design consequences, all binding:
 
 None of this reaches the core. The core sees an MPN and a description.
 
-Status: `APPROVED / PLANNED` as a constraint. No launcher code, and no
-FoxPro-side code of any kind, exists in this repository. Phase 5B implements
-the server-side GET entry point.
+Status: `APPROVED / PLANNED` as a constraint. No launcher code, no encoding
+helper, and no FoxPro-side code of any kind exists in this repository. Phase 5B
+implements the server-side GET entry point and may ship the encoding helper
+described in §7.1.
 
 ## 8. Standalone web interface strategy
 
@@ -297,6 +352,13 @@ core cannot tell which intake produced it.
 manufacturer, part number, normalized part number, product name, family,
 category, plus `match_type` and `confidence`. Every descriptive field is
 optional and defaults to absent. An unknown manufacturer stays unknown.
+
+One structural invariant (AD-019): an identity may not claim a
+part-number-level match it has no part number for. `EXACT` requires a
+`manufacturer_part_number`; `NORMALIZED_EXACT` requires that plus the
+`normalized_part_number` that distinguishes it from `EXACT`. Weaker match
+types are unconstrained. This is a rule about what the type may *represent* —
+no comparison, normalization, or match decision happens in the domain.
 
 **`EvidenceReference`** — one attributable observation: source, source URL,
 retrieval timestamp, raw content reference, normalized value, accept/reject
@@ -643,6 +705,7 @@ CURRENT STATUS
 
 Completed:
 - PRODUCT-INTEL.0A
+- PRODUCT-INTEL.0A-FU1 (corrective follow-up attached to 0A)
 
 Current approved implementation state:
 - Project architecture established
@@ -665,11 +728,25 @@ Next planned phase:
 - PRODUCT-INTEL.0B — Evaluation corpus
 ```
 
-Concretely, as of the completion of 0A the repository contains: this
-document, `CLAUDE.md`, `README.md`, a minimal Django project skeleton with no
-applications and no models, the domain contract layer, empty boundary
-packages carrying their rules as documentation, and 48 passing tests. There
-is no research capability of any kind.
+Concretely, the repository contains: this document, `CLAUDE.md`, `README.md`, a
+minimal Django project skeleton with no applications and no models, the domain
+contract layer, empty boundary packages carrying their rules as documentation,
+and 65 passing tests. There is no research capability of any kind.
+
+**What 0A-FU1 corrected.** Two contract-level defects found in independent
+review, before 0A was frozen:
+
+1. **An impossible transport guarantee.** The FoxPro compatibility contract
+   promised that arbitrary unencoded URL parameter values would survive
+   without silent corruption. Reserved characters make that unachievable — see
+   §7.2 and AD-018. The approved legacy path is now minimal percent-encoding
+   plus browser launch, with raw values accepted best-effort only.
+2. **An impossible `ProductIdentity` state.** The type could represent an
+   `EXACT`, high-confidence, established identity with no part number at all —
+   see §10 and AD-019. Construction now rejects it.
+
+FU1 changed documentation, one domain invariant, and tests. It added no
+capability and started no later phase; the roadmap numbering is unchanged.
 
 ## 25. Architecture decision log
 
@@ -678,7 +755,8 @@ is no research capability of any kind.
 | AD-001 | The core is caller-independent; all intake normalizes to one `ResearchRequest`. | The calling system will be replaced. The research engine should not notice. | Accepted |
 | AD-002 | The canonical request is MPN + description only. | Anything more lets callers diverge and leaks caller concepts into product identity. | Accepted |
 | AD-003 | The legacy desktop client is a URL-building launcher and nothing more. | Visual FoxPro 5 predates modern HTTP, JSON, and TLS tooling. Assuming otherwise would make the integration undeliverable. | Accepted |
-| AD-004 | The intake layer tolerates plain, unencoded URL parameters. | Worst-case legacy behaviour must degrade to a correct request, not a crash. | Accepted |
+| AD-004 | **Superseded by AD-018.** Originally: the intake layer tolerates plain, unencoded URL parameters. | The intent — worst-case legacy behaviour must degrade rather than crash — stands. The guarantee did not: it promised recovery of bytes that never reach the server. | Superseded |
+| AD-018 | Arbitrary raw query-string values are **not a lossless transport**. The approved Visual FoxPro 5 fallback is **minimal percent-encoding plus browser launch**, not REST/JSON client functionality. | A query string reserves characters: `&` starts the next parameter, so one description becomes several values with no record that they were ever one; `#` starts a fragment identifier that a browser normally does not transmit, so those bytes never arrive at all; `%`, `+`, `?` and `=` may be reinterpreted in transit. Defensive server-side parsing cannot reconstruct information discarded before the request existed, so tolerance is the only honest promise and encoding is where correctness actually comes from. Percent-encoding two values is a character table and string concatenation — within reach of a 1996 desktop client, unlike an HTTP/JSON/TLS stack — so the legacy path stays reliable without weakening the launcher-only boundary. Raw values remain accepted best-effort for URL-safe characters. | Accepted (0A-FU1) |
 | AD-005 | No client ever holds secrets. | Keys in a 1996 desktop application cannot be rotated or protected. | Accepted |
 | AD-006 | Standalone web use is a first-class interface, not a fallback. | Guarantees the product works with zero integration, and gives development a real UI. | Accepted |
 | AD-007 | Evidence-first: conclusions trace to preserved evidence, rejections included. | An untraceable price is not a defensible answer. | Accepted |
@@ -691,4 +769,5 @@ is no research capability of any kind.
 | AD-014 | Architecture invariants are enforced by tests, not documentation alone. | Documents drift; tests fail. | Accepted |
 | AD-015 | The domain never generates timestamps. | Caller-supplied time keeps behaviour deterministic and testable. | Accepted |
 | AD-016 | No `ResearchRun` entity or database schema in 0A. | Modelling persistence before the behaviour exists guesses wrong. | Accepted |
-| AD-017 | Target runtime is Python 3.12; code avoids version-specific syntax. | 3.12 is the approved direction, but the current development machine has 3.10, and the domain layer should not be gratuitously incompatible. | Accepted |
+| AD-017 | Target runtime is Python 3.12; code avoids version-specific syntax. Approved target: **Python 3.12**. Interpreter available during 0A development: **Python 3.10.1**. | 3.12 is the approved direction, but the development machine has 3.10.1 (with Django and pytest), and the domain layer should not be gratuitously incompatible. The distinction is recorded rather than resolved: this is an environment gap, not an architecture change. | Accepted |
+| AD-019 | An established `ProductIdentity` must carry the part-number evidence its match type claims: `EXACT` requires a part number, `NORMALIZED_EXACT` requires both a part number and the normalized form. | The type could otherwise represent a state that cannot exist — a character-for-character match against no part number, reporting itself established at high confidence. That is precisely the fabricated certainty AD-009 forbids, expressed as a data structure. Enforcing it at construction keeps `is_established` a report rather than a compensation, and the rule uses only fields already in the contract, so it adds no matching or normalization logic. Weaker match types stay unconstrained: `DESCRIPTION_ONLY` *means* no part-number evidence. | Accepted (0A-FU1) |

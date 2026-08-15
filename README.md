@@ -11,6 +11,10 @@ module of one.
 ## Current status
 
 **Phase PRODUCT-INTEL.0A is complete: architecture and domain contracts.**
+Its corrective follow-up **PRODUCT-INTEL.0A-FU1 is complete** as well: it
+withdrew an impossible promise that arbitrary unencoded URL parameters would
+arrive losslessly, and closed a domain contract that allowed an `EXACT` product
+identity carrying no part number.
 
 What exists today:
 
@@ -32,14 +36,20 @@ Next planned phase: **PRODUCT-INTEL.0B — Evaluation corpus.**
 
 ## Requirements
 
-* Python 3.12 (the approved target)
 * Django 5.x
+* Python:
 
-Note: the code is written to run on Python 3.10 as well, because that is the
-interpreter currently installed on the development machine. No 3.12-only
-syntax is used. `pyproject.toml` declares `requires-python = ">=3.12"` to
-record the approved target, so installing the project as a package on 3.10
-will be refused — running the tests directly, as below, works on either.
+```text
+approved target runtime:  Python 3.12
+interpreter available during initial development:  Python 3.10.1
+```
+
+That gap is recorded, not resolved. No 3.12-only syntax is used, so the code
+runs on either, and `pyproject.toml` declares `requires-python = ">=3.12"` to
+hold the approved target — installing the project as a package on 3.10 will
+therefore be refused, while running the tests directly, as below, works on
+both. Nothing here should be downgraded to accommodate the local machine;
+provisioning 3.12 is an environment task, not an architecture change.
 
 ## Setup
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from product_intelligence.domain import (
+    ESTABLISHED_MATCH_TYPES,
     ConfidenceLevel,
     DomainValidationError,
     IdentityMatchType,
@@ -79,3 +80,133 @@ def test_match_type_and_confidence_must_use_the_controlled_vocabulary() -> None:
 
     with pytest.raises(DomainValidationError):
         ProductIdentity(confidence="HIGH")
+
+
+# ---------------------------------------------------------------------------
+# PRODUCT-INTEL.0A-FU1: an established identity must carry its own evidence.
+#
+# The defect these cover: an identity could claim EXACT with no part number at
+# all and still report `is_established`. High confidence in a match against
+# nothing is not a weak result, it is an impossible one, and the type must not
+# be able to represent it.
+# ---------------------------------------------------------------------------
+
+
+def test_an_exact_identity_with_a_part_number_is_valid() -> None:
+    identity = ProductIdentity(
+        manufacturer_part_number="ABC123-X",
+        match_type=IdentityMatchType.EXACT,
+        confidence=ConfidenceLevel.HIGH,
+    )
+
+    assert identity.manufacturer_part_number == "ABC123-X"
+    assert identity.is_established
+
+
+@pytest.mark.parametrize("missing", [None, "", "   ", "\t\n"])
+def test_an_exact_identity_without_a_part_number_is_rejected(missing) -> None:
+    """The reported defect: EXACT + HIGH confidence + no MPN was constructible."""
+    with pytest.raises(DomainValidationError) as excinfo:
+        ProductIdentity(
+            manufacturer_part_number=missing,
+            match_type=IdentityMatchType.EXACT,
+            confidence=ConfidenceLevel.HIGH,
+        )
+
+    assert "manufacturer_part_number" in str(excinfo.value)
+
+
+def test_a_normalized_exact_identity_with_both_part_numbers_is_valid() -> None:
+    identity = ProductIdentity(
+        manufacturer_part_number="ABC 123-X",
+        normalized_part_number="ABC123X",
+        match_type=IdentityMatchType.NORMALIZED_EXACT,
+        confidence=ConfidenceLevel.MEDIUM,
+    )
+
+    assert identity.normalized_part_number == "ABC123X"
+    assert identity.is_established
+
+
+@pytest.mark.parametrize("missing", [None, "", "   "])
+def test_a_normalized_exact_identity_without_the_normalized_form_is_rejected(
+    missing,
+) -> None:
+    """The normalized form is what distinguishes this match type from EXACT.
+
+    The value is whatever the caller supplied. Nothing here normalizes a part
+    number or checks how one was derived — that algorithm is a later phase.
+    """
+    with pytest.raises(DomainValidationError) as excinfo:
+        ProductIdentity(
+            manufacturer_part_number="ABC 123-X",
+            normalized_part_number=missing,
+            match_type=IdentityMatchType.NORMALIZED_EXACT,
+        )
+
+    assert "normalized_part_number" in str(excinfo.value)
+
+
+def test_a_normalized_exact_identity_without_a_part_number_is_rejected() -> None:
+    with pytest.raises(DomainValidationError):
+        ProductIdentity(
+            normalized_part_number="ABC123X",
+            match_type=IdentityMatchType.NORMALIZED_EXACT,
+        )
+
+
+@pytest.mark.parametrize(
+    "match_type",
+    [
+        IdentityMatchType.PARTIAL,
+        IdentityMatchType.DESCRIPTION_ONLY,
+        IdentityMatchType.CONFLICT,
+        IdentityMatchType.UNKNOWN,
+    ],
+)
+def test_unestablished_match_types_need_no_part_number(match_type) -> None:
+    """DESCRIPTION_ONLY in particular *means* there is no part-number evidence.
+
+    The invariant constrains only what an identity may claim to have
+    established; it must not force evidence onto outcomes that assert none.
+    """
+    identity = ProductIdentity(match_type=match_type)
+
+    assert identity.manufacturer_part_number is None
+    assert not identity.is_established
+
+
+def test_the_default_identity_is_still_constructible() -> None:
+    """The invariant must not make the unresolved starting state illegal."""
+    identity = ProductIdentity()
+
+    assert identity.match_type is IdentityMatchType.UNKNOWN
+    assert not identity.is_established
+
+
+def test_an_established_identity_always_carries_a_part_number() -> None:
+    """The property `is_established` reports; construction guarantees.
+
+    Sweeping the whole vocabulary keeps the two definitions from drifting: if a
+    future match type joins the established set without evidence requirements,
+    this fails.
+    """
+    for match_type in IdentityMatchType:
+        try:
+            identity = ProductIdentity(match_type=match_type)
+        except DomainValidationError:
+            assert match_type in ESTABLISHED_MATCH_TYPES
+            continue
+
+        if identity.is_established:  # pragma: no cover - guarded by the raise
+            raise AssertionError(
+                f"{match_type} reported an established identity with no "
+                "manufacturer_part_number"
+            )
+
+
+def test_the_established_set_is_exactly_the_two_part_number_matches() -> None:
+    assert ESTABLISHED_MATCH_TYPES == {
+        IdentityMatchType.EXACT,
+        IdentityMatchType.NORMALIZED_EXACT,
+    }

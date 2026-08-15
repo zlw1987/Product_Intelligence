@@ -43,6 +43,16 @@ class IdentityMatchType(str, Enum):
     """Identity has not been established."""
 
 
+# The match types that assert a part-number-level identity. Named here so the
+# vocabulary owns the distinction and every consumer reads the same list rather
+# than re-deriving it. Anything outside this set is, by definition, not an
+# established identity — including PARTIAL and DESCRIPTION_ONLY, which are real
+# outcomes rather than weaker versions of a match.
+ESTABLISHED_MATCH_TYPES: frozenset[IdentityMatchType] = frozenset(
+    {IdentityMatchType.EXACT, IdentityMatchType.NORMALIZED_EXACT}
+)
+
+
 class ConfidenceLevel(str, Enum):
     """Coarse confidence band.
 

@@ -18,6 +18,7 @@ them (matching, pricing, evidence collection, persistence) is not implemented.
 """
 
 from product_intelligence.domain.enums import (
+    ESTABLISHED_MATCH_TYPES,
     ConfidenceLevel,
     EvidenceDecision,
     IdentityMatchType,
@@ -32,6 +33,7 @@ from product_intelligence.domain.models import (
 )
 
 __all__ = [
+    "ESTABLISHED_MATCH_TYPES",
     "ConfidenceLevel",
     "DomainValidationError",
     "EvidenceDecision",

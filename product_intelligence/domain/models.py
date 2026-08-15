@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from product_intelligence.domain.enums import (
+    ESTABLISHED_MATCH_TYPES,
     ConfidenceLevel,
     EvidenceDecision,
     IdentityMatchType,
@@ -107,6 +108,23 @@ class ProductIdentity:
 
     ``match_type`` and ``confidence`` both default to UNKNOWN: an identity is
     unestablished until evidence establishes it.
+
+    Structural invariant: **an established identity must carry the part-number
+    evidence its match type claims.**
+
+    * ``EXACT`` requires a ``manufacturer_part_number``. A match asserted to be
+      character-for-character against nothing is not a weak match, it is an
+      impossible one.
+    * ``NORMALIZED_EXACT`` requires both a ``manufacturer_part_number`` and the
+      ``normalized_part_number`` that actually did the matching. Recording the
+      normalized form is what distinguishes this from ``EXACT``, so an identity
+      claiming it without one is likewise impossible.
+
+    This is a structural rule about what an identity may *represent*; it is not
+    matching. Nothing here compares part numbers, normalizes one, or decides a
+    match type — those belong to the deterministic identity model (2A) and the
+    matching phase (3C). The weaker match types are deliberately unconstrained:
+    ``DESCRIPTION_ONLY`` in particular means no part-number evidence exists.
     """
 
     manufacturer: str | None = None
@@ -134,13 +152,32 @@ class ProductIdentity:
         if not isinstance(self.confidence, ConfidenceLevel):
             raise DomainValidationError("confidence must be a ConfidenceLevel")
 
+        if self.match_type in ESTABLISHED_MATCH_TYPES:
+            if self.manufacturer_part_number is None:
+                raise DomainValidationError(
+                    f"an identity claiming {self.match_type.value} requires a "
+                    "manufacturer_part_number; a part-number-level match cannot "
+                    "be established without a part number"
+                )
+            if (
+                self.match_type is IdentityMatchType.NORMALIZED_EXACT
+                and self.normalized_part_number is None
+            ):
+                raise DomainValidationError(
+                    "an identity claiming NORMALIZED_EXACT requires a "
+                    "normalized_part_number; the normalized form is what "
+                    "distinguishes this match type from EXACT"
+                )
+
     @property
     def is_established(self) -> bool:
-        """True only for a part-number-level match, exact or normalized."""
-        return self.match_type in (
-            IdentityMatchType.EXACT,
-            IdentityMatchType.NORMALIZED_EXACT,
-        )
+        """True only for a part-number-level match, exact or normalized.
+
+        Construction enforces the evidence this reports, so a ``True`` here
+        always implies a present ``manufacturer_part_number`` — the property
+        reads the invariant rather than compensating for its absence.
+        """
+        return self.match_type in ESTABLISHED_MATCH_TYPES
 
 
 @dataclass(frozen=True)

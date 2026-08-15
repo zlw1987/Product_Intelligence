@@ -8,6 +8,30 @@ These enforce the invariants that the rest of the design rests on:
 
 They are deliberately mechanical. A future phase that violates a boundary
 should fail a test, not merely contradict a document.
+
+Why the token scans stay lexical (PRODUCT-INTEL.0A-FU1)
+-------------------------------------------------------
+
+The two token scans read raw source text, including comments and docstrings.
+That is deliberate, and it was re-examined in FU1 rather than assumed.
+
+The known cost is a possible false positive: a comment such as
+``# deliberately independent of any ERP`` states the boundary rather than
+breaching it, and would fail the scan.
+
+The alternative — stripping prose and matching only code — was tried and
+rejected, because these scans match on **word boundaries**. Word boundaries do
+not fire inside identifiers: ``sap_client``, ``FoxproAdapter`` and ``erp_mode``
+all pass a ``\\bsap\\b``-style scan. Prose is therefore most of what these
+scans actually detect, and removing it would have left a guard that looks
+strict and catches almost nothing. Making it identifier-aware needs component
+splitting, camel-case handling, and separate treatment for short ambiguous
+tokens like ``sap`` and ``erp`` (``interpret`` contains one) — a static-analysis
+layer well beyond what this boundary is worth.
+
+So the trade stands as-is: a scan that reliably catches the prose-shaped leak,
+with a false positive that is obvious in the failure message and cheap to
+reword. The import purity test below is the structural half of the guard.
 """
 
 from __future__ import annotations

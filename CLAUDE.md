@@ -15,8 +15,14 @@ It is not an ERP module and does not require one to function.
 
 ## Current phase
 
-**PRODUCT-INTEL.0A is complete.** The repository contains architecture
-documentation, a minimal Django skeleton, domain contracts, and their tests.
+**PRODUCT-INTEL.0A is complete**, together with its corrective follow-up
+**PRODUCT-INTEL.0A-FU1**. The repository contains architecture documentation, a
+minimal Django skeleton, domain contracts, and their tests.
+
+FU1 corrected two contract-level defects before 0A was frozen: an impossible
+guarantee that arbitrary unencoded URL parameters arrive losslessly (see the
+legacy client constraint below), and a `ProductIdentity` that could claim an
+`EXACT` match with no part number.
 
 **There is no research capability of any kind.** No search, no LLM, no
 pricing, no comparables, no persistence, no views.
@@ -36,8 +42,10 @@ Approved: Python 3.12 · Django · server-rendered HTML · minimal JavaScript ·
 relational persistence · pluggable search providers · pluggable LLM
 providers.
 
-(The current development machine has Python 3.10; the code avoids
-version-specific syntax so it runs on both.)
+Approved target runtime is **Python 3.12**; the interpreter available during
+initial development was **Python 3.10.1**. The code avoids version-specific
+syntax so it runs on both. Do not lower the approved baseline to match a local
+machine — that gap is an environment task.
 
 Do **not** introduce, merely because this is an AI project: React, Next.js, a
 separate SPA frontend, LangChain, agent frameworks, Celery, Redis, vector
@@ -61,9 +69,25 @@ allowed to know about transports and callers.
 **Legacy client constraint.** The production sales-order system is Microsoft
 Visual FoxPro 5.0. Assume it has *no* usable REST client, JSON, OAuth, modern
 TLS, modern HTTP library, Unicode sophistication, or browser integration. Its
-only role is to build a URL and open the default browser:
-`/research/new?mpn=...&description=...`. The web layer must tolerate plain,
-unencoded parameters and parse them defensively. GET alone must be enough.
+only role is to build a URL and open the default browser. GET alone must be
+enough — no POST body, no custom headers, no cookies, no response parsing, and
+no credentials in the client.
+
+What FoxPro must be able to do is exactly: **string construction + a minimal
+percent-encoding helper we write + browser launch.**
+
+```text
+/research/new?mpn=<percent-encoded>&description=<percent-encoded>
+```
+
+**Do not promise lossless transport of arbitrary unencoded text.** A URL query
+string is not a transparent channel: `&` starts another parameter, `#` starts a
+fragment a browser normally never sends, and `%`, `+`, `?` and `=` are
+similarly reserved. Bytes reinterpreted or dropped before the request reaches
+Django cannot be recovered by any amount of server-side parsing. Raw
+unencoded values are accepted **best-effort, for URL-safe characters only** —
+never as a guarantee. The encoding helper is what makes the legacy path
+reliable, and it belongs to phase 5B; do not write it now.
 
 **Standalone web UI is first-class.** A person with a browser and no
 integration at all must be able to enter an MPN and description and get a
@@ -92,7 +116,10 @@ confident match.
 
 **Exact identity matters.** One character can mean a different product.
 Distinguish `EXACT`, `NORMALIZED_EXACT`, `PARTIAL`, `DESCRIPTION_ONLY`,
-`CONFLICT`, `UNKNOWN`. Semantic similarity is not identity.
+`CONFLICT`, `UNKNOWN`. Semantic similarity is not identity. An identity may
+not claim a match it holds no evidence for: `EXACT` requires a part number and
+`NORMALIZED_EXACT` requires the normalized form too, enforced at construction
+in `domain/models.py`.
 
 **Provider abstraction.** External vendors sit behind `SearchProvider` and
 `LLMProvider`. No vendor name (Tavily, SerpAPI, Google, Bing, OpenAI,
@@ -106,6 +133,7 @@ FoxPro or SAP. Launchers are URL builders, not AI clients.
 
 ```text
 0A Architecture + domain contracts            <- complete
+   0A-FU1 contract correctness cleanup        <- complete
 0B Evaluation corpus                          <- next
 1A ResearchRun lifecycle
 1B Standalone web research/report shell
