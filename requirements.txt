@@ -1,9 +1,14 @@
-# Product Intelligence - PRODUCT-INTEL.0A
+# Product Intelligence
 #
 # Intentionally minimal. Dependencies are added by the phase that needs them,
 # not in advance. See docs/PRODUCT_INTELLIGENCE_PLAN.md for what is deferred.
 
-Django>=5.0,<6.0
+# The floor is a supported release, not merely the oldest one whose API happens
+# to compile. 5.1 has reached end of security support; 5.2 is the current LTS
+# line and supports the interpreter this project develops on. The upper bound
+# stays below 6.0 — moving to a new major line is its own decision, not a side
+# effect of a dependency correction.
+Django>=5.2,<6.0
 
 # Development / test
 pytest>=8.0

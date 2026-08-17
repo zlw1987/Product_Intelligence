@@ -1,0 +1,408 @@
+"""Persistent research-run records (PRODUCT-INTEL.1A).
+
+A `ResearchRun` is the durable lifecycle record for exactly one canonical
+`ResearchRequest`. It answers "was this asked, when, and how did it end?" and
+nothing else. It holds no research results, because no research capability
+exists yet.
+
+What is deliberately absent
+---------------------------
+
+* **Caller-specific fields.** No calling application, no order number, no
+  customer, no user, no transport metadata. The core cannot tell which intake
+  produced a request, and a persisted run must not reintroduce that knowledge
+  through the back door. Caller metadata, if a later phase needs it for audit,
+  belongs at the intake boundary alongside the run, never inside it.
+* **Provider fields.** No search provider, no model provider. Vendors live
+  behind provider boundaries and are not part of a run's identity.
+* **Results, evidence, listings, prices, comparables.** Later phases.
+* **An event/history table.** Three timestamps are enough to audit the only
+  lifecycle that exists. A per-transition history is not built on speculation.
+* **Failure diagnostics.** `FAILED` is a state, not a stack trace. Exception
+  persistence and diagnostics infrastructure are deferred until a phase
+  actually produces failures worth recording.
+"""
+
+from __future__ import annotations
+
+import uuid
+from datetime import datetime
+from typing import Mapping
+
+from django.db import models
+from django.utils import timezone
+
+from product_intelligence.domain import ResearchRequest
+from product_intelligence.domain.enums import ResearchRunState
+from product_intelligence.runs.errors import (
+    InvalidInitialResearchRunState,
+    InvalidResearchRunTransition,
+    ResearchRunLifecycleError,
+    UnsupportedResearchRunStateChange,
+)
+
+# A thin adapter over the existing domain vocabulary. It is *generated* from
+# `ResearchRunState` rather than restated, so a second, drifting list of states
+# cannot come into existence: adding a value to the enum adds it here, and
+# nothing here can name a state the domain does not define.
+STATE_CHOICES: tuple[tuple[str, str], ...] = tuple(
+    (state.value, state.value) for state in ResearchRunState
+)
+
+TERMINAL_STATES: frozenset[ResearchRunState] = frozenset(
+    {
+        ResearchRunState.COMPLETED,
+        ResearchRunState.PARTIALLY_COMPLETED,
+        ResearchRunState.FAILED,
+    }
+)
+
+# The approved first lifecycle. Terminal states map to an empty set: terminal
+# means terminal. Retry, reopen, and resume semantics are not part of 1A — a
+# re-run is a new run, and inventing reopen now would decide a question no
+# phase has asked.
+ALLOWED_TRANSITIONS: Mapping[ResearchRunState, frozenset[ResearchRunState]] = {
+    ResearchRunState.CREATED: frozenset({ResearchRunState.RUNNING}),
+    ResearchRunState.RUNNING: frozenset(TERMINAL_STATES),
+    ResearchRunState.COMPLETED: frozenset(),
+    ResearchRunState.PARTIALLY_COMPLETED: frozenset(),
+    ResearchRunState.FAILED: frozenset(),
+}
+
+# The complete structural shape of a stored row: each state pairs with exactly
+# one timestamp arrangement. Written as one expression rather than a family of
+# overlapping rules, so there is a single place to read what a valid row is and
+# no gap between rules to fall through (PRODUCT-INTEL.1A-FU1).
+#
+# Because every branch names a state, this also confines `state` to the five
+# values in the vocabulary — `choices` is validation, not a stored constraint.
+#
+# It says nothing about *how* a row reached its shape. That is deliberate; see
+# the responsibility split in `ResearchRun`.
+LIFECYCLE_SHAPE = (
+    models.Q(
+        state=ResearchRunState.CREATED.value,
+        started_at__isnull=True,
+        finished_at__isnull=True,
+    )
+    | models.Q(
+        state=ResearchRunState.RUNNING.value,
+        started_at__isnull=False,
+        finished_at__isnull=True,
+    )
+    | models.Q(
+        state__in=sorted(state.value for state in TERMINAL_STATES),
+        started_at__isnull=False,
+        finished_at__isnull=False,
+    )
+)
+
+
+class ResearchRunManager(models.Manager):
+    """The supported way to create a run."""
+
+    def create_from_request(
+        self,
+        request: ResearchRequest,
+        *,
+        created_at: datetime | None = None,
+    ) -> "ResearchRun":
+        """Persist a new run for one canonical `ResearchRequest`.
+
+        The request is the authority on what is valid input: it strips
+        surrounding whitespace, refuses a pair that is empty on both sides, and
+        never rewrites the interior of a value. That rule is *reused*, not
+        reimplemented — requiring a `ResearchRequest` here is what makes a run
+        from an empty request unconstructible through this API, and it keeps
+        one validation rule in one place.
+
+        `created_at` exists so tests can pin time. Production callers omit it.
+        """
+        if not isinstance(request, ResearchRequest):
+            raise TypeError(
+                "a research run is created from a canonical ResearchRequest, "
+                f"got {type(request).__name__}"
+            )
+
+        return self.create(
+            manufacturer_part_number=request.manufacturer_part_number,
+            description=request.description,
+            created_at=created_at if created_at is not None else timezone.now(),
+        )
+
+
+class ResearchRun(models.Model):
+    """One durable research attempt.
+
+    Identity
+    --------
+
+    The primary key is a random (version 4) UUID, generated by the application
+    rather than the database. One identifier serves both roles — there is no
+    separate public id — because a sequential surrogate key would have no use
+    that the UUID does not already cover, and carrying two identifiers means
+    keeping two things consistent for no gain. The UUID is assigned at
+    construction, stored, and never rewritten, so a report URL of the planned
+    shape `/research/<id>` stays valid for the life of the record.
+
+    **UUID opacity is not access control.** An unguessable identifier hides a
+    run from casual enumeration; it does not authenticate anyone, does not
+    authorize anything, and does not stop a leaked or shared URL from being
+    used by whoever holds it. Whether reports require authentication and what
+    visibility they have remains an open security decision for a later phase
+    (see §19 of the canonical plan). Nothing in 1A may be read as having
+    settled it.
+
+    Who guarantees what
+    -------------------
+
+    The database and the application answer two different questions, and
+    neither is asked to answer the other's (PRODUCT-INTEL.1A-FU1):
+
+    * **The database guarantees a stored row is structurally self-consistent.**
+      `research_run_state_matches_timestamps` admits exactly three shapes:
+      `CREATED` with neither timestamp, `RUNNING` with a start and no finish,
+      and a terminal state with both. This holds for every write that reaches
+      the table, including ones that never touched this class.
+    * **`transition_to` guarantees an allowed path was followed**, and `save`
+      guarantees a run is first stored in `CREATED`. Provenance is an
+      application property: a check constraint sees one row, not the sequence
+      of rows that preceded it, so no constraint can prove a `COMPLETED` row
+      was ever `RUNNING`. Asking it to would need triggers or a history table,
+      and both are out of scope.
+
+    The consequence is worth stating plainly rather than discovering later:
+    `QuerySet.update()` and raw SQL bypass this class entirely, so a run can be
+    moved along a path the transition table forbids. What such a write **cannot**
+    do is leave a structurally impossible row behind — the constraint rejects
+    that regardless of who wrote it. Closing the provenance gap fully is not 1A
+    work; knowing exactly where it sits is.
+
+    Concurrency
+    -----------
+
+    Transitions are **not** atomic across processes. `transition_to` reads the
+    state on the in-memory instance, checks the move against the table above,
+    and writes the result. Two processes holding the same run could both see
+    `RUNNING`, both consider a terminal move legal, and both write — last write
+    wins, with no error raised.
+
+    This is stated rather than papered over. It is also not a live risk today:
+    nothing executes a run, there is no background processing, no queue, and no
+    worker, so no second writer exists. The honest fix (a conditional update,
+    row locking, or both) belongs to the phase that first introduces a
+    concurrent writer, which can then test it. Adding locking now would be
+    machinery guarding against a scenario the system cannot yet produce.
+    """
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+        help_text="Opaque durable identifier. Not an access-control mechanism.",
+    )
+
+    # Both fields are stored exactly as the canonical ResearchRequest produced
+    # them: surrounding whitespace already stripped, interior untouched.
+    #
+    # Neither carries a length limit, because the canonical contract does not
+    # impose one and persistence must not invent a rule the contract has not
+    # agreed to. A truncation policy is a real open question, but it belongs to
+    # the intake boundary where URL length limits actually bite, not here.
+    manufacturer_part_number = models.TextField(
+        blank=True,
+        help_text="Canonical MPN from the request. May be empty if a "
+        "description was supplied.",
+    )
+    description = models.TextField(
+        blank=True,
+        help_text="Canonical description from the request. May be empty if an "
+        "MPN was supplied.",
+    )
+
+    state = models.CharField(
+        max_length=32,
+        choices=STATE_CHOICES,
+        default=ResearchRunState.CREATED.value,
+        editable=False,
+    )
+
+    created_at = models.DateTimeField(default=timezone.now, editable=False)
+    started_at = models.DateTimeField(null=True, blank=True, editable=False)
+    finished_at = models.DateTimeField(null=True, blank=True, editable=False)
+
+    objects = ResearchRunManager()
+
+    class Meta:
+        constraints = [
+            # A persistence-level backstop, not a second copy of the request's
+            # validation. ResearchRequest decides what a valid pair is; this
+            # only guarantees the database can never hold a run that asked
+            # nothing at all, including via a raw ORM write that bypassed the
+            # manager.
+            models.CheckConstraint(
+                condition=models.Q(manufacturer_part_number__gt="")
+                | models.Q(description__gt=""),
+                name="research_run_has_mpn_or_description",
+            ),
+            # The complete state/timestamp shape of a stored row. It replaces
+            # the narrower "finished implies started" rule from 1A, which let
+            # most invalid shapes through — a RUNNING row with no start time, a
+            # COMPLETED row that never finished, a CREATED row bearing both
+            # timestamps. One rule covers all five states with nothing between
+            # them to fall through, so the two are not kept side by side.
+            models.CheckConstraint(
+                condition=LIFECYCLE_SHAPE,
+                name="research_run_state_matches_timestamps",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"ResearchRun {self.id} [{self.state}]"
+
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        super().__init__(*args, **kwargs)
+        # What the database currently holds for `state`, as far as this
+        # instance knows. None means "never loaded from, or written to, the
+        # database", which is the only situation in which `state` may be set
+        # freely. See `save`.
+        self._persisted_state: str | None = None
+        self._transition_in_progress = False
+
+    # -- lifecycle ----------------------------------------------------------
+
+    @property
+    def current_state(self) -> ResearchRunState:
+        """The state as the domain vocabulary, not as a bare string."""
+        return ResearchRunState(self.state)
+
+    @property
+    def is_terminal(self) -> bool:
+        return self.current_state in TERMINAL_STATES
+
+    def allowed_transitions(self) -> frozenset[ResearchRunState]:
+        """The states this run may legally move to right now (possibly none)."""
+        return ALLOWED_TRANSITIONS[self.current_state]
+
+    def transition_to(
+        self,
+        target_state: ResearchRunState | str,
+        *,
+        at: datetime | None = None,
+    ) -> "ResearchRun":
+        """Move the run to `target_state`, or refuse.
+
+        This is the single supported way to change lifecycle state. It is one
+        method rather than a family of `mark_*` helpers so that there is
+        exactly one place where the rules live and exactly one thing to call.
+
+        The move is checked against `ALLOWED_TRANSITIONS` first. An illegal
+        move raises `InvalidResearchRunTransition` and changes nothing — not
+        the state, not a timestamp, not the database row. Nothing is coerced to
+        a "closest legal" state.
+
+        `at` is the moment the transition happened; it defaults to
+        `django.utils.timezone.now()`. Time enters here, at the application
+        layer, and never inside the domain — and passing it explicitly is what
+        keeps tests deterministic without freezing the clock globally.
+
+        A run that has never been stored cannot transition: every run begins
+        life in `CREATED` in the database, so there is nothing to move yet.
+        """
+        if self._state.adding:
+            raise ResearchRunLifecycleError(
+                "a research run must be saved before it can transition; a run "
+                "begins life in CREATED"
+            )
+
+        target = (
+            target_state
+            if isinstance(target_state, ResearchRunState)
+            else ResearchRunState(target_state)
+        )
+        current = self.current_state
+
+        if target not in ALLOWED_TRANSITIONS[current]:
+            raise InvalidResearchRunTransition(current, target)
+
+        moment = at if at is not None else timezone.now()
+
+        updated_fields = ["state"]
+        self.state = target.value
+
+        if target is ResearchRunState.RUNNING:
+            # Reachable only from CREATED, and CREATED is reachable from
+            # nowhere, so this assignment happens at most once per run. The
+            # "set exactly once" guarantee comes from the transition table
+            # rather than from a guard here.
+            self.started_at = moment
+            updated_fields.append("started_at")
+        elif target in TERMINAL_STATES:
+            self.finished_at = moment
+            updated_fields.append("finished_at")
+
+        self._transition_in_progress = True
+        try:
+            self.save(update_fields=updated_fields)
+        finally:
+            self._transition_in_progress = False
+
+        return self
+
+    # -- domain interoperability -------------------------------------------
+
+    def to_research_request(self) -> ResearchRequest:
+        """Rebuild the canonical request this run was created from.
+
+        Later phases consume a `ResearchRequest`, not a database row, so the
+        engine keeps working on the contract and never on the ORM object.
+        """
+        return ResearchRequest(
+            manufacturer_part_number=self.manufacturer_part_number,
+            description=self.description,
+        )
+
+    # -- persistence guards -------------------------------------------------
+
+    @classmethod
+    def from_db(cls, db, field_names, values):  # type: ignore[no-untyped-def]
+        instance = super().from_db(db, field_names, values)
+        if "state" in field_names:
+            instance._persisted_state = instance.state
+        return instance
+
+    def refresh_from_db(self, *args: object, **kwargs: object) -> None:  # type: ignore[override]
+        super().refresh_from_db(*args, **kwargs)
+        self._persisted_state = self.state
+
+    def save(self, *args: object, **kwargs: object) -> None:  # type: ignore[override]
+        """Persist the run, refusing a lifecycle change made behind the API.
+
+        Two rules, both of which exist because the alternative is a convention
+        that holds until the first hurried caller:
+
+        * **A run enters the database in `CREATED`.** Otherwise
+          ``ResearchRun.objects.create(state="COMPLETED", started_at=…,
+          finished_at=…)`` would record a run that finished without ever having
+          run — a row the structural constraint is happy with and that is
+          nonetheless a fiction.
+        * **A stored run's state changes only inside `transition_to`.**
+          ``run.state = …; run.save()`` would otherwise skip the transition
+          table and the timestamps that go with it.
+
+        `_state.adding` is Django's own "this row is not in the database yet"
+        flag, so a deferred or partially loaded instance is not mistaken for a
+        new one.
+        """
+        if self._state.adding:
+            if self.state != ResearchRunState.CREATED.value:
+                raise InvalidInitialResearchRunState(self.state)
+        elif (
+            self._persisted_state is not None
+            and not self._transition_in_progress
+            and self.state != self._persisted_state
+        ):
+            raise UnsupportedResearchRunStateChange(self._persisted_state, self.state)
+
+        super().save(*args, **kwargs)  # type: ignore[arg-type]
+        self._persisted_state = self.state

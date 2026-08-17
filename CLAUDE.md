@@ -16,19 +16,36 @@ It is not an ERP module and does not require one to function.
 ## Current phase
 
 **PRODUCT-INTEL.0A is complete**, together with its corrective follow-up
-**PRODUCT-INTEL.0A-FU1**. The repository contains architecture documentation, a
-minimal Django skeleton, domain contracts, and their tests.
+**PRODUCT-INTEL.0A-FU1**; **PRODUCT-INTEL.0B is complete**; and
+**PRODUCT-INTEL.1A is complete**, together with its corrective follow-up
+**PRODUCT-INTEL.1A-FU1**. The repository contains architecture documentation, a
+minimal Django project, domain contracts, the evaluation corpus and its loader,
+the persistent research-run lifecycle and its migrations, and their tests.
 
 FU1 corrected two contract-level defects before 0A was frozen: an impossible
 guarantee that arbitrary unencoded URL parameters arrive losslessly (see the
 legacy client constraint below), and a `ProductIdentity` that could claim an
 `EXACT` match with no part number.
 
-**There is no research capability of any kind.** No search, no LLM, no
-pricing, no comparables, no persistence, no views.
+0B added the evaluation corpus — benchmark data, contracts, validation, and a
+loader. It added no research capability and evaluates nothing, because there is
+nothing yet to evaluate.
 
-Next planned phase: **PRODUCT-INTEL.0B — Evaluation corpus.** Do not start it
-unless asked.
+1A added one persisted record, `ResearchRun` (see the persistence section
+below). It stores *that* research was requested and how the attempt ended.
+
+1A-FU1 closed two gaps before 1A was frozen: the stored state/timestamp
+invariant was incomplete, so ordinary ORM calls could persist ten kinds of
+impossible row (a `COMPLETED` run that never started, a `RUNNING` run with no
+start time, a run created straight into a terminal state); and the Django floor
+allowed an unsupported release. Both are corrected below.
+
+**There is still no research capability of any kind.** No search, no LLM, no
+pricing, no comparables, no views, no URLs, no report page, no resolver, and no
+background processing — nothing moves a run out of `CREATED`.
+
+Next planned phase: **PRODUCT-INTEL.1B — standalone web research/report
+shell.** Do not start it unless asked.
 
 ## Before you implement anything
 
@@ -42,10 +59,16 @@ Approved: Python 3.12 · Django · server-rendered HTML · minimal JavaScript ·
 relational persistence · pluggable search providers · pluggable LLM
 providers.
 
-Approved target runtime is **Python 3.12**; the interpreter available during
-initial development was **Python 3.10.1**. The code avoids version-specific
-syntax so it runs on both. Do not lower the approved baseline to match a local
-machine — that gap is an environment task.
+The supported baseline is **Python 3.12** (`pyproject.toml` declares
+`requires-python = ">=3.12"`). The project virtual environment currently in use
+is **Python 3.14.7**, which satisfies that baseline. The code avoids
+version-specific syntax, so it runs across the supported range. Do not lower the
+declared baseline to match whatever interpreter happens to be installed.
+
+Django is pinned to **`>=5.2,<6.0`** — the current LTS line. A dependency floor
+is a support commitment, not a note about which release first shipped an API
+being used: do not lower it to the oldest version that merely compiles. Moving
+above the 6.0 bound is its own decision, not a side effect of another change.
 
 Do **not** introduce, merely because this is an AI project: React, Next.js, a
 separate SPA frontend, LangChain, agent frameworks, Celery, Redis, vector
@@ -62,9 +85,46 @@ on which client called. Caller metadata belongs at the intake boundary, never
 in product identity.
 
 **Layers.** `domain/` holds contracts and vocabularies (stdlib only, no
-Django, no I/O). `research/` holds the core engine. `providers/` holds vendor
-adapters. `web/` holds Django intake and presentation, and is the only layer
-allowed to know about transports and callers.
+Django, no I/O). `research/` holds the core engine and stays free of
+persistence. `runs/` holds the persisted research-run lifecycle and is the only
+package with a Django model. `providers/` holds vendor adapters. `web/` holds
+Django intake and presentation, and is the only layer allowed to know about
+transports and callers.
+
+**Run persistence (1A).** `product_intelligence/runs/` owns `ResearchRun`: a
+UUID primary key, the canonical MPN and description from a `ResearchRequest`,
+a `state` generated from the existing `ResearchRunState` vocabulary, and
+`created_at` / `started_at` / `finished_at`. Binding rules:
+
+* **No caller or provider columns**, ever — no calling application, order
+  number, customer, user, transport metadata, search provider, or model
+  provider. A guard test asserts the exact field list.
+* **Create through `ResearchRun.objects.create_from_request(request)`.** The
+  `ResearchRequest` contract is the single authority on valid input; do not
+  restate its rules here.
+* **A run is always created in `CREATED`.** Persisting one directly in
+  `RUNNING` or a terminal state raises `InvalidInitialResearchRunState`, and an
+  unsaved run cannot transition.
+* **Transition through `run.transition_to(state, at=...)`.** Allowed:
+  `CREATED → RUNNING`, and `RUNNING →` `COMPLETED` / `PARTIALLY_COMPLETED` /
+  `FAILED`. Terminal is terminal — no retry, reopen, or resume. An illegal move
+  raises `InvalidResearchRunTransition` and changes nothing; assigning `state`
+  and saving raises `UnsupportedResearchRunStateChange`.
+* **Every stored row satisfies one state/timestamp shape**, enforced by the
+  check constraint `research_run_state_matches_timestamps`: `CREATED` with
+  neither timestamp, `RUNNING` with a start and no finish, terminal with both.
+  Keep it a single constraint — do not add overlapping partial rules, triggers,
+  or a history table.
+* **The database judges the row; the application judges the path.** A check
+  constraint sees one row, never the sequence before it, so `QuerySet.update()`
+  and raw SQL can still skip the transition path. That residue is accepted and
+  documented (§15.6 of the plan); do not build machinery to close every ORM
+  bypass.
+* **The UUID is not access control.** It resists enumeration and does nothing
+  else. Report authentication and visibility remain undecided.
+* **Transitions are not atomic across processes** (§15.7 of the plan). Do not
+  add locking or queues to fix it before a phase introduces a real second
+  writer. No concurrency mechanism exists.
 
 **Legacy client constraint.** The production sales-order system is Microsoft
 Visual FoxPro 5.0. Assume it has *no* usable REST client, JSON, OAuth, modern
@@ -129,14 +189,27 @@ Anthropic, …) may appear in domain models or business logic.
 server environment only — never in the repository, never in a URL, never in
 FoxPro or SAP. Launchers are URL builders, not AI clients.
 
+**Evaluation truth does not move to suit an implementation.** The corpus in
+`evaluation/` is the benchmark later phases are measured against. Changing an
+expected answer requires stating which of these it is: (A) the old expectation
+was factually wrong, (B) the authoritative source changed, (C) the case
+definition was ambiguous, or (D) the product behaviour requirement intentionally
+changed. **"The new implementation failed this case" is not a valid reason** —
+that is the benchmark working. Adding cases is ordinary work; a new
+`REAL_VERIFIED` case needs provenance as strong as the existing seeds. Corpus
+data is reference material, never runtime state: it is not persisted, not a
+Django model, and never part of a research run. Full rules in
+`evaluation/README.md`.
+
 ## Approved roadmap (abbreviated)
 
 ```text
 0A Architecture + domain contracts            <- complete
    0A-FU1 contract correctness cleanup        <- complete
-0B Evaluation corpus                          <- next
-1A ResearchRun lifecycle
-1B Standalone web research/report shell
+0B Evaluation corpus                          <- complete
+1A ResearchRun lifecycle                      <- complete
+   1A-FU1 persistence invariant hardening     <- complete
+1B Standalone web research/report shell       <- next
 2A Deterministic product identity model
 2B Search provider abstraction
 2C First real search provider
@@ -173,8 +246,13 @@ additional search and LLM providers.
   configure external infrastructure.
 * **Keep the architecture guard tests passing.**
   `tests/domain/test_domain_boundaries.py` fails if the domain gains a
-  non-stdlib import, a calling-system concept, or a vendor name. If a guard
-  fails, fix the design, not the test.
+  non-stdlib import, a calling-system concept, or a vendor name.
+  `tests/evaluation/test_evaluation_boundaries.py` fails if the evaluation
+  layer gains a framework import, a provider import, a vendor name, or a
+  network call. `tests/runs/test_research_run_boundaries.py` fails if a run
+  gains a caller-shaped or provider-shaped column, if the domain or research
+  core gains a Django import, or if a second model appears. If a guard fails,
+  fix the design, not the test.
 
 ## Commands
 
@@ -184,4 +262,11 @@ python -m pytest
 
 ```bash
 python manage.py check
+```
+
+Confirms every model change has a migration (it must report "No changes
+detected"):
+
+```bash
+python manage.py makemigrations --check --dry-run
 ```

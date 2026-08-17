@@ -1,0 +1,297 @@
+{
+  "corpus_version": 1,
+  "declared_case_kind": "SYNTHETIC",
+  "note": "Constructed evaluation cases. Every case here is an evaluation construction, including those built by mutating a verified part number: the mutated request is not a claim that such a product exists. Synthetic cases carry construction notes instead of source provenance, deliberately, so none of them can be mistaken for a sourced identity.",
+  "cases": [
+    {
+      "case_id": "SYN-0001",
+      "case_kind": "SYNTHETIC",
+      "input": {
+        "manufacturer_part_number": "MTFDKCC3T8TFR-1BC1ZABYY",
+        "description": "3.84TB U.3 NVMe Gen4 solid state drive, Micron 7450 PRO"
+      },
+      "expectation": {
+        "resolution": "EXACT_IDENTITY",
+        "manufacturer": "Micron",
+        "canonical_manufacturer_part_number": "MTFDKCC3T8TFR-1BC1ZABYY",
+        "product_name": "7450 PRO U.3 3.84TB NVMe SSD",
+        "product_family": "7450 PRO"
+      },
+      "challenge_tags": ["EXACT_INPUT"],
+      "provenance": {
+        "kind": "SYNTHETIC_CONSTRUCTION",
+        "construction": "The verified part number from REAL-0002 with its description reworded into the terser, reordered style of an order line. Reordering wording is the construction; no fact absent from REAL-0002's source was introduced.",
+        "derived_from_case_ids": ["REAL-0002"]
+      },
+      "notes": "The baseline the harder cases are measured against: when the part number is correct and the description agrees, exact identity is the correct answer."
+    },
+    {
+      "case_id": "SYN-0002",
+      "case_kind": "SYNTHETIC",
+      "input": {
+        "manufacturer_part_number": "MZ-QL23T800",
+        "description": ""
+      },
+      "expectation": {
+        "resolution": "EXACT_IDENTITY",
+        "manufacturer": "Samsung",
+        "canonical_manufacturer_part_number": "MZ-QL23T800",
+        "product_name": "PM9A3 NVMe U.2 3.84TB",
+        "product_family": "PM9A3"
+      },
+      "challenge_tags": ["MPN_ONLY_INPUT"],
+      "provenance": {
+        "kind": "SYNTHETIC_CONSTRUCTION",
+        "construction": "REAL-0001 with the description removed.",
+        "derived_from_case_ids": ["REAL-0001"]
+      },
+      "notes": "A part number alone is a complete request. Missing description is not a reason to weaken or refuse the answer when the part number is unambiguous."
+    },
+    {
+      "case_id": "SYN-0003",
+      "case_kind": "SYNTHETIC",
+      "input": {
+        "manufacturer_part_number": "",
+        "description": "Samsung PM9A3 NVMe U.2 3.84TB enterprise SSD"
+      },
+      "expectation": {
+        "resolution": "AMBIGUOUS",
+        "product_family": "PM9A3",
+        "must_not_resolve_to": ["MZ-QL23T800"],
+        "reason": "The description names a manufacturer, family, form factor, and capacity, and is still not part-number evidence. A product line is sold under several ordering codes, so a strong description narrows the answer to a family without settling which orderable part is meant."
+      },
+      "challenge_tags": ["DESCRIPTION_ONLY_INPUT"],
+      "provenance": {
+        "kind": "SYNTHETIC_CONSTRUCTION",
+        "construction": "REAL-0001 with the part number removed, keeping the description that the manufacturer source supports.",
+        "derived_from_case_ids": ["REAL-0001"]
+      },
+      "notes": "The trap is the description's strength. Offering MZ-QL23T800 as a candidate is useful and correct; reporting it as the resolved identity of a request that carried no part number is the false-confidence failure this case exists to catch."
+    },
+    {
+      "case_id": "SYN-0004",
+      "case_kind": "SYNTHETIC",
+      "input": {
+        "manufacturer_part_number": "   PK8071305072902  ",
+        "description": "\t Intel Xeon Gold 6430 processor, tray \n"
+      },
+      "expectation": {
+        "resolution": "EXACT_IDENTITY",
+        "manufacturer": "Intel",
+        "canonical_manufacturer_part_number": "PK8071305072902",
+        "product_name": "Intel Xeon Gold 6430 Processor",
+        "product_family": "Xeon Gold 6430"
+      },
+      "challenge_tags": ["SURROUNDING_WHITESPACE"],
+      "provenance": {
+        "kind": "SYNTHETIC_CONSTRUCTION",
+        "construction": "REAL-0003 with spaces, a tab, and a newline placed around both supplied values, as a copy-paste out of a spreadsheet or an order line produces.",
+        "derived_from_case_ids": ["REAL-0003"]
+      },
+      "notes": "Surrounding whitespace carries no product meaning and must not change the answer. The corpus stores the padded strings verbatim so the case still tests something."
+    },
+    {
+      "case_id": "SYN-0005",
+      "case_kind": "SYNTHETIC",
+      "input": {
+        "manufacturer_part_number": "MZ-QL23T8OO",
+        "description": "3.84TB U.2 NVMe SSD"
+      },
+      "expectation": {
+        "resolution": "UNKNOWN",
+        "must_not_resolve_to": ["MZ-QL23T800"],
+        "reason": "The supplied part number is not a known identity. Its resemblance to a verified one is not evidence about it: the appropriate answer is that nothing was established, not the nearest thing that was."
+      },
+      "challenge_tags": ["NEAR_MISS_MPN"],
+      "provenance": {
+        "kind": "SYNTHETIC_CONSTRUCTION",
+        "construction": "REAL-0001's part number with the two trailing zeros replaced by the letter O — the classic transcription error, and a string a person reads straight past.",
+        "derived_from_case_ids": ["REAL-0001"]
+      },
+      "notes": "The single most expensive failure mode in one case: silently correcting a near-miss into the real part number produces a confident, plausible, wrong answer. Reporting the resemblance as rejected evidence is correct; resolving to MZ-QL23T800 is not."
+    },
+    {
+      "case_id": "SYN-0006",
+      "case_kind": "SYNTHETIC",
+      "input": {
+        "manufacturer_part_number": "MZ-QL23T800",
+        "description": "Samsung PM9A3 NVMe U.2 1.92TB enterprise SSD"
+      },
+      "expectation": {
+        "resolution": "CONFLICT",
+        "reason": "The part number is verified as the 3.84TB PM9A3 while the description states 1.92TB. Both sides are specific and they cannot both be right, so the disagreement is the finding. Picking either one silently discards evidence that the request is wrong somewhere."
+      },
+      "challenge_tags": ["DESCRIPTION_MPN_CONFLICT"],
+      "provenance": {
+        "kind": "SYNTHETIC_CONSTRUCTION",
+        "construction": "REAL-0001's part number paired with a description of a different capacity in the same family. No 1.92TB part number is asserted here, because no authoritative source for one is recorded in this corpus.",
+        "derived_from_case_ids": ["REAL-0001"]
+      },
+      "notes": "Deliberately no expected canonical identity and no forbidden identity. Reporting the part number's verified identity alongside the conflict is legitimate; reporting a settled single answer as though the description agreed is not."
+    },
+    {
+      "case_id": "SYN-0007",
+      "case_kind": "SYNTHETIC",
+      "input": {
+        "manufacturer_part_number": "MTFDKCC3T8TFR",
+        "description": "Micron 7450 PRO 3.84TB NVMe SSD"
+      },
+      "expectation": {
+        "resolution": "AMBIGUOUS",
+        "product_family": "7450 PRO",
+        "must_not_resolve_to": ["MTFDKCC3T8TFR-1BC1ZABYY"],
+        "reason": "The supplied string is the leading portion of a verified part number with the configuration suffix missing. A prefix identifies a family, not an orderable part, and completing it into one specific suffix would invent the part of the identity the request did not carry."
+      },
+      "challenge_tags": ["PARTIAL_MPN"],
+      "provenance": {
+        "kind": "SYNTHETIC_CONSTRUCTION",
+        "construction": "REAL-0002's part number truncated at the hyphen, dropping the -1BC1ZABYY configuration suffix, as an abbreviated catalog entry or a truncated field would.",
+        "derived_from_case_ids": ["REAL-0002"]
+      },
+      "notes": "A partial part number must not become an exact identity, however unique the prefix looks in whatever listings are found."
+    },
+    {
+      "case_id": "SYN-0008",
+      "case_kind": "SYNTHETIC",
+      "input": {
+        "manufacturer_part_number": "bcm957504 n425g",
+        "description": "quad port 25GbE OCP 3.0 network adapter"
+      },
+      "expectation": {
+        "resolution": "EXACT_IDENTITY",
+        "manufacturer": "Broadcom",
+        "canonical_manufacturer_part_number": "BCM957504-N425G",
+        "product_name": "N425G Quad-Port 25GbE OCP 3.0 Ethernet Adapter",
+        "product_family": "N425G"
+      },
+      "challenge_tags": ["PUNCTUATION_VARIANT"],
+      "provenance": {
+        "kind": "SYNTHETIC_CONSTRUCTION",
+        "construction": "REAL-0005's part number lowercased with the hyphen written as a space — a formatting difference, not a different string of meaningful characters.",
+        "derived_from_case_ids": ["REAL-0005"]
+      },
+      "notes": "The corpus records only that BCM957504-N425G is the right answer. Whether a resolver reaches it character-for-character, by a deterministic normalization rule, or not at all is a later phase's design decision, and this case is what will measure it. Contrast SYN-0005: case and separators carry no product meaning here, whereas a substituted character does."
+    },
+    {
+      "case_id": "SYN-0009",
+      "case_kind": "SYNTHETIC",
+      "input": {
+        "manufacturer_part_number": "EVAL-TRAY-0001",
+        "description": "U.2 drive carrier tray for 3.84TB enterprise NVMe SSD"
+      },
+      "expectation": {
+        "resolution": "UNKNOWN",
+        "must_not_resolve_to": ["MZ-QL23T800", "MTFDKCC3T8TFR-1BC1ZABYY"],
+        "reason": "The request describes an accessory, and its part number is fictitious. The drives the description mentions are what the accessory is compatible with, not what was asked about, and no identity for the tray itself is established."
+      },
+      "challenge_tags": ["ACCESSORY_CONFUSION"],
+      "provenance": {
+        "kind": "SYNTHETIC_CONSTRUCTION",
+        "construction": "Wholly constructed. The part number carries the EVAL- prefix used throughout this corpus for fictitious identities, so it can never be mistaken for a real one. No accessory with authoritative provenance is recorded here, which is exactly why this case is synthetic rather than real.",
+        "derived_from_case_ids": ["REAL-0001", "REAL-0002"]
+      },
+      "notes": "Accessory listings crowd the same search results as the product, and an accessory priced at a fraction of the drive would corrupt any price conclusion built on it. The compatibility drives are named in the description on purpose: they are the bait."
+    },
+    {
+      "case_id": "SYN-0010",
+      "case_kind": "SYNTHETIC",
+      "input": {
+        "manufacturer_part_number": "",
+        "description": "3.84TB enterprise NVMe SSD"
+      },
+      "expectation": {
+        "resolution": "AMBIGUOUS",
+        "must_not_resolve_to": ["MZ-QL23T800", "MTFDKCC3T8TFR-1BC1ZABYY"],
+        "reason": "The description fits many products from several manufacturers, two of which are verified in this corpus. Nothing in the request distinguishes them, so no single identity may be presented as the answer."
+      },
+      "challenge_tags": ["AMBIGUOUS_DESCRIPTION", "DESCRIPTION_ONLY_INPUT"],
+      "provenance": {
+        "kind": "SYNTHETIC_CONSTRUCTION",
+        "construction": "A generic description written to fit both REAL-0001 and REAL-0002, with no part number.",
+        "derived_from_case_ids": ["REAL-0001", "REAL-0002"]
+      },
+      "notes": "Listing several candidates and saying why they cannot be separated is the correct answer. Choosing whichever candidate has the most listings, the best price, or the highest similarity score is not."
+    },
+    {
+      "case_id": "SYN-0011",
+      "case_kind": "SYNTHETIC",
+      "input": {
+        "manufacturer_part_number": "EVAL-NOSUCH-0001",
+        "description": "enterprise server component"
+      },
+      "expectation": {
+        "resolution": "UNKNOWN",
+        "reason": "The part number is fictitious and the description is too generic to identify anything. Nothing can be established, and nothing may be invented to fill the gap."
+      },
+      "challenge_tags": ["UNKNOWN_PRODUCT"],
+      "provenance": {
+        "kind": "SYNTHETIC_CONSTRUCTION",
+        "construction": "Wholly constructed, using the EVAL- prefix reserved in this corpus for fictitious identities."
+      },
+      "notes": "The floor of the benchmark. A manufacturer, a product name, or a price attached to this request is fabricated by definition, whatever confidence accompanies it."
+    },
+    {
+      "case_id": "SYN-0012",
+      "case_kind": "SYNTHETIC",
+      "input": {
+        "manufacturer_part_number": "KSM48R40BS4TMM-32HMR",
+        "description": "Intel Xeon Gold 6430 processor, 60M cache, 2.10 GHz"
+      },
+      "expectation": {
+        "resolution": "CONFLICT",
+        "must_not_resolve_to": ["PK8071305072902"],
+        "reason": "The part number is a verified Kingston memory module and the description names an Intel processor. These are different manufacturers and different product categories, so the request contradicts itself and the contradiction is the answer."
+      },
+      "challenge_tags": ["CONFLICTING_BRAND"],
+      "provenance": {
+        "kind": "SYNTHETIC_CONSTRUCTION",
+        "construction": "REAL-0004's part number paired with REAL-0003's description — two verified identities crossed, as a mistyped or mis-copied order line produces.",
+        "derived_from_case_ids": ["REAL-0003", "REAL-0004"]
+      },
+      "notes": "Resolving to the processor means the description silently overrode a verified part number. Reporting the module as settled means the flatly contradictory description was silently dropped. Only the processor is forbidden outright, because reporting the part number's own verified identity as part of explaining the conflict is legitimate."
+    },
+    {
+      "case_id": "SYN-0013",
+      "case_kind": "SYNTHETIC",
+      "input": {
+        "manufacturer_part_number": "KSM48R40BS4TMM-32HMR",
+        "description": ""
+      },
+      "expectation": {
+        "resolution": "EXACT_IDENTITY",
+        "manufacturer": "Kingston",
+        "canonical_manufacturer_part_number": "KSM48R40BS4TMM-32HMR",
+        "product_name": "32GB DDR5-4800 ECC Registered DIMM",
+        "product_family": "Server Premier DDR5"
+      },
+      "challenge_tags": ["MPN_ONLY_INPUT"],
+      "provenance": {
+        "kind": "SYNTHETIC_CONSTRUCTION",
+        "construction": "REAL-0004 with the description removed.",
+        "derived_from_case_ids": ["REAL-0004"]
+      },
+      "notes": "The same input shape as SYN-0012 minus the contradicting description, so the two cases together separate 'the description conflicts' from 'the part number is unusable'."
+    },
+    {
+      "case_id": "SYN-0014",
+      "case_kind": "SYNTHETIC",
+      "input": {
+        "manufacturer_part_number": "",
+        "description": "Intel Xeon Gold 6430"
+      },
+      "expectation": {
+        "resolution": "AMBIGUOUS",
+        "product_family": "Xeon Gold 6430",
+        "must_not_resolve_to": ["PK8071305072902"],
+        "reason": "The processor model is named exactly, and a model is still not an ordering code: REAL-0003's provenance records PK8071305072902 as the tray ordering code specifically, which means the model is sold under more than one. The request does not say which."
+      },
+      "challenge_tags": ["DESCRIPTION_ONLY_INPUT"],
+      "provenance": {
+        "kind": "SYNTHETIC_CONSTRUCTION",
+        "construction": "REAL-0003 reduced to the model name alone, with no part number and no packaging.",
+        "derived_from_case_ids": ["REAL-0003"]
+      },
+      "notes": "A harder abstention than SYN-0010: here the description is precise and still insufficient, and the distinction it misses — packaging — is one that changes the price."
+    }
+  ]
+}

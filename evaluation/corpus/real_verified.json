@@ -1,0 +1,127 @@
+{
+  "corpus_version": 1,
+  "declared_case_kind": "REAL_VERIFIED",
+  "note": "Real product identities, each backed by a manufacturer-controlled source recorded in provenance. Expected identities in this file are changed only under the discipline in evaluation/README.md; a failing implementation is never a reason. Source URLs are data and are never fetched.",
+  "cases": [
+    {
+      "case_id": "REAL-0001",
+      "case_kind": "REAL_VERIFIED",
+      "input": {
+        "manufacturer_part_number": "MZ-QL23T800",
+        "description": "Samsung PM9A3 NVMe U.2 3.84TB enterprise SSD"
+      },
+      "expectation": {
+        "resolution": "EXACT_IDENTITY",
+        "manufacturer": "Samsung",
+        "canonical_manufacturer_part_number": "MZ-QL23T800",
+        "product_name": "PM9A3 NVMe U.2 3.84TB",
+        "product_family": "PM9A3"
+      },
+      "challenge_tags": ["EXACT_INPUT"],
+      "provenance": {
+        "kind": "MANUFACTURER",
+        "source_name": "Samsung Business",
+        "source_url": "https://www.samsung.com/us/business/memory-storage/nvme-ssd/pm9a3-nvme-u-2-ssd-3-8tb-sku-mz-ql23t800/",
+        "verification_note": "Samsung's manufacturer page identifies this SKU as the PM9A3 NVMe U.2 3.84TB enterprise SSD.",
+        "verified_on": "2026-08-17"
+      },
+      "notes": "Seed identity. The description restates only what the manufacturer source records; no capacity, interface, endurance, lifecycle, availability, or price claim is added."
+    },
+    {
+      "case_id": "REAL-0002",
+      "case_kind": "REAL_VERIFIED",
+      "input": {
+        "manufacturer_part_number": "MTFDKCC3T8TFR-1BC1ZABYY",
+        "description": "Micron 7450 PRO 3.84TB U.3 NVMe PCIe Gen4 x4 SSD"
+      },
+      "expectation": {
+        "resolution": "EXACT_IDENTITY",
+        "manufacturer": "Micron",
+        "canonical_manufacturer_part_number": "MTFDKCC3T8TFR-1BC1ZABYY",
+        "product_name": "7450 PRO U.3 3.84TB NVMe SSD",
+        "product_family": "7450 PRO"
+      },
+      "challenge_tags": ["EXACT_INPUT"],
+      "provenance": {
+        "kind": "MANUFACTURER",
+        "source_name": "Micron",
+        "source_url": "https://www.micron.com/partners/odm-partners/mitac-computing",
+        "verification_note": "Micron's product compatibility information maps this part number to 7450 PRO, U.3 15mm, 3.84TB, NVMe PCIe Gen4 x4.",
+        "verified_on": "2026-08-17"
+      },
+      "notes": "Seed identity. Long suffixed part number: the base part and the configuration suffix together are the orderable identity, which SYN-0007 exercises."
+    },
+    {
+      "case_id": "REAL-0003",
+      "case_kind": "REAL_VERIFIED",
+      "input": {
+        "manufacturer_part_number": "PK8071305072902",
+        "description": "Intel Xeon Gold 6430 processor, 60M cache, 2.10 GHz, tray"
+      },
+      "expectation": {
+        "resolution": "EXACT_IDENTITY",
+        "manufacturer": "Intel",
+        "canonical_manufacturer_part_number": "PK8071305072902",
+        "product_name": "Intel Xeon Gold 6430 Processor",
+        "product_family": "Xeon Gold 6430"
+      },
+      "challenge_tags": ["EXACT_INPUT"],
+      "provenance": {
+        "kind": "MANUFACTURER",
+        "source_name": "Intel",
+        "source_url": "https://www.intel.com/content/www/us/en/products/sku/231737/intel-xeon-gold-6430-processor-60m-cache-2-10-ghz/ordering.html",
+        "verification_note": "Intel lists PK8071305072902 as the ordering code for the tray Xeon Gold 6430 processor.",
+        "verified_on": "2026-08-17"
+      },
+      "notes": "Seed identity. The ordering code identifies the tray packaging specifically, which is why the model name alone is not an exact identity — see SYN-0014."
+    },
+    {
+      "case_id": "REAL-0004",
+      "case_kind": "REAL_VERIFIED",
+      "input": {
+        "manufacturer_part_number": "KSM48R40BS4TMM-32HMR",
+        "description": "Kingston 32GB DDR5-4800 CL40 ECC registered DIMM"
+      },
+      "expectation": {
+        "resolution": "EXACT_IDENTITY",
+        "manufacturer": "Kingston",
+        "canonical_manufacturer_part_number": "KSM48R40BS4TMM-32HMR",
+        "product_name": "32GB DDR5-4800 ECC Registered DIMM",
+        "product_family": "Server Premier DDR5"
+      },
+      "challenge_tags": ["EXACT_INPUT"],
+      "provenance": {
+        "kind": "MANUFACTURER",
+        "source_name": "Kingston",
+        "source_url": "https://www.kingston.com/datasheets/KSM48R40BS4TMM-32HMR.pdf",
+        "verification_note": "Kingston's datasheet identifies this part as a 32GB DDR5-4800 CL40 ECC registered memory module.",
+        "verified_on": "2026-08-17"
+      },
+      "notes": "Seed identity. Densely encoded part number where several characters each carry meaning, so a single-character difference is a different module."
+    },
+    {
+      "case_id": "REAL-0005",
+      "case_kind": "REAL_VERIFIED",
+      "input": {
+        "manufacturer_part_number": "BCM957504-N425G",
+        "description": "Broadcom N425G quad-port 10/25GbE PCIe OCP 3.0 Ethernet adapter"
+      },
+      "expectation": {
+        "resolution": "EXACT_IDENTITY",
+        "manufacturer": "Broadcom",
+        "canonical_manufacturer_part_number": "BCM957504-N425G",
+        "product_name": "N425G Quad-Port 25GbE OCP 3.0 Ethernet Adapter",
+        "product_family": "N425G"
+      },
+      "challenge_tags": ["EXACT_INPUT"],
+      "provenance": {
+        "kind": "MANUFACTURER",
+        "source_name": "Broadcom",
+        "source_url": "https://www.broadcom.com/products/ethernet-connectivity/network-adapters/n425g",
+        "verification_note": "Broadcom lists BCM957504-N425G as the ordering part number for its quad-port 10/25GbE PCIe OCP 3.0 network adapter.",
+        "verified_on": "2026-08-17"
+      },
+      "notes": "Seed identity. The part number joins a chip-family prefix to a product suffix with a hyphen, which SYN-0008 uses as a formatting variant."
+    }
+  ]
+}

@@ -1,9 +1,9 @@
 """Django settings for the Product Intelligence project.
 
-Minimal on purpose (PRODUCT-INTEL.0A). This provides a working Django project
-that passes ``manage.py check``; it does not add applications, models,
-migrations, authentication, caching, or background processing. Those arrive
-with the phases that need them.
+Minimal on purpose. This provides a working Django project that passes
+``manage.py check`` and persists research runs (PRODUCT-INTEL.1A); it adds no
+authentication, caching, or background processing. Those arrive with the phases
+that need them.
 
 Nothing here imports from ``product_intelligence.domain``: the domain layer
 must stay usable without Django.
@@ -34,6 +34,10 @@ ALLOWED_HOSTS = [
 
 INSTALLED_APPS = [
     "django.contrib.staticfiles",
+    # PRODUCT-INTEL.1A: the persistent research-run lifecycle. It is the only
+    # application with models. `product_intelligence.domain` stays importable
+    # without any of this.
+    "product_intelligence.runs",
 ]
 
 MIDDLEWARE = [
@@ -60,8 +64,10 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 
-# Relational persistence is the approved direction. No models or migrations
-# exist yet; this is the connection the first persistent phase will use.
+# Relational persistence is the approved direction. SQLite is the development
+# database for this phase; it is deliberately not swapped for a server database
+# merely because one is planned, and no production deployment configuration is
+# introduced here.
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
