@@ -16,11 +16,12 @@ It is not an ERP module and does not require one to function.
 ## Current phase
 
 **PRODUCT-INTEL.0A is complete**, together with its corrective follow-up
-**PRODUCT-INTEL.0A-FU1**; **PRODUCT-INTEL.0B is complete**; and
+**PRODUCT-INTEL.0A-FU1**; **PRODUCT-INTEL.0B is complete**;
 **PRODUCT-INTEL.1A is complete**, together with its corrective follow-up
-**PRODUCT-INTEL.1A-FU1**. The repository contains architecture documentation, a
-minimal Django project, domain contracts, the evaluation corpus and its loader,
-the persistent research-run lifecycle and its migrations, and their tests.
+**PRODUCT-INTEL.1A-FU1**; and **PRODUCT-INTEL.1B is complete**. The repository
+contains architecture documentation, a minimal Django project, domain contracts,
+the evaluation corpus and its loader, the persistent research-run lifecycle and
+its migrations, the standalone browser shell, and their tests.
 
 FU1 corrected two contract-level defects before 0A was frozen: an impossible
 guarantee that arbitrary unencoded URL parameters arrive losslessly (see the
@@ -40,12 +41,18 @@ impossible row (a `COMPLETED` run that never started, a `RUNNING` run with no
 start time, a run created straight into a terminal state); and the Django floor
 allowed an unsupported release. Both are corrected below.
 
-**There is still no research capability of any kind.** No search, no LLM, no
-pricing, no comparables, no views, no URLs, no report page, no resolver, and no
-background processing — nothing moves a run out of `CREATED`.
+1B added the first browser surface: a form at `/research/new`, a durable report
+shell at `/research/<uuid>`, and the `ResearchRequest` translation between them
+(see the web-shell section below). **It creates a `ResearchRun` and executes no
+research.**
 
-Next planned phase: **PRODUCT-INTEL.1B — standalone web research/report
-shell.** Do not start it unless asked.
+**There is still no research capability of any kind.** No search, no LLM, no
+pricing, no comparables, no resolver, and no background processing — nothing
+moves a run out of `CREATED`, and the report page says exactly that instead of
+showing progress.
+
+Next planned phase: **PRODUCT-INTEL.2A — deterministic product identity
+model.** Do not start it unless asked.
 
 ## Before you implement anything
 
@@ -125,6 +132,35 @@ a `state` generated from the existing `ResearchRunState` vocabulary, and
 * **Transitions are not atomic across processes** (§15.7 of the plan). Do not
   add locking or queues to fix it before a phase introduces a real second
   writer. No concurrency mechanism exists.
+
+**Web shell (1B).** `product_intelligence/web/` is a Django application holding
+the form, the two views, the routes, and the templates. Binding rules:
+
+* **It owns no model, and never will.** Persistence stays in `runs/` (AD-025);
+  a guard test asserts `runs.ResearchRun` is still the only model and that no
+  inner layer imports `web`.
+* **`ResearchRequest` remains the single validation authority.** The form's two
+  fields are individually optional and set `strip=False`; the "at least one of
+  them" rule and all whitespace handling come from *constructing the contract*
+  and reporting what it says. Do not restate those rules in a form.
+* **No part-number normalization at the boundary** — not case, punctuation,
+  hyphens, or interior whitespace. That is 2A/3C work.
+* **Post/Redirect/Get.** A successful POST calls
+  `ResearchRun.objects.create_from_request(...)` exactly once and redirects to
+  `/research/<uuid>`. Never `objects.create(state=…)`, `bulk_create()`,
+  `QuerySet.update()`, or raw SQL.
+* **A GET creates nothing**, whatever query parameters it carries. The launcher
+  entry point that turns `?mpn=…&description=…` into a run is 5B; a GET that
+  created records would let a prefetch or a refresh start research.
+* **The shell tells the truth.** A new run is `CREATED` and stays there — this
+  layer never transitions a run. The page says research execution is not
+  connected yet. No spinner, no polling, no fake progress, no placeholder
+  price, median, seller, or comparable.
+* **CSRF protection stays on**; the report page is escaped ordinary Django
+  output, and no user value is ever marked safe.
+* **The UUID in the URL is not authorization.** Report access control is still
+  undecided, so this shell is for local development and trusted internal use
+  only — not public deployment.
 
 **Legacy client constraint.** The production sales-order system is Microsoft
 Visual FoxPro 5.0. Assume it has *no* usable REST client, JSON, OAuth, modern
@@ -209,8 +245,8 @@ Django model, and never part of a research run. Full rules in
 0B Evaluation corpus                          <- complete
 1A ResearchRun lifecycle                      <- complete
    1A-FU1 persistence invariant hardening     <- complete
-1B Standalone web research/report shell       <- next
-2A Deterministic product identity model
+1B Standalone web research/report shell       <- complete
+2A Deterministic product identity model       <- next
 2B Search provider abstraction
 2C First real search provider
 3A Market listing extraction
@@ -251,8 +287,11 @@ additional search and LLM providers.
   layer gains a framework import, a provider import, a vendor name, or a
   network call. `tests/runs/test_research_run_boundaries.py` fails if a run
   gains a caller-shaped or provider-shaped column, if the domain or research
-  core gains a Django import, or if a second model appears. If a guard fails,
-  fix the design, not the test.
+  core gains a Django import, or if a second model appears.
+  `tests/web/test_web_boundaries.py` fails if an inner layer imports the web
+  layer, if the web layer gains a model, a vendor name, a provider import, a
+  network client, or a call to `transition_to`. If a guard fails, fix the
+  design, not the test.
 
 ## Commands
 
@@ -269,4 +308,14 @@ detected"):
 
 ```bash
 python manage.py makemigrations --check --dry-run
+```
+
+The browser shell, for local development only (`/research/new` is the form):
+
+```bash
+python manage.py migrate
+```
+
+```bash
+python manage.py runserver
 ```

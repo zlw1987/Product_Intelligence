@@ -98,8 +98,7 @@ class ResearchRunState(str, Enum):
     """Lifecycle vocabulary for a research attempt.
 
     The vocabulary is fixed here so documentation, reports, and later code
-    agree on the terms. The run entity, its persistence, and its state
-    transitions are PRODUCT-INTEL.1A work and do not exist yet.
+    agree on the terms.
     """
 
     CREATED = "CREATED"

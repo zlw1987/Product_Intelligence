@@ -1,0 +1,43 @@
+{% extends "web/base.html" %}
+
+{% block title %}New research request — Product Intelligence{% endblock %}
+
+{% block content %}
+<h2>New research request</h2>
+
+<p>
+  Enter a manufacturer part number, a product description, or both. Either
+  field may be left blank — but not both.
+</p>
+
+<form method="post" action="{% url 'research-new' %}" novalidate>
+  {% csrf_token %}
+
+  {% if form.non_field_errors %}
+    <ul class="errors">
+      {% for error in form.non_field_errors %}<li>{{ error }}</li>{% endfor %}
+    </ul>
+  {% endif %}
+
+  {% for field in form %}
+    <div class="field">
+      <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+      {% if field.errors %}
+        <ul class="errors">
+          {% for error in field.errors %}<li>{{ error }}</li>{% endfor %}
+        </ul>
+      {% endif %}
+      {{ field }}
+      {% if field.help_text %}<span class="help">{{ field.help_text }}</span>{% endif %}
+    </div>
+  {% endfor %}
+
+  <button type="submit">Create research request</button>
+</form>
+
+<p class="notice">
+  Submitting records the request and gives it a durable report address.
+  <strong>Research execution is not connected yet</strong> — no search,
+  pricing, or comparable-product research is performed.
+</p>
+{% endblock %}

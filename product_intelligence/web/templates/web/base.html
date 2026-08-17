@@ -1,0 +1,58 @@
+{% comment %}
+Server-rendered HTML, no build pipeline, no framework, and essentially no
+JavaScript — the UI is a form and a report (AD-012). The stylesheet is inline
+and small on purpose: a static-files pipeline is not something this phase needs.
+
+Auto-escaping is on throughout, and no user-supplied value is ever marked safe.
+An MPN and a description are untrusted input from any intake.
+{% endcomment %}<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Product Intelligence{% endblock %}</title>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    line-height: 1.5;
+    margin: 0 auto;
+    max-width: 44rem;
+    padding: 2rem 1.25rem 4rem;
+  }
+  header { border-bottom: 1px solid #8884; margin-bottom: 2rem; padding-bottom: 1rem; }
+  header a { color: inherit; text-decoration: none; }
+  h1 { font-size: 1.4rem; margin: 0; }
+  h2 { font-size: 1.1rem; margin: 2rem 0 0.75rem; }
+  label { display: block; font-weight: 600; margin-bottom: 0.25rem; }
+  input[type="text"], textarea {
+    box-sizing: border-box; font: inherit; padding: 0.5rem; width: 100%;
+  }
+  .field { margin-bottom: 1.5rem; }
+  .help { color: #6b7280; display: block; font-size: 0.875rem; margin-top: 0.25rem; }
+  .errors { color: #b91c1c; list-style: none; margin: 0 0 1rem; padding: 0; }
+  .errors li { margin: 0.25rem 0; }
+  button {
+    background: #1f2937; border: 0; border-radius: 0.25rem; color: #fff;
+    cursor: pointer; font: inherit; padding: 0.6rem 1.1rem;
+  }
+  .notice {
+    background: #8881; border-left: 3px solid #6b7280; margin: 1.5rem 0;
+    padding: 0.75rem 1rem;
+  }
+  dl { display: grid; gap: 0.5rem 1.5rem; grid-template-columns: max-content 1fr; margin: 0; }
+  dt { color: #6b7280; }
+  dd { margin: 0; overflow-wrap: anywhere; }
+  .absent { color: #6b7280; font-style: italic; }
+  code { overflow-wrap: anywhere; }
+  footer { border-top: 1px solid #8884; color: #6b7280; font-size: 0.85rem;
+           margin-top: 3rem; padding-top: 1rem; }
+</style>
+
+<header>
+  <h1><a href="{% url 'research-new' %}">Product Intelligence</a></h1>
+</header>
+
+{% block content %}{% endblock %}
+
+<footer>
+  Market research is not implemented. This application records research
+  requests; it does not yet search, price, or compare anything.
+</footer>

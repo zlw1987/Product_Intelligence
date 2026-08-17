@@ -1,0 +1,70 @@
+{% extends "web/base.html" %}
+
+{% comment %}
+The report shell shows persisted facts and nothing else. There is no placeholder
+price, no empty median, no seller table, and no example comparable — an invented
+number in a report is worse than a blank page, because a reader would believe
+it. Later phases fill this space with real results and the evidence behind them.
+
+`started_at` and `finished_at` appear only when a run actually carries them,
+which today is never: nothing moves a run out of CREATED.
+{% endcomment %}
+
+{% block title %}Research run {{ run.id }} — Product Intelligence{% endblock %}
+
+{% block content %}
+<h2>Research request</h2>
+
+<dl>
+  <dt>Request identifier</dt>
+  <dd><code>{{ run.id }}</code></dd>
+
+  <dt>State</dt>
+  <dd>{{ run.state }}</dd>
+
+  <dt>Manufacturer part number</dt>
+  <dd>
+    {% if run.manufacturer_part_number %}{{ run.manufacturer_part_number }}
+    {% else %}<span class="absent">Not supplied</span>{% endif %}
+  </dd>
+
+  <dt>Description</dt>
+  <dd>
+    {% if run.description %}{{ run.description }}
+    {% else %}<span class="absent">Not supplied</span>{% endif %}
+  </dd>
+
+  <dt>Created</dt>
+  <dd>{{ run.created_at|date:"Y-m-d H:i:s T" }}</dd>
+
+  {% if run.started_at %}
+    <dt>Started</dt>
+    <dd>{{ run.started_at|date:"Y-m-d H:i:s T" }}</dd>
+  {% endif %}
+
+  {% if run.finished_at %}
+    <dt>Finished</dt>
+    <dd>{{ run.finished_at|date:"Y-m-d H:i:s T" }}</dd>
+  {% endif %}
+</dl>
+
+{% if run.state == "CREATED" %}
+  <p class="notice">
+    Research request created.
+    <strong>Research execution is not connected yet.</strong>
+    No search provider, product resolver, pricing, or comparable-product
+    research exists, so this request has not been executed — and it is not
+    queued, running, or waiting. Nothing is in progress.
+  </p>
+{% endif %}
+
+<h2>Results</h2>
+
+<p class="notice">
+  No results exist. Market pricing, comparable products, and the evidence
+  behind them are later phases, and this page shows only what is actually
+  recorded.
+</p>
+
+<p><a href="{% url 'research-new' %}">Create another research request</a></p>
+{% endblock %}

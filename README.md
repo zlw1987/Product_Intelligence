@@ -28,11 +28,15 @@ state machine, and audit timestamps. Its corrective follow-up
 invariant is now complete rather than partial, a run can only be created in
 `CREATED`, and the Django floor moved to the supported LTS line.
 
+**Phase PRODUCT-INTEL.1B is complete: the standalone browser shell** — a form,
+a durable report address, and the canonical request between them. **It creates
+a research run; it does not execute research.**
+
 What exists today:
 
 * the canonical architecture and roadmap document
 * durable project guidance for Claude Code sessions (`CLAUDE.md`)
-* a minimal Django project with one application and one model
+* a minimal Django project with two applications and one model
 * the domain contract layer: `ResearchRequest`, `ProductIdentity`,
   `EvidenceReference`, and their controlled vocabularies
 * the evaluation corpus (`evaluation/`) — 19 cases: 5 real product identities
@@ -40,20 +44,53 @@ What exists today:
   numbers, conflicts, partials, accessory confusion, ambiguity, and unknowns —
   with its schema, validation, and loader
 * the persisted `ResearchRun` (`product_intelligence/runs/`) and its migrations
+* the standalone web shell (`product_intelligence/web/`): the intake form, the
+  report shell, and their routes
 * deterministic tests for those contracts, for the corpus, for the lifecycle,
-  and for the architecture boundaries
+  for the browser workflow, and for the architecture boundaries
 
 **What does not exist:** market research of any kind. There is no web
 search, no product lookup, no product resolver, no price calculation, no
 listing extraction, no comparable-product discovery, no LLM integration, no
-user interface, no routes, no report page, and no ERP integration. None of it
-is stubbed or partially present — those are later phases. A run can be created
-and moved through its states by code; nothing yet moves one, because nothing yet
+structured API, and no ERP integration. None of it is stubbed or partially
+present — those are later phases. A run can be created through the browser and
+moved through its states by code; nothing yet moves one, because nothing yet
 does research. The corpus describes what good answers would look like; nothing
 produces or scores an answer.
 
-Next planned phase: **PRODUCT-INTEL.1B — standalone web research/report
-shell.**
+Next planned phase: **PRODUCT-INTEL.2A — deterministic product identity
+model.**
+
+## The browser workflow
+
+```text
+GET  /research/new       the form: manufacturer part number, description
+POST /research/new       -> ResearchRequest -> ResearchRun (CREATED) -> redirect
+GET  /research/<uuid>    the durable report shell
+GET  /                   redirect to /research/new
+```
+
+A person with a browser and no integration of any kind can enter a part number,
+a description, or both, and get a durable report address back. Either field may
+be left blank — but not both, and that rule belongs to `ResearchRequest`: the
+form constructs the contract and shows what it says, rather than keeping a
+second copy of the policy. Nothing at this boundary normalizes a part number;
+case, punctuation, and interior spacing are stored exactly as typed.
+
+**The report shell executes no research and says so.** It shows the identifier,
+the state, the part number, the description, and the creation time, states that
+research execution is not connected yet, and shows no price, median, seller, or
+comparable — real or placeholder. There is no spinner, no polling, and no
+simulated progress: a submitted run is `CREATED` and stays there.
+
+Post/Redirect/Get means reloading a report never creates a second run, and a GET
+of the form creates nothing at all — the launcher entry point that turns
+`?mpn=…&description=…` into a run is phase 5B, deliberately not built here.
+
+Submitted text is untrusted and is rendered through ordinary Django escaping;
+CSRF protection is enabled on the form. **The report URL is still not access
+control** — whether reports need authentication is undecided — so this shell is
+for local development and trusted internal use, not a public deployment.
 
 ## The research run
 
@@ -161,8 +198,15 @@ setup is required to run it. To create a development database file instead:
 python manage.py migrate
 ```
 
-There is still nothing useful to serve — the project has no routes — so
-`runserver` is not part of the workflow at this phase.
+Then serve the browser shell locally and open <http://127.0.0.1:8000/research/new>:
+
+```bash
+python manage.py runserver
+```
+
+That is a development configuration: `DEBUG` defaults on, the `SECRET_KEY`
+default is explicitly insecure, and report access control is undecided. Do not
+expose it beyond a trusted network.
 
 ## Layout
 
@@ -178,7 +222,7 @@ product_intelligence/
   runs/                            persisted run lifecycle (implemented)
   research/                        research core (not implemented)
   providers/                       search/LLM boundaries (not implemented)
-  web/                             intake + presentation (not implemented)
+  web/                             standalone form + report shell (implemented)
 tests/                             focused deterministic tests
 ```
 

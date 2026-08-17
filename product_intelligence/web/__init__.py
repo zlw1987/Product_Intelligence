@@ -14,7 +14,13 @@ accepted best-effort for URL-safe characters only. This layer must never be
 written, or documented, as though it could reconstruct bytes that never
 reached it.
 
-Status: not implemented. The standalone research/report shell is
-PRODUCT-INTEL.1B, the structured intake API is 5A, and the launcher-friendly
-GET entry point is 5B. No views, templates, or routes exist yet.
+Status (PRODUCT-INTEL.1B): the standalone research/report shell is
+implemented — a form at ``/research/new``, a durable report at
+``/research/<id>``, and the ``ResearchRequest`` translation between them. It
+records a run; **it executes no research**, because no research capability
+exists. The structured intake API is 5A, and the launcher-friendly GET entry
+point is 5B; neither exists, and a GET to ``/research/new`` carrying query
+parameters is a form display, never a submission.
+
+This package owns no model. Persistence is ``product_intelligence.runs``.
 """

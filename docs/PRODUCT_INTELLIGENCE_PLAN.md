@@ -144,7 +144,7 @@ Repository layout:
 │   ├── runs/                          persisted run lifecycle + migration (1A)
 │   ├── research/                      research core (not implemented)
 │   ├── providers/                     provider boundaries (not implemented)
-│   └── web/                           intake + presentation (not implemented)
+│   └── web/                           standalone form + report shell (1B)
 └── tests/                             focused deterministic tests
 ```
 
@@ -160,11 +160,17 @@ a Django model:
 | --- | --- | --- |
 | `runs/` | The durable `ResearchRun` record, its lifecycle, its migration | Callers, vendors, transports, research results |
 
+`web/` became a Django application in 1B, holding the intake form, two views,
+the routes, and the templates. It contains no model: a run outlives the request
+that created it and belongs to no caller, so the lifecycle stays in `runs/`
+(AD-025, AD-032). The dependency arrow points one way — `web` imports `domain`
+and `runs`, and a guard test fails if any inner layer imports `web`.
+
 Status: `IMPLEMENTED` for the layout, the domain layer, the evaluation corpus
-layer, the run-persistence layer, and the Django project skeleton.
-`APPROVED / PLANNED` for every box below "Canonical Research Request" in the
-diagram — a run records *that* research was requested and how it ended; nothing
-performs any.
+layer, the run-persistence layer, the Django project, and the standalone web
+intake and report shell. `APPROVED / PLANNED` for every box below "Canonical
+Research Request" in the diagram — a run records *that* research was requested
+and how it ended; nothing performs any, and the web shell starts nothing.
 
 ## 6. Multi-interface intake design
 
@@ -173,7 +179,7 @@ core sees anything. Planned mechanisms:
 
 | Mechanism | Shape | Phase |
 | --- | --- | --- |
-| Standalone web form | HTML form POST | 1B |
+| Standalone web form | HTML form POST | 1B — `IMPLEMENTED` |
 | Structured API | `POST /api/v1/research` with a structured body | 5A |
 | Constrained launcher | `GET /research/new?mpn=<encoded>&description=<encoded>` | 5B |
 | Batch | not designed | `UNDECIDED` |
@@ -192,7 +198,11 @@ Caller metadata (which client, which user, which order line) is an
 purposes in a later phase, but it is never part of product identity and never
 reaches resolution, pricing, or comparison logic.
 
-Status: `APPROVED / PLANNED`. No intake mechanism is implemented.
+Status: `IMPLEMENTED` for the standalone web form (1B), which normalizes its two
+submitted strings into a `ResearchRequest` and creates one run.
+`APPROVED / PLANNED` for every other mechanism. Nothing downstream of the
+canonical request exists, so an intake produces a recorded request, not
+research.
 
 ## 7. Legacy desktop client compatibility strategy
 
@@ -329,7 +339,54 @@ Start Research
 Browser report
 ```
 
-Status: `APPROVED / PLANNED`, phase 1B. Not implemented.
+### 8.1 What 1B implemented
+
+```text
+GET  /research/new       the form (a GET never creates anything)
+POST /research/new       ResearchRequest -> ResearchRun (CREATED) -> redirect
+GET  /research/<uuid>    the durable report shell
+GET  /                   redirect to /research/new
+```
+
+The routes are named `research-new` and `research-detail`, and they live in
+`product_intelligence/web/`. Post/Redirect/Get is the shape: a valid submission
+creates exactly one run through
+`ResearchRun.objects.create_from_request(...)` and answers with a redirect, so
+reloading the report cannot submit anything twice. An invalid submission
+re-renders the form with the reason and creates nothing.
+
+The form does not validate intake itself. Both fields are individually optional
+and keep their submitted text (`strip=False`); the "at least one of them" rule
+and all whitespace handling come from constructing a `ResearchRequest` and
+reporting what it says, so there is one validation policy rather than two that
+can drift (AD-032). No part-number normalization happens at the boundary —
+that is 2A/3C work, and inventing a version of it in a form would put a
+matching decision in the one layer forbidden to make one.
+
+**The shell executes no research, and says so.** A submitted run is `CREATED`
+and stays there: the web layer never calls `transition_to`, because there is
+nothing to run. The report states that research execution is not connected yet
+rather than showing a spinner, a progress bar, or a poll — a fake progress
+indicator is fabricated certainty with an animation (AD-009, AD-034). It shows
+the identifier, state, MPN, description, and `created_at`, with `started_at` and
+`finished_at` displayed only if a run ever carries them. There is no placeholder
+price, median, seller table, or example comparable, and no evaluation-corpus
+case is displayed as though it were a result.
+
+A GET creates nothing whatever query parameters it carries. The launcher entry
+point that turns `?mpn=…&description=…` into a run belongs to 5B (AD-033); a GET
+that created records would let a prefetch, a crawler, or a refresh start
+research.
+
+MPN and description are untrusted input from every intake, so they are rendered
+through ordinary Django auto-escaping and never marked safe. CSRF protection is
+enabled on the POST. The identifier in a report URL is still not access control
+(§19): report visibility remains `UNDECIDED`, so this shell is for local
+development and trusted internal use, not public deployment.
+
+Status: `IMPLEMENTED` (1B) for the form, the report shell, the routes, and the
+run creation between them. `APPROVED / PLANNED` for everything the report would
+display once research exists.
 
 ## 9. Future ERP integration strategy
 
@@ -668,8 +725,10 @@ writer and can test it. Adding locking now would guard against a scenario the
 system cannot produce.
 
 Status: `IMPLEMENTED` (1A) for the record, its identity, its state machine, its
-timestamps, and its migration. The report at `/research/<id>` is `APPROVED /
-PLANNED` for 1B — no view, URL, or template exists.
+timestamps, and its migration; and (1B) for the report at `/research/<id>`,
+which reads a run and renders it. The report is read-only: it starts nothing,
+transitions nothing, and writes no timestamp. Nothing in the system moves a run
+out of `CREATED`, because nothing executes one.
 
 ## 16. Price-intelligence direction
 
@@ -766,9 +825,19 @@ kind exists, and none should be added before 8A.
 Authentication and authorization are `DEFERRED`; no phase before 8C assumes
 them.
 
-Status: `APPROVED / PLANNED`. `IMPLEMENTED` today only as: no secrets in the
-repository, environment-sourced Django settings, and an unguessable run
-identifier that is explicitly not a permission check.
+Consequence for the 1B web shell, stated plainly rather than discovered at
+deployment time: **anyone who can reach the server can open any report whose
+identifier they hold, and can submit a request.** That is acceptable for local
+development and a trusted internal network, and it is not acceptable on a public
+address. The open question is access control, not the identifier scheme — a
+longer UUID would change nothing. 1B added CSRF protection on the form POST and
+ordinary output escaping of MPN and description, which are defences against
+different problems and are not a substitute.
+
+Status: `APPROVED / PLANNED`. `IMPLEMENTED` today as: no secrets in the
+repository, environment-sourced Django settings, an unguessable run identifier
+that is explicitly not a permission check, CSRF protection on the one POST, and
+untrusted intake text rendered escaped and never marked safe.
 
 ## 20. Testing strategy
 
@@ -784,6 +853,15 @@ Principles:
   `tests/runs/test_research_run_boundaries.py` fails if a research run gains a
   caller-shaped or provider-shaped column, if the domain or research core gains
   a Django import, or if a second model appears.
+  `tests/web/test_web_boundaries.py` fails if an inner layer imports the web
+  layer, if the web layer gains a model, a vendor name, a provider import, a
+  network client, or a call to `transition_to`.
+* **The browser workflow is tested through the Django test client**, which
+  exercises the real URLs, views, forms, templates, and database — no browser
+  automation dependency, and nothing mocked between the form and the row. The
+  honest-reporting rules are tested as behaviour: that a submitted run is
+  `CREATED` with no timestamps, that opening a report transitions nothing, and
+  that script-like input arrives escaped rather than interpreted.
 * **The database is set up without a plugin.** `tests/conftest.py` configures
   Django and creates an in-memory SQLite test database for the session. The
   suite therefore exercises the real migration, stays offline and
@@ -802,7 +880,7 @@ Principles:
   data is indistinguishable from one that returns `True`.
 
 Status: `IMPLEMENTED` for the domain contracts, the evaluation corpus, the run
-lifecycle, and the architecture guards.
+lifecycle, the web shell, and the architecture guards.
 
 ## 21. Evaluation strategy
 
@@ -920,8 +998,8 @@ PRODUCT-INTEL.0A   Architecture + domain contracts              IMPLEMENTED
 PRODUCT-INTEL.0B   Evaluation corpus                            IMPLEMENTED
 PRODUCT-INTEL.1A   ResearchRun lifecycle                        IMPLEMENTED
                    1A-FU1 persistence invariant hardening       IMPLEMENTED
-PRODUCT-INTEL.1B   Basic standalone web research/report shell   NEXT
-PRODUCT-INTEL.2A   Deterministic product identity model
+PRODUCT-INTEL.1B   Basic standalone web research/report shell   IMPLEMENTED
+PRODUCT-INTEL.2A   Deterministic product identity model         NEXT
 PRODUCT-INTEL.2B   Search provider abstraction
 PRODUCT-INTEL.2C   First real search provider
 PRODUCT-INTEL.3A   Market listing extraction
@@ -957,7 +1035,7 @@ Future:
   additional LLM providers
 ```
 
-Every phase after 1A is `APPROVED / PLANNED` and unimplemented. Do not
+Every phase after 1B is `APPROVED / PLANNED` and unimplemented. Do not
 execute a later phase while working on an earlier one.
 
 ## 23. Explicit deferred items
@@ -1002,6 +1080,7 @@ Completed:
 - PRODUCT-INTEL.0B
 - PRODUCT-INTEL.1A
 - PRODUCT-INTEL.1A-FU1 (corrective follow-up attached to 1A)
+- PRODUCT-INTEL.1B
 
 Current approved implementation state:
 - Project architecture established
@@ -1009,28 +1088,42 @@ Current approved implementation state:
 - Initial domain contracts established
 - Evaluation corpus, its contracts, validation, and loader established
 - Persistent ResearchRun lifecycle established
-- Focused contract, lifecycle, and boundary tests established
+- Standalone web intake form and durable report shell established
+- Focused contract, lifecycle, web, and boundary tests established
 
 Not yet implemented:
-- Web research UI
-- Web report page
+- Research execution of any kind
 - Search providers
 - LLM providers
 - Product resolver
 - Market pricing
 - Comparable products
+- Structured intake API
 - FoxPro integration
 - SAP integration
+- Report access control
 
 Next planned phase:
-- PRODUCT-INTEL.1B — Basic standalone web research/report shell
+- PRODUCT-INTEL.2A — Deterministic product identity model
 ```
 
 Concretely, the repository contains: this document, `CLAUDE.md`, `README.md`, a
-minimal Django project with one application, the domain contract layer, the
-evaluation corpus layer, the run-persistence layer and its two migrations, empty
-boundary packages carrying their rules as documentation, and 250 passing tests.
+minimal Django project with two applications (one of which holds the only
+model), the domain contract layer, the evaluation corpus layer, the
+run-persistence layer and its two migrations, the standalone web shell, empty
+boundary packages carrying their rules as documentation, and 330 passing tests.
 There is no research capability of any kind.
+
+**What 1B added.** The first browser surface: `GET /research/new` (the form),
+`POST /research/new` (creates exactly one run through
+`create_from_request` and redirects), `GET /research/<uuid>` (the durable report
+shell), and `/` redirecting to the form. The form's only job is translation —
+raw strings in, a canonical `ResearchRequest` out, or the contract's own error
+shown on the page. **It executes no research**: a submitted run is `CREATED` and
+stays there, nothing calls `transition_to`, and the report says research
+execution is not connected yet instead of showing progress. No model was added,
+no migration was needed, and no search, provider, LLM, launcher, queue, or
+authentication arrived with it.
 
 **What 1A added.** One persisted record: `ResearchRun`, in
 `product_intelligence/runs/`, with a UUID identity, the canonical MPN and
@@ -1119,3 +1212,6 @@ capability and started no later phase; the roadmap numbering is unchanged.
 | AD-029 | Cross-process transition atomicity is not guaranteed. The limitation is documented in §15.7 rather than solved. | `transition_to` checks the in-memory state and writes; two concurrent writers could both pass the check and the last write would win. The honest options were to fix it, to hide it, or to state it. Fixing it means conditional updates or row locking built against a concurrency scenario the system cannot yet produce — there is no worker, no queue, and nothing that executes a run, so the fix would ship untested by anything real. Hiding it would leave a later phase trusting a guarantee that was never made. Stating it costs nothing and hands the phase that introduces a second writer both the problem and the reason it was left. | Accepted (1A) |
 | AD-030 | One check constraint states the complete state/timestamp shape of a stored row, replacing the narrower "finished implies started" rule; and a run may only be *created* in `CREATED`. The database judges the row; the application judges the path. | 1A relied on application code for a rule the database was only half-checking, and the gap was not theoretical: an audit found ten invalid shapes that ordinary ORM calls persisted, including a `COMPLETED` run that never started. A guarantee that holds only when callers use the intended method is a convention, and this one is cheap to make real. One expression rather than several overlapping rules means a single place to read what a valid row is, no gap between rules to fall through, and — because every branch names a state — storage-level confinement of `state` to the vocabulary, which `choices` alone does not give. The creation rule closes the other half: without it, a run could be inserted directly into a terminal state, structurally valid and a complete fiction about what happened. What the constraint deliberately does **not** do is prove provenance: a check sees one row, never the sequence that produced it, so `QuerySet.update()` and raw SQL can still skip the transition path. That residue is documented (§15.6) rather than chased with triggers or a history table, both of which AD-028 rules out. | Accepted (1A-FU1) |
 | AD-031 | The Django floor is the supported 5.2 LTS line (`>=5.2,<6.0`), not the oldest release whose API happens to compile. | 1A set the floor at 5.1 because `CheckConstraint(condition=…)` arrived there. That is a statement about syntax availability, not about whether the release is safe to run: 5.1 is out of security support, so the declaration invited an installation receiving no fixes. A dependency floor is a support commitment. The upper bound stays below 6.0 — moving to a new major line is its own decision with its own testing, not a side effect of a correction. `requires-python = ">=3.12"` is unchanged; the development environment runs Python 3.14.7, which satisfies both. | Accepted (1A-FU1) |
+| AD-032 | The web layer is a Django application with no model, and its form validates by *constructing* `ResearchRequest` rather than by restating the rules. Both fields are individually optional and keep their submitted text (`strip=False`); no part-number normalization happens at the boundary. | Two policies for what valid intake is would drift, and nothing would fail when they did — a form that grew its own "at least one field" rule, or its own trimming, would silently decide what the canonical contract is supposed to decide. Constructing the contract and translating `DomainValidationError` into a visible error keeps one authority and makes the persisted values identical to what any other intake would produce. `strip=False` matters even though Django's stripping agrees with the contract today: leaving it on would mean the form quietly co-owns a normalization rule, and a later change on either side would be invisible until stored values disagreed. Normalizing a part number here would be worse still — it is a matching decision (2A/3C) taken in the one layer forbidden to make one, where one character can mean a different product. The application holds no model because a run outlives the request that created it and belongs to no caller (AD-025). | Accepted (1B) |
+| AD-033 | A GET creates nothing. The browser workflow is Post/Redirect/Get, and the launcher entry point that turns `?mpn=…&description=…` into a run stays in 5B. | The 1B route shape is deliberately the one 5B will adapt, which makes "it would be two lines to honour the parameters now" the obvious mistake to prevent. A GET that creates records is a side effect on a method defined not to have one: a prefetch, a crawler, a bookmark, or a refresh would each start research, and the run table would fill with requests nobody made. Post/Redirect/Get is the other half — without the redirect, the page a user lands on is the submission itself, and reloading a report would silently create duplicates of it. The launcher also needs decisions 1B has not made (URL length limits, truncation policy, encoding), so implementing it early would guess at them. | Accepted (1B) |
+| AD-034 | The report shell states that research execution is not connected. No spinner, no polling, no simulated delay, no placeholder price, median, seller table, or example comparable. | A progress indicator over nothing is fabricated certainty with an animation (AD-009): it tells the user work is under way, and the only honest fact is that no execution engine exists. The same reasoning rules out placeholder values — a `$0` or an `N/A median` on a page titled with a real part number is a claim the system has no evidence for, and the evidence-first rule (AD-007) means a number appears only with the listings behind it. A blank "no results exist" section is not a gap in the phase; it is the accurate report, and it is the durable place later phases fill. Displaying an evaluation-corpus case here would be worse again: benchmark truth is reference data, never a result (AD-020). | Accepted (1B) |
