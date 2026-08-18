@@ -29,8 +29,17 @@ text and converts nothing — no `Decimal`, no currency, no vocabulary, no
 arithmetic. Extraction never calls the 2A comparator: an extractor that decided
 identity would be judging its own evidence.
 
-Normalization is 3B, listing match and rejection is 3C, pricing is 4A-4B, and
-comparables are 7A-7C — none of it exists.
+PRODUCT-INTEL.3B added `normalization`: `normalize_listing_observation`, which
+turns a raw `ListingObservation`'s commercial attributes — price, currency,
+availability, condition, seller — into a deterministic, comparable
+`NormalizedListingObservation`, or abstains with a recorded
+`NormalizationIssue` when the raw text cannot be converted without guessing.
+Money becomes `Decimal` only here, never in extraction. No currency is
+converted, no listing is accepted or rejected, and no aggregate is computed —
+those are 3C and 4A.
+
+Listing match and rejection is 3C, pricing is 4A-4B, and comparables are
+7A-7C — none of it exists.
 """
 
 from product_intelligence.research.extraction import extract_listing_observations
@@ -48,6 +57,15 @@ from product_intelligence.research.listings import (
     ExtractionMethod,
     ListingObservation,
 )
+from product_intelligence.research.normalization import (
+    NormalizationIssue,
+    NormalizationIssueCode,
+    NormalizedAvailability,
+    NormalizedCondition,
+    NormalizedListingObservation,
+    normalize_listing_observation,
+    normalize_listing_observations,
+)
 
 __all__ = [
     "ASCII_WHITESPACE",
@@ -56,9 +74,16 @@ __all__ = [
     "STRUCTURAL_CHARACTERS",
     "ExtractionMethod",
     "ListingObservation",
+    "NormalizationIssue",
+    "NormalizationIssueCode",
+    "NormalizedAvailability",
+    "NormalizedCondition",
+    "NormalizedListingObservation",
     "PartNumberMatchAssessment",
     "compare_part_numbers",
     "compare_request_to_candidate",
     "extract_listing_observations",
+    "normalize_listing_observation",
+    "normalize_listing_observations",
     "normalize_part_number",
 ]

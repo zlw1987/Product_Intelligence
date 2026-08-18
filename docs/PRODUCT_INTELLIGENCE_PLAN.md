@@ -172,15 +172,17 @@ Status: `IMPLEMENTED` for the layout, the domain layer, the evaluation corpus
 layer, the run-persistence layer, the Django project, the standalone web intake
 and report shell, the deterministic part-number comparison primitive inside the
 core (§12.1), the search-provider boundary (§13.1), its first real adapter
-(§13.5), the page-fetch boundary and its standard-library fetcher (§13.6), and
-deterministic raw listing extraction (§16.1). `APPROVED / PLANNED` for every box
-below "Canonical Research Request" in the diagram: a run records *that* research
-was requested and how it ended, and the web shell starts nothing. The core can
-now compare two part numbers it is handed, fetch a public page safely, and
-extract raw listing observations from what that page publishes — but nothing
-orchestrates that sequence, and nothing in the run lifecycle or the web shell
-invokes any of it, so no box in the diagram from "Product Resolver" onward does
-anything yet.
+(§13.5), the page-fetch boundary and its standard-library fetcher (§13.6),
+deterministic raw listing extraction (§16.1), and deterministic listing
+normalization (§16.2). `APPROVED / PLANNED` for every box below "Canonical
+Research Request" in the diagram: a run records *that* research was requested
+and how it ended, and the web shell starts nothing. The core can now compare
+two part numbers it is handed, fetch a public page safely, extract raw listing
+observations from what that page publishes, and turn one raw observation's
+commercial attributes into a deterministic value or a recorded reason it could
+not — but nothing orchestrates that sequence, and nothing in the run lifecycle
+or the web shell invokes any of it, so no box in the diagram from "Product
+Resolver" onward does anything yet.
 
 ## 6. Multi-interface intake design
 
@@ -1353,8 +1355,9 @@ Planned pipeline, all deterministic:
 
 1. **Listing extraction** (3A) — fetch a candidate URL safely and extract raw
    listing observations from what it publishes (§13.6, §16.1). `IMPLEMENTED`.
-2. **Normalization** (3B) — currency, quantity, pack size, unit price,
-   condition, availability, seller.
+2. **Normalization** (3B) — price, currency, condition, availability, seller
+   (§16.2). `IMPLEMENTED`. Quantity, pack size, and unit price remain
+   unimplemented: no recorded fixture publishes raw evidence for them (§16.2).
 3. **Match and reject** (3C) — classify each listing with an
    `IdentityMatchType`, using the deterministic part-number comparison from
    §12.1 for the exact and normalized cases; record every rejection with a
@@ -1377,10 +1380,12 @@ Rules:
 Which aggregate constitutes "market price", and how outliers are handled, are
 `UNDECIDED` — to be settled in 4A with the evaluation corpus from 0B.
 
-3A is implemented and answers only step 1. **No market price is computed
-anywhere**, and nothing normalizes, matches, rejects, or aggregates an
-observation. §16.1 records exactly what was built and what was deliberately left
-to 3B and 3C.
+3A and 3B are implemented and answer only steps 1 and 2. **No market price is
+computed anywhere**, and nothing matches, rejects, or aggregates an
+observation — a normalized price does not imply a valid listing, and 3B decides
+nothing about whether an observation belongs to the requested product. §16.1
+and §16.2 record exactly what was built and what was deliberately left to 3C
+and 4A.
 
 Binding constraints on the phases above, recorded in 2B so each phase starts
 with them rather than rediscovering them:
@@ -1401,13 +1406,23 @@ site, and the pages that yielded nothing publish no static product data that any
 per-source selector could reach. The permission stands unused and the bar is
 unchanged: a real fixture first, then a strategy (§16.1).
 
-**3B — normalization is not conversion.** 3B explicitly normalizes currency
-representation, quantity and pack size, unit price, condition, and availability.
-"Normalize currency" means recording that an observation is in EUR in a
-consistent form; it is **not** converting EUR to USD. No implicit FX conversion
-happens anywhere, in 3B or later: a rate is a market observation of its own,
-with its own source and its own retrieval time, and silently applying one would
+**3B — normalization is not conversion.** 3B explicitly normalizes price,
+currency representation, condition, availability, and seller. "Normalize
+currency" means recording that an observation is in EUR in a consistent form;
+it is **not** converting EUR to USD. No implicit FX conversion happens
+anywhere, in 3B or later: a rate is a market observation of its own, with its
+own source and its own retrieval time, and silently applying one would
 manufacture a number no evidence supports.
+
+*Outcome (3B):* implemented as described (§16.2), with one narrowing found
+during the phase rather than assumed going in. Quantity, pack size, and unit
+price were **not** normalized: no recorded 3A fixture publishes raw evidence
+whose semantics mean "this offer sells N units for this price" — inventory
+counts, minimum-order quantities, and capacity figures are not pack size, and
+none of the five fixtures publishes anything else in that shape either.
+`ListingObservation` was not speculatively extended to carry fields nothing
+produces, and no quantity is guessed from a title. The absence is recorded as
+a finding, not hidden as an oversight (§16.2).
 
 **4A — aggregation requires demonstrable comparability.** An aggregate over
 observations that are not comparable is a wrong number with a confident
@@ -1596,8 +1611,197 @@ recording and a fake can never be confused (AD-041).
 * **No caching, no LLM, no Google Shopping, and no search call.**
 
 Status: `IMPLEMENTED` (3A) for safe static page fetching, deterministic raw
-listing extraction, and the recorded real-page fixtures. `APPROVED / PLANNED`
-for 3B onward. **No market price works, and none is claimed.**
+listing extraction, and the recorded real-page fixtures. `IMPLEMENTED` (3B) for
+deterministic listing normalization, described in full below. **No market
+price works, and none is claimed.**
+
+### 16.2 What 3B implemented
+
+The second step of the pipeline, and only the second: **one raw
+`ListingObservation`'s commercial attributes become a deterministic,
+comparable representation — or a recorded reason they could not.**
+
+```text
+ListingObservation  ->  normalize_listing_observation()  ->  NormalizedListingObservation
+```
+
+The contract and the function both live in the research core:
+`product_intelligence/research/normalization.py`. Like extraction (3A), it
+takes the 3A contract directly rather than a `FetchedPage`, imports nothing
+from `providers/`, and performs no I/O — the same guard tests that scan every
+file under `research/` for stdlib-only imports, no network or filesystem
+access, and no persistence/provider/benchmark import cover this module by
+construction, and were extended with 3B-specific guards proving `decimal` is
+used here and nowhere else in the core (`tests/research/
+test_listing_normalization_boundaries.py`).
+
+#### The normalized contract
+
+`NormalizedListingObservation` is frozen and carries:
+
+| Field | What it is |
+| --- | --- |
+| `observation` | The exact raw `ListingObservation` this was built from — a reference, never a copy |
+| `price_amount` | `Decimal \| None` |
+| `currency_code` | `str \| None` — an ISO-style three-letter code, never converted |
+| `availability` | `NormalizedAvailability` — a small controlled vocabulary, `UNKNOWN` included |
+| `condition` | `NormalizedCondition` — a small controlled vocabulary, `UNKNOWN` included |
+| `seller_name` | `str \| None` — whitespace-normalized only |
+| `normalization_issues` | `tuple[NormalizationIssue, ...]` |
+
+A reviewer can always get from a normalized field back to the raw text that
+produced it, including when that raw text produced nothing:
+`normalized.price_amount` may be `None` while `normalized.observation
+.price_text` is `"undefined"`, and `normalization_issues` explains the gap.
+There is no `accepted`, `rejected`, `valid_listing`, `identity_match`,
+`confidence`, `should_use_for_price`, or `aggregate_eligible` field, and no
+`min`/`max`/`median`/`average`/`estimate` — a test asserts the exact field
+list is free of every one of them. 3B decides nothing about whether an
+observation belongs to the requested product, and computes no statistic over
+more than one. The constructor carries one narrow invariant beyond type
+checks: a non-`None` `currency_code` must be one of the codes this module's
+own currency logic can produce — a value this module could not itself have
+normalized to (a lowercase code, an unmapped symbol) is a caller defect, not
+a state the type should be able to represent silently.
+
+`NormalizationIssue` (`field`, `code`, `raw_value`, `reason`) explains one
+field's failure to normalize, never the listing's. Its vocabulary,
+`NormalizationIssueCode`, has exactly six members —
+`INVALID_PRICE`, `AMBIGUOUS_PRICE`, `UNRECOGNIZED_CURRENCY`,
+`CONFLICTING_CURRENCY`, `UNRECOGNIZED_AVAILABILITY`,
+`UNRECOGNIZED_CONDITION` — because those are the six kinds of abstention this
+module actually produces. `CONFLICTING_CURRENCY` covers the one case where two
+*present* pieces of evidence — a currency embedded in `price_text` and a
+separately published `currency_text` — disagree, distinct from
+`UNRECOGNIZED_CURRENCY`'s single unmapped value. `INVALID_QUANTITY`,
+`INVALID_PACK_SIZE`, and `UNIT_PRICE_NOT_COMPUTABLE` are deliberately absent:
+nothing in this module computes a quantity, a pack size, or a unit price
+(below), and a vocabulary member nothing produces is a placeholder for
+unbuilt behaviour — the same rule `ExtractionMethod` (3A) already established
+for its own vocabulary.
+
+#### Price: a conservative, single-amount grammar
+
+Raw `price_text` becomes a `Decimal` only when it names one unambiguous
+amount, optionally wrapped by a currency symbol (`$ € £ ¥`) or a known
+three-letter code (`EUR 1055.85`), with comma-grouping accepted **only** in
+exact groups of three digits:
+
+```text
+1055.85       valid  ->  Decimal("1055.85")
+1300.53       valid  ->  Decimal("1300.53")
+1,055.85      valid  ->  Decimal("1055.85")
+10,055.85     valid  ->  Decimal("10055.85")
+$1,055.85     valid  ->  Decimal("1055.85")   (symbol stripped to locate the amount)
+EUR 1055.85   valid  ->  Decimal("1055.85"), embedded currency EUR
+1055.85 EUR   valid  ->  Decimal("1055.85"), embedded currency EUR
+```
+
+Everything else abstains rather than guessing, classified into one of two
+issue codes: `AMBIGUOUS_PRICE` when the text names a range, a discount, or a
+recurring payment (`"from $399"`, `"$399 - $449"`, `"$33/mo"`, `"You save
+$565"`, `"20% OFF"`) — checked by a small set of marker phrases and by
+counting how many amount-shaped tokens the text contains — and
+`INVALID_PRICE` otherwise (`"undefined"`, `"N/A"`, `"Call for price"`,
+`"1.055,85"`, `"1,00,055"`). Neither a US-style nor a European-style reading
+is ever guessed at: a period used as a thousands separator and a grouping
+that is not exactly three digits both fail to parse rather than being
+silently reinterpreted, and `"undefined"` becomes `None` plus a recorded
+issue, never `Decimal("0")`. Money is `Decimal` throughout; a guard test
+parses the module's own AST and asserts it never calls `float(...)`.
+
+A currency decoration may appear on **one side only**. Text decorated on both
+sides (`"EUR 100 USD"`, `"$100 EUR"`) also classifies `AMBIGUOUS_PRICE` —
+`price_amount` stays `None` — whether or not the two decorations happen to
+agree, because accepting it would mean either picking a side or inferring an
+agreement the text does not structurally establish.
+
+#### Currency: conservative mapping, reconciled evidence, explicitly no FX
+
+A small fixed set of ISO-style codes (`USD`, `EUR`, `GBP`, and sixteen
+others actually exercised by tests) normalizes case-insensitively to its
+uppercase form; `€` and `£` map to `EUR`/`GBP` because each names one
+currency unambiguously. **`$` and `¥` are never mapped** — both are shared by
+several live currencies, and mapping either would be exactly the inference
+the phase instructions forbid, embedded in `price_text` or published
+separately. A price and its currency normalize independently: `price_amount`
+can be set with `currency_code` absent (a real 3A fixture case — no currency
+published anywhere on the page), and either can be `None` while the other is
+not.
+
+Independent does not mean **contradictory evidence is silently ignored**. A
+single-sided currency decoration inside `price_text` is real evidence and is
+reconciled against `currency_text`: if only one source names a currency, it is
+used; if both name the same one, it is used; if they name *different*
+currencies (`price_text="EUR 100"`, `currency_text="USD"`), neither is chosen
+— `currency_code` stays `None` and a `CONFLICTING_CURRENCY` issue records the
+disagreement, and `price_amount` still normalizes, because the amount and its
+comparability are separate questions. No conversion rate, live or hardcoded,
+exists anywhere in this module; two observations in different currencies stay
+two observations in different currencies; nothing compares, sorts, or picks a
+minimum or maximum between them.
+
+#### Availability and condition: small vocabularies, `UNKNOWN` on anything unmapped
+
+`NormalizedAvailability` (`IN_STOCK`, `OUT_OF_STOCK`, `PREORDER`,
+`BACKORDER`, `LIMITED`, `DISCONTINUED`, `UNKNOWN`) and `NormalizedCondition`
+(`NEW`, `USED`, `REFURBISHED`, `DAMAGED`, `UNKNOWN`) map the `schema.org`
+enumeration values (with or without the `http(s)://schema.org/` prefix) and a
+small set of conservative plain-text spellings. Both maps deliberately
+**exclude** `"true"` / `"false"` and prose like `"open box"` or `"like new"`:
+a real 3A fixture publishes `availability_text="false"`, which is no
+`schema.org` term and is not evidence of any particular stock state, and
+guessing it into `OUT_OF_STOCK` would be exactly the fabricated certainty
+this phase exists to avoid. Unmapped text produces `UNKNOWN` plus a recorded
+`UNRECOGNIZED_AVAILABILITY` / `UNRECOGNIZED_CONDITION` issue; text absent
+from the raw observation produces `UNKNOWN` with **no** issue, because
+nothing was published to fail to normalize.
+
+#### Seller: representation cleanup only, never entity resolution
+
+Surrounding whitespace is removed and an internal whitespace run collapses to
+one space. Nothing else changes — no case folding, no punctuation removal,
+and no decision that `"Amazon.com"` and `"Amazon"` name one seller. Deciding
+that is entity resolution, which this phase does not attempt.
+
+#### Quantity, pack size, and unit price: an evidence gap, not an oversight
+
+The roadmap describes 3B eventually normalizing quantity, pack size, and unit
+price. An audit of every field in every one of the five recorded 3A fixtures
+(`tests/fixtures/pages/`) found no structured field on any of them whose
+semantics mean "this offer sells N units for this price" — no inventory
+count, minimum-order quantity, or capacity figure (`"3.84TB"`) is pack size,
+and `ListingObservation` itself carries no raw `quantity_text` or
+`pack_size_text` field for a normalizer to read. Per the phase instructions,
+that absence is not solved by guessing: `ListingObservation` was **not**
+speculatively extended, no quantity is inferred from a product title, and
+`NormalizedListingObservation` carries no `quantity`, `pack_size`, or
+`unit_price` field. The finding — not the guess — is what 3B contributes on
+this point, and it is 3C or a later phase's to revisit if a fixture ever
+shows the evidence.
+
+#### What 3B explicitly did not do
+
+* **No identity comparison.** The published MPN and SKU fields are untouched
+  — not normalized, not stripped of a prefix, not compared. `identity.py` is
+  not imported (§24 of the phase instructions; a guard test asserts it).
+* **No listing acceptance or rejection (3C).** No `accepted` field, no
+  rejection reason, no match type, no score. A normalized price does not
+  imply a valid listing.
+* **No aggregation (4A).** No count, low, median, high, range, or estimate,
+  and no cross-currency comparison of any kind.
+* **No integration.** `runs/` and `web/` import no part of `research`'s new
+  module — the existing guard that checks the whole `product_intelligence.
+  research` namespace already covers it. A submitted run is still `CREATED`.
+* **No quantity, pack size, or unit price** — see above.
+* **No live call of any kind.** Every test runs against the same recorded 3A
+  fixtures or inline synthetic text; the normal `pytest` run makes zero
+  network requests, exactly as before.
+
+Status: `IMPLEMENTED` (3B) for deterministic price, currency, availability,
+condition, and seller normalization, and for the quantity/pack-size evidence
+audit. `APPROVED / PLANNED` for 3C onward. **No listing is accepted, rejected,
+or priced anywhere.**
 
 ## 17. Comparable-product direction
 
@@ -1945,8 +2149,8 @@ PRODUCT-INTEL.2A   Deterministic product identity model         IMPLEMENTED
 PRODUCT-INTEL.2B   Search provider abstraction                  IMPLEMENTED
 PRODUCT-INTEL.2C   First real search provider (Serper)          IMPLEMENTED
 PRODUCT-INTEL.3A   Market listing extraction                    IMPLEMENTED
-PRODUCT-INTEL.3B   Listing normalization                        NEXT
-PRODUCT-INTEL.3C   MPN matching + rejection
+PRODUCT-INTEL.3B   Listing normalization                        IMPLEMENTED
+PRODUCT-INTEL.3C   MPN matching + rejection                     NEXT
 PRODUCT-INTEL.4A   Price aggregation
 PRODUCT-INTEL.4B   Price Intelligence web report
 
@@ -1977,18 +2181,20 @@ Future:
   additional LLM providers
 ```
 
-Every phase after 3A is `APPROVED / PLANNED` and unimplemented. Do not
+Every phase after 3B is `APPROVED / PLANNED` and unimplemented. Do not
 execute a later phase while working on an earlier one.
 
-**The next phase is the priority.** 3A turned a candidate URL into raw listing
-observations: a bounded, credential-free page fetch, deterministic extraction of
-`schema.org` JSON-LD and flat product meta, and five recorded real-page
-fixtures. It computed no price and normalized nothing, on purpose. 3B — turning
-`"1055.85"`, `"1,055.85"`, `"undefined"`, `"false"`, and a price with no
-currency at all into normalized values *with recorded reasons* — is what makes
-those observations comparable. Every one of those five strings came off a real
-page in 3A's sample, so 3B begins with its problem evidenced rather than
-imagined.
+**The next phase is the priority.** 3B turned raw listing text into
+deterministic, comparable values — `"1055.85"` into `Decimal("1055.85")`,
+`"undefined"` into `None` plus a recorded `INVALID_PRICE` issue,
+`"false"` into `UNKNOWN` availability rather than a guessed `OUT_OF_STOCK` —
+without deciding anything about which product a listing describes. That is
+exactly what is still missing: nothing yet says whether a normalized listing's
+published part number is the one that was requested. 3C — classifying each
+normalized observation against `research.identity`'s `EXACT` /
+`NORMALIZED_EXACT` / `UNKNOWN` comparison (2A), with every rejection recorded
+and its reason kept — is what turns a pile of normalized observations into
+evidence a price conclusion could actually cite.
 
 ### 22.1 Corrective follow-up phases
 
@@ -2031,13 +2237,15 @@ in place of development SQLite.
 
 Also deferred as capability, per the roadmap rather than per this list: real
 product lookup, LLM calls, prompt engineering, price calculation, listing
-*normalization*, comparable discovery, similarity scoring, launcher code of any
-kind, and the research API. Real web search exists as of 2C and real page
-fetching plus raw listing extraction as of 3A — both can be called directly —
-but *orchestration* (query generation from a `ResearchRequest`, deciding which
+*matching and rejection*, comparable discovery, similarity scoring, launcher
+code of any kind, and the research API. Real web search exists as of 2C, real
+page fetching plus raw listing extraction as of 3A, and deterministic listing
+normalization as of 3B — all three can be called directly — but
+*orchestration* (query generation from a `ResearchRequest`, deciding which
 candidate URLs to open, automatic invocation from a research run) remains
-deferred: nothing calls `search()` or `fetch()` except an explicit manual script
-and offline tests.
+deferred: nothing calls `search()`, `fetch()`, or
+`normalize_listing_observation()` except an explicit manual script and offline
+tests.
 
 Deferred specifically around page fetching and extraction (3A), so that a later
 phase does not read their absence as an oversight: browser-rendered fetching of
@@ -2050,6 +2258,15 @@ discovery · asset fetching · page or response caching · persistence of a
 parsing · visible-text price extraction of any kind (permanently excluded, not
 deferred) · MPN inference from a title, snippet, or URL · DNS pinning and
 connection-level SSRF hardening (§13.6, deployment-level, 8C).
+
+Deferred specifically around listing normalization (3B), so that a later phase
+does not read their absence as an oversight: quantity and pack-size
+normalization and unit-price calculation (no recorded fixture publishes raw
+evidence for any of the three — §16.2) · currency conversion of any kind, live
+or hardcoded · seller entity resolution · condition or availability inference
+from marketing prose (`"like new"`, `"open box"`) · persistence of a
+`NormalizedListingObservation` · any acceptance, rejection, confidence, or
+aggregate field on the normalized contract.
 
 Deferred specifically around part-number identity (2A), so that a later phase
 does not read their absence as an oversight: partial or fuzzy part-number
@@ -2102,6 +2319,7 @@ Completed:
 - PRODUCT-INTEL.2B
 - PRODUCT-INTEL.2C
 - PRODUCT-INTEL.3A
+- PRODUCT-INTEL.3B
 
 Current approved implementation state:
 - Project architecture established
@@ -2125,15 +2343,21 @@ Current approved implementation state:
   deciding nothing
 - Five sanitized recorded real-page fixtures and one manual page-extract smoke
   script established
+- Deterministic listing normalization established (NormalizedListingObservation
+  + price/currency/availability/condition/seller normalization), deciding no
+  identity and computing no aggregate
 - Focused contract, lifecycle, web, identity, provider, Serper-adapter,
-  page-fetch, extraction, and boundary tests established
+  page-fetch, extraction, normalization, and boundary tests established
 
 Not yet implemented:
 - Research execution of any kind
 - Candidate discovery beyond one raw, unorchestrated search call
 - Query generation from a ResearchRequest
-- Any orchestration from a search result to a page fetch to an extraction
-- Listing normalization, matching, rejection, or price aggregation
+- Any orchestration from a search result to a page fetch to an extraction to
+  a normalization
+- Listing matching, rejection, or price aggregation
+- Quantity, pack-size, or unit-price normalization (no fixture evidence yet —
+  §16.2)
 - Browser-rendered fetching (not justified by the 3A sample - see 13.6)
 - Crawling or link traversal
 - LLM providers
@@ -2149,7 +2373,7 @@ Not yet implemented:
   ordinary execution)
 
 Next planned phase:
-- PRODUCT-INTEL.3B — Listing normalization
+- PRODUCT-INTEL.3C — MPN matching + rejection
 ```
 
 Concretely, the repository contains: this document, `CLAUDE.md`, `README.md`, a
@@ -2157,11 +2381,32 @@ minimal Django project with two applications (one of which holds the only
 model), the domain contract layer, the evaluation corpus layer, the
 run-persistence layer and its two migrations, the standalone web shell, the
 deterministic part-number comparison primitive, the search-provider boundary,
-the Serper adapter with its recorded fixture and manual smoke script, and 670
-passing tests. There is still no research capability: nothing orchestrates a
-search, fetches a page, extracts a listing, resolves a product, or prices
-anything — 2C proved that one real call reaches the boundary correctly, and
-that is the whole of what it claims.
+the Serper adapter with its recorded fixture and manual smoke script, the
+page-fetch boundary and its fetcher, deterministic raw listing extraction and
+its five recorded real-page fixtures, deterministic listing normalization, and
+over a thousand passing tests, all offline. There is still no research
+capability: nothing orchestrates a search, fetches a page, extracts a listing,
+normalizes it as part of any automatic flow, resolves a product, or prices
+anything — each phase through 3B proved that one more step of the pipeline
+works correctly in isolation, and that is the whole of what any of them claim.
+
+**What 3B added.** One module, `product_intelligence/research/normalization.py`,
+described in full in §16.2: `NormalizedListingObservation`,
+`NormalizationIssue`, `NormalizationIssueCode`, `NormalizedAvailability`,
+`NormalizedCondition`, and `normalize_listing_observation`. A raw
+`ListingObservation`'s price, currency, availability, condition, and seller
+become deterministic values — `Decimal`, an ISO-style currency code, a small
+controlled vocabulary — or abstain with a recorded reason when the raw text
+cannot be converted without guessing, proven against the same five recorded
+3A fixtures plus synthetic tests for the ambiguous and malformed shapes the
+phase instructions specified. **It decides no identity and computes no
+aggregate**: the published MPN and SKU fields are untouched, `identity.py` is
+never imported, and there is no accepted/rejected field, no min/max/median,
+and no currency conversion anywhere. Quantity, pack size, and unit price were
+not implemented — no recorded fixture publishes raw evidence for any of the
+three, and `ListingObservation` was not speculatively extended to invent a
+field nothing produces. `runs/` and `web/` are unchanged, and a submitted run
+is still `CREATED`.
 
 **What 2C added.** One adapter, `product_intelligence/providers/serper.py`,
 described in full in §13.5: `SerperSearchProvider`, calling Serper's ordinary
@@ -2339,3 +2584,5 @@ capability and started no later phase; the roadmap numbering is unchanged.
 | AD-043 | Page fetching enters through a second provider boundary (`providers/page.py`) with one standard-library implementation (`providers/http_page.py`). A `SearchResult`, a `FetchedPage`, and a `ListingObservation` are three distinct observations and are never collapsed. Extraction lives in the research core and takes a document *string*, so neither half imports the other. | The layering is the decision. A search snippet is a third party's description of a page; the page is what that URL returned; and a listing observation is what the document publishes. Collapsing the first two would let a snippet be reported as page evidence — precisely the conversion AD-039 refused when it kept a numeric price off `SearchResult`. Collapsing the last two would put document parsing in a transport adapter and page retrieval in the engine, which is how the research core acquires a network stack and stops being testable without one. Passing a string rather than a `FetchedPage` is what makes the separation structural rather than stylistic: the research guards already forbid `providers` imports, and a shared type would have forced either a relaxation or a domain-level contract that both layers depend on — a third thing to keep in sync for no capability. The two halves meet in a caller that holds both, which today is one manual script and tomorrow is whichever phase orchestrates research. | Accepted (3A) |
 | AD-044 | The fetcher is bounded (timeout, redirects, response size, HTML-only content types), sends no credential or cookie, issues GET only, follows redirects itself, and refuses any destination resolving to a non-public address — while the documentation states plainly that this is not network isolation, and that DNS rebinding and general egress remain open at the application layer. | A fetcher consuming URLs that originated from an external search provider is an SSRF primitive unless it is built as one that is not, and the ordinary attack is not exotic: a public host that 302s to `http://169.254.169.254/`. Two implementation choices carry most of the weight and both were deliberate. Following redirects manually was necessary because `urllib` would otherwise follow them transparently and the address checks would apply to every hop except the only one that matters — the last. Assembling the opener by hand was necessary because `build_opener()` installs `FileHandler`, `FTPHandler`, and `ProxyHandler`, each of which lets a URL or an ambient environment variable send the fetch somewhere other than the public page requested. Refusing an oversized response rather than truncating it follows AD-009: a truncated document parses as though it were whole, so the failure would surface as *fewer listings*, which is a wrong answer delivered quietly rather than an error delivered loudly. The honesty clause is the other half of the decision. Closing the DNS time-of-check/time-of-use gap means owning the socket — resolving once, connecting to the pinned address, and carrying the hostname through TLS verification — which is a change to how connections are made and belongs to deployment hardening (8C), not to a phase learning what pages contain. Stating the residue costs nothing and stops a later phase from trusting a guarantee that was never made, exactly as AD-029 did for transition atomicity. | Accepted (3A) |
 | AD-045 | Extraction reads only structured data a page deliberately published — `schema.org` JSON-LD first, flat product meta second and only when JSON-LD yielded nothing — and every extracted value stays raw text. No visible-text price scan exists, and none may be added. An `AggregateOffer` yields no price at all. | Three real pages sampled in this phase settle this better than argument could. One publishes `"price": "undefined"` inside a well-formed `Offer`: a converting extractor raises on it or silently drops the offer, and a reviewer sees neither. One publishes `"1055.85"` in JSON-LD and `"1,055.85"` in OpenGraph — the same money, twice, on one page, which is why the second mechanism is a fallback rather than an addition; running both would turn one offer into two observations and 4A counts observations. One publishes a price with no currency anywhere and an `availability` of `"false"`, which no vocabulary contains. Converting at this layer would mean each of those either fails or is guessed at inside a parser with nowhere to record which, whereas raw text moves the decision to 3B where "unparseable price" and "no currency" are outcomes with reasons attached. The prohibition on visible-text scanning is stronger than a preference and is recorded as permanent: the sampled storefront carries fourteen distinct dollar amounts — a shipping threshold, financing bounds, a per-instalment figure, four recommended products in markup identical to the real price element — so first-match, lowest-match, and largest-match rules each return a wrong number with total confidence. The `AggregateOffer` refusal is the same rule in miniature: a low and a high across sellers is a range, and picking an end is lowest-wins wearing a schema name. Parsing with `parse_float=str` is what makes "raw" true rather than aspirational — a float has already discarded how the page wrote the number. | Accepted (3A) |
+| AD-046 | A raw price becomes `Decimal` only when it names one unambiguous amount; anything naming a range, a discount, or a recurring payment abstains with `AMBIGUOUS_PRICE`, and anything else unparseable abstains with `INVALID_PRICE` — never a chosen amount, never `Decimal("0")`. Currency normalizes to a small conservative code set with no symbol treated as globally unique (`$` and `¥` are never mapped, embedded in a price or not), and no exchange-rate conversion exists anywhere, in this phase or any later one. **An unambiguous currency embedded directly in `price_text` (`"EUR 100"`, `"100 EUR"`, `"€100"`) is real currency evidence and is reconciled with `currency_text` rather than discarded**: agreement (or one source alone) yields that currency; disagreement between the two yields `currency_code=None` plus a recorded `CONFLICTING_CURRENCY` issue, without discarding an otherwise-valid `price_amount`. A price decorated with a currency marker on both sides (`"EUR 100 USD"`, `"$100 EUR"`) never normalizes cleanly, agreeing or not. | `"from $399"`, `"$399 - $449"`, `"$33/mo"`, and `"You save $565"` each contain a syntactically valid-looking number, and picking any of them — first, lowest, largest, or "the one after the word 'from'" — would be the identical mistake 3A already refused for visible-text scanning (AD-045), moved one layer later where it would be easier to excuse as "just normalization". `"undefined"` becoming `Decimal("0")` would be worse than raising: a template failure would silently enter arithmetic as a real, cheap price. On currency, `$` prices four different national currencies and `¥` prices two; mapping either to one guess is the fabricated certainty AD-009 already forbids, so both stay unmapped even though doing so leaves some real prices with `currency_code=None`. FX conversion is excluded on the same evidentiary standard as everything else in this system: a rate is itself a market observation with its own source and retrieval time, and applying one silently would manufacture a number no evidence supports — §16 already committed to this for 4A, and 3B is the first phase in a position to violate it by convenience. The reconciliation rule closes a gap found before the phase was frozen: an earlier draft derived `currency_code` from `currency_text` alone, so `price_text="EUR 100"` beside `currency_text="USD"` silently normalized to `currency_code="USD"` — contradictory evidence producing a clean, confident, wrong answer, which is exactly the false confidence AD-009 forbids. Discarding the embedded evidence instead (keeping `currency_text` as the sole source) would have been equally wrong in the other direction: a page that plainly writes `"EUR 100"` and nothing else is not thereby evidence-free about its own currency. Refusing doubly-decorated text is the same abstention discipline applied to the decoration itself, not just the digits: a regex with two independently optional decoration slots can match `"EUR 100 USD"` structurally, and treating that as one clean price/currency pair — by picking a side or by inferring agreement — would be a guess wearing a successful parse. | Accepted (3B) |
+| AD-047 | Quantity, pack size, and unit-price normalization were not implemented in 3B, and `ListingObservation` was not extended to carry raw fields for them. | The phase instructions required checking real evidence before building: an audit of every field in all five recorded 3A fixtures found no structured field on any of them meaning "this offer sells N units for this price" — an inventory count, a minimum-order quantity, and a capacity figure are each a different fact, and none is pack size. Building the normalization logic anyway would mean inventing a raw input to feed it, most plausibly by parsing a product title (`"3.84TB"`, `"MZ-QL23T800"`) — exactly the guess 3A's own MPN-in-title exclusion already rejected for identity, applied here to commercial quantity instead. Extending `ListingObservation` speculatively would also break 3A's own precedent: `ExtractionMethod` deliberately carries no member for an unbuilt mechanism, on the stated principle that a vocabulary entry nothing produces is a placeholder for behaviour that does not exist. The absence is recorded here, in §16.2, and in the completion report specifically so 3C is not the phase that discovers it by surprise. | Accepted (3B) |

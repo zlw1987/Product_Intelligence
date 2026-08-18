@@ -75,6 +75,26 @@ fixtures in `tests/fixtures/pages/`. **No browser, crawler, or paid scraping
 dependency was added, and none is justified yet. Nothing is wired to it:** a
 submitted run is still `CREATED`.
 
+**Phase PRODUCT-INTEL.3B is complete: deterministic listing normalization** —
+turning one raw `ListingObservation`'s commercial attributes into a
+comparable value, or a recorded reason it could not
+(`product_intelligence/research/normalization.py`). A valid, unambiguous price
+becomes `Decimal`; `"undefined"`, a range (`"$399 - $449"`), a financing
+payment (`"$33/mo"`), and a discount (`"20% OFF"`) all abstain with a recorded
+`NormalizationIssue` instead of being guessed at, and `"1,00,055"` /
+`"1.055,85"` are refused rather than reinterpreted as one locale or the other.
+Currency, availability, and condition each normalize through a small
+conservative vocabulary — `availability_text="false"` stays `UNKNOWN`, never a
+guessed `OUT_OF_STOCK` — and **no exchange-rate conversion exists anywhere**.
+Quantity, pack size, and unit price were **not** implemented: no recorded 3A
+fixture publishes raw evidence for any of the three, so none was invented.
+**It decides no identity and computes no aggregate** — the published MPN/SKU
+text is untouched, `identity.py` is never imported, and the normalized
+contract carries no accepted/rejected field, no confidence, and no
+min/max/median. Proven against the same five recorded 3A fixtures plus a wide
+set of synthetic edge cases, entirely offline. **Nothing is wired to it:** a
+submitted run is still `CREATED`.
+
 What exists today:
 
 * the canonical architecture and roadmap document
@@ -104,27 +124,34 @@ What exists today:
   listings.py`, `extraction.py`), five sanitized recorded real-page fixtures
   (`tests/fixtures/pages/`), and a manual smoke script
   (`scripts/page_extract_smoke.py`)
+* deterministic listing normalization
+  (`product_intelligence/research/normalization.py`): price, currency,
+  availability, condition, and seller, each converted or abstained with a
+  recorded reason — no identity decision, no aggregate, no FX
 * deterministic tests for those contracts, for the corpus, for the lifecycle,
   for the browser workflow, for the comparison, for the provider boundary, for
-  the Serper adapter's mapping, for page-fetch safety, for extraction against
-  the recorded real pages (all offline), and for the architecture boundaries
+  the Serper adapter's mapping, for page-fetch safety, for extraction and
+  normalization against the recorded real pages (all offline), and for the
+  architecture boundaries
 
 **What does not exist:** market research of any kind. There is no candidate
 discovery beyond one raw search call, no product lookup, no product resolver,
-no description interpretation, no listing normalization, no listing matching or
-rejection, no price calculation, no comparable-product discovery, no LLM
-integration, no structured API, and no integration with any calling system.
-None of it is stubbed or partially present — those are later phases. A run can
-be created through the browser and moved through its states by code; nothing yet
-moves one, because nothing yet does research. The comparison primitive can say
+no description interpretation, no listing matching or rejection, no price
+calculation, no comparable-product discovery, no LLM integration, no
+structured API, and no integration with any calling system. None of it is
+stubbed or partially present — those are later phases. A run can be created
+through the browser and moved through its states by code; nothing yet moves
+one, because nothing yet does research. The comparison primitive can say
 whether two part numbers are the same part number, and nothing supplies it with
-a second one. Search can return real results and a page can be fetched and read
-— but nothing calls either from the run lifecycle or the web shell, nothing
-decides which URL to open, and **no price is computed anywhere**. The corpus
+a second one. Search can return real results, a page can be fetched and read,
+and a raw observation can be normalized into comparable values — but nothing
+calls any of them from the run lifecycle or the web shell, nothing decides
+which URL to open, nothing says whether a normalized observation belongs to
+the requested product, and **no price is computed anywhere**. The corpus
 describes what good answers would look like; nothing produces or scores an
 answer.
 
-Next planned phase: **PRODUCT-INTEL.3B — listing normalization.**
+Next planned phase: **PRODUCT-INTEL.3C — MPN matching + rejection.**
 
 ## The browser workflow
 
@@ -458,7 +485,8 @@ product_intelligence/
   evaluation/                      corpus validation + loader (implemented)
   runs/                            persisted run lifecycle (implemented)
   research/                        part-number comparison (implemented) +
-                                    raw listing extraction (implemented)
+                                    raw listing extraction (implemented) +
+                                    listing normalization (implemented)
   providers/                       search boundary + serper.py (implemented) +
                                     page-fetch boundary + http_page.py
                                     (implemented)
@@ -524,8 +552,8 @@ own sake: one recorded manufacturer page publishes `"price": "undefined"` inside
 a well-formed `Offer`, one retailer publishes `"mpn:MZ-QL23T800"` prefix and
 all, and one publishes a price with no currency anywhere on the page. A
 converting extractor would crash or silently drop each of them; keeping them as
-text moves the decision to 3B, where "unparseable price" is an outcome with a
-reason.
+text moved the decision to 3B, where "unparseable price" is now an outcome with
+a recorded reason instead of a crash or a silent drop.
 
 **No price is ever read out of visible page text**, and none ever may be. One
 recorded page carries fourteen distinct dollar amounts — a shipping threshold,
@@ -546,6 +574,70 @@ python scripts/page_extract_smoke.py https://example.com/some-product
 The normal test suite makes **zero** network requests: extraction is
 regression-tested against the recorded pages in `tests/fixtures/pages/`, and the
 fetcher's tests replace both DNS resolution and the opener.
+
+## Normalizing a listing
+
+3B adds one more step, still offline and still deterministic:
+
+```text
+ListingObservation  ->  normalize_listing_observation()  ->  NormalizedListingObservation
+```
+
+**Price** becomes `Decimal` only when the raw text names exactly one
+unambiguous amount — `"1055.85"`, `"1,055.85"`, `"$1,055.85"`, `"EUR 1055.85"`
+all parse; `"undefined"`, `"N/A"`, `"from $399"`, `"$399 - $449"`, `"$33/mo"`,
+`"20% OFF"`, `"1.055,85"`, and `"1,00,055"` all abstain, each with a recorded
+`NormalizationIssue` naming the field, a code (`INVALID_PRICE` or
+`AMBIGUOUS_PRICE`), the raw value, and a reason. No first/lowest/largest-amount
+rule exists here either, for the same reason none exists in extraction:
+`"1.055,85"` is never silently reinterpreted as `1055.85`, and `"undefined"`
+never becomes `Decimal("0")`.
+
+**Currency** normalizes to a small set of ISO-style codes, case-insensitively.
+`$` and `¥` are **never** treated as establishing a currency — both price
+several live currencies — while `€` and `£` may map, because each is
+unambiguous. A price and its currency are independent: either can be present
+while the other is absent, and **no exchange-rate conversion exists anywhere**.
+An unambiguous currency embedded directly in `price_text` (`"EUR 100"`,
+`"100 EUR"`, `"€100"`) is real currency evidence, not discarded once the
+number is found: it is reconciled with the separately published
+`currency_text`, so agreeing evidence from both places reinforces one result
+and *disagreeing* evidence (`price_text="EUR 100"` beside
+`currency_text="USD"`) abstains to `currency_code=None` with a recorded
+`CONFLICTING_CURRENCY` issue rather than either source silently winning. A
+price decorated with a currency marker on both sides (`"EUR 100 USD"`) never
+normalizes cleanly either way.
+
+**Availability** and **condition** each normalize through a small controlled
+vocabulary (`IN_STOCK` / `OUT_OF_STOCK` / `PREORDER` / `BACKORDER` / `LIMITED`
+/ `DISCONTINUED` / `UNKNOWN`, and `NEW` / `USED` / `REFURBISHED` / `DAMAGED` /
+`UNKNOWN`), recognizing `schema.org` values and a handful of conservative
+plain-text spellings. `availability_text="false"` — real evidence off a
+recorded fixture — normalizes to `UNKNOWN` with a recorded issue, **never** a
+guessed `OUT_OF_STOCK`.
+
+**Seller** gets whitespace cleanup only: no entity resolution, so
+`"Amazon.com"` and `"Amazon"` stay two different strings.
+
+**Quantity, pack size, and unit price are not implemented.** An audit of all
+five recorded 3A fixtures found no structured field on any of them meaning
+"this offer sells N units for this price" — an inventory count and a capacity
+figure are not pack size — so none was guessed, and `ListingObservation` was
+not extended to invent a field nothing produces.
+
+**It decides no identity and computes no aggregate.** The published MPN/SKU
+text is untouched, `research.identity` is never imported, and
+`NormalizedListingObservation` carries no accepted/rejected field, no match
+type, no confidence, and no min/max/median — a normalized price does not imply
+a valid listing. `runs/` and `web/` are unchanged, and a submitted run is
+still `CREATED`.
+
+Every `NormalizedListingObservation` holds the exact `ListingObservation` it
+was built from, so a reviewer can always trace a normalized value — or an
+abstention — back to the raw text that produced it. The normal test suite
+still makes **zero** network requests: normalization is regression-tested
+against the same five recorded 3A fixtures, plus a wide set of inline
+synthetic edge cases for the ambiguous and malformed shapes above.
 
 ## Architecture in one paragraph
 

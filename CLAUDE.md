@@ -21,14 +21,15 @@ It is not an ERP module and does not require one to function.
 **PRODUCT-INTEL.1A-FU1**; **PRODUCT-INTEL.1B is complete**;
 **PRODUCT-INTEL.2A is complete**, together with its corrective follow-up
 **PRODUCT-INTEL.2A-FU1**; **PRODUCT-INTEL.2B is complete**;
-**PRODUCT-INTEL.2C is complete**; and **PRODUCT-INTEL.3A is complete**. The
-repository contains architecture documentation, a minimal Django project,
-domain contracts, the evaluation corpus and its loader, the persistent
-research-run lifecycle and its migrations, the standalone browser shell, the
-deterministic part-number comparison, the search-provider boundary, the first
-real search-provider adapter (Serper, ordinary Google Search), the page-fetch
-boundary and its standard-library fetcher, deterministic raw listing
-extraction, five recorded real-page fixtures, and their tests.
+**PRODUCT-INTEL.2C is complete**; **PRODUCT-INTEL.3A is complete**; and
+**PRODUCT-INTEL.3B is complete**. The repository contains architecture
+documentation, a minimal Django project, domain contracts, the evaluation
+corpus and its loader, the persistent research-run lifecycle and its
+migrations, the standalone browser shell, the deterministic part-number
+comparison, the search-provider boundary, the first real search-provider
+adapter (Serper, ordinary Google Search), the page-fetch boundary and its
+standard-library fetcher, deterministic raw listing extraction, five recorded
+real-page fixtures, deterministic listing normalization, and their tests.
 
 FU1 corrected two contract-level defects before 0A was frozen: an impossible
 guarantee that arbitrary unencoded URL parameters arrive losslessly (see the
@@ -89,16 +90,33 @@ public pages were fetched once each; five returned a document and three yielded
 usable structured product data. Static HTTP was sufficient and **no browser,
 crawler, or paid scraping dependency was added** — see the sections below.
 
-**There is still no research capability.** A page can now be fetched safely and
-read deterministically, but nothing orchestrates that: nothing generates a
-query, decides which candidate URL to open, normalizes an observation, matches
-it to a request, computes a price, finds a comparable, or moves a run out of
-`CREATED` — the report page still says research execution is not connected.
+3B added `product_intelligence/research/normalization.py`: deterministic
+normalization of one raw `ListingObservation`'s commercial attributes into a
+`NormalizedListingObservation` (see the normalization section below). A valid
+price becomes `Decimal`; an ambiguous, ranged, financing, or unparseable price
+abstains with a recorded `NormalizationIssue` instead of being guessed at.
+Currency, availability, and condition each normalize through a small
+conservative vocabulary, with `UNKNOWN`/`None` and a recorded issue whenever
+the raw text is not confidently recognized — `availability_text="false"`
+stays `UNKNOWN`, never a guessed `OUT_OF_STOCK`. No FX conversion exists.
+Quantity, pack size, and unit price were **not** implemented: no recorded 3A
+fixture publishes raw evidence for any of the three, and `ListingObservation`
+was not speculatively extended to invent one. **It decides no identity and
+computes no aggregate** — `identity.py` is never imported, and there is no
+accepted/rejected field, no confidence, and no min/max/median anywhere on the
+normalized contract.
 
-Next planned phase: **PRODUCT-INTEL.3B — listing normalization.** Do not start
-it unless asked. It is the priority after 3A: real observations now exist, and
-`"1055.85"`, `"1,055.85"`, `"undefined"`, `"false"`, and a price with no
-currency at all are all real values off real pages that nothing can yet compare.
+**There is still no research capability.** A page can now be fetched safely,
+read deterministically, and normalized into comparable values, but nothing
+orchestrates that: nothing generates a query, decides which candidate URL to
+open, matches a normalized observation to a request, computes a price, finds a
+comparable, or moves a run out of `CREATED` — the report page still says
+research execution is not connected.
+
+Next planned phase: **PRODUCT-INTEL.3C — MPN matching + rejection.** Do not
+start it unless asked. It is the priority after 3B: normalized observations now
+exist, and nothing yet says whether any of them describes the product that was
+actually requested.
 
 ## Before you implement anything
 
@@ -415,6 +433,90 @@ owns `ListingObservation` and `ExtractionMethod`; `research/extraction.py` owns
 * **Nothing is wired to it.** `runs/` and `web/` import no part of `providers/`
   or of the extraction core, and guard tests enforce that.
 
+**Listing normalization (3B).** `product_intelligence/research/normalization.py`
+owns `NormalizedListingObservation`, `NormalizationIssue`,
+`NormalizationIssueCode`, `NormalizedAvailability`, `NormalizedCondition`, and
+`normalize_listing_observation` / `normalize_listing_observations`. Binding
+rules:
+
+* **It is a pure function of one `ListingObservation`.** No I/O, no Django, no
+  provider import, no clock, no environment access. It imports only
+  `research.listings` from the research core — never `extraction` (it consumes
+  an already-extracted observation) and never `identity` (see below).
+* **Money becomes `Decimal` only here, and only from an unambiguous amount.**
+  A raw price parses to `Decimal` when it names exactly one amount, optionally
+  wrapped by a currency symbol (`$ € £ ¥`) or a known three-letter code, with
+  comma-grouping accepted only in exact groups of three digits. `"1,00,055"`
+  and `"1.055,85"` both refuse rather than being reinterpreted as one locale
+  or the other. **Never use binary floating point for money** — a guard test
+  parses this module's AST and forbids `float(...)`, and forbids any other
+  research-core file from importing `decimal` at all.
+* **Ambiguous, ranged, financing, or discount price text abstains — it never
+  picks an amount.** `"from $399"`, `"$399 - $449"`, `"$33/mo"`, `"As low as
+  $102.98/mo"`, and `"You save $565"` each produce `price_amount=None` plus a
+  recorded `AMBIGUOUS_PRICE` issue. Unparseable text (`"undefined"`, `"N/A"`,
+  `"Call for price"`) produces `INVALID_PRICE`. `"undefined"` never becomes
+  `Decimal("0")`. Absent raw text produces `price_amount=None` with **no**
+  issue — absence is not an error.
+* **`$` and `¥` are never treated as establishing a currency**, globally or
+  otherwise — both price multiple live currencies, embedded in `price_text` or
+  not. `€` and `£` may map to `EUR`/`GBP` because each is unambiguous. A price
+  and its currency normalize and abstain independently: any of the four
+  combinations of present/absent may occur.
+* **An unambiguous currency embedded in `price_text` is real evidence and is
+  reconciled with `currency_text`, not discarded.** `"EUR 100"`, `"100 EUR"`,
+  and `"€100"` each establish `currency_code="EUR"` when `currency_text` is
+  absent or also says `EUR`. When `price_text` and `currency_text` name
+  *different* currencies (`price_text="EUR 100"`, `currency_text="USD"`),
+  neither wins: `currency_code` stays `None` and a `CONFLICTING_CURRENCY`
+  issue records the disagreement — `price_amount` still normalizes, because
+  the amount and its comparability are separate questions. A price decorated
+  with a currency marker on **both** sides (`"EUR 100 USD"`, `"$100 EUR"`)
+  never normalizes cleanly, agreeing or not.
+* **No FX conversion exists anywhere, in this phase or any later one.**
+  Normalizing currency means recording that an amount is in EUR in one
+  consistent form — never converting EUR to USD. Two observations in
+  different currencies stay two observations in different currencies; nothing
+  here compares, sorts, or picks a minimum or maximum between them.
+* **Availability and condition normalize through small controlled
+  vocabularies, defaulting to `UNKNOWN` on anything not confidently mapped.**
+  Recognized `schema.org` values (with or without the URL prefix) and a
+  handful of conservative plain-text spellings map; `"true"`/`"false"` and
+  marketing prose (`"open box"`, `"like new"`) do not.
+  **`availability_text="false"` must never become `OUT_OF_STOCK`** — it is no
+  `schema.org` term and is not evidence of any particular stock state; a
+  recorded `UNRECOGNIZED_AVAILABILITY` issue is the correct outcome. Absent
+  raw text produces `UNKNOWN` with no issue.
+* **Seller normalization is representation cleanup only.** Whitespace is
+  trimmed and internal runs collapse to one space; nothing else changes. No
+  entity resolution — `"Amazon.com"` and `"Amazon"` stay two different
+  strings.
+* **No identity comparison.** The published MPN and SKU text is untouched —
+  not normalized, not stripped of a prefix, not compared. `identity.py` is
+  never imported here; an extractor or normalizer that decided identity would
+  be judging its own evidence.
+* **No listing acceptance, rejection, match type, score, or confidence
+  exists on the normalized contract.** A normalized price does not imply a
+  valid listing — 3C decides whether a listing belongs to the requested
+  product, with its own evidence and its own recorded reason.
+* **No aggregation exists.** No count, min, max, median, average, or market
+  range — 4A owns all of that, over accepted listings only, once 3C exists.
+* **Quantity, pack size, and unit price are not implemented.** No recorded 3A
+  fixture publishes raw evidence meaning "this offer sells N units for this
+  price" — an inventory count, a minimum-order quantity, and a capacity figure
+  are each a different fact. `ListingObservation` was not speculatively
+  extended, and no quantity is ever inferred from a product title.
+* **Every raw observation stays reachable.** `NormalizedListingObservation`
+  holds the exact `ListingObservation` it was built from, not a copy, so a
+  reviewer can always trace a normalized value — or an abstention — back to
+  the raw text that produced it.
+* **It is deterministic.** The same `ListingObservation` always normalizes to
+  the same `NormalizedListingObservation`; there is no clock, no randomness,
+  and no external state.
+* **Nothing is wired to it.** `runs/` and `web/` import no part of `research`,
+  and the existing guard that checks the whole `product_intelligence.research`
+  namespace already covers the new module. A submitted run is still `CREATED`.
+
 **Legacy client constraint.** The production sales-order system is Microsoft
 Visual FoxPro 5.0. Assume it has *no* usable REST client, JSON, OAuth, modern
 TLS, modern HTTP library, Unicode sophistication, or browser integration. Its
@@ -504,8 +606,8 @@ Django model, and never part of a research run. Full rules in
 2B Search provider abstraction                <- complete
 2C First real search provider (Serper)        <- complete
 3A Market listing extraction                  <- complete
-3B Listing normalization                      <- next
-3C MPN matching + rejection
+3B Listing normalization                      <- complete
+3C MPN matching + rejection                   <- next
 4A Price aggregation
 4B Price Intelligence web report      ----- PRICE MVP -----
 5A Structured external intake API
@@ -562,8 +664,13 @@ additional search and LLM providers.
   scans cannot pass vacuously: `http_page.py` must reach the network, `page.py`
   must not. `tests/research/test_research_identity_boundaries.py` additionally
   fails if the 3A extractor imports `decimal`, `statistics`, or `math`, or if
-  `identity.py` acquires a parser. If a guard fails, fix the design, not the
-  test.
+  `identity.py` acquires a parser.
+  `tests/research/test_listing_normalization_boundaries.py` fails if
+  `normalization.py` is not the only research-core module importing `decimal`,
+  if `extraction.py` regains a monetary import, if normalization imports
+  `identity` or `extraction`, or if the 3B API is missing from
+  `product_intelligence.research.__all__`. If a guard fails, fix the design,
+  not the test.
 * **A corrective follow-up phase has a higher bar from 2B onward.** Reserve a
   standalone FU for a defect that materially threatens false confidence or a
   false exact, data integrity, security, provider cost, or a hard architectural
