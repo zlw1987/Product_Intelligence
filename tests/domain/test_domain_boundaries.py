@@ -62,6 +62,7 @@ CALLER_TOKENS = ["foxpro", "fox pro", "vfp", "sap", "erp"]
 VENDOR_TOKENS = [
     "tavily",
     "serpapi",
+    "serper",
     "google",
     "bing",
     "openai",

@@ -20,11 +20,13 @@ It is not an ERP module and does not require one to function.
 **PRODUCT-INTEL.1A is complete**, together with its corrective follow-up
 **PRODUCT-INTEL.1A-FU1**; **PRODUCT-INTEL.1B is complete**;
 **PRODUCT-INTEL.2A is complete**, together with its corrective follow-up
-**PRODUCT-INTEL.2A-FU1**; and **PRODUCT-INTEL.2B is complete**. The repository
-contains architecture documentation, a minimal Django project, domain contracts,
-the evaluation corpus and its loader, the persistent research-run lifecycle and
-its migrations, the standalone browser shell, the deterministic part-number
-comparison, the search-provider boundary, and their tests.
+**PRODUCT-INTEL.2A-FU1**; **PRODUCT-INTEL.2B is complete**; and
+**PRODUCT-INTEL.2C is complete**. The repository contains architecture
+documentation, a minimal Django project, domain contracts, the evaluation
+corpus and its loader, the persistent research-run lifecycle and its
+migrations, the standalone browser shell, the deterministic part-number
+comparison, the search-provider boundary, the first real search-provider
+adapter (Serper, ordinary Google Search), and their tests.
 
 FU1 corrected two contract-level defects before 0A was frozen: an impossible
 guarantee that arbitrary unencoded URL parameters arrive losslessly (see the
@@ -66,14 +68,25 @@ rather than interchangeable formatting.
 **No provider is integrated** — no adapter, no HTTP call, no credential, no
 vendor dependency, and nothing calls `search()`.
 
-**There is still no research capability.** No search, no candidate discovery, no
-LLM, no pricing, no comparables, no resolver, and no background processing —
-nothing moves a run out of `CREATED`, and the report page says exactly that
-instead of showing progress.
+2C added `product_intelligence/providers/serper.py`: the first real
+`SearchProvider`, calling Serper's ordinary Google Search endpoint (not Google
+Shopping). It maps `organic` results to the 2B contracts, reads
+`SERPER_API_KEY` from the server environment only, and is regression-tested
+offline against a sanitized recorded fixture in
+`tests/fixtures/providers/serper/`. **Nothing is wired to it** — the run
+lifecycle and the web shell do not import `product_intelligence.providers`, so
+a submitted run is still `CREATED` and research execution is still not
+connected. `product_intelligence.research.identity` (2A) is unchanged; the
+adapter never calls it.
 
-Next planned phase: **PRODUCT-INTEL.2C — first real search provider.** Do not
-start it unless asked. It is the priority after 2B: the remaining risk is no
-longer architectural, and nothing here has yet met a real market page.
+**There is still no research capability.** Search can now return real
+candidate URLs on request, but nothing yet fetches a page, extracts a listing,
+computes a price, finds a comparable, or moves a run out of `CREATED` — the
+report page still says research execution is not connected.
+
+Next planned phase: **PRODUCT-INTEL.3A — market listing extraction.** Do not
+start it unless asked. It is the priority after 2C: candidate URLs exist now,
+and nothing yet reads what is on the other end of one.
 
 ## Before you implement anything
 
@@ -275,6 +288,40 @@ protocol, and `SearchProviderError`. Binding rules:
   fixtures of real responses begin in 2C**, and inventing one now would produce
   a fixture that passes whatever the real provider does.
 
+**The Serper adapter (2C).** `product_intelligence/providers/serper.py` is the
+first real `SearchProvider`. Binding rules:
+
+* **Vendor naming is correct only in this module.** `serper.py` is not one of
+  the generic boundary modules the guard tests scan for vendor tokens; the
+  domain, `search.py`, `providers/__init__.py`, `research/`, `runs/`, `web/`,
+  and `evaluation/` remain vendor-free.
+* **Ordinary Google Search only.** Google Shopping is a distinct future
+  decision and is not implemented.
+* **The credential comes from `SERPER_API_KEY` in the server environment**,
+  read only inside `SerperSearchProvider.from_environment()`. It is sent in
+  Serper's documented `X-API-KEY` header, never in a URL, and never appears in
+  a log, an exception message, a fixture, or a raw reference.
+* **`price_hint_text` and `part_number_hint` stay `None`.** Ordinary Google
+  Search publishes neither field; price-shaped text in a snippet is not
+  extracted, and no part number is inferred from a title, snippet, or URL.
+* **The adapter does not call `research.identity`.** A provider observes; it
+  never decides identity, and 2A is unchanged.
+* **A malformed result is discarded, never fabricated.** An `organic` item
+  with no usable absolute `http`/`https` link is skipped; the raw response text
+  still preserves it for inspection.
+* **Regression tests run offline** against a sanitized recorded fixture in
+  `tests/fixtures/providers/serper/`, exercised through the adapter's real
+  mapping code — never against a hand-authored fake standing in for a real
+  response. The normal `pytest` run makes zero calls to Serper.
+* **The only sanctioned live call path is `scripts/serper_live_smoke.py`**, run
+  manually and never from the automated suite. It prints a safe summary only:
+  provider id, query, result count, public titles and URLs — never the
+  credential.
+* **Still nothing is wired to it.** `runs/` and `web/` do not import
+  `product_intelligence.providers`; a submitted run is still `CREATED`.
+  Duplicate-call protection is required before Serper becomes part of ordinary
+  application execution — not built yet, because nothing calls it yet.
+
 **Legacy client constraint.** The production sales-order system is Microsoft
 Visual FoxPro 5.0. Assume it has *no* usable REST client, JSON, OAuth, modern
 TLS, modern HTTP library, Unicode sophistication, or browser integration. Its
@@ -362,8 +409,8 @@ Django model, and never part of a research run. Full rules in
 2A Deterministic product identity model       <- complete
    2A-FU1 structure-preserving normalization  <- complete
 2B Search provider abstraction                <- complete
-2C First real search provider                 <- next
-3A Market listing extraction
+2C First real search provider (Serper)        <- complete
+3A Market listing extraction                  <- next
 3B Listing normalization
 3C MPN matching + rejection
 4A Price aggregation
@@ -411,11 +458,14 @@ additional search and LLM providers.
   research core; or if `runs`, `web`, or `evaluation` wires itself to the
   identity primitive.
   `tests/providers/test_provider_boundaries.py` fails if the generic search
-  boundary gains a non-stdlib import, a vendor name, a calling-system concept, a
-  network or configuration module, a model, or a third-party dependency; if the
-  provider layer imports persistence, the research core, the web layer, or the
-  benchmark; or if any inner layer wires itself to the boundary while no
-  provider exists. If a guard fails, fix the design, not the test.
+  boundary (`providers/__init__.py`, `providers/search.py`) gains a non-stdlib
+  import, a vendor name, a calling-system concept, a network or configuration
+  module, a model, or a third-party dependency; if the provider layer (now
+  including `providers/serper.py`) imports persistence, the research core, the
+  web layer, or the benchmark; or if any inner layer wires itself to the
+  boundary — still true after 2C, since `runs/`, `web/`, and `evaluation/`
+  import no part of `providers`. If a guard fails, fix the design, not the
+  test.
 * **A corrective follow-up phase has a higher bar from 2B onward.** Reserve a
   standalone FU for a defect that materially threatens false confidence or a
   false exact, data integrity, security, provider cost, or a hard architectural

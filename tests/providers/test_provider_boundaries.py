@@ -1,4 +1,4 @@
-"""Architecture guards for the provider boundary (PRODUCT-INTEL.2B).
+"""Architecture guards for the provider boundary (PRODUCT-INTEL.2B, extended 2C).
 
 The provider layer is where vendors are allowed to exist — and that is exactly
 why the *generic* boundary has to stay clean. Two directions are checked.
@@ -8,19 +8,20 @@ why the *generic* boundary has to stay clean. Two directions are checked.
 vendor name, no credential, no environment reading, no HTTP client, no Django,
 and no model. A vendor package imported here would not be an adapter detail; it
 would be the vendor becoming part of the interface every other layer depends on.
+This remains true after 2C: `providers/serper.py` is a *third* file in the
+package, and the scans below stay scoped to the original two, deliberately —
+a vendor name inside an adapter is correct, that is what an adapter is for. A
+guard that forbade vendor names package-wide would fail 2C for doing the right
+thing, and would then be relaxed under pressure, which is worse than scoping it
+from the start.
 
-The scans below are scoped to those two modules rather than to the whole
-package, deliberately. 2C adds an adapter module, and a vendor name inside an
-adapter is correct — that is what an adapter is for. A guard that forbade vendor
-names package-wide would fail the next phase for doing the right thing, and
-would then be relaxed under pressure, which is worse than scoping it now.
-
-**Who may depend on the boundary.** Nothing does yet: 2B defines a shape and
-integrates no provider, so the domain, the research core, the run lifecycle, the
-web shell, and the evaluation layer are all unchanged by this phase. The
-provider layer likewise imports none of them — a provider that reached into the
-run lifecycle or the identity comparator would be deciding research outcomes
-from inside a transport adapter.
+**Who may depend on the boundary.** 2B defined a shape and integrated no
+provider; 2C added the first real adapter (Serper, ordinary Google Search) but
+still wires it to nothing — the domain, the research core, the run lifecycle,
+the web shell, and the evaluation layer remain unchanged and import no part of
+`providers`. The provider layer likewise imports none of them — a provider that
+reached into the run lifecycle or the identity comparator would be deciding
+research outcomes from inside a transport adapter.
 """
 
 from __future__ import annotations
@@ -134,8 +135,9 @@ def test_the_generic_boundary_names_no_external_vendor(path: Path) -> None:
     found = _find_tokens(path.read_text(encoding="utf-8"), VENDOR_TOKENS)
 
     assert not found, (
-        f"{path.name} references external vendors {found}; the contracts are "
-        "provider-neutral and vendor selection is undecided until 2C."
+        f"{path.name} references external vendors {found}; the contracts stay "
+        "provider-neutral even though the first vendor was selected in 2C — "
+        "that vendor's name belongs only in its adapter module."
     )
 
 
@@ -149,12 +151,17 @@ def test_the_generic_boundary_names_no_calling_system(path: Path) -> None:
 
 @pytest.mark.parametrize("path", GENERIC_BOUNDARY_MODULES, ids=lambda p: p.name)
 def test_the_generic_boundary_opens_no_connection(path: Path) -> None:
-    """2B defines a shape. Nothing here performs or prepares a request."""
+    """The generic boundary defines a shape; it never performs a request.
+
+    2C's adapter makes the first real call — from `providers/serper.py`, a
+    module outside this scan. These two modules stay exactly as network-free
+    as 2B left them.
+    """
     offending = _imports_any(_imported_modules(path), NETWORK_MODULES)
 
     assert not offending, (
-        f"{path.name} imports {sorted(offending)}; no network client arrived "
-        "with this phase, and the first real call belongs to 2C."
+        f"{path.name} imports {sorted(offending)}; the generic boundary opens "
+        "no connection itself, even after 2C added a real adapter elsewhere."
     )
 
 
@@ -203,11 +210,12 @@ def test_the_provider_layer_imports_no_persistence_core_or_web(path: Path) -> No
     ids=lambda p: f"{p.parent.name}/{p.name}",
 )
 def test_nothing_is_wired_to_the_search_boundary_yet(path: Path) -> None:
-    """2B integrates no provider, so nothing may depend on one.
+    """2C added a real adapter, but nothing outside `providers/` depends on it.
 
     The web shell in particular must remain unchanged: a run submitted through
-    the browser is still `CREATED`, and a boundary with no implementation behind
-    it cannot make that less true by being imported.
+    the browser is still `CREATED`. An adapter existing is not the same as an
+    adapter being called from research execution, and this guard is what keeps
+    that true — deliberately, not by oversight.
     """
     offending = {
         module
@@ -216,8 +224,9 @@ def test_nothing_is_wired_to_the_search_boundary_yet(path: Path) -> None:
     }
 
     assert not offending, (
-        f"{path} imports the provider boundary {sorted(offending)}; 2B defines "
-        "the shape and integrates nothing."
+        f"{path} imports the provider boundary {sorted(offending)}; the "
+        "adapter added in 2C is intentionally not wired into the research "
+        "core, the run lifecycle, or the web shell."
     )
 
 
@@ -264,11 +273,18 @@ def test_importing_the_provider_boundary_pulls_in_no_third_party_dependency() ->
     assert json.loads(result.stdout.strip().splitlines()[-1]) == []
 
 
-def test_no_provider_adapter_exists_yet() -> None:
-    """2B is the boundary. The first adapter, and its fixtures, arrive in 2C."""
+def test_only_the_expected_adapter_modules_exist() -> None:
+    """2B was the boundary with no adapter. 2C adds exactly one: Serper.
+
+    The generic boundary (`__init__.py`, `search.py`) stays as 2B left it;
+    `serper.py` is the one vendor-specific module 2C is permitted to add.
+    Recorded fixtures live under `tests/fixtures/providers/serper/`, not here
+    — the provider package itself stores no test data.
+    """
     assert sorted(path.name for path in _python_files(PROVIDERS_ROOT)) == [
         "__init__.py",
         "search.py",
+        "serper.py",
     ]
     assert not list(PROVIDERS_ROOT.rglob("fixtures"))
 

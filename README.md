@@ -47,6 +47,18 @@ provider-neutral shape the research core will depend on instead of a vendor.
 HTTP call, no credential, no vendor dependency, and nothing in the system calls
 it.
 
+**Phase PRODUCT-INTEL.2C is complete: the first real search provider,
+Serper** — one adapter, `product_intelligence/providers/serper.py`, behind the
+2B boundary, calling Serper's ordinary Google Search endpoint. It maps
+`organic` results to `SearchResult`/`SearchResponse` and fabricates neither a
+price (`price_hint_text` stays `None`) nor a part number
+(`part_number_hint` stays `None`) — ordinary search publishes neither. The
+credential is read from `SERPER_API_KEY` in the server environment only.
+Regression tests run entirely offline against a sanitized recorded fixture in
+`tests/fixtures/providers/serper/`; the normal test suite makes zero calls to
+Serper. **Nothing is wired to it:** the run lifecycle and the web shell are
+unchanged, and a submitted run is still `CREATED` and stays there.
+
 What exists today:
 
 * the canonical architecture and roadmap document
@@ -66,23 +78,29 @@ What exists today:
 * the search-provider boundary (`product_intelligence/providers/search.py`):
   `SearchQuery`, `SearchResult`, `SearchResponse`, the `SearchProvider`
   protocol, and one boundary exception
+* the Serper adapter (`product_intelligence/providers/serper.py`): the first
+  real `SearchProvider`, calling Serper's ordinary Google Search endpoint, plus
+  a sanitized recorded fixture (`tests/fixtures/providers/serper/`) and a
+  manual live-smoke script (`scripts/serper_live_smoke.py`)
 * deterministic tests for those contracts, for the corpus, for the lifecycle,
-  for the browser workflow, for the comparison, for the provider boundary, and
-  for the architecture boundaries
+  for the browser workflow, for the comparison, for the provider boundary, for
+  the Serper adapter's mapping (offline, against the recorded fixture), and for
+  the architecture boundaries
 
-**What does not exist:** market research of any kind. There is no web
-search, no candidate discovery, no product lookup, no product resolver, no
-description interpretation, no price calculation, no listing extraction, no
+**What does not exist:** market research of any kind. There is no candidate
+discovery beyond one raw search call, no product lookup, no product resolver,
+no description interpretation, no price calculation, no listing extraction, no
 comparable-product discovery, no LLM integration, no structured API, and no ERP
 integration. None of it is stubbed or partially present — those are later
 phases. A run can be created through the browser and moved through its states by
 code; nothing yet moves one, because nothing yet does research. The comparison
 primitive can say whether two part numbers are the same part number, and nothing
-supplies it with a second one. The provider boundary describes what a search
-result would look like, and no provider produces one. The corpus describes what
+supplies it with a second one. Serper can now return real search results, but
+nothing calls it from the run lifecycle or the web shell, no page is fetched,
+no listing is extracted, and no price is computed. The corpus describes what
 good answers would look like; nothing produces or scores an answer.
 
-Next planned phase: **PRODUCT-INTEL.2C — the first real search provider.**
+Next planned phase: **PRODUCT-INTEL.3A — market listing extraction.**
 
 ## The browser workflow
 
@@ -276,11 +294,53 @@ factory, plugin discovery, fallback chain, fan-out, retry policy, rate limiter,
 or circuit breaker. One provider arrives next; the boundary is built for
 replaceability, not simultaneity.
 
-**No provider exists.** There is no adapter, no HTTP call, no credential, no
-environment variable, no vendor dependency, and nothing in the system calls
-`search()`. The tests use synthetic fakes; sanitized recordings of real provider
-responses begin with the first real provider, because a fixture invented before
-a provider is chosen would pass no matter what the real one does.
+**No provider existed until 2C.** 2B's own tests used only synthetic fakes;
+sanitized recordings of real provider responses begin with the first real
+provider, because a fixture invented before a provider is chosen would pass no
+matter what the real one does.
+
+## The Serper adapter
+
+`product_intelligence/providers/serper.py` is the first real `SearchProvider`,
+calling Serper's ordinary Google Search endpoint
+(`https://google.serper.dev/search`) — **not** Google Shopping, which is a
+distinct future decision. Vendor naming is correct in this one module; it does
+not leak into the generic boundary, the domain, the research core, `runs/`, or
+`web/`.
+
+```text
+SerperSearchProvider.from_environment()   reads SERPER_API_KEY from the
+                                           server environment; never a file,
+                                           never a URL, never a client
+SerperSearchProvider(api_key=...)         explicit construction for tests
+provider.search(SearchQuery(text=...))    one POST, X-API-KEY header,
+                                           bounded timeout, stdlib urllib only
+```
+
+Mapping from a Serper `organic` entry to `SearchResult` is direct: `link` ->
+`source_url`, `title` -> `title`, `snippet` -> `snippet`. Ordinary Google
+Search publishes neither a price field nor a part-number field, so
+`price_hint_text` and `part_number_hint` are always `None` here — including
+when a snippet contains price-shaped text, which real results do. An item
+with no usable absolute `http`/`https` link is discarded, never fabricated.
+The adapter never calls the part-number comparator; a provider observes, and
+2A's identity decision stays where it belongs.
+
+Regression tests (`tests/providers/test_serper_provider.py`) run entirely
+offline: they parse a real, sanitized recorded response
+(`tests/fixtures/providers/serper/`) and exercise the actual mapping code, plus
+synthetic edge cases for malformed items and translated errors with
+`urllib.request.urlopen` monkeypatched. The normal `pytest` run makes zero
+calls to Serper. A separate, explicitly manual script,
+`scripts/serper_live_smoke.py`, makes one real call on request and prints only
+a safe summary — provider id, query, result count, public titles and URLs —
+never the credential.
+
+**Nothing is wired to this adapter.** The run lifecycle and the web shell do
+not import `product_intelligence.providers`, so a submitted run is still
+`CREATED` and stays there. Serper becoming part of ordinary application
+execution needs basic duplicate-call protection first, since it is a metered,
+paid API — that is future work, not settled by 2C.
 
 ## Requirements
 
@@ -374,19 +434,23 @@ product_intelligence/
   evaluation/                      corpus validation + loader (implemented)
   runs/                            persisted run lifecycle (implemented)
   research/                        part-number comparison (implemented)
-  providers/                       search boundary (implemented; no provider)
+  providers/                       search boundary (implemented) + serper.py
+                                    (implemented, the first real provider)
   web/                             standalone form + report shell (implemented)
+scripts/
+  serper_live_smoke.py             manual, explicit live-call check (2C)
 tests/                             focused deterministic tests
+  fixtures/providers/serper/       sanitized recorded Serper response
 ```
 
 `evaluation/README.md` explains the corpus: its schema, the real-versus-
 synthetic rule, the challenge classes, the metric definitions, why no price is
 recorded in it, and the discipline governing changes to an expected answer.
 
-`providers/` holds the search boundary and, so far, nothing behind it. The LLM
-boundary is still documentation only: the package carries the rules that apply
-to it, so the phase that implements it does so into a defined space rather than
-inventing one.
+`providers/` holds the search boundary and, as of 2C, one real adapter behind
+it — see "The Serper adapter" above. The LLM boundary is still documentation
+only: the package carries the rules that apply to it, so the phase that
+implements it does so into a defined space rather than inventing one.
 
 ## Architecture in one paragraph
 

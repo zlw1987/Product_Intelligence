@@ -1,4 +1,4 @@
-"""The search-provider boundary (PRODUCT-INTEL.2B).
+"""The search-provider boundary (PRODUCT-INTEL.2B; one adapter added in 2C).
 
 One synchronous operation, three provider-neutral contracts:
 
@@ -7,21 +7,24 @@ SearchQuery  ->  SearchProvider.search(query)  ->  SearchResponse
                                                      |- SearchResult, ...
 ```
 
-This module is deliberately thin. It exists so that PRODUCT-INTEL.2C can
-integrate exactly one real provider behind a shape the research core already
-depends on — not so that the project owns a provider framework. There is no
-registry, no factory, no plugin discovery, no fallback chain, no fan-out, no
-retry policy, no rate limiter, and no async variant, because one provider
-arrives next and none of that is needed to receive it. Replaceability is the
-goal; simultaneity is not.
+This module is deliberately thin. 2B introduced only this boundary — no
+adapter, no vendor, nothing behind it. 2C later added exactly one real adapter
+that implements this `Protocol` (elsewhere in this package; this module names
+no vendor and never will — see "What this boundary is *not*" below). This
+module itself still owns no registry, no factory, no plugin discovery, no
+fallback chain, no fan-out, no retry policy, no rate limiter, and no async
+variant, because one provider exists and none of that is needed to hold it.
+Replaceability is the goal; simultaneity is not.
 
 What this boundary is *not*
 ---------------------------
 
 **It is not search.** Nothing here performs a request, opens a socket, reads a
 credential, or names a vendor. The generic boundary is data contracts plus a
-`Protocol`; the code that talks to a real service is an adapter, and no adapter
-exists yet. Search-vendor selection is `UNDECIDED` until 2C.
+`Protocol`; the code that talks to a real service lives in an adapter module
+elsewhere in `providers/`, and this module stays exactly as vendor-free and
+network-free as it was in 2B — a guard test enforces that structurally, not
+just by convention.
 
 **It is not extraction.** A `SearchResult` records what a provider was observed
 to say. It does not parse a price, choose between a sale price and a monthly
@@ -66,13 +69,13 @@ and the vendor would be in the business logic from that moment on.
 Recorded fixtures
 -----------------
 
-From 2C onward, provider adapters are regression-tested against **sanitized
-recorded responses** — real provider output with credentials, tokens, request
-secrets, and personal data removed — so the automated suite stays offline and
+Provider adapters are regression-tested against **sanitized recorded
+responses** — real provider output with credentials, tokens, request secrets,
+and personal data removed — so the automated suite stays offline and
 deterministic. Live calls belong only to an explicit, manually run integration
-check. No such fixture exists yet, and none may be invented here: a fabricated
-"real response" would be a guess about a provider that has not been chosen, and
-it would pass regardless of what the real one does.
+check, never to the normal test suite. 2C established this discipline with the
+first real adapter and its recorded fixture; this module still defines only
+the shape the fixture is mapped onto, and holds no fixture of its own.
 """
 
 from __future__ import annotations

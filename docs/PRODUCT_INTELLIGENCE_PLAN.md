@@ -169,12 +169,14 @@ and `runs`, and a guard test fails if any inner layer imports `web`.
 Status: `IMPLEMENTED` for the layout, the domain layer, the evaluation corpus
 layer, the run-persistence layer, the Django project, the standalone web intake
 and report shell, the deterministic part-number comparison primitive inside the
-core (§12.1), and the search-provider boundary (§13.1). `APPROVED / PLANNED` for
-every box below "Canonical Research Request" in the diagram: a run records
-*that* research was requested and how it ended, the web shell starts nothing,
-the core can compare two part numbers it is handed but has no way to obtain the
-second one, and the provider boundary is a shape with no implementation behind
-it.
+core (§12.1), the search-provider boundary (§13.1), and its first real adapter
+(§13.5). `APPROVED / PLANNED` for every box below "Canonical Research Request"
+in the diagram: a run records *that* research was requested and how it ended,
+the web shell starts nothing, the core can compare two part numbers it is
+handed but has no way to obtain the second one, and the provider boundary now
+has one real adapter behind it — but nothing in the research core, the run
+lifecycle, or the web shell invokes it, so no box in the diagram from "Product
+Resolver" onward does anything yet.
 
 ## 6. Multi-interface intake design
 
@@ -720,9 +722,11 @@ search or listing source.
   vendor-shaped data reaches the domain or the core.
 * Credentials come from the server environment only.
 
-Vendor selection is `UNDECIDED`. One provider will be integrated first
-(phase 2C); multiple simultaneous providers are `DEFERRED` until a phase
-shows a concrete need.
+The first search-provider selection is settled as of 2C: Serper, ordinary
+Google Search only (§13.5). Additional providers — a second search vendor, or
+Google Shopping as a distinct mode of this one — remain `DEFERRED` until a
+phase demonstrates a concrete need; multiple *simultaneous* providers are
+`DEFERRED` under the same rule.
 
 ### 13.1 What 2B implemented
 
@@ -864,10 +868,88 @@ are distinct classes of evidence and must not automatically share one aggregate
 control a blocker rather than a deferred question (§19).
 
 Status: `IMPLEMENTED` (2B) for the boundary — the contracts, the protocol, the
-one exception, and their guards. **No provider exists**: there is no adapter, no
-HTTP call, no credential, no environment variable, no vendor dependency, and
-nothing in the system calls `search()`. Vendor selection remains `UNDECIDED`
-until 2C.
+one exception, and their guards; `IMPLEMENTED` (2C) for the first real
+provider. §13.5 records what 2C added; vendor selection is settled as Serper
+(ordinary Google Search), and the boundary itself is unchanged.
+
+### 13.5 What 2C implemented
+
+One adapter, `product_intelligence/providers/serper.py`: `SerperSearchProvider`,
+constructible directly (`SerperSearchProvider(api_key=...)`, for tests) or from
+the server environment (`SerperSearchProvider.from_environment()`, reading
+`SERPER_API_KEY` — the only place in the adapter that touches `os.environ`).
+`search()` sends one bounded-timeout HTTPS POST to Serper's ordinary Google
+Search endpoint (`https://google.serper.dev/search`), with the credential in
+the `X-API-KEY` header Serper documents — never the URL. Google Shopping is a
+different endpoint and was deliberately not implemented.
+
+Mapping is direct and narrow: an `organic` item's `link` becomes `source_url`,
+`title` becomes `title`, `snippet` becomes `snippet`. `price_hint_text` and
+`part_number_hint` are always `None` — ordinary Google Search publishes
+neither field, and the real recorded fixture confirms it: several snippets
+contain price-shaped text (`"$2,135.00 $2,700.00"`), and none of it is
+extracted, because that conversion is 3A/3B's decision with rules, not this
+adapter's guess. An item with no usable absolute `http`/`https` link is
+discarded rather than fabricated; the surrounding raw response text still
+preserves it. The adapter never calls `product_intelligence.research.identity`
+— a provider observes, and 2A's exact/normalized comparison is unchanged.
+
+Real provider material stays opaque exactly as AD-040 requires: each mapped
+`SearchResult.raw_reference` is that one `organic` item's JSON, and
+`SearchResponse.raw_response_reference` is the full response body text.
+Neither is parsed anywhere outside the adapter.
+
+Errors are translated to the single `SearchProviderError` the 2B boundary
+already defines: HTTP failure status, transport/network failure, timeout,
+invalid JSON, and a structurally unusable top-level response are all covered,
+and no credential-bearing material ever enters an exception message.
+
+One real, sanitized fixture was recorded —
+`tests/fixtures/providers/serper/real_verified_mz_ql23t800_organic_search.json`,
+Serper's ordinary-search response for the public MPN `MZ-QL23T800` (evaluation
+corpus case `REAL-0001`) — and is the only thing
+`tests/providers/test_serper_provider.py` exercises the real mapping code
+against; the rest of that file's tests use small synthetic payloads for
+malformed-item and error-path coverage, with `urllib.request.urlopen`
+monkeypatched so the automated suite makes zero network calls. A separate,
+explicitly manual script, `scripts/serper_live_smoke.py`, makes one real call
+on request and prints a safe summary only — provider id, query, result count,
+public titles and URLs, never the credential. Two live calls were made during
+2C's development: one to record the fixture, one to validate the shipped
+smoke script.
+
+**Still nothing is wired to it.** `runs/` and `web/` import no part of
+`product_intelligence.providers`, and the guard test that checks this now also
+covers `providers/serper.py` by construction (it scans every file under
+`providers/`). A submitted run is still `CREATED`, and research execution is
+still not connected. Serper is a metered, paid-per-request API; because
+nothing in ordinary application execution calls it yet, duplicate-call
+protection (§18.1) is not yet a live exposure — but it becomes one the moment
+a later phase wires this adapter into research execution, and must be
+addressed no later than that phase.
+
+**Real-response observations**, classified for what they mean to later phases:
+
+* Organic results consistently carried a usable `link` — all ten results in
+  the recorded fixture mapped cleanly. *Relevant now*: confirms the
+  discard-don't-fabricate policy has a real fixture behind it, not just a
+  synthetic one.
+* Snippets routinely contain price-shaped text, star ratings
+  (`rating`, `ratingCount`), and tracking query parameters
+  (`srsltid=...`) inside otherwise-valid URLs. *3A/3B concern*: extraction
+  and normalization will have to decide what, if anything, to do with a price
+  seen in a snippet, and whether to canonicalize or ignore tracking
+  parameters — this adapter does neither.
+* No `organic` item published a structured part-number field, only free text
+  containing the queried MPN. *Confirms an existing decision*: `part_number_hint`
+  staying `None` for ordinary search is not a gap, it is what real ordinary
+  search results actually look like.
+* Serper additionally returned `relatedSearches` and per-response `credits`.
+  *Irrelevant now*: neither maps to any 2B contract field, and both are simply
+  part of the preserved `raw_response_reference`.
+* The 2B contracts fit the real payload without needing a change — every field
+   `SerperSearchProvider` populates already existed, and the adapter never
+  needed to store anything the opaque references could not hold.
 
 ## 14. LLM-provider boundary
 
@@ -1199,13 +1281,17 @@ same external request twice because a page was reloaded or a step retried. It is
 policy — all of which remain `DEFERRED` per §23. The second is a design problem
 about how long an answer stays true, and it needs the answers to exist first.
 
-Neither is implemented, and nothing in 2B addresses either: no provider is
-integrated, so no call is ever made and nothing can be paid for twice yet.
+Neither is implemented. 2C integrated Serper, which is metered and paid
+per request, but wired it into nothing: `search()` is only ever called from an
+explicit manual script or from tests against a recorded fixture, so no call
+happens as a side effect of ordinary application use and nothing is paid for
+twice yet.
 
 Status: `DEFERRED` to 8A for general caching. Storage mechanism is `UNDECIDED`.
-Duplicate paid-call protection is `APPROVED / PLANNED` for 2C and only if the
-selected provider is metered. No caching or call-deduplication of any kind
-exists.
+Duplicate paid-call protection remains `APPROVED / PLANNED` — required before
+Serper is called from ordinary research execution (a later phase), not before
+2C, which introduces no such call site. No caching or call-deduplication of any
+kind exists.
 
 ## 19. Security boundaries
 
@@ -1275,10 +1361,13 @@ Principles:
   `tests/providers/test_provider_boundaries.py` fails if the generic search
   boundary gains a non-stdlib import, a vendor name, a calling-system concept, a
   network or configuration module, a model, or a third-party dependency; if the
-  provider layer imports persistence, the research core, the web layer, or the
-  benchmark; or if any inner layer wires itself to the boundary while no
-  provider exists. The vendor-name scan is scoped to the *generic* boundary
-  modules, because 2C's adapter is the one place a vendor name belongs.
+  provider layer (now including `providers/serper.py`) imports persistence, the
+  research core, the web layer, or the benchmark; or if any inner layer wires
+  itself to the boundary — still true after 2C, since `runs/`, `web/`, and
+  `evaluation/` import no part of `providers`. The vendor-name scan is scoped
+  to the *generic* boundary modules (`providers/__init__.py`,
+  `providers/search.py`), because the Serper adapter is the one place a vendor
+  name belongs.
 * **The browser workflow is tested through the Django test client**, which
   exercises the real URLs, views, forms, templates, and database — no browser
   automation dependency, and nothing mocked between the form and the row. The
@@ -1296,11 +1385,11 @@ Principles:
 * **No placeholder tests for unbuilt behaviour.** A test for search
   behaviour that does not exist is noise.
 * **Provider interactions use recorded fixtures, never live calls**, so the
-  suite stays offline and deterministic. 2B established the policy (§13.3) and
-  tests the boundary with synthetic fakes only; sanitized recordings of real
-  responses begin with the first real provider in 2C, because a fabricated
-  "real response" would pass no matter what the real provider does. A live call
-  belongs only to an explicit, manually run integration check.
+  suite stays offline and deterministic. 2B established the policy (§13.3) with
+  synthetic fakes only; 2C added the first real, sanitized recording
+  (`tests/fixtures/providers/serper/`) and tests the actual adapter mapping
+  against it, offline. A live call belongs only to an explicit, manually run
+  integration check (`scripts/serper_live_smoke.py`), never to `pytest`.
 * **The evaluation corpus is validated as data.** Its invariants have direct
   tests, and mutation-style tests break one field at a time to prove the
   validator rejects what it claims to. A validator that only ever sees valid
@@ -1323,7 +1412,8 @@ Principles:
 
 Status: `IMPLEMENTED` for the domain contracts, the evaluation corpus, the run
 lifecycle, the web shell, the part-number comparison, the search-provider
-boundary, and the architecture guards.
+boundary, the Serper adapter's offline fixture-based regression tests, and the
+architecture guards.
 
 ## 21. Evaluation strategy
 
@@ -1448,8 +1538,8 @@ PRODUCT-INTEL.1B   Basic standalone web research/report shell   IMPLEMENTED
 PRODUCT-INTEL.2A   Deterministic product identity model         IMPLEMENTED
                    2A-FU1 structure-preserving normalization    IMPLEMENTED
 PRODUCT-INTEL.2B   Search provider abstraction                  IMPLEMENTED
-PRODUCT-INTEL.2C   First real search provider                   NEXT
-PRODUCT-INTEL.3A   Market listing extraction
+PRODUCT-INTEL.2C   First real search provider (Serper)          IMPLEMENTED
+PRODUCT-INTEL.3A   Market listing extraction                    NEXT
 PRODUCT-INTEL.3B   Listing normalization
 PRODUCT-INTEL.3C   MPN matching + rejection
 PRODUCT-INTEL.4A   Price aggregation
@@ -1482,14 +1572,15 @@ Future:
   additional LLM providers
 ```
 
-Every phase after 2B is `APPROVED / PLANNED` and unimplemented. Do not
+Every phase after 2C is `APPROVED / PLANNED` and unimplemented. Do not
 execute a later phase while working on an earlier one.
 
-**The next phase is the priority.** 2B was kept deliberately thin because the
-project's remaining risk is no longer architectural: architecture, lifecycle,
-evaluation, web intake, and deterministic identity all exist, and none of them
-has yet met a real market page. 2C — one real provider, real search evidence —
-is what turns the boundary above into something that can be judged.
+**The next phase is the priority.** 2C proved the 2B boundary against a real
+provider: one real Serper call, real candidate URLs, a sanitized recorded
+fixture, and offline regression tests against the actual adapter mapping. It
+integrated exactly one provider and wired it into nothing, on purpose. 3A —
+fetching and extracting from the candidate URLs Serper can now return — is
+what turns that search evidence into a market listing.
 
 ### 22.1 Corrective follow-up phases
 
@@ -1531,9 +1622,12 @@ cross-process transition atomicity · distributed locking · a server database
 in place of development SQLite.
 
 Also deferred as capability, per the roadmap rather than per this list: real
-web search, real product lookup, LLM calls, prompt engineering, price
-calculation, listing extraction, comparable discovery, similarity scoring,
-launcher code of any kind, and the research API.
+product lookup, LLM calls, prompt engineering, price calculation, listing
+extraction, comparable discovery, similarity scoring, launcher code of any
+kind, and the research API. Real web search exists as of 2C — Serper can be
+called directly — but *orchestrated* search (query generation from a
+`ResearchRequest`, automatic invocation from a research run) remains deferred:
+nothing calls `search()` except an explicit manual script and offline tests.
 
 Deferred specifically around part-number identity (2A), so that a later phase
 does not read their absence as an oversight: partial or fuzzy part-number
@@ -1551,13 +1645,23 @@ error taxonomy beyond one base exception · pagination and result-limit policy �
 locale and category query parameters · query generation · persistence of search
 results · a numeric price field on a search result.
 
-Open questions currently `UNDECIDED`: search vendor · LLM vendor · report
+Deferred specifically around the Serper adapter (2C), so that a later phase
+does not read their absence as an oversight: Google Shopping · a second search
+provider · duplicate-paid-call protection (required before, not at, the phase
+that first calls it from ordinary execution — §18.1) · query generation from a
+`ResearchRequest` · automatic invocation from `runs/` or `web/` · page
+fetching or crawling of any kind · MPN inference from a title, snippet, or URL
+· price extraction from snippet text · a provider error taxonomy beyond the
+existing single `SearchProviderError`.
+
+Open questions currently `UNDECIDED`: LLM vendor · report
 access control (the identifier scheme was settled in 1A as a random UUID, which
 is explicitly not access control) · which aggregate represents
 "market price" · outlier handling · description truncation policy for URL
 length limits · first product category · cache storage mechanism · batch
 intake design · every evaluation pass/fail threshold (§21.3) · the recorded
-listing-snapshot format for price evaluation (§21.4).
+listing-snapshot format for price evaluation (§21.4). Search vendor is settled
+as of 2C: Serper, ordinary Google Search only.
 
 ## 24. CURRENT STATUS
 
@@ -1574,6 +1678,7 @@ Completed:
 - PRODUCT-INTEL.2A
 - PRODUCT-INTEL.2A-FU1 (corrective follow-up attached to 2A)
 - PRODUCT-INTEL.2B
+- PRODUCT-INTEL.2C
 
 Current approved implementation state:
 - Project architecture established
@@ -1583,14 +1688,18 @@ Current approved implementation state:
 - Persistent ResearchRun lifecycle established
 - Standalone web intake form and durable report shell established
 - Deterministic part-number comparison primitive established
-- Provider-neutral search boundary established (contracts + protocol only)
-- Focused contract, lifecycle, web, identity, provider, and boundary tests
-  established
+- Provider-neutral search boundary established (contracts + protocol)
+- Serper adapter established: the first real SearchProvider, ordinary Google
+  Search, offline fixture-based regression tests, one sanitized recorded
+  response, one manual live-smoke script — wired into nothing
+- Focused contract, lifecycle, web, identity, provider, Serper-adapter, and
+  boundary tests established
 
 Not yet implemented:
 - Research execution of any kind
-- Candidate discovery of any kind
-- Real search providers (the boundary exists; no adapter does)
+- Candidate discovery beyond one raw, unorchestrated search call
+- Query generation from a ResearchRequest
+- Page fetching, crawling, or listing extraction
 - LLM providers
 - Product resolver
 - Description interpretation
@@ -1600,9 +1709,11 @@ Not yet implemented:
 - FoxPro integration
 - SAP integration
 - Report access control
+- Duplicate paid-call protection (not yet needed: nothing calls Serper from
+  ordinary execution)
 
 Next planned phase:
-- PRODUCT-INTEL.2C — First real search provider
+- PRODUCT-INTEL.3A — Market listing extraction
 ```
 
 Concretely, the repository contains: this document, `CLAUDE.md`, `README.md`, a
@@ -1610,8 +1721,30 @@ minimal Django project with two applications (one of which holds the only
 model), the domain contract layer, the evaluation corpus layer, the
 run-persistence layer and its two migrations, the standalone web shell, the
 deterministic part-number comparison primitive, the search-provider boundary,
-and 635 passing tests. There is still no research capability: nothing searches,
-discovers a candidate, resolves a product, or prices anything.
+the Serper adapter with its recorded fixture and manual smoke script, and 670
+passing tests. There is still no research capability: nothing orchestrates a
+search, fetches a page, extracts a listing, resolves a product, or prices
+anything — 2C proved that one real call reaches the boundary correctly, and
+that is the whole of what it claims.
+
+**What 2C added.** One adapter, `product_intelligence/providers/serper.py`,
+described in full in §13.5: `SerperSearchProvider`, calling Serper's ordinary
+Google Search endpoint and mapping `organic` results onto the unchanged 2B
+contracts. `price_hint_text` and `part_number_hint` stay `None` for every
+result — confirmed against a real recorded response, not merely asserted —
+because ordinary search publishes neither, and the adapter never calls
+`research.identity`. The credential is read from `SERPER_API_KEY` in the
+server environment only, sent in Serper's documented header, and never appears
+in a log, exception, fixture, or raw reference. One real response was
+recorded, sanitized (nothing needed redacting — Serper's JSON does not echo
+the credential), and committed to `tests/fixtures/providers/serper/`; the
+offline suite exercises the adapter's actual mapping code against it, so
+`pytest` still makes zero network calls. Two live calls were made total during
+development. **It resolves no product and prices nothing**: `runs/` and
+`web/` import no part of `providers`, a submitted run is still `CREATED`, and
+Serper being metered has no operational consequence yet because nothing calls
+it outside a manual script and tests. The generic 2B boundary required no
+change to accommodate the real payload.
 
 **What 2B added.** One module, `product_intelligence/providers/search.py`,
 described in full in §13.1: `SearchQuery`, `SearchResult`, `SearchResponse`, the
@@ -1766,3 +1899,4 @@ capability and started no later phase; the roadmap numbering is unchanged.
 | AD-039 | A search result carries a price *hint* as text and a part-number *hint* as unverified published text. The contract has no numeric price field, no currency, and no match or confidence field; result URLs must be absolute `http`/`https`. | A search snippet saying `$399.99` is not a price: it may be a sale price, a monthly payment, a shipping charge, a range, a price for a multi-pack, or a different currency's symbol, and choosing among those is exactly what 3A/3B exist to do with recorded rules and rejection reasons. A `Decimal` field on this contract would let a snippet enter arithmetic as though it were a verified market observation, which is fabricated certainty (AD-009) arriving through the cheapest possible door — so the absence of the field, asserted by a test on the exact field list, is the safeguard. The part-number hint is the same argument for identity: a value a provider publishes is an observation, and calling it verified would make a vendor the authority on product identity, which AD-008 forbids. Keeping it unnormalized also keeps the two paths distinct — a *published* field is a hint, a part number *inferred* from title or snippet text is extraction (3A/3C) and must carry its own rejection reasoning. The URL rule is narrow and separate: a result is evidence only if someone can re-open it, and `javascript:`, `data:`, and `file:` values are not addresses of that kind and must not reach a report. | Accepted (2B) |
 | AD-040 | Provider-native payload material is preserved as an **opaque string reference**, never as a structure business logic reads. Normalized contract fields are what the core consumes. | Real providers return more than any contract will hold, and the useful residue has to be kept — evidence-first (AD-007) means what was actually returned stays inspectable. The tempting shortcut is to attach the vendor's parsed payload as a `dict` and let callers reach into it "just for now". That is how a vendor gets into business logic permanently: one research rule reads one vendor-specific key, and the boundary that exists to make providers replaceable has been bypassed while still appearing to be in place. An opaque string cannot be read that way without a deliberate parse that no rule may perform, so the material is preserved for humans, fixtures, and later phases without becoming an interface. It is also kept verbatim rather than trimmed, because it is the artifact a recorded fixture is compared against. | Accepted (2B) |
 | AD-041 | Real recorded provider fixtures begin with the first real provider (2C). 2B tests its boundary with synthetic fakes only, and no fixture is invented in advance. | A recorded fixture's whole value is that it is what a real service actually returned, so an adapter's mapping can be regression-tested offline without credentials or network. A fixture written before a provider is chosen would be a guess wearing that authority: it would pass whatever the adapter did, and it would quietly encode an imagined payload shape as the expected one — the same failure mode AD-024 forbids in the evaluation corpus. Fakes are honest about being fakes and are sufficient to prove the interface is satisfiable. Sanitization (credentials, tokens, request secrets, personal and customer data removed) is part of the policy rather than an afterthought, because the first recording will otherwise be made from a real authenticated call. | Accepted (2B) |
+| AD-042 | Serper is the first real `SearchProvider`, integrated as one adapter (`providers/serper.py`) calling ordinary Google Search only; the credential is read from `SERPER_API_KEY` in the server environment inside one constructor (`from_environment`) and sent in Serper's documented header; `price_hint_text` and `part_number_hint` stay `None` for every mapped result. | A vendor had to be chosen to prove the 2B boundary against reality, and Serper's ordinary-search endpoint is the narrowest real surface that does so without also deciding a pricing-extraction question (Shopping) or an orchestration question (query generation) the roadmap has not reached yet. Reading the credential only inside one environment-backed constructor keeps the adapter testable by direct construction (`SerperSearchProvider(api_key=...)`) without the real environment, mirrors AD-005's "no secrets in the client" rule at the server edge, and matches the phase brief's instruction to keep configuration reading at the adapter/config edge rather than build an application-wide settings framework. `price_hint_text` and `part_number_hint` staying `None` is not caution for its own sake: ordinary Google Search organic results do not publish either field, confirmed against the real recorded fixture, and inventing either by regexing a snippet or a URL would be extraction (3A/3C) performed inside a transport adapter — the exact layering violation AD-039 exists to prevent. | Accepted (2C) |
