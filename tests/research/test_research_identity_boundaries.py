@@ -95,27 +95,85 @@ def test_the_research_core_imports_no_persistence_provider_or_benchmark(
         assert not offending, f"{path.name} imports {sorted(offending)}"
 
 
+# Modules that reach outside the process: a network stack, a filesystem, a
+# database, a subprocess, or the environment. None of them may appear anywhere
+# in the research core, which is the durable rule — the core reads nothing,
+# fetches nothing, and stores nothing.
+#
+# `json` and `html.parser` are deliberately **not** here, and that is a
+# narrowing made in 3A rather than a relaxation. Both are pure computation over
+# a string already held in memory: `json.loads` opens no file and `HTMLParser`
+# opens no socket. 2A's version of this list named `json` because nothing in the
+# core had a reason to parse anything, so the coarser list cost nothing; 3A's
+# deterministic extractor reads JSON-LD blocks out of a document string, which
+# is the whole of what it does. The rule the plan and CLAUDE.md actually state
+# — "a network or filesystem module" — is what is enforced here. `urllib.parse`
+# is absent for the same reason the provider boundary excludes it: splitting a
+# URL string is not fetching one.
+IO_MODULES = {
+    "requests",
+    "httpx",
+    "urllib.request",
+    "urllib.error",
+    "urllib.robotparser",
+    "urllib3",
+    "socket",
+    "ssl",
+    "http",
+    "pathlib",
+    "sqlite3",
+    "os",
+    "shutil",
+    "tempfile",
+    "subprocess",
+    "webbrowser",
+}
+
+
 @pytest.mark.parametrize("path", _python_files(RESEARCH_ROOT), ids=lambda p: p.name)
 def test_the_research_core_performs_no_network_or_file_access(path: Path) -> None:
-    """The comparison is a pure function of its two arguments."""
-    modules = _top_level_imports(path.read_text(encoding="utf-8"))
-    forbidden = {
-        "requests",
-        "httpx",
-        "urllib",
-        "urllib3",
-        "socket",
-        "http",
-        "ssl",
-        "pathlib",
-        "json",
-        "sqlite3",
+    """The core computes over values it is handed, and reaches nothing."""
+    imported = _imported_modules(path) | _top_level_imports(path.read_text(encoding="utf-8"))
+    offending = {
+        module
+        for module in imported
+        for forbidden in IO_MODULES
+        if module == forbidden or module.startswith(f"{forbidden}.")
     }
 
-    assert not modules & forbidden, (
-        f"{path.name} imports {sorted(modules & forbidden)}; the research core "
+    assert not offending, (
+        f"{path.name} imports {sorted(offending)}; the research core "
         "reads nothing, fetches nothing, and stores nothing."
     )
+
+
+def test_the_identity_primitive_still_parses_nothing() -> None:
+    """2A's stricter promise, kept for 2A's module specifically.
+
+    The part-number comparison is a pure function of two strings. It has no
+    reason to parse a document, a payload, or a URL, and the narrowing above —
+    made so 3A's extractor can read JSON-LD — must not quietly widen what
+    `identity.py` is allowed to do.
+    """
+    modules = _top_level_imports(IDENTITY_MODULE.read_text(encoding="utf-8"))
+
+    assert not modules & {"json", "html", "urllib", "xml", "csv", "pickle"}
+
+
+def test_extraction_computes_no_numbers() -> None:
+    """3A observes text. It converts nothing, and it may not acquire the means to.
+
+    `Decimal` in the extractor would be a price becoming a number one layer
+    early — before 3B has decided what an unparseable price means and before 3C
+    has decided the listing is even about the right product. 3B will import it;
+    this module may not.
+    """
+    extraction = RESEARCH_ROOT / "extraction.py"
+    assert extraction.exists()
+
+    modules = _top_level_imports(extraction.read_text(encoding="utf-8"))
+
+    assert not modules & {"decimal", "fractions", "statistics", "numbers", "math"}
 
 
 @pytest.mark.parametrize("path", _python_files(RESEARCH_ROOT), ids=lambda p: p.name)

@@ -54,6 +54,17 @@ PROVIDERS_ROOT = PACKAGE_ROOT / "providers"
 GENERIC_BOUNDARY_MODULES = [
     PROVIDERS_ROOT / "__init__.py",
     PROVIDERS_ROOT / "search.py",
+    PROVIDERS_ROOT / "page.py",
+]
+
+# Concrete adapters: the modules that are allowed to name a vendor and to open a
+# connection. `serper.py` talks to one search vendor; `http_page.py` talks to
+# whatever public page it is handed, which is why its own safety rules — not a
+# guard in this file — are what constrain it (see
+# tests/providers/test_http_page_fetcher.py).
+ADAPTER_MODULES = [
+    PROVIDERS_ROOT / "serper.py",
+    PROVIDERS_ROOT / "http_page.py",
 ]
 
 # Modules that perform or configure I/O. `urllib.parse` is deliberately absent:
@@ -283,6 +294,8 @@ def test_only_the_expected_adapter_modules_exist() -> None:
     """
     assert sorted(path.name for path in _python_files(PROVIDERS_ROOT)) == [
         "__init__.py",
+        "http_page.py",
+        "page.py",
         "search.py",
         "serper.py",
     ]
@@ -299,3 +312,171 @@ def test_the_provider_package_exports_the_phase_2b_boundary() -> None:
         "SearchResponse",
         "SearchResult",
     } <= set(providers.__all__)
+
+
+# --------------------------------------------------------------------------
+# PRODUCT-INTEL.3A additions: the page-fetch boundary, its one adapter, and the
+# dependencies this phase deliberately did not acquire.
+# --------------------------------------------------------------------------
+
+# Crawler platforms, browser automation, and managed scraping services. 3A's
+# whole method was to find out with a plain HTTP client whether any of them is
+# needed, so acquiring one here — before the evidence — would answer the
+# question by assumption.
+DEFERRED_SCRAPING_DEPENDENCIES = [
+    "firecrawl",
+    "crawl4ai",
+    "playwright",
+    "selenium",
+    "scrapy",
+    "puppeteer",
+    "pyppeteer",
+    "splash",
+    "scrapingbee",
+    "zyte",
+    "brightdata",
+    "apify",
+    "beautifulsoup",
+    "bs4",
+    "lxml",
+    "html5lib",
+    "cloudscraper",
+    "undetected_chromedriver",
+]
+
+
+def test_the_page_boundary_and_its_one_adapter_exist() -> None:
+    """Guard against the 3A scans passing on a file that is not there."""
+    for path in ADAPTER_MODULES:
+        assert path.exists(), path
+        assert path.read_text(encoding="utf-8").strip()
+
+
+@pytest.mark.parametrize("path", ADAPTER_MODULES, ids=lambda p: p.name)
+def test_an_adapter_makes_no_research_decision(path: Path) -> None:
+    """An adapter observes. It does not compare, price, judge, or store.
+
+    Already covered package-wide by the import guard above; asserted again
+    against the adapters by name because this is the specific thing 3A could
+    plausibly have got wrong — a fetcher that called the part-number comparator
+    would be deciding whether its own evidence counted.
+    """
+    offending = _imports_any(
+        _imported_modules(path),
+        [
+            "django",
+            "product_intelligence.runs",
+            "product_intelligence.research",
+            "product_intelligence.web",
+            "product_intelligence.evaluation",
+        ],
+    )
+
+    assert not offending, f"{path.name} imports {sorted(offending)}"
+
+
+def test_the_fetcher_may_open_a_connection_and_the_boundary_may_not() -> None:
+    """The permitted direction, so the network scans cannot pass vacuously.
+
+    `page.py` is contracts and is scanned as part of the generic boundary above.
+    `http_page.py` is the adapter and is *expected* to reach the network — if it
+    stopped doing so, the guard on `page.py` would be proving nothing.
+    """
+    fetcher_imports = _imported_modules(PROVIDERS_ROOT / "http_page.py")
+
+    assert _imports_any(fetcher_imports, NETWORK_MODULES)
+    assert not _imports_any(
+        _imported_modules(PROVIDERS_ROOT / "page.py"), NETWORK_MODULES
+    )
+
+
+def test_the_fetcher_reads_no_configuration_or_credential() -> None:
+    """Unlike the search adapter, this one has no credential to read.
+
+    A page fetch is anonymous by design: there is no API key, no environment
+    variable, and no settings module behind it, so nothing exists to leak to a
+    fetched site.
+    """
+    offending = _imports_any(
+        _imported_modules(PROVIDERS_ROOT / "http_page.py"), CONFIGURATION_MODULES
+    )
+
+    assert not offending, f"http_page.py imports {sorted(offending)}"
+
+
+def test_no_crawler_browser_or_scraping_service_dependency_was_added() -> None:
+    """3A is self-hosted, free, and standard-library only.
+
+    Checked against what the project declares rather than what happens to be
+    installed, because the declaration is the commitment.
+    """
+    declared = "\n".join(
+        (REPO_ROOT / name).read_text(encoding="utf-8").lower()
+        for name in ("requirements.txt", "pyproject.toml")
+    )
+
+    found = [name for name in DEFERRED_SCRAPING_DEPENDENCIES if name in declared]
+
+    assert not found, (
+        f"the project declares deferred scraping dependencies {found}; 3A's "
+        "method was to establish with a plain HTTP client whether any of them "
+        "is needed, and none was."
+    )
+
+
+def test_importing_the_page_boundary_pulls_in_no_third_party_dependency() -> None:
+    """Including the fetcher: `urllib` is the standard library, not a client."""
+    script = (
+        "import sys, json\n"
+        "before = set(sys.modules)\n"
+        "import product_intelligence.providers.http_page\n"
+        "loaded = {name.split('.')[0] for name in set(sys.modules) - before}\n"
+        "third_party = sorted(\n"
+        "    name for name in loaded\n"
+        "    if not name.startswith('_')\n"
+        "    and name != 'product_intelligence'\n"
+        "    and name not in sys.stdlib_module_names\n"
+        ")\n"
+        "print(json.dumps(third_party))\n"
+    )
+    env = dict(os.environ, PYTHONPATH=str(REPO_ROOT))
+
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=REPO_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    assert json.loads(result.stdout.strip().splitlines()[-1]) == []
+
+
+def test_the_provider_package_exports_the_phase_3a_boundary() -> None:
+    import product_intelligence.providers as providers
+
+    assert {
+        "FetchedPage",
+        "PageFetchError",
+        "PageFetchRequest",
+        "PageFetcher",
+        "UnsafeFetchTargetError",
+    } <= set(providers.__all__)
+
+
+def test_the_live_fetch_script_is_not_reachable_from_the_test_suite() -> None:
+    """The manual tool stays manual.
+
+    `scripts/page_extract_smoke.py` performs one real fetch on request. Nothing
+    under `tests/` may import it, or the automated suite would acquire a network
+    dependency by accident — the same rule the live search smoke script follows.
+    """
+    offenders = [
+        path
+        for path in _python_files(REPO_ROOT / "tests")
+        if "page_extract_smoke" in path.read_text(encoding="utf-8")
+        and path.name != "test_provider_boundaries.py"
+    ]
+
+    assert not offenders, f"{offenders} reference the manual live-fetch script"

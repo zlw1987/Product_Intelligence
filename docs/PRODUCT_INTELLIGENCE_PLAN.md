@@ -142,8 +142,10 @@ Repository layout:
 │   ├── domain/                        contracts + vocabularies (0A)
 │   ├── evaluation/                    corpus contracts, validation, loader (0B)
 │   ├── runs/                          persisted run lifecycle + migration (1A)
-│   ├── research/                      deterministic part-number comparison (2A)
-│   ├── providers/                     search-provider boundary (2B)
+│   ├── research/                      part-number comparison (2A) +
+│   │                                  raw listing extraction (3A)
+│   ├── providers/                     search boundary (2B) + Serper (2C) +
+│   │                                  page-fetch boundary and fetcher (3A)
 │   └── web/                           standalone form + report shell (1B)
 └── tests/                             focused deterministic tests
 ```
@@ -169,14 +171,16 @@ and `runs`, and a guard test fails if any inner layer imports `web`.
 Status: `IMPLEMENTED` for the layout, the domain layer, the evaluation corpus
 layer, the run-persistence layer, the Django project, the standalone web intake
 and report shell, the deterministic part-number comparison primitive inside the
-core (§12.1), the search-provider boundary (§13.1), and its first real adapter
-(§13.5). `APPROVED / PLANNED` for every box below "Canonical Research Request"
-in the diagram: a run records *that* research was requested and how it ended,
-the web shell starts nothing, the core can compare two part numbers it is
-handed but has no way to obtain the second one, and the provider boundary now
-has one real adapter behind it — but nothing in the research core, the run
-lifecycle, or the web shell invokes it, so no box in the diagram from "Product
-Resolver" onward does anything yet.
+core (§12.1), the search-provider boundary (§13.1), its first real adapter
+(§13.5), the page-fetch boundary and its standard-library fetcher (§13.6), and
+deterministic raw listing extraction (§16.1). `APPROVED / PLANNED` for every box
+below "Canonical Research Request" in the diagram: a run records *that* research
+was requested and how it ended, and the web shell starts nothing. The core can
+now compare two part numbers it is handed, fetch a public page safely, and
+extract raw listing observations from what that page publishes — but nothing
+orchestrates that sequence, and nothing in the run lifecycle or the web shell
+invokes any of it, so no box in the diagram from "Product Resolver" onward does
+anything yet.
 
 ## 6. Multi-interface intake design
 
@@ -951,6 +955,192 @@ addressed no later than that phase.
    `SerperSearchProvider` populates already existed, and the adapter never
   needed to store anything the opaque references could not hold.
 
+### 13.6 The page-fetch boundary and what real pages taught us (3A)
+
+2C ended with real candidate URLs and no way to read what was on the other end
+of one. 3A opened them.
+
+Three observations are now kept strictly apart, and the layering is the point:
+
+```text
+SearchResult        what a search provider said about a URL
+FetchedPage         what that URL actually returned
+ListingObservation  what the returned document publishes about one offer
+```
+
+A snippet is a third party's description of a page; the page is the page; and
+neither is a market listing. Collapsing any two of them would let a search
+summary be reported as page evidence, or let a page's text be reported as a
+price.
+
+**`product_intelligence/providers/page.py`** holds the generic boundary:
+`PageFetchRequest` (one field, `url`), `FetchedPage`, the `PageFetcher`
+protocol, `PageFetchError`, and one subclass, `UnsafeFetchTargetError`. It is
+stdlib contracts only — no network, no vendor, no credential, no configuration
+— and it is scanned by the same guards as `search.py`.
+
+The one subclass earns its place, and it is the only taxonomy this boundary
+gets. Every other failure is something the outside world did — a timeout, a
+403, a malformed response. `UnsafeFetchTargetError` is a decision *this code*
+made: the destination was refused before, or instead of, being contacted. A
+caller that cannot tell "we declined to go there" from "the site was down"
+cannot report either honestly, and the two have opposite implications for
+whether a retry could ever succeed.
+
+`FetchedPage` keeps `requested_url` and `final_url` separately and requires
+both, because a redirect is evidence: a listing reached at a different address
+than the one a search result advertised is a fact a reviewer needs.
+
+**`product_intelligence/providers/http_page.py`** holds the one concrete
+fetcher, `HttpPageFetcher`, built on `urllib.request`. It is self-hosted and
+free: no crawler service, no browser, no browser farm, no proxy pool, and no
+per-page fee. That was deliberate method rather than thrift — part of what 3A
+existed to establish is whether any of that is *needed*, and buying it in
+advance would have answered the question by assumption.
+
+Bounds, all defaults and all documented next to the code that enforces them:
+
+| Bound | Default | Why |
+| --- | --- | --- |
+| Timeout | 10.0 s per hop | One unresponsive host cannot hold a caller open. |
+| Redirects | 3 | Enough for `http`→`https`, apex→`www`, and canonical-slug hops; short enough that a loop ends quickly. |
+| Response size | 5 MiB | Real retail pages run well past 1 MiB of markup. The limit **refuses rather than truncates**: a document cut mid-element would be parsed as though it were whole, and a parser silently reporting fewer listings because bytes went missing is worse than a fetch that failed loudly. |
+| Content type | `text/html`, `application/xhtml+xml` | This fetcher retrieves a document for HTML extraction. Sniffing past a server's own declaration would be guessing. |
+
+Destination safety, because a URL reaching this fetcher may have come from an
+external search provider and is therefore untrusted:
+
+* scheme, host presence, and absence of embedded credentials are enforced by
+  the `PageFetchRequest` contract itself. A request that *cannot hold* a
+  credential is a stronger guarantee than a fetcher that promises to strip one;
+* the host is resolved with `socket.getaddrinfo`, and **every** address it
+  resolves to must be publicly routable. One private address among several
+  refuses the whole host — which address a later connection picks is not this
+  code's decision to make;
+* loopback, private, link-local (including the cloud metadata address
+  `169.254.169.254`), unspecified, multicast, and reserved destinations are
+  refused, as are IPv4-mapped and 6to4-embedded forms of them;
+* **redirects are not followed by `urllib`.** The fetcher follows them itself
+  and puts every hop through the identical URL and address checks. A public host
+  redirecting to `http://127.0.0.1/` is the ordinary shape of this attack, and a
+  library quietly following it would defeat the checks on the only hop that
+  matters — the last;
+* the opener is assembled by hand from HTTP and HTTPS handlers only. `urllib`'s
+  `build_opener()` installs a `FileHandler`, an `FTPHandler`, an
+  `UnknownHandler`, and a `ProxyHandler`; each is a way for a URL — or an
+  ambient environment variable — to send this code somewhere other than the
+  public page it was asked for;
+* no cookie processor, no `Authorization` header, and no application or
+  provider credential exists in this module to send. Three request headers are
+  sent: `User-Agent`, `Accept`, `Accept-Encoding`;
+* the method is GET, no form is submitted, and no JavaScript is executed.
+
+**What this does not amount to, stated rather than implied.** These are
+application-level checks and they are not network isolation. Two gaps are real:
+
+1. **DNS time-of-check/time-of-use.** The name is resolved once for validation
+   and `urllib` resolves it again when it connects. A DNS answer that changes
+   between those moments — classic rebinding — is not prevented. Closing it
+   means owning the socket: resolving once, connecting to the pinned address,
+   and carrying the original hostname through TLS verification and the `Host`
+   header. That is a change to how the connection is made, and it belongs to a
+   phase hardening deployment (8C), not one learning what pages contain.
+2. **Egress is otherwise unrestricted.** Anything this process can reach, it can
+   still reach if a name resolves to a public address fronting something
+   internal.
+
+The durable answer to both is network-level — an egress allowlist or an
+outbound proxy in the deployment. 3A makes the ordinary mistakes hard and says
+plainly what it does not solve.
+
+**Politeness.** The User-Agent identifies this application honestly, does not
+impersonate a browser, and is never rotated. No bot-detection measure is worked
+around. A 403 or a 429 is recorded as what the site said and is not retried
+against — respecting it is both correct and the cheapest way to learn which
+sources need a different approach.
+
+#### What the real sample found
+
+Seven public URLs were fetched, once each, on 2026-08-17. They were selected
+from the ten organic results already recorded in
+`tests/fixtures/providers/serper/real_verified_mz_ql23t800_organic_search.json`
+— **no new search call was made in 3A**. One further live fetch was made to
+validate the shipped smoke script: **eight live page requests in total, and
+zero search-provider calls.**
+
+| Source | Role | Outcome |
+| --- | --- | --- |
+| `www.samsung.com` | Manufacturer | `STATIC_FETCH_OK` — JSON-LD `Product` |
+| `oempcworld.com` | Retailer | `STATIC_FETCH_OK` — JSON-LD `Product` + `Offer` |
+| `www.exxactcorp.com` | Retailer | `STATIC_FETCH_OK` — no JSON-LD; full record in flat meta |
+| `www.newegg.com` | Marketplace | `STATIC_FETCH_OK`, then `JS_SHELL_OR_NO_USEFUL_STATIC_DATA` |
+| `www.fusionww.com` | Distributor | `OTHER` — soft block: HTTP 200 access-restricted interstitial |
+| `www.serversupply.com` | Retailer | `BLOCKED_403` |
+| `www.ebay.com` | Marketplace | `BLOCKED_403` |
+
+Five of seven returned a document; three of seven yielded usable structured
+product data. Both hard blocks were marketplaces or high-traffic retail, and
+both were respected rather than worked around.
+
+Five findings, classified by what they mean:
+
+* **A published price can be broken and still be published.** The manufacturer
+  page serves `"price": "undefined"` inside a well-formed `schema.org` `Offer` —
+  a template that failed. *Relevant now, and decisive*: an extractor converting
+  to `Decimal` at this layer would raise on a live page or silently drop the
+  offer, and neither outcome is visible to a reviewer. This single observation
+  is the strongest evidence for the phase's central rule that values stay text.
+* **Structured data is not the same as complete data.** The manufacturer puts
+  the MPN in `sku` and publishes no `mpn`. One retailer publishes `sku` as its
+  own internal number (`501489`) and no `mpn` at all, with the part number
+  present only inside the product title. Another publishes `mpn` as
+  `"mpn:MZ-QL23T800"`, prefix included, and no currency anywhere on the page.
+  *3B/3C concern*: reconciling those is normalization and matching, with
+  recorded reasons — and 3A's job is to make sure the raw strings survive
+  intact to be reconciled.
+* **Flat meta tags are not a legacy curiosity.** One retailer page carries **no
+  JSON-LD at all** and publishes its entire product record — `mpn`, `sku`,
+  `brand`, `price`, `availability` — in `<meta name=...>` tags. *Relevant now*:
+  this is the evidence that justified implementing the META path. Without it, a
+  page plainly stating its part number and its price would have produced
+  nothing.
+* **One page can publish one offer twice.** A storefront carries `"1055.85"` in
+  a JSON-LD `Offer` and `"1,055.85"` in `og:price:amount`. *Relevant now*: this
+  is why meta extraction runs only when JSON-LD produced nothing. Running both
+  would turn one offer into two observations, and 4A counts observations.
+* **A block can arrive as a success.** One distributor returned **HTTP 200**
+  with an "Access Restricted" interstitial whose JSON-LD is a `WebAPI` node
+  telling an automated reader to call a different service instead of crawling.
+  *Two consequences*: a classifier reading only status codes would have called
+  this a successful fetch of a product page; and the content is **data, not
+  instruction** (§19) — it was read, classified, recorded as a fixture, and the
+  advertised API was not called.
+
+#### Static-HTTP sufficiency: recommendation A
+
+**Static HTTP is sufficient for initial 3A coverage. A browser fallback is not
+yet justified**, and specifically must not be bought on the strength of one
+blocked marketplace.
+
+The evidence: three independent sources — one manufacturer and two retailers —
+yielded complete raw observations through a plain, free, standard-library GET.
+That is enough distinct sources to build 3B and 3C against. The two hard blocks
+were `www.serversupply.com` and `www.ebay.com`; browser rendering would not
+obviously help with either, because a 403 at the HTTP layer is an access
+decision rather than a rendering problem, and defeating it means the
+bot-evasion this project does not do. `www.newegg.com` is the one case a
+headless browser plausibly *would* fix — it returned 200 and renders its product
+data client-side — and one fixable source is not a reason to acquire browser
+infrastructure, a dependency, and a deployment surface.
+
+Recorded so a later phase does not have to rediscover it: if browser rendering
+is ever justified, the evidence to look for is *client-rendered pages*
+(`JS_SHELL_OR_NO_USEFUL_STATIC_DATA`) accumulating across sources, not blocks.
+A free self-hosted headless browser would be the first thing to try, behind the
+existing `PageFetcher` protocol, which is designed to accept one without
+changing anything above it. There is no evidence at all yet for a paid managed
+scraping provider.
+
 ## 14. LLM-provider boundary
 
 An `LLMProvider` abstraction will sit between the research core and any model
@@ -1161,8 +1351,8 @@ out of `CREATED`, because nothing executes one.
 
 Planned pipeline, all deterministic:
 
-1. **Listing extraction** (3A) — obtain candidate listings via the search
-   boundary.
+1. **Listing extraction** (3A) — fetch a candidate URL safely and extract raw
+   listing observations from what it publishes (§13.6, §16.1). `IMPLEMENTED`.
 2. **Normalization** (3B) — currency, quantity, pack size, unit price,
    condition, availability, seller.
 3. **Match and reject** (3C) — classify each listing with an
@@ -1187,6 +1377,11 @@ Rules:
 Which aggregate constitutes "market price", and how outliers are handled, are
 `UNDECIDED` — to be settled in 4A with the evaluation corpus from 0B.
 
+3A is implemented and answers only step 1. **No market price is computed
+anywhere**, and nothing normalizes, matches, rejects, or aggregates an
+observation. §16.1 records exactly what was built and what was deliberately left
+to 3B and 3C.
+
 Binding constraints on the phases above, recorded in 2B so each phase starts
 with them rather than rediscovering them:
 
@@ -1195,10 +1390,16 @@ extraction over search results will not be enough for every source. Once real
 recorded fixtures (§13.3) *show* that, 3A may add narrowly scoped
 source-specific extraction strategies alongside the generic path. They stay
 outside the domain and outside business rules: a strategy knows how one site
-writes a price, and nothing else. Nothing about this is implemented, and none of
-it may be written before fixtures justify it. A price hint from a provider
-(§13.1) is an observation and not an extraction result — the two must not be
-conflated.
+writes a price, and nothing else. None of it may be written before fixtures
+justify it. A price hint from a provider (§13.1) is an observation and not an
+extraction result — the two must not be conflated.
+
+*Outcome (3A):* **no source-specific strategy was written.** No recorded fixture
+justified one — the page that defeated generic JSON-LD was covered by adding a
+generic *meta* path, which serves any page using that convention rather than one
+site, and the pages that yielded nothing publish no static product data that any
+per-source selector could reach. The permission stands unused and the bar is
+unchanged: a real fixture first, then a strategy (§16.1).
 
 **3B — normalization is not conversion.** 3B explicitly normalizes currency
 representation, quantity and pack size, unit price, condition, and availability.
@@ -1223,6 +1424,180 @@ public market pricing are different observations of different things and do not
 automatically belong in one aggregate (§13.4).
 
 Status: `APPROVED / PLANNED`. Nothing implemented.
+
+### 16.1 What 3A implemented
+
+The first step of the pipeline, and only the first step: **a real public URL
+becomes raw listing observations**, with the page preserved in between.
+
+```text
+recorded search fixture  ->  HttpPageFetcher  ->  FetchedPage
+                                                     |
+                                                     v
+                                        extract_listing_observations()
+                                                     |
+                                                     v
+                                        ListingObservation, ...
+```
+
+The fetch half is §13.6. This section is the extraction half, which lives in the
+research core: `product_intelligence/research/listings.py` (the contract) and
+`product_intelligence/research/extraction.py` (the extractor).
+
+**The two halves do not import each other.** `extract_listing_observations`
+takes a document *string* and a `source_url`, not a `FetchedPage`. The research
+core therefore stays free of the provider layer exactly as the 2A guards
+require, opens no socket, and can be exercised with a string literal; the
+fetcher knows nothing about listings. They meet only in code that holds both —
+today, one manual script.
+
+#### The raw contract
+
+`ListingObservation` is frozen, and every field except `source_url` and
+`extraction_method` is optional **raw text**:
+
+| Field | What it is |
+| --- | --- |
+| `source_url` | Where the observation came from — required |
+| `extraction_method` | `JSON_LD` or `META`, provenance only |
+| `product_title` | As published |
+| `manufacturer_part_number_text` | The MPN *field* a page published, verbatim |
+| `sku_text` | The SKU field, verbatim |
+| `brand_text` | Brand name, from a string or a nested `name` |
+| `price_text` | Characters a page published in a price position |
+| `currency_text` | As published — never inferred |
+| `availability_text` | As published — no vocabulary |
+| `condition_text` | As published — no vocabulary |
+| `seller_text` | As published |
+| `offer_url_text` | A URL the offer itself published, if any |
+| `raw_reference` | The structured node, preserved opaquely (AD-040) |
+
+A test asserts the exact field list. There is **no numeric price field**, and
+that absence is the safeguard — the same argument that kept one off
+`SearchResult` in 2B (AD-039). There is also no accepted/rejected flag, no
+rejection reason, no score, and no confidence: 3C decides, with a reason.
+
+`offer_url_text` is present because a page can price several variants at
+several addresses; without it, two observations from one page are
+indistinguishable in their traceability. Fields the contract deliberately does
+*not* carry — a GTIN, a category, a description, a price-valid-until date — all
+survive inside `raw_reference`, which is how the contract stays small without
+discarding evidence.
+
+`ExtractionMethod` has exactly two members because two mechanisms exist. A
+third, for a narrowly scoped per-source strategy, is described below and is
+deliberately **not declared**: a vocabulary member nothing produces is a
+placeholder for unbuilt behaviour. Provenance is also not trustworthiness — a
+JSON-LD price is still one page's claim, and the manufacturer fixture proves it
+by publishing `undefined` in exactly that position.
+
+#### What the extractor reads
+
+**JSON-LD first.** `application/ld+json` blocks are located with an
+`HTMLParser` rather than a regular expression — a regular expression over HTML
+gets the easy cases right and then mis-slices a page with a `</script>` inside a
+string literal. `schema.org` `Product` nodes are found through the three real
+shapes (a bare object, a top-level list, an `@graph` wrapper), and their
+`Offer` / `AggregateOffer` children are mapped.
+
+**Flat meta second, and only when JSON-LD produced nothing.** The
+`name="price"` / `mpn` / `sku` / `brand` / `availability` family and the
+OpenGraph `og:price:amount` / `og:price:currency` pair. Both were added against
+real pages that publish them, not in anticipation.
+
+**Never arbitrary rendered text, and never may be.** There is no scan of
+visible HTML for currency-shaped substrings. The recorded storefront fixture
+contains fourteen distinct dollar amounts: a free-shipping threshold, financing
+plan bounds, a per-instalment amount (`price_per_term: $527.92`), four
+recommended products in *markup identical* to the product's own price element,
+and — somewhere among them — the real price. A first-match rule, a
+lowest-match rule, and a largest-match rule each return a wrong number from that
+page with complete confidence. The same reasoning already excluded snippet
+prices in 2C: the recorded search response carries
+`"$2,135.00 $2,700.00 You Save: $565.00"` and `"$2,145.00 As low as $102.98/mo"`,
+where a current price, a struck-through list price, a saving, and a monthly
+instalment are four different numbers and nothing in the text says which is
+which.
+
+**Never a number.** JSON is parsed with `parse_float=str` and `parse_int=str`,
+so a price written as the JSON number `1055.85` arrives as the text `"1055.85"`
+rather than as a float that has already discarded its representation. A guard
+test forbids the extraction module from importing `decimal`, `statistics`, or
+`math` at all.
+
+**Never a decision.** No listing is accepted or rejected, no observation is
+deduplicated or ranked, and the 2A comparator is **not called** — an extractor
+that decided identity would be judging its own evidence. That the raw published
+MPN *could* later be handed to the comparator is demonstrated in a test, and
+nowhere in the extraction code.
+
+#### Deliberate refusals, each with a real reason
+
+* **An `AggregateOffer` yields no `price_text`.** A low and a high across
+  sellers is a range, not this product's price; picking either end would be the
+  lowest-wins rule wearing a schema name. The node survives in `raw_reference`.
+  If it publishes its own concrete offers, those are read — that is reading, not
+  inference.
+* **Several offers do not collapse into one.** A page publishing three offers is
+  publishing three; collapsing them would silently reduce a count 4A depends on.
+* **A `Product` with no offer still yields an observation.** A manufacturer page
+  publishing a part number and no price is exactly what a manufacturer page
+  should contribute, and dropping it would leave only retailers.
+* **Mixed currencies are recorded side by side and never combined.** No rate, no
+  conversion, no blending — in this phase or any later one (§16).
+* **A malformed JSON-LD block is skipped and its siblings are unaffected.**
+  Losing a page's data to someone else's typo would be an outage.
+* **A non-`Product` node is ignored rather than guessed at.** The sampled pages
+  carry `Organization`, `BreadcrumbList`, `ImageObject`, and `WebAPI` nodes.
+* **Traversal is depth- and count-bounded.** Untrusted JSON nests as deeply as
+  its author likes.
+* **Zero observations is a valid answer**, and it is the right one for the two
+  sampled pages that publish nothing readable. A page this extractor cannot read
+  is recorded as unreadable, never filled in from a search snippet.
+
+#### No source-specific extractor was added
+
+§16 permits a narrowly scoped per-source strategy *once a real fixture shows the
+generic path is insufficient*. No fixture showed that. The one page that
+defeated generic JSON-LD (`www.exxactcorp.com`) was fully covered by adding the
+generic **meta** path, which serves any page using that convention rather than
+one site. The two pages that yielded nothing publish no static product data at
+all, which no per-source selector can fix. Writing one anyway would have been
+line count without evidence, so the permission stands unused and the option
+stays open.
+
+#### Recorded fixtures
+
+Five, under `tests/fixtures/pages/`, each derived from one live fetch and
+documented in that directory's README with its source, date, outcome, what was
+retained, and what was removed. Four are **reduced**: the live documents run
+from 198 KB to 850 KB and are almost entirely navigation, styling, scripts, and
+marketing copy. Each reduction was verified by running the extractor over the
+full document and over the reduced fixture and confirming the observations are
+identical — 1.85 MB of real pages became 14 KB of test evidence with no change
+in behaviour. The fifth is kept in full because it is 1.9 KB and reducing it
+would remove the point.
+
+Synthetic edge cases live in a separate file, written inline and labelled, so a
+recording and a fake can never be confused (AD-041).
+
+#### What 3A explicitly did not do
+
+* **No normalization (3B).** No `Decimal`, no currency vocabulary, no quantity
+  or pack-size parsing, no unit price, no condition or availability taxonomy, no
+  shipping arithmetic, no seller normalization, and no FX of any kind.
+* **No matching or rejection (3C).** No listing is compared to a request,
+  accepted, or rejected, and no rejection reason is recorded.
+* **No aggregation (4A).** No count, low, median, high, or range. **No market
+  price is computed anywhere.**
+* **No integration.** `runs/` and `web/` import no part of `providers/` or of
+  the extraction core. A submitted run is still `CREATED`, and the report page
+  still says research execution is not connected.
+* **No caching, no LLM, no Google Shopping, and no search call.**
+
+Status: `IMPLEMENTED` (3A) for safe static page fetching, deterministic raw
+listing extraction, and the recorded real-page fixtures. `APPROVED / PLANNED`
+for 3B onward. **No market price works, and none is claimed.**
 
 ## 17. Comparable-product direction
 
@@ -1358,16 +1733,24 @@ Principles:
   import, a network or filesystem module, or a vendor name; if the domain
   imports the research core; or if `runs`, `web`, or `evaluation` wires itself
   to the identity primitive before a phase supplies candidates.
-  `tests/providers/test_provider_boundaries.py` fails if the generic search
-  boundary gains a non-stdlib import, a vendor name, a calling-system concept, a
-  network or configuration module, a model, or a third-party dependency; if the
-  provider layer (now including `providers/serper.py`) imports persistence, the
-  research core, the web layer, or the benchmark; or if any inner layer wires
-  itself to the boundary — still true after 2C, since `runs/`, `web/`, and
-  `evaluation/` import no part of `providers`. The vendor-name scan is scoped
-  to the *generic* boundary modules (`providers/__init__.py`,
-  `providers/search.py`), because the Serper adapter is the one place a vendor
-  name belongs.
+  `tests/providers/test_provider_boundaries.py` fails if a generic boundary
+  module (`providers/__init__.py`, `providers/search.py`, and — from 3A —
+  `providers/page.py`) gains a non-stdlib import, a vendor name, a
+  calling-system concept, a network or configuration module, a model, or a
+  third-party dependency; if the provider layer imports persistence, the
+  research core, the web layer, or the benchmark; if any inner layer wires
+  itself to either boundary; or if the project declares a crawler,
+  browser-automation, or managed-scraping dependency — 3A established with a
+  plain HTTP client that none is needed, and acquiring one later would answer
+  that question by assumption. The vendor-name scan is scoped to the *generic*
+  boundary modules, because an adapter is the one place a vendor name belongs.
+  Two further 3A guards assert the permitted direction so the network scans
+  cannot pass vacuously: `http_page.py` *must* reach the network, and `page.py`
+  must not.
+  `tests/research/test_research_identity_boundaries.py` additionally fails if
+  the 3A extractor imports `decimal`, `statistics`, or `math` — 3A observes text
+  and converts nothing — or if `identity.py` acquires a parser it has no reason
+  to hold.
 * **The browser workflow is tested through the Django test client**, which
   exercises the real URLs, views, forms, templates, and database — no browser
   automation dependency, and nothing mocked between the form and the row. The
@@ -1388,8 +1771,13 @@ Principles:
   suite stays offline and deterministic. 2B established the policy (§13.3) with
   synthetic fakes only; 2C added the first real, sanitized recording
   (`tests/fixtures/providers/serper/`) and tests the actual adapter mapping
-  against it, offline. A live call belongs only to an explicit, manually run
-  integration check (`scripts/serper_live_smoke.py`), never to `pytest`.
+  against it, offline; 3A added five recorded real pages
+  (`tests/fixtures/pages/`) under the same rule. A live call belongs only to an
+  explicit, manually run check — `scripts/serper_live_smoke.py` and
+  `scripts/page_extract_smoke.py` — never to `pytest`. **The normal suite makes
+  zero network requests and consumes zero search credits**, and a guard test
+  fails if anything under `tests/` so much as references the manual fetch
+  script.
 * **The evaluation corpus is validated as data.** Its invariants have direct
   tests, and mutation-style tests break one field at a time to prove the
   validator rejects what it claims to. A validator that only ever sees valid
@@ -1400,6 +1788,22 @@ Principles:
   truncation, the description-only requests, and every identity a case forbids
   as an answer. The loader is imported by those tests, and a guard test asserts
   the research core does not import it.
+* **A fetcher is judged by what it declines to open.** The 3A fetcher tests
+  run offline — `socket.getaddrinfo` and the opener are both replaced, so the
+  suite makes no DNS query and opens no connection — and most of them are
+  refusals: loopback, private, link-local, metadata, multicast, reserved, and
+  IPv4-mapped destinations; a host resolving to one public *and* one private
+  address; a redirect to a private address, to a non-web scheme, or carrying
+  credentials; an oversized response; a non-HTML content type; and a redirect
+  loop. A safety rule exercised only along its happy path is indistinguishable
+  from no rule at all.
+* **Extraction is regression-tested against real recorded pages** in
+  `tests/fixtures/pages/`, through the real extractor, with synthetic edge cases
+  kept in a separate file and labelled (§16.1, AD-041). The negative half is the
+  important half: that a page's visible dollar amounts never become a price,
+  that a part number in a title or a URL never becomes a published part number,
+  that an `AggregateOffer` yields no price, and that a page publishing nothing
+  readable yields zero observations rather than a guess.
 * **A deterministic primitive is tested hardest on what it must refuse.** Most
   of the 2A suite is negative: near misses, truncations, containment,
   punctuation outside the profile, and — after 2A-FU1 — moved and missing
@@ -1412,8 +1816,9 @@ Principles:
 
 Status: `IMPLEMENTED` for the domain contracts, the evaluation corpus, the run
 lifecycle, the web shell, the part-number comparison, the search-provider
-boundary, the Serper adapter's offline fixture-based regression tests, and the
-architecture guards.
+boundary, the Serper adapter's offline fixture-based regression tests, the
+page-fetch boundary and its fetcher, raw listing extraction against recorded
+real pages, and the architecture guards.
 
 ## 21. Evaluation strategy
 
@@ -1539,8 +1944,8 @@ PRODUCT-INTEL.2A   Deterministic product identity model         IMPLEMENTED
                    2A-FU1 structure-preserving normalization    IMPLEMENTED
 PRODUCT-INTEL.2B   Search provider abstraction                  IMPLEMENTED
 PRODUCT-INTEL.2C   First real search provider (Serper)          IMPLEMENTED
-PRODUCT-INTEL.3A   Market listing extraction                    NEXT
-PRODUCT-INTEL.3B   Listing normalization
+PRODUCT-INTEL.3A   Market listing extraction                    IMPLEMENTED
+PRODUCT-INTEL.3B   Listing normalization                        NEXT
 PRODUCT-INTEL.3C   MPN matching + rejection
 PRODUCT-INTEL.4A   Price aggregation
 PRODUCT-INTEL.4B   Price Intelligence web report
@@ -1572,15 +1977,18 @@ Future:
   additional LLM providers
 ```
 
-Every phase after 2C is `APPROVED / PLANNED` and unimplemented. Do not
+Every phase after 3A is `APPROVED / PLANNED` and unimplemented. Do not
 execute a later phase while working on an earlier one.
 
-**The next phase is the priority.** 2C proved the 2B boundary against a real
-provider: one real Serper call, real candidate URLs, a sanitized recorded
-fixture, and offline regression tests against the actual adapter mapping. It
-integrated exactly one provider and wired it into nothing, on purpose. 3A —
-fetching and extracting from the candidate URLs Serper can now return — is
-what turns that search evidence into a market listing.
+**The next phase is the priority.** 3A turned a candidate URL into raw listing
+observations: a bounded, credential-free page fetch, deterministic extraction of
+`schema.org` JSON-LD and flat product meta, and five recorded real-page
+fixtures. It computed no price and normalized nothing, on purpose. 3B — turning
+`"1055.85"`, `"1,055.85"`, `"undefined"`, `"false"`, and a price with no
+currency at all into normalized values *with recorded reasons* — is what makes
+those observations comparable. Every one of those five strings came off a real
+page in 3A's sample, so 3B begins with its problem evidenced rather than
+imagined.
 
 ### 22.1 Corrective follow-up phases
 
@@ -1623,11 +2031,25 @@ in place of development SQLite.
 
 Also deferred as capability, per the roadmap rather than per this list: real
 product lookup, LLM calls, prompt engineering, price calculation, listing
-extraction, comparable discovery, similarity scoring, launcher code of any
-kind, and the research API. Real web search exists as of 2C — Serper can be
-called directly — but *orchestrated* search (query generation from a
-`ResearchRequest`, automatic invocation from a research run) remains deferred:
-nothing calls `search()` except an explicit manual script and offline tests.
+*normalization*, comparable discovery, similarity scoring, launcher code of any
+kind, and the research API. Real web search exists as of 2C and real page
+fetching plus raw listing extraction as of 3A — both can be called directly —
+but *orchestration* (query generation from a `ResearchRequest`, deciding which
+candidate URLs to open, automatic invocation from a research run) remains
+deferred: nothing calls `search()` or `fetch()` except an explicit manual script
+and offline tests.
+
+Deferred specifically around page fetching and extraction (3A), so that a later
+phase does not read their absence as an oversight: browser-rendered fetching of
+any kind (headless browser, browser farm, managed scraping service) ·
+bot-detection evasion, user-agent rotation, and proxies · retry policy and
+backoff · robots/politeness scheduling · crawling, link traversal, and sitemap
+discovery · asset fetching · page or response caching · persistence of a
+`FetchedPage` or a `ListingObservation` · a source-specific extraction strategy
+(permitted by §16 once a fixture justifies one; none did) · microdata and RDFa
+parsing · visible-text price extraction of any kind (permanently excluded, not
+deferred) · MPN inference from a title, snippet, or URL · DNS pinning and
+connection-level SSRF hardening (§13.6, deployment-level, 8C).
 
 Deferred specifically around part-number identity (2A), so that a later phase
 does not read their absence as an oversight: partial or fuzzy part-number
@@ -1679,6 +2101,7 @@ Completed:
 - PRODUCT-INTEL.2A-FU1 (corrective follow-up attached to 2A)
 - PRODUCT-INTEL.2B
 - PRODUCT-INTEL.2C
+- PRODUCT-INTEL.3A
 
 Current approved implementation state:
 - Project architecture established
@@ -1692,14 +2115,27 @@ Current approved implementation state:
 - Serper adapter established: the first real SearchProvider, ordinary Google
   Search, offline fixture-based regression tests, one sanitized recorded
   response, one manual live-smoke script — wired into nothing
-- Focused contract, lifecycle, web, identity, provider, Serper-adapter, and
-  boundary tests established
+- Page-fetch boundary established (PageFetchRequest, FetchedPage, PageFetcher,
+  PageFetchError, UnsafeFetchTargetError) with one standard-library fetcher:
+  bounded timeout, redirects and response size, HTML-only content types,
+  GET-only, no credential, and refusal of non-public destinations revalidated
+  on every redirect hop — wired into nothing
+- Deterministic raw listing extraction established (ListingObservation +
+  schema.org JSON-LD and flat product meta extraction), converting nothing and
+  deciding nothing
+- Five sanitized recorded real-page fixtures and one manual page-extract smoke
+  script established
+- Focused contract, lifecycle, web, identity, provider, Serper-adapter,
+  page-fetch, extraction, and boundary tests established
 
 Not yet implemented:
 - Research execution of any kind
 - Candidate discovery beyond one raw, unorchestrated search call
 - Query generation from a ResearchRequest
-- Page fetching, crawling, or listing extraction
+- Any orchestration from a search result to a page fetch to an extraction
+- Listing normalization, matching, rejection, or price aggregation
+- Browser-rendered fetching (not justified by the 3A sample - see 13.6)
+- Crawling or link traversal
 - LLM providers
 - Product resolver
 - Description interpretation
@@ -1713,7 +2149,7 @@ Not yet implemented:
   ordinary execution)
 
 Next planned phase:
-- PRODUCT-INTEL.3A — Market listing extraction
+- PRODUCT-INTEL.3B — Listing normalization
 ```
 
 Concretely, the repository contains: this document, `CLAUDE.md`, `README.md`, a
@@ -1900,3 +2336,6 @@ capability and started no later phase; the roadmap numbering is unchanged.
 | AD-040 | Provider-native payload material is preserved as an **opaque string reference**, never as a structure business logic reads. Normalized contract fields are what the core consumes. | Real providers return more than any contract will hold, and the useful residue has to be kept — evidence-first (AD-007) means what was actually returned stays inspectable. The tempting shortcut is to attach the vendor's parsed payload as a `dict` and let callers reach into it "just for now". That is how a vendor gets into business logic permanently: one research rule reads one vendor-specific key, and the boundary that exists to make providers replaceable has been bypassed while still appearing to be in place. An opaque string cannot be read that way without a deliberate parse that no rule may perform, so the material is preserved for humans, fixtures, and later phases without becoming an interface. It is also kept verbatim rather than trimmed, because it is the artifact a recorded fixture is compared against. | Accepted (2B) |
 | AD-041 | Real recorded provider fixtures begin with the first real provider (2C). 2B tests its boundary with synthetic fakes only, and no fixture is invented in advance. | A recorded fixture's whole value is that it is what a real service actually returned, so an adapter's mapping can be regression-tested offline without credentials or network. A fixture written before a provider is chosen would be a guess wearing that authority: it would pass whatever the adapter did, and it would quietly encode an imagined payload shape as the expected one — the same failure mode AD-024 forbids in the evaluation corpus. Fakes are honest about being fakes and are sufficient to prove the interface is satisfiable. Sanitization (credentials, tokens, request secrets, personal and customer data removed) is part of the policy rather than an afterthought, because the first recording will otherwise be made from a real authenticated call. | Accepted (2B) |
 | AD-042 | Serper is the first real `SearchProvider`, integrated as one adapter (`providers/serper.py`) calling ordinary Google Search only; the credential is read from `SERPER_API_KEY` in the server environment inside one constructor (`from_environment`) and sent in Serper's documented header; `price_hint_text` and `part_number_hint` stay `None` for every mapped result. | A vendor had to be chosen to prove the 2B boundary against reality, and Serper's ordinary-search endpoint is the narrowest real surface that does so without also deciding a pricing-extraction question (Shopping) or an orchestration question (query generation) the roadmap has not reached yet. Reading the credential only inside one environment-backed constructor keeps the adapter testable by direct construction (`SerperSearchProvider(api_key=...)`) without the real environment, mirrors AD-005's "no secrets in the client" rule at the server edge, and matches the phase brief's instruction to keep configuration reading at the adapter/config edge rather than build an application-wide settings framework. `price_hint_text` and `part_number_hint` staying `None` is not caution for its own sake: ordinary Google Search organic results do not publish either field, confirmed against the real recorded fixture, and inventing either by regexing a snippet or a URL would be extraction (3A/3C) performed inside a transport adapter — the exact layering violation AD-039 exists to prevent. | Accepted (2C) |
+| AD-043 | Page fetching enters through a second provider boundary (`providers/page.py`) with one standard-library implementation (`providers/http_page.py`). A `SearchResult`, a `FetchedPage`, and a `ListingObservation` are three distinct observations and are never collapsed. Extraction lives in the research core and takes a document *string*, so neither half imports the other. | The layering is the decision. A search snippet is a third party's description of a page; the page is what that URL returned; and a listing observation is what the document publishes. Collapsing the first two would let a snippet be reported as page evidence — precisely the conversion AD-039 refused when it kept a numeric price off `SearchResult`. Collapsing the last two would put document parsing in a transport adapter and page retrieval in the engine, which is how the research core acquires a network stack and stops being testable without one. Passing a string rather than a `FetchedPage` is what makes the separation structural rather than stylistic: the research guards already forbid `providers` imports, and a shared type would have forced either a relaxation or a domain-level contract that both layers depend on — a third thing to keep in sync for no capability. The two halves meet in a caller that holds both, which today is one manual script and tomorrow is whichever phase orchestrates research. | Accepted (3A) |
+| AD-044 | The fetcher is bounded (timeout, redirects, response size, HTML-only content types), sends no credential or cookie, issues GET only, follows redirects itself, and refuses any destination resolving to a non-public address — while the documentation states plainly that this is not network isolation, and that DNS rebinding and general egress remain open at the application layer. | A fetcher consuming URLs that originated from an external search provider is an SSRF primitive unless it is built as one that is not, and the ordinary attack is not exotic: a public host that 302s to `http://169.254.169.254/`. Two implementation choices carry most of the weight and both were deliberate. Following redirects manually was necessary because `urllib` would otherwise follow them transparently and the address checks would apply to every hop except the only one that matters — the last. Assembling the opener by hand was necessary because `build_opener()` installs `FileHandler`, `FTPHandler`, and `ProxyHandler`, each of which lets a URL or an ambient environment variable send the fetch somewhere other than the public page requested. Refusing an oversized response rather than truncating it follows AD-009: a truncated document parses as though it were whole, so the failure would surface as *fewer listings*, which is a wrong answer delivered quietly rather than an error delivered loudly. The honesty clause is the other half of the decision. Closing the DNS time-of-check/time-of-use gap means owning the socket — resolving once, connecting to the pinned address, and carrying the hostname through TLS verification — which is a change to how connections are made and belongs to deployment hardening (8C), not to a phase learning what pages contain. Stating the residue costs nothing and stops a later phase from trusting a guarantee that was never made, exactly as AD-029 did for transition atomicity. | Accepted (3A) |
+| AD-045 | Extraction reads only structured data a page deliberately published — `schema.org` JSON-LD first, flat product meta second and only when JSON-LD yielded nothing — and every extracted value stays raw text. No visible-text price scan exists, and none may be added. An `AggregateOffer` yields no price at all. | Three real pages sampled in this phase settle this better than argument could. One publishes `"price": "undefined"` inside a well-formed `Offer`: a converting extractor raises on it or silently drops the offer, and a reviewer sees neither. One publishes `"1055.85"` in JSON-LD and `"1,055.85"` in OpenGraph — the same money, twice, on one page, which is why the second mechanism is a fallback rather than an addition; running both would turn one offer into two observations and 4A counts observations. One publishes a price with no currency anywhere and an `availability` of `"false"`, which no vocabulary contains. Converting at this layer would mean each of those either fails or is guessed at inside a parser with nowhere to record which, whereas raw text moves the decision to 3B where "unparseable price" and "no currency" are outcomes with reasons attached. The prohibition on visible-text scanning is stronger than a preference and is recorded as permanent: the sampled storefront carries fourteen distinct dollar amounts — a shipping threshold, financing bounds, a per-instalment figure, four recommended products in markup identical to the real price element — so first-match, lowest-match, and largest-match rules each return a wrong number with total confidence. The `AggregateOffer` refusal is the same rule in miniature: a low and a high across sellers is a range, and picking an end is lowest-wins wearing a schema name. Parsing with `parse_float=str` is what makes "raw" true rather than aspirational — a float has already discarded how the page wrote the number. | Accepted (3A) |

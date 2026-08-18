@@ -10,14 +10,30 @@ no Django, no HTTP, no provider, and no import of
 `product_intelligence.evaluation`. The run lifecycle is *not* here — it is a
 persisted record and lives in `product_intelligence.runs` (AD-025).
 
+That rule is why extraction takes a document *string* rather than a
+`FetchedPage`: the fetch boundary lives in `providers/`, and the two halves of
+the 3A slice meet in whatever code holds both rather than by one importing the
+other. The core can therefore be exercised with a string literal, and it opens
+no socket to do it.
+
 Status: PRODUCT-INTEL.2A implemented the deterministic part-number identity
 comparison in `identity`, and 2A-FU1 narrowed its normalization so that
 separator *position* is preserved rather than deleted. It compares two part
 numbers it is handed; it finds no candidates, resolves no product, and reads no
-description. Listing work is 3A-3C, pricing is 4A-4B, and comparables are
-7A-7C — none of it exists.
+description.
+
+PRODUCT-INTEL.3A added `listings` and `extraction`: the raw
+`ListingObservation` contract and the deterministic extractor that reads
+`schema.org` JSON-LD and flat product meta tags out of a document. It observes
+text and converts nothing — no `Decimal`, no currency, no vocabulary, no
+arithmetic. Extraction never calls the 2A comparator: an extractor that decided
+identity would be judging its own evidence.
+
+Normalization is 3B, listing match and rejection is 3C, pricing is 4A-4B, and
+comparables are 7A-7C — none of it exists.
 """
 
+from product_intelligence.research.extraction import extract_listing_observations
 from product_intelligence.research.identity import (
     ASCII_WHITESPACE,
     CANONICAL_SEPARATOR,
@@ -28,14 +44,21 @@ from product_intelligence.research.identity import (
     compare_request_to_candidate,
     normalize_part_number,
 )
+from product_intelligence.research.listings import (
+    ExtractionMethod,
+    ListingObservation,
+)
 
 __all__ = [
     "ASCII_WHITESPACE",
     "CANONICAL_SEPARATOR",
     "PRESERVED_SEPARATORS",
     "STRUCTURAL_CHARACTERS",
+    "ExtractionMethod",
+    "ListingObservation",
     "PartNumberMatchAssessment",
     "compare_part_numbers",
     "compare_request_to_candidate",
+    "extract_listing_observations",
     "normalize_part_number",
 ]

@@ -59,6 +59,22 @@ Regression tests run entirely offline against a sanitized recorded fixture in
 Serper. **Nothing is wired to it:** the run lifecycle and the web shell are
 unchanged, and a submitted run is still `CREATED` and stays there.
 
+**Phase PRODUCT-INTEL.3A is complete: market listing extraction** — the first
+vertical slice from a real public URL to a raw observation. A page-fetch
+boundary (`product_intelligence/providers/page.py`) with one standard-library
+fetcher (`http_page.py`): bounded timeout, redirects and response size,
+HTML-only, GET-only, no credential, and refusal of any destination resolving to
+a non-public address, revalidated on every redirect hop. Then deterministic
+extraction in the research core (`research/listings.py`, `research/extraction.py`)
+reading `schema.org` JSON-LD and flat product meta into raw
+`ListingObservation`s. **Every value stays text** — no `Decimal`, no currency,
+no vocabulary, no arithmetic — and **no price is ever read out of visible page
+text**. Seven real public pages were fetched once each; five returned a document
+and three yielded usable structured data, all five recorded as sanitized
+fixtures in `tests/fixtures/pages/`. **No browser, crawler, or paid scraping
+dependency was added, and none is justified yet. Nothing is wired to it:** a
+submitted run is still `CREATED`.
+
 What exists today:
 
 * the canonical architecture and roadmap document
@@ -82,25 +98,33 @@ What exists today:
   real `SearchProvider`, calling Serper's ordinary Google Search endpoint, plus
   a sanitized recorded fixture (`tests/fixtures/providers/serper/`) and a
   manual live-smoke script (`scripts/serper_live_smoke.py`)
+* the page-fetch boundary (`product_intelligence/providers/page.py`) and its
+  standard-library fetcher (`http_page.py`)
+* deterministic raw listing extraction (`product_intelligence/research/
+  listings.py`, `extraction.py`), five sanitized recorded real-page fixtures
+  (`tests/fixtures/pages/`), and a manual smoke script
+  (`scripts/page_extract_smoke.py`)
 * deterministic tests for those contracts, for the corpus, for the lifecycle,
   for the browser workflow, for the comparison, for the provider boundary, for
-  the Serper adapter's mapping (offline, against the recorded fixture), and for
-  the architecture boundaries
+  the Serper adapter's mapping, for page-fetch safety, for extraction against
+  the recorded real pages (all offline), and for the architecture boundaries
 
 **What does not exist:** market research of any kind. There is no candidate
 discovery beyond one raw search call, no product lookup, no product resolver,
-no description interpretation, no price calculation, no listing extraction, no
-comparable-product discovery, no LLM integration, no structured API, and no ERP
-integration. None of it is stubbed or partially present — those are later
-phases. A run can be created through the browser and moved through its states by
-code; nothing yet moves one, because nothing yet does research. The comparison
-primitive can say whether two part numbers are the same part number, and nothing
-supplies it with a second one. Serper can now return real search results, but
-nothing calls it from the run lifecycle or the web shell, no page is fetched,
-no listing is extracted, and no price is computed. The corpus describes what
-good answers would look like; nothing produces or scores an answer.
+no description interpretation, no listing normalization, no listing matching or
+rejection, no price calculation, no comparable-product discovery, no LLM
+integration, no structured API, and no integration with any calling system.
+None of it is stubbed or partially present — those are later phases. A run can
+be created through the browser and moved through its states by code; nothing yet
+moves one, because nothing yet does research. The comparison primitive can say
+whether two part numbers are the same part number, and nothing supplies it with
+a second one. Search can return real results and a page can be fetched and read
+— but nothing calls either from the run lifecycle or the web shell, nothing
+decides which URL to open, and **no price is computed anywhere**. The corpus
+describes what good answers would look like; nothing produces or scores an
+answer.
 
-Next planned phase: **PRODUCT-INTEL.3A — market listing extraction.**
+Next planned phase: **PRODUCT-INTEL.3B — listing normalization.**
 
 ## The browser workflow
 
@@ -433,24 +457,95 @@ product_intelligence/
   domain/                          contracts + vocabularies (implemented)
   evaluation/                      corpus validation + loader (implemented)
   runs/                            persisted run lifecycle (implemented)
-  research/                        part-number comparison (implemented)
-  providers/                       search boundary (implemented) + serper.py
-                                    (implemented, the first real provider)
+  research/                        part-number comparison (implemented) +
+                                    raw listing extraction (implemented)
+  providers/                       search boundary + serper.py (implemented) +
+                                    page-fetch boundary + http_page.py
+                                    (implemented)
   web/                             standalone form + report shell (implemented)
 scripts/
   serper_live_smoke.py             manual, explicit live-call check (2C)
+  page_extract_smoke.py            manual, explicit live-fetch check (3A)
 tests/                             focused deterministic tests
   fixtures/providers/serper/       sanitized recorded Serper response
+  fixtures/pages/                  five sanitized recorded real product pages
 ```
 
 `evaluation/README.md` explains the corpus: its schema, the real-versus-
 synthetic rule, the challenge classes, the metric definitions, why no price is
 recorded in it, and the discipline governing changes to an expected answer.
 
-`providers/` holds the search boundary and, as of 2C, one real adapter behind
-it — see "The Serper adapter" above. The LLM boundary is still documentation
-only: the package carries the rules that apply to it, so the phase that
-implements it does so into a defined space rather than inventing one.
+`providers/` holds two boundaries and one adapter each: the search boundary
+with the Serper adapter behind it (see "The Serper adapter" above), and the
+page-fetch boundary with the standard-library `HttpPageFetcher` behind it (see
+"Fetching a page" below). The LLM boundary is still documentation only: the
+package carries the rules that apply to it, so the phase that implements it does
+so into a defined space rather than inventing one.
+
+## Fetching a page, and reading one
+
+3A added the first vertical slice from a public URL to a raw observation, and
+the layering is deliberate:
+
+```text
+SearchResult        what a search provider said about a URL      (2B / 2C)
+FetchedPage         what that URL actually returned              (3A)
+ListingObservation  what the returned document publishes         (3A)
+```
+
+None of the three is collapsed into another. A snippet is a third party's
+description of a page; the page is the page; and neither is a market listing.
+
+**`HttpPageFetcher`** is standard library only — no crawler service, no browser,
+no proxy, no per-page fee. Every fetch is bounded (10 s, 3 redirects, 5 MiB,
+`text/html` or `application/xhtml+xml`), sends no credential or cookie, issues
+GET only, executes no JavaScript, and retrieves the document alone — no images,
+scripts, stylesheets, or link traversal. Because a URL may have come from an
+external search result, every destination is resolved first and refused unless
+*every* address it resolves to is publicly routable; loopback, private,
+link-local (including `169.254.169.254`), multicast, and reserved destinations
+are refused, and **every redirect hop is revalidated** rather than followed by
+`urllib`. An oversized response is refused rather than truncated, because a
+document cut mid-element parses as though it were whole.
+
+These are application-level checks and **not** network isolation. DNS
+time-of-check/time-of-use and general egress remain open at this layer; the
+durable fix is an egress allowlist or outbound proxy in the deployment. That
+limitation is documented rather than papered over (§13.6 of the plan).
+
+**`extract_listing_observations`** reads only structured data a page
+deliberately published: `schema.org` JSON-LD first, and flat product meta tags
+only when JSON-LD produced nothing — one recorded page publishes the same offer
+in both places, and running both would turn one offer into two observations.
+
+Every extracted value stays **raw text**. No `Decimal`, no currency, no
+condition or availability vocabulary, no arithmetic. That is not caution for its
+own sake: one recorded manufacturer page publishes `"price": "undefined"` inside
+a well-formed `Offer`, one retailer publishes `"mpn:MZ-QL23T800"` prefix and
+all, and one publishes a price with no currency anywhere on the page. A
+converting extractor would crash or silently drop each of them; keeping them as
+text moves the decision to 3B, where "unparseable price" is an outcome with a
+reason.
+
+**No price is ever read out of visible page text**, and none ever may be. One
+recorded page carries fourteen distinct dollar amounts — a shipping threshold,
+financing plan bounds, a per-instalment figure, and four recommended products in
+markup identical to the real price element. A first-match, lowest-match, or
+largest-match rule returns a wrong number from that page with complete
+confidence.
+
+Extraction lives in the research core and takes a document *string*, so it
+imports nothing from `providers/` and opens no socket; the fetcher knows nothing
+about listings. The two halves meet only in a caller that holds both — today,
+one manual script:
+
+```bash
+python scripts/page_extract_smoke.py https://example.com/some-product
+```
+
+The normal test suite makes **zero** network requests: extraction is
+regression-tested against the recorded pages in `tests/fixtures/pages/`, and the
+fetcher's tests replace both DNS resolution and the opener.
 
 ## Architecture in one paragraph
 
