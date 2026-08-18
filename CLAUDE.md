@@ -18,13 +18,13 @@ It is not an ERP module and does not require one to function.
 **PRODUCT-INTEL.0A is complete**, together with its corrective follow-up
 **PRODUCT-INTEL.0A-FU1**; **PRODUCT-INTEL.0B is complete**;
 **PRODUCT-INTEL.1A is complete**, together with its corrective follow-up
-**PRODUCT-INTEL.1A-FU1**; **PRODUCT-INTEL.1B is complete**; and
+**PRODUCT-INTEL.1A-FU1**; **PRODUCT-INTEL.1B is complete**;
 **PRODUCT-INTEL.2A is complete**, together with its corrective follow-up
-**PRODUCT-INTEL.2A-FU1**. The repository contains architecture
-documentation, a minimal Django project, domain contracts, the evaluation corpus
-and its loader, the persistent research-run lifecycle and its migrations, the
-standalone browser shell, the deterministic part-number comparison, and their
-tests.
+**PRODUCT-INTEL.2A-FU1**; and **PRODUCT-INTEL.2B is complete**. The repository
+contains architecture documentation, a minimal Django project, domain contracts,
+the evaluation corpus and its loader, the persistent research-run lifecycle and
+its migrations, the standalone browser shell, the deterministic part-number
+comparison, the search-provider boundary, and their tests.
 
 FU1 corrected two contract-level defects before 0A was frozen: an impossible
 guarantee that arbitrary unencoded URL parameters arrive losslessly (see the
@@ -61,13 +61,19 @@ part number. Separator *position* is now preserved — an internal whitespace ru
 is written as a hyphen rather than removed — and `_`, `/`, and `.` became data
 rather than interchangeable formatting.
 
+2B added the search-provider boundary in `product_intelligence/providers/`
+(see the provider section below): three contracts, one protocol, one exception.
+**No provider is integrated** — no adapter, no HTTP call, no credential, no
+vendor dependency, and nothing calls `search()`.
+
 **There is still no research capability.** No search, no candidate discovery, no
 LLM, no pricing, no comparables, no resolver, and no background processing —
 nothing moves a run out of `CREATED`, and the report page says exactly that
 instead of showing progress.
 
-Next planned phase: **PRODUCT-INTEL.2B — search provider abstraction.** Do not
-start it unless asked.
+Next planned phase: **PRODUCT-INTEL.2C — first real search provider.** Do not
+start it unless asked. It is the priority after 2B: the remaining risk is no
+longer architectural, and nothing here has yet met a real market page.
 
 ## Before you implement anything
 
@@ -228,6 +234,47 @@ and the frozen `PartNumberMatchAssessment`. Binding rules:
   the research core, and a guard test enforces that. Integration waits for a
   phase with a real candidate source.
 
+**Search-provider boundary (2B).** `product_intelligence/providers/search.py`
+owns `SearchQuery`, `SearchResult`, `SearchResponse`, the `SearchProvider`
+protocol, and `SearchProviderError`. Binding rules:
+
+* **The generic boundary is stdlib-only contracts.** No vendor package, no
+  credential, no environment reading, no HTTP client, no Django, no model, no
+  persistence. A vendor name may appear in an adapter (2C), never here — a guard
+  test scopes the vendor scan to `providers/__init__.py` and `providers/search.py`.
+* **`SearchQuery` is one external search operation, not a `ResearchRequest`.**
+  It has one field, `text`, stripped and non-empty. Query generation — turning
+  one request into one or more queries — is research-core work and does not
+  exist. Do not add category, locale, result limit, search mode, pagination, or
+  shopping flags without a phase that needs them.
+* **`price_hint_text` is text, never a price.** No `Decimal`, no currency, no
+  arithmetic, no choosing between sale price, shipping, and monthly payment.
+  **Never add a numeric price field** — a test asserts the exact field list.
+  Extraction is 3A, normalization 3B, aggregation 4A.
+* **`part_number_hint` is unverified**, and only for a part number a provider
+  *explicitly publishes*. It is stored exactly as published: not normalized, not
+  compared, not a match. A part number inferred from a title, snippet, or URL is
+  extraction (3A/3C), not this field.
+* **A provider observes; it never decides.** No identity comparison, no price
+  parsing, no acceptance, no "verified results". The provider layer does not
+  import `research`, `runs`, `web`, or `evaluation`, and a guard test enforces it.
+* **Provider-native payload stays opaque.** `raw_reference` and
+  `raw_response_reference` are strings kept verbatim, never parsed, never a
+  `dict` for business logic to read a vendor key out of.
+* **`source_url` must be an absolute `http`/`https` URL with a host.**
+  `javascript:`, `data:`, `file:`, other schemes, and relative values are
+  rejected. That is the whole rule — do not grow a URL-security subsystem.
+* **`retrieved_at` is timezone-aware and supplied by the adapter.** Contracts
+  never generate time. **Zero results is a valid response**, not an error.
+* **One exception, one method, synchronous.** No registry, factory, plugin
+  discovery, DI container, manager, fallback chain, fan-out, retries, rate-limit
+  scheduler, circuit breaker, async variant, or error taxonomy. One provider
+  arrives in 2C; design for replaceability, not simultaneity.
+* **Nothing is wired to it.** No inner layer imports `providers`, and a guard
+  test enforces that. Tests use synthetic fakes only — **sanitized recorded
+  fixtures of real responses begin in 2C**, and inventing one now would produce
+  a fixture that passes whatever the real provider does.
+
 **Legacy client constraint.** The production sales-order system is Microsoft
 Visual FoxPro 5.0. Assume it has *no* usable REST client, JSON, OAuth, modern
 TLS, modern HTTP library, Unicode sophistication, or browser integration. Its
@@ -314,8 +361,8 @@ Django model, and never part of a research run. Full rules in
 1B Standalone web research/report shell       <- complete
 2A Deterministic product identity model       <- complete
    2A-FU1 structure-preserving normalization  <- complete
-2B Search provider abstraction                <- next
-2C First real search provider
+2B Search provider abstraction                <- complete
+2C First real search provider                 <- next
 3A Market listing extraction
 3B Listing normalization
 3C MPN matching + rejection
@@ -362,7 +409,21 @@ additional search and LLM providers.
   core gains a non-stdlib import, a persistence/provider/benchmark/web import, a
   network or filesystem module, or a vendor name; if the domain imports the
   research core; or if `runs`, `web`, or `evaluation` wires itself to the
-  identity primitive. If a guard fails, fix the design, not the test.
+  identity primitive.
+  `tests/providers/test_provider_boundaries.py` fails if the generic search
+  boundary gains a non-stdlib import, a vendor name, a calling-system concept, a
+  network or configuration module, a model, or a third-party dependency; if the
+  provider layer imports persistence, the research core, the web layer, or the
+  benchmark; or if any inner layer wires itself to the boundary while no
+  provider exists. If a guard fails, fix the design, not the test.
+* **A corrective follow-up phase has a higher bar from 2B onward.** Reserve a
+  standalone FU for a defect that materially threatens false confidence or a
+  false exact, data integrity, security, provider cost, or a hard architectural
+  boundary. Fold minor cleanup, wording, speculative future-proofing, and
+  theoretical edge cases into the next phase, record them as known debt, or
+  defer them until real provider evidence shows they matter. This is not a
+  severity framework — it exists because architecture latency now costs more
+  than a small imperfection carried for one phase (§22.1 of the plan).
 
 ## Commands
 

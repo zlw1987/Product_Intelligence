@@ -143,7 +143,7 @@ Repository layout:
 │   ├── evaluation/                    corpus contracts, validation, loader (0B)
 │   ├── runs/                          persisted run lifecycle + migration (1A)
 │   ├── research/                      deterministic part-number comparison (2A)
-│   ├── providers/                     provider boundaries (not implemented)
+│   ├── providers/                     search-provider boundary (2B)
 │   └── web/                           standalone form + report shell (1B)
 └── tests/                             focused deterministic tests
 ```
@@ -168,11 +168,13 @@ and `runs`, and a guard test fails if any inner layer imports `web`.
 
 Status: `IMPLEMENTED` for the layout, the domain layer, the evaluation corpus
 layer, the run-persistence layer, the Django project, the standalone web intake
-and report shell, and — inside the core — the deterministic part-number
-comparison primitive (§12.1). `APPROVED / PLANNED` for every box below
-"Canonical Research Request" in the diagram: a run records *that* research was
-requested and how it ended, the web shell starts nothing, and the core can
-compare two part numbers it is handed but has no way to obtain the second one.
+and report shell, the deterministic part-number comparison primitive inside the
+core (§12.1), and the search-provider boundary (§13.1). `APPROVED / PLANNED` for
+every box below "Canonical Research Request" in the diagram: a run records
+*that* research was requested and how it ended, the web shell starts nothing,
+the core can compare two part numbers it is handed but has no way to obtain the
+second one, and the provider boundary is a shape with no implementation behind
+it.
 
 ## 6. Multi-interface intake design
 
@@ -708,8 +710,8 @@ split. No LLM is integrated. No prompts exist.
 
 ## 13. Search-provider boundary
 
-A `SearchProvider` abstraction will sit between the research core and any
-external search or listing source.
+A `SearchProvider` abstraction sits between the research core and any external
+search or listing source.
 
 * Business logic depends on the boundary, never on a vendor.
 * Vendor names, payload shapes, rate limits, retries, and credentials stay
@@ -722,8 +724,150 @@ Vendor selection is `UNDECIDED`. One provider will be integrated first
 (phase 2C); multiple simultaneous providers are `DEFERRED` until a phase
 shows a concrete need.
 
-Status: `APPROVED / PLANNED` (2B), with `IMPLEMENTED` boundary rules recorded
-in `product_intelligence/providers/__init__.py`. No provider exists.
+### 13.1 What 2B implemented
+
+`product_intelligence/providers/search.py` — one synchronous operation and
+three immutable provider-neutral contracts:
+
+```text
+SearchQuery  ->  SearchProvider.search(query)  ->  SearchResponse
+                                                     |- SearchResult, ...
+```
+
+```python
+class SearchProvider(Protocol):
+    def search(self, query: SearchQuery) -> SearchResponse: ...
+```
+
+| Contract | Fields |
+| --- | --- |
+| `SearchQuery` | `text` |
+| `SearchResult` | `source_url`, `title`, `snippet`, `price_hint_text`, `part_number_hint`, `raw_reference` |
+| `SearchResponse` | `provider_id`, `query`, `retrieved_at`, `results`, `raw_response_reference` |
+
+`SearchQuery` is deliberately **not** a `ResearchRequest` (AD-038). A research
+request is a person's input, MPN plus description; a query is one string sent to
+one external service. One request may later produce several queries, and
+deciding which is query *generation* — research-core work that does not exist.
+A provider handed a `ResearchRequest` would have to make that decision itself,
+which is how a transport adapter acquires research semantics. Query text is
+stripped of surrounding whitespace and must be non-empty. There is no category,
+locale, result limit, search mode, pagination cursor, or shopping flag: each is
+a policy no phase has taken, and 2C needs none of them.
+
+`SearchResult` records one observation and interprets nothing. `source_url` is
+the only required field, because an observation nobody can re-open is not
+evidence; it must be an absolute `http`/`https` URL with a host, so
+`javascript:`, `data:`, `file:`, other schemes, and relative or scheme-relative
+values are refused at the boundary rather than stored and later rendered. The
+URL is then kept exactly as observed. That is one narrow rule, not a URL-security
+subsystem — it judges no host, no redirect, and no content.
+
+`price_hint_text` is **not a price** (AD-039). It is whatever price-shaped text
+the provider displayed — `"$399.99"`, `"$399.99 - $449.99"`, `"from $399"`,
+`"EUR 320"`, `"$33/mo"` — and it stays a string: never a `Decimal`, never
+assigned a currency, never resolved between a sale price, a shipping charge and
+a monthly payment, and never used in arithmetic. The contract has **no numeric
+price field at all**, and a test asserts the exact field list, because a numeric
+price on a search result would present a snippet as a verified market
+observation. Extraction (3A), normalization (3B), and aggregation (4A) exist
+precisely because that conversion is a decision with rules rather than a cast.
+
+`part_number_hint` is an **unverified** candidate part number, present only when
+a provider explicitly publishes such a field. It is stored exactly as published:
+not normalized, not compared, not called a match. A part number *inferred* from
+a title, a snippet, or a URL is not this field — that is extraction from noisy
+text (3A/3C), and blurring the two would let a guess enter the system under the
+name of a published value.
+
+`SearchResponse` carries provenance. `provider_id` is a non-empty string an
+adapter supplies for attribution; it is runtime data, never an enumeration, and
+no business rule may branch on it — the generic boundary contains no list of
+vendors. `retrieved_at` must be timezone-aware and is always supplied by the
+adapter, never generated inside the contracts (AD-015). `results` is an
+immutable tuple, and **zero results is a valid answer**: a provider finding
+nothing is information, and raising instead would push a legitimate outcome into
+the failure path.
+
+`SearchProviderError` is the boundary's single failure concept. A taxonomy of
+timeout / quota / auth / rate-limit / parse errors would be designed against
+imagined failures before a real provider has produced one; 2C sees the real
+error surface and may justify a small hierarchy then. Invalid construction of a
+contract is a caller defect and raises `TypeError` or `ValueError` instead.
+
+Deliberately absent: provider registry, factory, plugin discovery, dependency
+injection, provider manager, fallback chain, multi-provider fan-out, retries,
+rate-limit scheduling, circuit breakers, and async. One provider arrives in 2C;
+the boundary is designed for replaceability, not simultaneity.
+
+### 13.2 Raw provider material
+
+Real providers return more than these contracts carry, and some of it will
+matter. The rule is neither "widen the contract until it holds everything" nor
+"pass the payload through so the core can look inside" (AD-040):
+
+```text
+provider adapter  ->  normalized SearchResult / SearchResponse fields
+                  +   an opaque raw reference
+```
+
+Business logic reads the normalized fields. `SearchResult.raw_reference` and
+`SearchResponse.raw_response_reference` preserve what the provider actually
+returned so a human or a test can re-inspect it. They are opaque strings, kept
+verbatim, and nothing in this project parses them. A provider-shaped `dict` is
+deliberately not the type: it would invite a research rule to read a
+vendor-specific key, and the vendor would be in the business logic from that
+moment on.
+
+### 13.3 Recorded fixtures
+
+From 2C onward, provider adapters are regression-tested against **sanitized
+recorded responses** — real provider output with credentials, tokens, request
+secrets, and personal or customer information removed (AD-041). A recording
+should preserve enough of the real response to reproduce an adapter mapping
+failure, and nothing more.
+
+* Live calls: only in an explicit, manually run integration or smoke check.
+* The normal automated suite: no network, no credentials.
+* Regression tests: recorded fixtures.
+
+No such fixture exists yet, and 2B deliberately did not invent one. A fabricated
+"real response" would be a guess about a provider that has not been chosen, and
+it would pass regardless of what the real one does. Synthetic fakes are
+sufficient for testing the interface itself, and that is all 2B's tests use.
+
+### 13.4 What the first real provider (2C) must do
+
+Recorded here so the phase begins with its obligations rather than deriving
+them:
+
+* integrate **exactly one** real provider behind this boundary;
+* make real search calls only in an explicit or manual integration path;
+* capture sanitized real responses as recorded fixtures, and map them to these
+  contracts in tests;
+* expose traceable search evidence — provider, URL, retrieval time, preserved
+  raw material;
+* use the deterministic 2A comparison early, whenever a result carries an
+  explicit candidate part number;
+* **not** accept a result as a listing merely because it contains a price.
+
+If the selected provider is metered or paid per request, basic duplicate
+external-call protection must be addressed before it is used as normal
+application behaviour — see §18, which distinguishes that narrow concern from
+general caching.
+
+A future **internal or distributor price source** enters through this same
+boundary, as one more provider. It must not become conditional logic in the core
+for one company's systems. Internal commercial pricing and public market pricing
+are distinct classes of evidence and must not automatically share one aggregate
+(§16); exposing internal pricing through a report also makes report access
+control a blocker rather than a deferred question (§19).
+
+Status: `IMPLEMENTED` (2B) for the boundary — the contracts, the protocol, the
+one exception, and their guards. **No provider exists**: there is no adapter, no
+HTTP call, no credential, no environment variable, no vendor dependency, and
+nothing in the system calls `search()`. Vendor selection remains `UNDECIDED`
+until 2C.
 
 ## 14. LLM-provider boundary
 
@@ -961,6 +1105,41 @@ Rules:
 Which aggregate constitutes "market price", and how outliers are handled, are
 `UNDECIDED` — to be settled in 4A with the evaluation corpus from 0B.
 
+Binding constraints on the phases above, recorded in 2B so each phase starts
+with them rather than rediscovering them:
+
+**3A — extraction may be source-specific, business rules may not.** Generic
+extraction over search results will not be enough for every source. Once real
+recorded fixtures (§13.3) *show* that, 3A may add narrowly scoped
+source-specific extraction strategies alongside the generic path. They stay
+outside the domain and outside business rules: a strategy knows how one site
+writes a price, and nothing else. Nothing about this is implemented, and none of
+it may be written before fixtures justify it. A price hint from a provider
+(§13.1) is an observation and not an extraction result — the two must not be
+conflated.
+
+**3B — normalization is not conversion.** 3B explicitly normalizes currency
+representation, quantity and pack size, unit price, condition, and availability.
+"Normalize currency" means recording that an observation is in EUR in a
+consistent form; it is **not** converting EUR to USD. No implicit FX conversion
+happens anywhere, in 3B or later: a rate is a market observation of its own,
+with its own source and its own retrieval time, and silently applying one would
+manufacture a number no evidence supports.
+
+**4A — aggregation requires demonstrable comparability.** An aggregate over
+observations that are not comparable is a wrong number with a confident
+presentation. At minimum:
+
+* mixed currencies may not silently share one aggregate;
+* a multi-pack total price may not be compared with a single-unit price without
+  unit normalization;
+* new, used, refurbished, and unknown-condition offers may not be blindly mixed
+  into one market band.
+
+The same rule governs classes of evidence: internal or distributor pricing and
+public market pricing are different observations of different things and do not
+automatically belong in one aggregate (§13.4).
+
 Status: `APPROVED / PLANNED`. Nothing implemented.
 
 ## 17. Comparable-product direction
@@ -1003,8 +1182,30 @@ Rules for whenever this is built (8A):
 * A report must show how old its evidence is; stale data presented as current
   is a correctness bug.
 
-Status: `DEFERRED` to 8A. Storage mechanism is `UNDECIDED`. No caching of any
-kind exists, and none should be added before 8A.
+### 18.1 Paid-call protection is a different problem from caching
+
+8A is not moved and no new caching phase is invented. What is clarified here is
+that two distinct concerns have been getting one name (AD-041's sibling concern,
+recorded in 2B):
+
+| Concern | What it is | When |
+| --- | --- | --- |
+| Duplicate paid-call protection | Not paying twice for effectively the same immediate research operation | With the metered provider that creates the exposure (2C, if the selected provider is paid per request) |
+| General caching (8A) | Price / specification / comparable freshness windows, explicit refresh, invalidation policy across information classes | 8A |
+
+The first is narrow and operational: one research operation should not issue the
+same external request twice because a page was reloaded or a step retried. It is
+**not** permission to introduce Redis, Celery, a cache platform, or a freshness
+policy — all of which remain `DEFERRED` per §23. The second is a design problem
+about how long an answer stays true, and it needs the answers to exist first.
+
+Neither is implemented, and nothing in 2B addresses either: no provider is
+integrated, so no call is ever made and nothing can be paid for twice yet.
+
+Status: `DEFERRED` to 8A for general caching. Storage mechanism is `UNDECIDED`.
+Duplicate paid-call protection is `APPROVED / PLANNED` for 2C and only if the
+selected provider is metered. No caching or call-deduplication of any kind
+exists.
 
 ## 19. Security boundaries
 
@@ -1027,7 +1228,13 @@ kind exists, and none should be added before 8A.
   The repository default is explicitly development-only.
 
 Authentication and authorization are `DEFERRED`; no phase before 8C assumes
-them.
+them. **They stop being deferrable at a specific, foreseeable point**, recorded
+in 2B so it is not discovered at deployment: the moment a report can expose
+internal commercial or vendor pricing (§13.4), report access control becomes a
+blocker rather than an open question. Public market pricing shown to an internal
+audience is a different exposure from a distributor's negotiated price shown to
+whoever holds a URL. Launcher URLs remain URL builders throughout and never
+carry provider or authentication secrets (AD-005).
 
 Consequence for the 1B web shell, stated plainly rather than discovered at
 deployment time: **anyone who can reach the server can open any report whose
@@ -1065,6 +1272,13 @@ Principles:
   import, a network or filesystem module, or a vendor name; if the domain
   imports the research core; or if `runs`, `web`, or `evaluation` wires itself
   to the identity primitive before a phase supplies candidates.
+  `tests/providers/test_provider_boundaries.py` fails if the generic search
+  boundary gains a non-stdlib import, a vendor name, a calling-system concept, a
+  network or configuration module, a model, or a third-party dependency; if the
+  provider layer imports persistence, the research core, the web layer, or the
+  benchmark; or if any inner layer wires itself to the boundary while no
+  provider exists. The vendor-name scan is scoped to the *generic* boundary
+  modules, because 2C's adapter is the one place a vendor name belongs.
 * **The browser workflow is tested through the Django test client**, which
   exercises the real URLs, views, forms, templates, and database — no browser
   automation dependency, and nothing mocked between the form and the row. The
@@ -1081,8 +1295,12 @@ Principles:
   indistinguishable from an attribute assignment.
 * **No placeholder tests for unbuilt behaviour.** A test for search
   behaviour that does not exist is noise.
-* **Provider interactions will use recorded fixtures**, never live calls, so
-  the suite stays deterministic (`APPROVED / PLANNED` from 2B).
+* **Provider interactions use recorded fixtures, never live calls**, so the
+  suite stays offline and deterministic. 2B established the policy (§13.3) and
+  tests the boundary with synthetic fakes only; sanitized recordings of real
+  responses begin with the first real provider in 2C, because a fabricated
+  "real response" would pass no matter what the real provider does. A live call
+  belongs only to an explicit, manually run integration check.
 * **The evaluation corpus is validated as data.** Its invariants have direct
   tests, and mutation-style tests break one field at a time to prove the
   validator rejects what it claims to. A validator that only ever sees valid
@@ -1104,8 +1322,8 @@ Principles:
   wrong reason.
 
 Status: `IMPLEMENTED` for the domain contracts, the evaluation corpus, the run
-lifecycle, the web shell, the part-number comparison, and the architecture
-guards.
+lifecycle, the web shell, the part-number comparison, the search-provider
+boundary, and the architecture guards.
 
 ## 21. Evaluation strategy
 
@@ -1229,8 +1447,8 @@ PRODUCT-INTEL.1A   ResearchRun lifecycle                        IMPLEMENTED
 PRODUCT-INTEL.1B   Basic standalone web research/report shell   IMPLEMENTED
 PRODUCT-INTEL.2A   Deterministic product identity model         IMPLEMENTED
                    2A-FU1 structure-preserving normalization    IMPLEMENTED
-PRODUCT-INTEL.2B   Search provider abstraction                  NEXT
-PRODUCT-INTEL.2C   First real search provider
+PRODUCT-INTEL.2B   Search provider abstraction                  IMPLEMENTED
+PRODUCT-INTEL.2C   First real search provider                   NEXT
 PRODUCT-INTEL.3A   Market listing extraction
 PRODUCT-INTEL.3B   Listing normalization
 PRODUCT-INTEL.3C   MPN matching + rejection
@@ -1264,8 +1482,35 @@ Future:
   additional LLM providers
 ```
 
-Every phase after 2A is `APPROVED / PLANNED` and unimplemented. Do not
+Every phase after 2B is `APPROVED / PLANNED` and unimplemented. Do not
 execute a later phase while working on an earlier one.
+
+**The next phase is the priority.** 2B was kept deliberately thin because the
+project's remaining risk is no longer architectural: architecture, lifecycle,
+evaluation, web intake, and deterministic identity all exist, and none of them
+has yet met a real market page. 2C — one real provider, real search evidence —
+is what turns the boundary above into something that can be judged.
+
+### 22.1 Corrective follow-up phases
+
+Three follow-ups (0A-FU1, 1A-FU1, 2A-FU1) each corrected a real contract- or
+data-integrity defect before its phase was frozen, and each was worth its cost.
+From 2B onward, a *standalone* follow-up phase carries a higher bar and should
+normally be reserved for a defect that materially threatens one of:
+
+* false confidence or a false exact match,
+* data integrity,
+* security,
+* provider cost,
+* a hard architectural boundary.
+
+Everything else — minor cleanup, wording, speculative future-proofing, and
+theoretical edge cases — should be folded into the next phase, recorded as known
+debt, or deferred until real provider evidence shows whether it matters at all.
+
+This is not a severity framework and not a process to administer. It exists for
+one reason: the cost of architecture latency is now higher than the cost of a
+small imperfection carried forward for one phase.
 
 ## 23. Explicit deferred items
 
@@ -1297,6 +1542,15 @@ character-confusion tables (`O`/`0`, `I`/`l`/`1`) · Unicode compatibility
 normalization · per-manufacturer normalization profiles · candidate ranking ·
 a runtime product catalog · persistence of a comparison result.
 
+Deferred specifically around the search-provider boundary (2B), so that a later
+phase does not read their absence as an oversight: provider registry · provider
+factory · plugin discovery · dependency-injection container · provider manager ·
+fallback chain · multi-provider orchestration or fan-out · retry policy ·
+rate-limit scheduling · circuit breakers · async provider interface · a provider
+error taxonomy beyond one base exception · pagination and result-limit policy ·
+locale and category query parameters · query generation · persistence of search
+results · a numeric price field on a search result.
+
 Open questions currently `UNDECIDED`: search vendor · LLM vendor · report
 access control (the identifier scheme was settled in 1A as a random UUID, which
 is explicitly not access control) · which aggregate represents
@@ -1319,6 +1573,7 @@ Completed:
 - PRODUCT-INTEL.1B
 - PRODUCT-INTEL.2A
 - PRODUCT-INTEL.2A-FU1 (corrective follow-up attached to 2A)
+- PRODUCT-INTEL.2B
 
 Current approved implementation state:
 - Project architecture established
@@ -1328,12 +1583,14 @@ Current approved implementation state:
 - Persistent ResearchRun lifecycle established
 - Standalone web intake form and durable report shell established
 - Deterministic part-number comparison primitive established
-- Focused contract, lifecycle, web, identity, and boundary tests established
+- Provider-neutral search boundary established (contracts + protocol only)
+- Focused contract, lifecycle, web, identity, provider, and boundary tests
+  established
 
 Not yet implemented:
 - Research execution of any kind
 - Candidate discovery of any kind
-- Search providers
+- Real search providers (the boundary exists; no adapter does)
 - LLM providers
 - Product resolver
 - Description interpretation
@@ -1345,17 +1602,34 @@ Not yet implemented:
 - Report access control
 
 Next planned phase:
-- PRODUCT-INTEL.2B — Search provider abstraction
+- PRODUCT-INTEL.2C — First real search provider
 ```
 
 Concretely, the repository contains: this document, `CLAUDE.md`, `README.md`, a
 minimal Django project with two applications (one of which holds the only
 model), the domain contract layer, the evaluation corpus layer, the
 run-persistence layer and its two migrations, the standalone web shell, the
-deterministic part-number comparison primitive, empty boundary packages carrying
-their rules as documentation, and 519 passing tests. There is still no research
-capability: nothing searches, discovers a candidate, resolves a product, or
-prices anything.
+deterministic part-number comparison primitive, the search-provider boundary,
+and 635 passing tests. There is still no research capability: nothing searches,
+discovers a candidate, resolves a product, or prices anything.
+
+**What 2B added.** One module, `product_intelligence/providers/search.py`,
+described in full in §13.1: `SearchQuery`, `SearchResult`, `SearchResponse`, the
+`SearchProvider` protocol, and one `SearchProviderError`. It is a shape, and
+deliberately nothing more — **no provider is integrated**. There is no adapter,
+no HTTP call, no credential, no environment variable, no vendor dependency, no
+registry or factory, and nothing in the system calls `search()`: a run submitted
+through the browser is still `CREATED`, and the report still says research
+execution is not connected. A search result carries a price *hint* that stays
+text and a part-number *hint* that stays unverified, provider-native material
+stays opaque, and result URLs are constrained to absolute `http`/`https`. No
+model, no migration, no dependency, and no UI change arrived with it; the 2A
+comparator and the evaluation corpus are untouched. 2B also recorded the
+operational constraints later phases inherit — source-specific extraction (§16,
+3A), currency normalization without conversion (§16, 3B), aggregation
+comparability (§16, 4A), paid-call protection as distinct from caching (§18.1),
+the access-control blocker for internal pricing (§19), and the recorded-fixture
+policy (§13.3).
 
 **What 2A-FU1 corrected.** One defect found in review, before 2A was frozen:
 **normalization discarded separator position.** Removing every structural
@@ -1488,3 +1762,7 @@ capability and started no later phase; the roadmap numbering is unchanged.
 | AD-035 | **Amended by AD-037.** Originally: part-number normalization removes one closed, explicitly enumerated formatting allowlist — ASCII whitespace plus `-`, `_`, `/`, `.` — with ASCII-only case folding, everything else being data. | The *exclusions* stand and are the durable half of this entry: "remove every non-alphanumeric character" is rejected because it erases characters that distinguish real products and widens itself every time an unfamiliar character appears; an enumerated set makes each addition an edit someone has to defend; and broad Unicode compatibility folding is excluded because it merges code points whose identity equivalence no phase has approved, which is also why case folding is an explicit ASCII table rather than `str.upper()`. What did not stand was *removal*: deleting the enumerated characters discarded where a boundary was, not merely how it was written. See AD-037. | Amended (2A-FU1) |
 | AD-036 | The 2A comparator returns only `EXACT`, `NORMALIZED_EXACT`, or `UNKNOWN`; it carries no confidence, invents no product facts, does no partial or fuzzy matching, and is wired into nothing. | Each exclusion closes a specific way a narrow primitive turns into a false conclusion. `CONFLICT` would be the comparator claiming evidence is incompatible when all it saw was two different strings. `PARTIAL` — or any containment, edit-distance, or similarity rule — would raise recall by weakening identity, which is the one trade this product cannot make: `MTFDKCC3T8TFR` is a family prefix, not an orderable part. A confidence band would equate mechanism with trustworthiness, and `EXACT` is not `HIGH`: the string matched, which says nothing about whether the source, the description, or the listing is sound. A catalog inside the comparator would take benchmark answers from the evaluation corpus and make them production resolution logic, which is test leakage with the corpus's own truth. And wiring it into the web shell or the run lifecycle would connect a comparator to a system that supplies no candidates, so anything displayed would be invented — integration belongs to the phase with real candidate evidence. A guard test asserts `runs`, `web`, and `evaluation` do not import the research core. | Accepted (2A) |
 | AD-037 | Normalization canonicalizes how a structural boundary was written and never whether one exists. An internal ASCII-whitespace run is *written as* a hyphen; no separator is deleted; and `_`, `/`, `.` are data rather than spellings of a hyphen. | AD-035's implementation deleted every enumerated separator wherever it appeared, which collapsed `AB-C123`, `ABC-123`, `ABC123`, and `A-B-C-1-2-3` onto one key and reported them as the same part number. Those are false exacts, and a false exact is the failure this product is built to avoid — the first pair is the clearest: the same characters with the boundary in a different place are not the same identifier by any reading. The error was evidential, not clerical. The corpus supports exactly one substitution — SYN-0008's `bcm957504 n425g` for `BCM957504-N425G`, whitespace against a hyphen — and the implementation had generalized one case about one separator into a rule about four, then gone further and thrown position away as well. Five verified part numbers cannot establish that separator position is globally irrelevant across manufacturers, and the burden runs the other way: an equivalence is approved per separator, with evidence, or it is not approved. Preserving structure also repairs auditability, because a normalized key that keeps its boundaries shows a reviewer *why* two values matched rather than only that they did. The cost is abstention on `ABC_123` against `ABC-123` (§12.2), which is the cheap direction: a missed normalized match costs a re-query, a false exact costs a wrong price on a real order. | Accepted (2A-FU1) |
+| AD-038 | The provider boundary returns provider-neutral observations. `SearchQuery` is one external search operation and is deliberately not `ResearchRequest`; a provider is a `Protocol` with one synchronous `search` method and no registry, factory, fallback chain, retry policy, or async variant. | Two different mistakes are being avoided at once. Passing `ResearchRequest` into a provider would make the adapter decide what to search for — query generation is a research decision, and one request may legitimately produce several queries, so the provider would end up owning research semantics inside a transport layer. Building a provider *framework* would be the opposite error: registries, factories, and fallback chains are machinery for a problem the project does not have, since exactly one provider arrives in 2C and nothing has shown a need for a second. A protocol with one method costs nothing to replace and nothing to carry, and the boundary's whole job is to be the thing business logic depends on instead of a vendor (AD-011). The one exception type follows the same logic: a taxonomy of timeout / quota / auth / parse failures designed before any provider has failed would be wrong in the places that matter, and 2C can subdivide it against real behaviour. | Accepted (2B) |
+| AD-039 | A search result carries a price *hint* as text and a part-number *hint* as unverified published text. The contract has no numeric price field, no currency, and no match or confidence field; result URLs must be absolute `http`/`https`. | A search snippet saying `$399.99` is not a price: it may be a sale price, a monthly payment, a shipping charge, a range, a price for a multi-pack, or a different currency's symbol, and choosing among those is exactly what 3A/3B exist to do with recorded rules and rejection reasons. A `Decimal` field on this contract would let a snippet enter arithmetic as though it were a verified market observation, which is fabricated certainty (AD-009) arriving through the cheapest possible door — so the absence of the field, asserted by a test on the exact field list, is the safeguard. The part-number hint is the same argument for identity: a value a provider publishes is an observation, and calling it verified would make a vendor the authority on product identity, which AD-008 forbids. Keeping it unnormalized also keeps the two paths distinct — a *published* field is a hint, a part number *inferred* from title or snippet text is extraction (3A/3C) and must carry its own rejection reasoning. The URL rule is narrow and separate: a result is evidence only if someone can re-open it, and `javascript:`, `data:`, and `file:` values are not addresses of that kind and must not reach a report. | Accepted (2B) |
+| AD-040 | Provider-native payload material is preserved as an **opaque string reference**, never as a structure business logic reads. Normalized contract fields are what the core consumes. | Real providers return more than any contract will hold, and the useful residue has to be kept — evidence-first (AD-007) means what was actually returned stays inspectable. The tempting shortcut is to attach the vendor's parsed payload as a `dict` and let callers reach into it "just for now". That is how a vendor gets into business logic permanently: one research rule reads one vendor-specific key, and the boundary that exists to make providers replaceable has been bypassed while still appearing to be in place. An opaque string cannot be read that way without a deliberate parse that no rule may perform, so the material is preserved for humans, fixtures, and later phases without becoming an interface. It is also kept verbatim rather than trimmed, because it is the artifact a recorded fixture is compared against. | Accepted (2B) |
+| AD-041 | Real recorded provider fixtures begin with the first real provider (2C). 2B tests its boundary with synthetic fakes only, and no fixture is invented in advance. | A recorded fixture's whole value is that it is what a real service actually returned, so an adapter's mapping can be regression-tested offline without credentials or network. A fixture written before a provider is chosen would be a guess wearing that authority: it would pass whatever the adapter did, and it would quietly encode an imagined payload shape as the expected one — the same failure mode AD-024 forbids in the evaluation corpus. Fakes are honest about being fakes and are sufficient to prove the interface is satisfiable. Sanitization (credentials, tokens, request secrets, personal and customer data removed) is part of the policy rather than an afterthought, because the first recording will otherwise be made from a real authenticated call. | Accepted (2B) |

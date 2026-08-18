@@ -41,6 +41,12 @@ candidates and does not resolve a product.** Its corrective follow-up
 separators rather than canonicalizing them, which made `AB-C123` and `ABC-123`
 the same part number. Separator position is now preserved.
 
+**Phase PRODUCT-INTEL.2B is complete: the search-provider boundary** — the
+provider-neutral shape the research core will depend on instead of a vendor.
+**It defines contracts and integrates no provider:** there is no adapter, no
+HTTP call, no credential, no vendor dependency, and nothing in the system calls
+it.
+
 What exists today:
 
 * the canonical architecture and roadmap document
@@ -57,9 +63,12 @@ What exists today:
   report shell, and their routes
 * the deterministic part-number comparison
   (`product_intelligence/research/identity.py`) and its normalization profile
+* the search-provider boundary (`product_intelligence/providers/search.py`):
+  `SearchQuery`, `SearchResult`, `SearchResponse`, the `SearchProvider`
+  protocol, and one boundary exception
 * deterministic tests for those contracts, for the corpus, for the lifecycle,
-  for the browser workflow, for the comparison, and for the architecture
-  boundaries
+  for the browser workflow, for the comparison, for the provider boundary, and
+  for the architecture boundaries
 
 **What does not exist:** market research of any kind. There is no web
 search, no candidate discovery, no product lookup, no product resolver, no
@@ -69,10 +78,11 @@ integration. None of it is stubbed or partially present — those are later
 phases. A run can be created through the browser and moved through its states by
 code; nothing yet moves one, because nothing yet does research. The comparison
 primitive can say whether two part numbers are the same part number, and nothing
-supplies it with a second one. The corpus describes what good answers would look
-like; nothing produces or scores an answer.
+supplies it with a second one. The provider boundary describes what a search
+result would look like, and no provider produces one. The corpus describes what
+good answers would look like; nothing produces or scores an answer.
 
-Next planned phase: **PRODUCT-INTEL.2B — search provider abstraction.**
+Next planned phase: **PRODUCT-INTEL.2C — the first real search provider.**
 
 ## The browser workflow
 
@@ -209,6 +219,69 @@ catalog — no part number is mapped to a manufacturer or product anywhere in
 runtime code — reads no description, and **is wired into nothing**: no search
 exists, so nothing supplies a candidate to compare against.
 
+## The search-provider boundary
+
+One synchronous operation, three provider-neutral contracts:
+
+```text
+SearchQuery  ->  SearchProvider.search(query)  ->  SearchResponse
+                                                     |- SearchResult, ...
+```
+
+```text
+SearchQuery      text
+SearchResult     source_url, title, snippet,
+                 price_hint_text, part_number_hint, raw_reference
+SearchResponse   provider_id, query, retrieved_at, results,
+                 raw_response_reference
+```
+
+A `SearchQuery` is deliberately **not** a `ResearchRequest`. A research request
+is a person's input — part number plus description; a query is one string sent
+to one external service. Turning the first into one or more of the second is
+query generation, which belongs to the research core and does not exist. A
+provider handed a research request would have to make that decision itself.
+
+**A price hint is not a price.** `price_hint_text` is whatever price-shaped text
+the provider displayed — `$399.99`, `$399.99 - $449.99`, `from $399`, `EUR 320`,
+`$33/mo` — and it stays a string. It is never converted to a `Decimal`, given a
+currency, resolved between a sale price and a monthly payment, or used in
+arithmetic, and the contract has **no numeric price field at all**. Extraction,
+normalization, and aggregation are later phases precisely because that
+conversion is a decision with rules rather than a cast.
+
+**A part-number hint is unverified.** It exists only when a provider explicitly
+publishes such a field, and it is stored exactly as published — not normalized,
+not compared, not a match. A part number *inferred* from a title or a snippet is
+not this field; that is extraction from noisy text, and it belongs to a phase
+that also records why a candidate was rejected. A provider observes; the
+research core decides what an observation establishes, by handing the hint to
+the deterministic comparison above.
+
+**Provider-native payload stays opaque.** Whatever else a provider returned is
+preserved as an opaque string — `raw_reference` on a result,
+`raw_response_reference` on a response — so it can be re-inspected by a person
+or a test. It is never parsed, and never a dictionary for business logic to read
+a vendor-specific key out of, because that is how a vendor ends up inside the
+rules the boundary exists to keep it out of.
+
+A result URL must be an absolute `http`/`https` address with a host, so a
+`javascript:`, `data:`, or `file:` value never reaches a report; the URL is
+otherwise kept exactly as observed. `retrieved_at` must be timezone-aware and is
+supplied by the adapter, never generated in the contracts. **Zero results is a
+valid answer** — a provider finding nothing is information, not a failure.
+
+There is one exception type, one method, and no async variant — and no registry,
+factory, plugin discovery, fallback chain, fan-out, retry policy, rate limiter,
+or circuit breaker. One provider arrives next; the boundary is built for
+replaceability, not simultaneity.
+
+**No provider exists.** There is no adapter, no HTTP call, no credential, no
+environment variable, no vendor dependency, and nothing in the system calls
+`search()`. The tests use synthetic fakes; sanitized recordings of real provider
+responses begin with the first real provider, because a fixture invented before
+a provider is chosen would pass no matter what the real one does.
+
 ## Requirements
 
 * Django `>=5.2,<6.0` — the current LTS line. The floor is a support
@@ -301,7 +374,7 @@ product_intelligence/
   evaluation/                      corpus validation + loader (implemented)
   runs/                            persisted run lifecycle (implemented)
   research/                        part-number comparison (implemented)
-  providers/                       search/LLM boundaries (not implemented)
+  providers/                       search boundary (implemented; no provider)
   web/                             standalone form + report shell (implemented)
 tests/                             focused deterministic tests
 ```
@@ -310,9 +383,10 @@ tests/                             focused deterministic tests
 synthetic rule, the challenge classes, the metric definitions, why no price is
 recorded in it, and the discipline governing changes to an expected answer.
 
-The still-empty `providers/` package is not a placeholder for symmetry: it
-carries the boundary rules that apply to it as documentation, so the phase that
-implements it does so into a defined space rather than inventing one.
+`providers/` holds the search boundary and, so far, nothing behind it. The LLM
+boundary is still documentation only: the package carries the rules that apply
+to it, so the phase that implements it does so into a defined space rather than
+inventing one.
 
 ## Architecture in one paragraph
 
