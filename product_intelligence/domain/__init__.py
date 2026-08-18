@@ -13,8 +13,10 @@ Every supported intake mechanism must normalize into these types before the
 research core sees the request. Caller metadata, transport details, and
 encoding quirks belong at the intake/application boundary, never here.
 
-Status: PRODUCT-INTEL.0A defines the contracts below. Behaviour that consumes
-them (matching, pricing, evidence collection, persistence) is not implemented.
+Status: PRODUCT-INTEL.0A defines the contracts below. What consumes them so far
+is persistence (1A, `product_intelligence.runs`) and the deterministic
+part-number comparison (2A, `product_intelligence.research.identity`). Pricing,
+evidence collection, and product resolution are not implemented.
 """
 
 from product_intelligence.domain.enums import (

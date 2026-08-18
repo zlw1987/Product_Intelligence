@@ -103,8 +103,9 @@ class ProductIdentity:
     string is normalized to ``None`` rather than presented as a fact.
 
     ``normalized_part_number`` is a slot for the output of a deterministic
-    normalization step. That normalization is not implemented in this phase,
-    so the field is only ever what a caller explicitly supplies.
+    normalization step. The normalization itself lives in the research core
+    (2A); nothing here calls it, so the field is only ever what a caller
+    explicitly supplies.
 
     ``match_type`` and ``confidence`` both default to UNKNOWN: an identity is
     unestablished until evidence establishes it.
@@ -122,8 +123,9 @@ class ProductIdentity:
 
     This is a structural rule about what an identity may *represent*; it is not
     matching. Nothing here compares part numbers, normalizes one, or decides a
-    match type — those belong to the deterministic identity model (2A) and the
-    matching phase (3C). The weaker match types are deliberately unconstrained:
+    match type — those belong to the deterministic identity primitive (2A) and
+    the listing-matching phase (3C), and neither is called from the domain. The
+    weaker match types are deliberately unconstrained:
     ``DESCRIPTION_ONLY`` in particular means no part-number evidence exists.
     """
 

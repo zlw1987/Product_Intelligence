@@ -32,6 +32,15 @@ invariant is now complete rather than partial, a run can only be created in
 a durable report address, and the canonical request between them. **It creates
 a research run; it does not execute research.**
 
+**Phase PRODUCT-INTEL.2A is complete: the deterministic part-number
+comparison** — given a requested part number and a candidate one, it answers
+`EXACT`, `NORMALIZED_EXACT`, or `UNKNOWN`, and shows the normalized keys behind
+the answer. **It compares two part numbers it is handed; it does not find
+candidates and does not resolve a product.** Its corrective follow-up
+**PRODUCT-INTEL.2A-FU1 is complete** as well: normalization was deleting
+separators rather than canonicalizing them, which made `AB-C123` and `ABC-123`
+the same part number. Separator position is now preserved.
+
 What exists today:
 
 * the canonical architecture and roadmap document
@@ -46,20 +55,24 @@ What exists today:
 * the persisted `ResearchRun` (`product_intelligence/runs/`) and its migrations
 * the standalone web shell (`product_intelligence/web/`): the intake form, the
   report shell, and their routes
+* the deterministic part-number comparison
+  (`product_intelligence/research/identity.py`) and its normalization profile
 * deterministic tests for those contracts, for the corpus, for the lifecycle,
-  for the browser workflow, and for the architecture boundaries
+  for the browser workflow, for the comparison, and for the architecture
+  boundaries
 
 **What does not exist:** market research of any kind. There is no web
-search, no product lookup, no product resolver, no price calculation, no
-listing extraction, no comparable-product discovery, no LLM integration, no
-structured API, and no ERP integration. None of it is stubbed or partially
-present — those are later phases. A run can be created through the browser and
-moved through its states by code; nothing yet moves one, because nothing yet
-does research. The corpus describes what good answers would look like; nothing
-produces or scores an answer.
+search, no candidate discovery, no product lookup, no product resolver, no
+description interpretation, no price calculation, no listing extraction, no
+comparable-product discovery, no LLM integration, no structured API, and no ERP
+integration. None of it is stubbed or partially present — those are later
+phases. A run can be created through the browser and moved through its states by
+code; nothing yet moves one, because nothing yet does research. The comparison
+primitive can say whether two part numbers are the same part number, and nothing
+supplies it with a second one. The corpus describes what good answers would look
+like; nothing produces or scores an answer.
 
-Next planned phase: **PRODUCT-INTEL.2A — deterministic product identity
-model.**
+Next planned phase: **PRODUCT-INTEL.2B — search provider abstraction.**
 
 ## The browser workflow
 
@@ -128,6 +141,73 @@ question for a later phase. Transitions are also not atomic across processes —
 harmless today, since nothing executes a run, and documented in §15.7 of the
 plan rather than papered over. No concurrency mechanism of any kind was
 introduced.
+
+## Part-number identity
+
+One deterministic primitive answers one narrow question:
+
+```text
+requested part number + candidate part number
+        -> EXACT | NORMALIZED_EXACT | UNKNOWN
+```
+
+`EXACT` means the two values are character-for-character equal once surrounding
+whitespace is removed.
+
+`NORMALIZED_EXACT` means they are **the same identifier written two ways**. The
+normalization is deliberately narrow: ASCII `a-z` folds to `A-Z`, each run of
+internal ASCII whitespace is written as a hyphen, and **every other character is
+kept exactly where it is**.
+
+```text
+abc-123          vs  ABC-123          NORMALIZED_EXACT   ABC-123 / ABC-123
+ABC 123          vs  ABC-123          NORMALIZED_EXACT   ABC-123 / ABC-123
+bcm957504 n425g  vs  BCM957504-N425G  NORMALIZED_EXACT   BCM957504-N425G (both)
+
+ABC123           vs  ABC-123          UNKNOWN            ABC123   / ABC-123
+AB-C123          vs  ABC-123          UNKNOWN            AB-C123  / ABC-123
+ABC_123          vs  ABC-123          UNKNOWN            ABC_123  / ABC-123
+ABC--123         vs  ABC-123          UNKNOWN            ABC--123 / ABC-123
+```
+
+**Separator position is part of the identifier.** A normalization that deleted
+separators would make `AB-C123`, `ABC-123`, and `ABC123` one key and call them
+the same part number — which is what the first implementation did, and why it
+was corrected before the phase was frozen. `_`, `/`, and `.` are data too: one
+corpus case evidences that whitespace and a hyphen can spell the same boundary,
+and that is not evidence that every manufacturer treats every separator as
+decoration.
+
+**Everything else is data.** `+`, `#`, `@`, `:`, parentheses, any other
+punctuation, and every non-ASCII character inside the identifier are kept, so
+`ABC+123` is not `ABC123`. There is no "strip all non-alphanumeric" rule, no
+Unicode compatibility folding, no reordering, no truncation, no guessed prefix
+or suffix, no `O`/`0` correction, and no fuzzy, edit-distance, or similarity
+comparison. A one-character alphanumeric difference stays a difference, which is
+the whole point: `MZ-QL23T800` and `MZ-QL23T8OO` are not the same product.
+
+Everything else is `UNKNOWN` — including a truncated part number, a contained
+one, and a missing one. `MTFDKCC3T8TFR` does not establish
+`MTFDKCC3T8TFR-1BC1ZABYY`: containment is not identity, and partial matching is
+deliberately not implemented. A missing part number returns a result rather than
+raising, because "identity could not be established" is a legitimate research
+outcome. Two values made only of separators can never match each other, since
+neither carries any part-number content.
+
+The result is a frozen `PartNumberMatchAssessment` carrying both values as
+compared, both normalized keys, and the match type, so a reviewer can re-derive
+the decision from the result alone — the keys above are exactly what it exposes.
+It carries no confidence score — `EXACT` is not a synonym for `HIGH`, because a
+matching string says nothing about whether the source is trustworthy.
+
+**A comparison is not a product resolution.** It says the two strings are the
+same part number and nothing more: not that the manufacturer is right, that the
+description agrees, or that a listing belongs to the product. If a request's part
+number matches while its description names a different product, this primitive
+still reports `EXACT` and a later phase reports the conflict. It holds no
+catalog — no part number is mapped to a manufacturer or product anywhere in
+runtime code — reads no description, and **is wired into nothing**: no search
+exists, so nothing supplies a candidate to compare against.
 
 ## Requirements
 
@@ -220,7 +300,7 @@ product_intelligence/
   domain/                          contracts + vocabularies (implemented)
   evaluation/                      corpus validation + loader (implemented)
   runs/                            persisted run lifecycle (implemented)
-  research/                        research core (not implemented)
+  research/                        part-number comparison (implemented)
   providers/                       search/LLM boundaries (not implemented)
   web/                             standalone form + report shell (implemented)
 tests/                             focused deterministic tests
@@ -230,9 +310,9 @@ tests/                             focused deterministic tests
 synthetic rule, the challenge classes, the metric definitions, why no price is
 recorded in it, and the discipline governing changes to an expected answer.
 
-The empty packages under `product_intelligence/` are not placeholders for
-symmetry: each carries the boundary rules that apply to it as documentation,
-so a later phase implements into a defined space rather than inventing one.
+The still-empty `providers/` package is not a placeholder for symmetry: it
+carries the boundary rules that apply to it as documentation, so the phase that
+implements it does so into a defined space rather than inventing one.
 
 ## Architecture in one paragraph
 

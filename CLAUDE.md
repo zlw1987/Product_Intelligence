@@ -18,10 +18,13 @@ It is not an ERP module and does not require one to function.
 **PRODUCT-INTEL.0A is complete**, together with its corrective follow-up
 **PRODUCT-INTEL.0A-FU1**; **PRODUCT-INTEL.0B is complete**;
 **PRODUCT-INTEL.1A is complete**, together with its corrective follow-up
-**PRODUCT-INTEL.1A-FU1**; and **PRODUCT-INTEL.1B is complete**. The repository
-contains architecture documentation, a minimal Django project, domain contracts,
-the evaluation corpus and its loader, the persistent research-run lifecycle and
-its migrations, the standalone browser shell, and their tests.
+**PRODUCT-INTEL.1A-FU1**; **PRODUCT-INTEL.1B is complete**; and
+**PRODUCT-INTEL.2A is complete**, together with its corrective follow-up
+**PRODUCT-INTEL.2A-FU1**. The repository contains architecture
+documentation, a minimal Django project, domain contracts, the evaluation corpus
+and its loader, the persistent research-run lifecycle and its migrations, the
+standalone browser shell, the deterministic part-number comparison, and their
+tests.
 
 FU1 corrected two contract-level defects before 0A was frozen: an impossible
 guarantee that arbitrary unencoded URL parameters arrive losslessly (see the
@@ -46,13 +49,25 @@ shell at `/research/<uuid>`, and the `ResearchRequest` translation between them
 (see the web-shell section below). **It creates a `ResearchRun` and executes no
 research.**
 
-**There is still no research capability of any kind.** No search, no LLM, no
-pricing, no comparables, no resolver, and no background processing — nothing
-moves a run out of `CREATED`, and the report page says exactly that instead of
-showing progress.
+2A added one pure primitive: the deterministic part-number comparison in
+`product_intelligence/research/identity.py` (see the identity section below).
+**It compares two part numbers it is handed and resolves no product** — nothing
+in the system supplies the second one.
 
-Next planned phase: **PRODUCT-INTEL.2A — deterministic product identity
-model.** Do not start it unless asked.
+2A-FU1 corrected one defect before 2A was frozen: normalization deleted every
+approved separator wherever it appeared, so `AB-C123`, `ABC-123`, `ABC123`, and
+`A-B-C-1-2-3` all collapsed onto the key `ABC123` and were reported as the same
+part number. Separator *position* is now preserved — an internal whitespace run
+is written as a hyphen rather than removed — and `_`, `/`, and `.` became data
+rather than interchangeable formatting.
+
+**There is still no research capability.** No search, no candidate discovery, no
+LLM, no pricing, no comparables, no resolver, and no background processing —
+nothing moves a run out of `CREATED`, and the report page says exactly that
+instead of showing progress.
+
+Next planned phase: **PRODUCT-INTEL.2B — search provider abstraction.** Do not
+start it unless asked.
 
 ## Before you implement anything
 
@@ -162,6 +177,57 @@ the form, the two views, the routes, and the templates. Binding rules:
   undecided, so this shell is for local development and trusted internal use
   only — not public deployment.
 
+**Part-number identity (2A, corrected in 2A-FU1).**
+`product_intelligence/research/identity.py` owns the deterministic comparison:
+`normalize_part_number`, `compare_part_numbers`, `compare_request_to_candidate`,
+and the frozen `PartNumberMatchAssessment`. Binding rules:
+
+* **It is a pure function of two strings.** No I/O, no Django, no provider, no
+  model call, and no import of `product_intelligence.evaluation`. The corpus is
+  test input only.
+* **Normalization canonicalizes how a boundary was written, never whether one
+  exists.** Surrounding whitespace is removed (`str.strip()`, as
+  `ResearchRequest` does); ASCII `a-z` folds to `A-Z`; each run of internal ASCII
+  whitespace becomes one hyphen; **every other character is kept, in place**. So
+  `abc 123` and `ABC-123` both key to `ABC-123`, and `ABC123` keys to `ABC123`
+  and matches neither.
+* **No separator is ever deleted.** 2A deleted them and thereby made `AB-C123`,
+  `ABC-123`, and `ABC123` one key — a false exact (AD-037). Never restore
+  separator deletion.
+* **`_`, `/`, and `.` are data**, not spellings of a hyphen: `ABC_123` does not
+  match `ABC-123`. The corpus evidences one substitution (whitespace against a
+  hyphen, SYN-0008) and that is the only one approved. Adding another needs its
+  own evidence, per separator.
+* **Repeated and padded punctuation does not collapse.** `ABC--123` and
+  `ABC - 123` keep every boundary written; only a *whitespace run* collapses.
+* **Everything else is data** — `+`, `#`, `@`, `:`, parentheses, other
+  punctuation, and every non-ASCII code point *inside* the identifier. Never
+  "strip all non-alphanumeric", never NFKC or another broad compatibility
+  transform, never `str.upper()`. A test asserts the exact character sets.
+* **Nothing is reordered, truncated, guessed, or corrected.** No edit distance,
+  similarity, embedding, or `O`/`0`-style confusion table. A one-character
+  alphanumeric difference stays a difference.
+* **Three outcomes only**: `EXACT` (character-for-character after boundary
+  whitespace), `NORMALIZED_EXACT` (equal normalized keys, meaning the same
+  identifier structure written differently), `UNKNOWN`. Both sides must carry
+  part-number content — a value that is only structure keys to `""`, and two
+  empty keys never match. Missing input returns `UNKNOWN` rather than raising;
+  only a wrong argument *type* raises.
+* **Never `CONFLICT` and never `PARTIAL`.** Two different strings do not
+  establish incompatible evidence, and containment is not identity. Partial
+  classification is 3C.
+* **No confidence, no catalog, no product facts.** `EXACT` is not `HIGH`, and no
+  part number is mapped to a manufacturer, product, family, or category
+  anywhere in runtime code — those mappings are benchmark truth and using them
+  would be test leakage.
+* **A comparison is not a resolution.** A matching part number says nothing
+  about the manufacturer, the description, the listing, or the source. When the
+  description disagrees, the comparator still reports what it compared; the
+  cross-evidence conclusion belongs to a later phase.
+* **Nothing is wired to it.** `runs/`, `web/`, and `evaluation/` do not import
+  the research core, and a guard test enforces that. Integration waits for a
+  phase with a real candidate source.
+
 **Legacy client constraint.** The production sales-order system is Microsoft
 Visual FoxPro 5.0. Assume it has *no* usable REST client, JSON, OAuth, modern
 TLS, modern HTTP library, Unicode sophistication, or browser integration. Its
@@ -246,8 +312,9 @@ Django model, and never part of a research run. Full rules in
 1A ResearchRun lifecycle                      <- complete
    1A-FU1 persistence invariant hardening     <- complete
 1B Standalone web research/report shell       <- complete
-2A Deterministic product identity model       <- next
-2B Search provider abstraction
+2A Deterministic product identity model       <- complete
+   2A-FU1 structure-preserving normalization  <- complete
+2B Search provider abstraction                <- next
 2C First real search provider
 3A Market listing extraction
 3B Listing normalization
@@ -290,8 +357,12 @@ additional search and LLM providers.
   core gains a Django import, or if a second model appears.
   `tests/web/test_web_boundaries.py` fails if an inner layer imports the web
   layer, if the web layer gains a model, a vendor name, a provider import, a
-  network client, or a call to `transition_to`. If a guard fails, fix the
-  design, not the test.
+  network client, or a call to `transition_to`.
+  `tests/research/test_research_identity_boundaries.py` fails if the research
+  core gains a non-stdlib import, a persistence/provider/benchmark/web import, a
+  network or filesystem module, or a vendor name; if the domain imports the
+  research core; or if `runs`, `web`, or `evaluation` wires itself to the
+  identity primitive. If a guard fails, fix the design, not the test.
 
 ## Commands
 

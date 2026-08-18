@@ -142,7 +142,7 @@ Repository layout:
 │   ├── domain/                        contracts + vocabularies (0A)
 │   ├── evaluation/                    corpus contracts, validation, loader (0B)
 │   ├── runs/                          persisted run lifecycle + migration (1A)
-│   ├── research/                      research core (not implemented)
+│   ├── research/                      deterministic part-number comparison (2A)
 │   ├── providers/                     provider boundaries (not implemented)
 │   └── web/                           standalone form + report shell (1B)
 └── tests/                             focused deterministic tests
@@ -167,10 +167,12 @@ that created it and belongs to no caller, so the lifecycle stays in `runs/`
 and `runs`, and a guard test fails if any inner layer imports `web`.
 
 Status: `IMPLEMENTED` for the layout, the domain layer, the evaluation corpus
-layer, the run-persistence layer, the Django project, and the standalone web
-intake and report shell. `APPROVED / PLANNED` for every box below "Canonical
-Research Request" in the diagram — a run records *that* research was requested
-and how it ended; nothing performs any, and the web shell starts nothing.
+layer, the run-persistence layer, the Django project, the standalone web intake
+and report shell, and — inside the core — the deterministic part-number
+comparison primitive (§12.1). `APPROVED / PLANNED` for every box below
+"Canonical Research Request" in the diagram: a run records *that* research was
+requested and how it ended, the web shell starts nothing, and the core can
+compare two part numbers it is handed but has no way to obtain the second one.
 
 ## 6. Multi-interface intake design
 
@@ -444,9 +446,11 @@ generated inside the domain.
 **Vocabularies** — `IdentityMatchType`, `ConfidenceLevel`,
 `VerificationStatus`, `EvidenceDecision`, `ResearchRunState`.
 
-Status: `IMPLEMENTED` — as contracts with contract-level validation only. The
-only consumer is the persistence layer (§15), which stores a `ResearchRequest`
-and rebuilds one; nothing researches anything.
+Status: `IMPLEMENTED` — as contracts with contract-level validation only. Two
+things consume them: the persistence layer (§15), which stores a
+`ResearchRequest` and rebuilds one, and the part-number comparison primitive
+(§12.1), which reads the part number a request carries. Nothing researches
+anything, and nothing in the domain compares or normalizes a part number.
 
 Deliberately **not** modelled yet: listings, price aggregates, comparable
 products, specifications. Building the full schema before the behaviour exists
@@ -502,8 +506,205 @@ identity, and never produces a number that the report presents as fact. LLM
 output that affects a conclusion must be checkable against deterministic
 rules or evidence.
 
-Status: `APPROVED / PLANNED` as the responsibility split. No LLM is
-integrated. No prompts exist.
+### 12.1 The deterministic part-number comparison (2A, corrected in 2A-FU1)
+
+Phase 2A implemented the first two items on the deterministic list — exact and
+normalized part-number matching — as one small primitive in
+`product_intelligence/research/identity.py`. It is a pure function of two
+strings: no I/O, no database, no provider, no model, no benchmark data. 2A-FU1
+corrected its normalization, which was too permissive; §12.3 records what was
+withdrawn and why.
+
+**The public surface.**
+
+```text
+normalize_part_number(value)                     -> the comparison key
+compare_part_numbers(requested, candidate)       -> PartNumberMatchAssessment
+compare_request_to_candidate(request, candidate) -> PartNumberMatchAssessment
+```
+
+**The normalization profile, in full.**
+
+1. Surrounding whitespace is removed — `str.strip()`, the same Unicode-aware
+   operation `ResearchRequest` already applies, so a request that arrived
+   through the canonical contract is unchanged.
+2. A value carrying nothing but structural characters keys to the empty string:
+   there is no part number in it.
+3. ASCII `a-z` folds to `A-Z`. Nothing else is case-mapped.
+4. Each run of **internal ASCII whitespace** becomes one canonical separator,
+   written `-`.
+5. Every other character is kept, in place.
+
+The key therefore **preserves the identifier's structure**. `ABC-123` keys to
+`ABC-123`, `abc 123` keys to `ABC-123`, and `ABC123` keys to `ABC123` — the
+first two are the same identifier written two ways, and the third is a different
+identifier that happens to share its alphanumerics.
+
+The characters that count as structure rather than content are:
+
+```text
+whitespace   space, tab, newline, carriage return, form feed, vertical tab
+separators   -   _   /   .
+```
+
+"Structure" here means only that a value built purely from them contains no part
+number. It does **not** mean they are interchangeable. **The one approved
+formatting equivalence is: an internal ASCII-whitespace run and a hyphen at the
+same boundary are the same boundary.** `_`, `/`, and `.` are preserved verbatim
+and are never rewritten as a hyphen or as each other.
+
+Nothing else is rewritten. No separator is deleted, repeated punctuation is not
+collapsed (`ABC--123` keeps both hyphens), characters and tokens are not
+reordered, letters and digits are never dropped, `O`/`0` and `I`/`l`/`1` are
+never interchanged, nothing is truncated, no prefix or suffix is guessed, and
+there is no fuzzy matching, edit distance, similarity score, embedding, or model
+call anywhere in it. A one-character alphanumeric difference stays a difference.
+
+Two exclusions are deliberate rather than accidental:
+
+* **"Remove every non-alphanumeric character" was rejected.** It is the obvious
+  one-liner and it silently erases characters that distinguish real products —
+  and it widens by itself every time an unfamiliar character appears. `+`, `#`,
+  `@`, `:`, parentheses, and arbitrary punctuation are therefore *data*, and
+  `ABC+123` does not match `ABC123`.
+* **No broad Unicode compatibility transform runs.** A part number is an
+  identifier, and NFKC-style folding merges code points whose identity
+  equivalence no phase has approved. Non-ASCII characters *inside* the
+  identifier are preserved exactly — surrounding whitespace is the one
+  exception, and it follows `ResearchRequest` / `str.strip()` semantics, which
+  are Unicode-aware. This is also why case folding is an explicit ASCII table
+  rather than `str.upper()`: that method expands and rewrites characters in ways
+  that are correct for prose and wrong for an identifier. The cost is stated in
+  §12.2.
+
+**The outcomes.** Only three, drawn from the existing `IdentityMatchType`:
+
+| Result | Meaning |
+| --- | --- |
+| `EXACT` | Both sides carry part-number content and are character-for-character equal after surrounding whitespace is removed. |
+| `NORMALIZED_EXACT` | Both sides carry part-number content and their normalized keys are equal — they describe the same identifier structure and differ only by ASCII case and by how a boundary was written. |
+| `UNKNOWN` | Part-number identity was not established. |
+
+Worked examples:
+
+```text
+abc-123          vs  ABC-123          NORMALIZED_EXACT   ABC-123  / ABC-123
+ABC 123          vs  ABC-123          NORMALIZED_EXACT   ABC-123  / ABC-123
+bcm957504 n425g  vs  BCM957504-N425G  NORMALIZED_EXACT   BCM957504-N425G (both)
+ABC123           vs  ABC-123          UNKNOWN            ABC123   / ABC-123
+AB-C123          vs  ABC-123          UNKNOWN            AB-C123  / ABC-123
+ABC123           vs  A-B-C-1-2-3      UNKNOWN            ABC123   / A-B-C-1-2-3
+ABC_123          vs  ABC-123          UNKNOWN            ABC_123  / ABC-123
+ABC--123         vs  ABC-123          UNKNOWN            ABC--123 / ABC-123
+```
+
+`UNKNOWN` covers everything else, including a missing part number on either
+side, which returns a result rather than raising: "identity could not be
+established" is a research outcome, and only a structurally invalid argument
+type is a caller defect. Two values consisting purely of structural characters
+can never match — their keys are both empty, and an established identity
+requires part-number content on both sides, so normalization cannot manufacture
+a match out of nothing.
+
+`CONFLICT` is never returned: it means evidence is incompatible, and two
+different strings do not support that wider claim. `PARTIAL` is never returned
+either — containment is not identity, `MTFDKCC3T8TFR` does not establish
+`MTFDKCC3T8TFR-1BC1ZABYY`, and classifying partial overlap belongs to 3C.
+Widening identity to raise recall is the trade this design refuses.
+
+**A comparison is not a resolution.** An `EXACT` part-number comparison says the
+two supplied strings are the same part number and *nothing else*: not that the
+manufacturer is right, that the description agrees, that a listing belongs to
+the product, or that the source is trustworthy. When a request's part number
+matches while its description names a different product, this primitive still
+truthfully reports `EXACT` — detecting that cross-evidence disagreement needs
+evidence it does not have, and the corpus case for it (SYN-0006) expects the
+*system* to report a conflict, which is a conclusion drawn from both sides.
+
+**It holds no catalog and invents no facts.** No part number is mapped to a
+manufacturer, product, family, or category. Those mappings exist in the
+evaluation corpus as benchmark truth, and moving them into runtime resolution
+would be test leakage. The result carries no `ConfidenceLevel` and no numeric
+score either: `EXACT` is not a synonym for `HIGH`, because confidence is a
+judgement about evidence quality and a string comparison is not one.
+
+**The result is auditable.** `PartNumberMatchAssessment` is a frozen dataclass
+exposing both values as compared, both normalized keys, and the match type, so a
+reviewer can re-derive the decision from the result alone. Because the keys keep
+the identifier's structure, the audit trail distinguishes the two cases that
+matter: `bcm957504 n425g` and `BCM957504-N425G` both key to `BCM957504-N425G`
+and matched, while `AB-C123` keys to `AB-C123` against `ABC-123` and did not.
+It is not persisted, is not a model, and no logging infrastructure was added
+for it.
+
+**Nothing is wired to it.** The primitive supplies a comparison; no phase yet
+supplies a candidate. The web shell, the run lifecycle, and the corpus are
+unchanged, and a guard test asserts that `runs/`, `web/`, and `evaluation/` do
+not import the research core (AD-036).
+
+### 12.2 Known limits of the profile
+
+Stated rather than left to be discovered:
+
+* **`_`, `/`, and `.` are data.** A part number written `ABC_123` does not match
+  `ABC-123`. If a real manufacturer writes one part number both ways, that is
+  evidence for a further equivalence — recorded and approved per separator, not
+  assumed for the class (§12.3).
+* **Non-ASCII separators are data.** A part number written with a non-breaking
+  space or an en dash does not normalize onto its ASCII-hyphen equivalent.
+* **Padded and repeated punctuation does not collapse.** `ABC - 123` and
+  `ABC--123` each keep every boundary they were written with, so neither matches
+  `ABC-123`. A whitespace *run* collapses because it is one boundary a typist
+  spaced out; extending that to punctuation would be a new equivalence.
+* **The profile is one fixed set, not per-manufacturer.** Some manufacturers
+  treat a separator as meaningful. Nothing here knows which, because nothing here
+  knows the manufacturer.
+* **Comparison is symmetric and unranked.** There is no notion of a better or
+  worse candidate, and no ordering over several candidates. Selecting among
+  candidates needs evidence, which is 3A-3C.
+
+Every one of these fails toward abstention. That is the intended direction: a
+missed normalized match costs a re-query, and a false exact costs a wrong price
+on a real order.
+
+### 12.3 What 2A-FU1 withdrew, and why
+
+2A's first implementation removed every structural character wherever it
+appeared. That deleted separator *position*, not just separator spelling, and
+the consequences were reproduced before the fix:
+
+```text
+AB-C123  vs  ABC-123      -> NORMALIZED_EXACT   (both keyed to ABC123)
+ABC123   vs  ABC-123      -> NORMALIZED_EXACT   (both keyed to ABC123)
+ABC123   vs  A-B-C-1-2-3  -> NORMALIZED_EXACT   (both keyed to ABC123)
+ABC_123  vs  ABC-123      -> NORMALIZED_EXACT   (both keyed to ABC123)
+ABC--123 vs  ABC-123      -> NORMALIZED_EXACT   (both keyed to ABC123)
+```
+
+Each of those is a false exact — the failure mode this system exists to avoid —
+and the first is the worst of them: the same characters with the boundary in a
+different place are not the same identifier by any reading.
+
+Two equivalences were withdrawn:
+
+* **Deleting separators.** Replaced by canonicalizing them: an internal
+  whitespace run is written as a hyphen, and nothing is removed. Whether a
+  boundary exists, and where, is now preserved.
+* **Treating `-`, `_`, `/`, and `.` as one interchangeable class.** The corpus
+  evidences exactly one substitution — SYN-0008's `bcm957504 n425g` for
+  `BCM957504-N425G`, whitespace against a hyphen — and five verified part numbers
+  cannot show that every manufacturer treats every separator as decorative. The
+  evidence supported one equivalence; the implementation had generalized it to
+  four.
+
+Nothing was withdrawn from `EXACT`, which was already character-for-character
+after boundary handling. No corpus expectation was changed: SYN-0008 still
+resolves as `NORMALIZED_EXACT`, and it is the case that justifies the one rule
+that survived.
+
+Status: `IMPLEMENTED` (2A, corrected in 2A-FU1) for the comparison primitive
+described in §12.1. `APPROVED / PLANNED` for the rest of the responsibility
+split. No LLM is integrated. No prompts exist.
 
 ## 13. Search-provider boundary
 
@@ -739,7 +940,10 @@ Planned pipeline, all deterministic:
 2. **Normalization** (3B) — currency, quantity, pack size, unit price,
    condition, availability, seller.
 3. **Match and reject** (3C) — classify each listing with an
-   `IdentityMatchType`; record every rejection with a reason.
+   `IdentityMatchType`, using the deterministic part-number comparison from
+   §12.1 for the exact and normalized cases; record every rejection with a
+   reason. Partial-overlap classification is 3C's own work — 2A does not
+   attempt it.
 4. **Aggregation** (4A) — count, low, median, high, and an estimated market
    range computed from accepted listings only.
 5. **Report** (4B) — present the numbers together with the listings and the
@@ -856,6 +1060,11 @@ Principles:
   `tests/web/test_web_boundaries.py` fails if an inner layer imports the web
   layer, if the web layer gains a model, a vendor name, a provider import, a
   network client, or a call to `transition_to`.
+  `tests/research/test_research_identity_boundaries.py` fails if the research
+  core gains a non-stdlib import, a persistence / provider / benchmark / web
+  import, a network or filesystem module, or a vendor name; if the domain
+  imports the research core; or if `runs`, `web`, or `evaluation` wires itself
+  to the identity primitive before a phase supplies candidates.
 * **The browser workflow is tested through the Django test client**, which
   exercises the real URLs, views, forms, templates, and database — no browser
   automation dependency, and nothing mocked between the form and the row. The
@@ -878,9 +1087,25 @@ Principles:
   tests, and mutation-style tests break one field at a time to prove the
   validator rejects what it claims to. A validator that only ever sees valid
   data is indistinguishable from one that returns `True`.
+* **The corpus is also test input, never a runtime dependency.** From 2A, the
+  part-number comparison is exercised against real corpus cases — every verified
+  part number against itself, the punctuation variant, the near miss, the
+  truncation, the description-only requests, and every identity a case forbids
+  as an answer. The loader is imported by those tests, and a guard test asserts
+  the research core does not import it.
+* **A deterministic primitive is tested hardest on what it must refuse.** Most
+  of the 2A suite is negative: near misses, truncations, containment,
+  punctuation outside the profile, and — after 2A-FU1 — moved and missing
+  structural boundaries. A comparator is only as good as the matches it
+  declines, and a widened normalization profile fails those tests first. The
+  2A-FU1 defect is covered by tests asserting what a normalized *key* looks
+  like, not only which pairs collide: a key assertion fails the moment structure
+  starts being discarded again, whereas a collision assertion can pass for the
+  wrong reason.
 
 Status: `IMPLEMENTED` for the domain contracts, the evaluation corpus, the run
-lifecycle, the web shell, and the architecture guards.
+lifecycle, the web shell, the part-number comparison, and the architecture
+guards.
 
 ## 21. Evaluation strategy
 
@@ -988,7 +1213,10 @@ data. None exists yet, and none is invented.
 
 Status: `IMPLEMENTED` for the corpus, its contracts, validation, and loader
 (0B). `APPROVED / PLANNED` for every measurement described above: nothing
-computes a metric, and no threshold is chosen.
+computes a metric, and no threshold is chosen. 2A used the corpus as *test
+input* for the part-number comparison and changed no expected answer; that is
+not evaluation, because a comparison primitive with no candidate source resolves
+nothing to score.
 
 ## 22. Approved phased roadmap
 
@@ -999,8 +1227,9 @@ PRODUCT-INTEL.0B   Evaluation corpus                            IMPLEMENTED
 PRODUCT-INTEL.1A   ResearchRun lifecycle                        IMPLEMENTED
                    1A-FU1 persistence invariant hardening       IMPLEMENTED
 PRODUCT-INTEL.1B   Basic standalone web research/report shell   IMPLEMENTED
-PRODUCT-INTEL.2A   Deterministic product identity model         NEXT
-PRODUCT-INTEL.2B   Search provider abstraction
+PRODUCT-INTEL.2A   Deterministic product identity model         IMPLEMENTED
+                   2A-FU1 structure-preserving normalization    IMPLEMENTED
+PRODUCT-INTEL.2B   Search provider abstraction                  NEXT
 PRODUCT-INTEL.2C   First real search provider
 PRODUCT-INTEL.3A   Market listing extraction
 PRODUCT-INTEL.3B   Listing normalization
@@ -1035,7 +1264,7 @@ Future:
   additional LLM providers
 ```
 
-Every phase after 1B is `APPROVED / PLANNED` and unimplemented. Do not
+Every phase after 2A is `APPROVED / PLANNED` and unimplemented. Do not
 execute a later phase while working on an earlier one.
 
 ## 23. Explicit deferred items
@@ -1061,6 +1290,13 @@ web search, real product lookup, LLM calls, prompt engineering, price
 calculation, listing extraction, comparable discovery, similarity scoring,
 launcher code of any kind, and the research API.
 
+Deferred specifically around part-number identity (2A), so that a later phase
+does not read their absence as an oversight: partial or fuzzy part-number
+matching of any kind · edit distance and similarity scoring over part numbers ·
+character-confusion tables (`O`/`0`, `I`/`l`/`1`) · Unicode compatibility
+normalization · per-manufacturer normalization profiles · candidate ranking ·
+a runtime product catalog · persistence of a comparison result.
+
 Open questions currently `UNDECIDED`: search vendor · LLM vendor · report
 access control (the identifier scheme was settled in 1A as a random UUID, which
 is explicitly not access control) · which aggregate represents
@@ -1081,6 +1317,8 @@ Completed:
 - PRODUCT-INTEL.1A
 - PRODUCT-INTEL.1A-FU1 (corrective follow-up attached to 1A)
 - PRODUCT-INTEL.1B
+- PRODUCT-INTEL.2A
+- PRODUCT-INTEL.2A-FU1 (corrective follow-up attached to 2A)
 
 Current approved implementation state:
 - Project architecture established
@@ -1089,13 +1327,16 @@ Current approved implementation state:
 - Evaluation corpus, its contracts, validation, and loader established
 - Persistent ResearchRun lifecycle established
 - Standalone web intake form and durable report shell established
-- Focused contract, lifecycle, web, and boundary tests established
+- Deterministic part-number comparison primitive established
+- Focused contract, lifecycle, web, identity, and boundary tests established
 
 Not yet implemented:
 - Research execution of any kind
+- Candidate discovery of any kind
 - Search providers
 - LLM providers
 - Product resolver
+- Description interpretation
 - Market pricing
 - Comparable products
 - Structured intake API
@@ -1104,15 +1345,44 @@ Not yet implemented:
 - Report access control
 
 Next planned phase:
-- PRODUCT-INTEL.2A — Deterministic product identity model
+- PRODUCT-INTEL.2B — Search provider abstraction
 ```
 
 Concretely, the repository contains: this document, `CLAUDE.md`, `README.md`, a
 minimal Django project with two applications (one of which holds the only
 model), the domain contract layer, the evaluation corpus layer, the
-run-persistence layer and its two migrations, the standalone web shell, empty
-boundary packages carrying their rules as documentation, and 330 passing tests.
-There is no research capability of any kind.
+run-persistence layer and its two migrations, the standalone web shell, the
+deterministic part-number comparison primitive, empty boundary packages carrying
+their rules as documentation, and 519 passing tests. There is still no research
+capability: nothing searches, discovers a candidate, resolves a product, or
+prices anything.
+
+**What 2A-FU1 corrected.** One defect found in review, before 2A was frozen:
+**normalization discarded separator position.** Removing every structural
+character wherever it appeared meant `AB-C123`, `ABC-123`, `ABC123`, and
+`A-B-C-1-2-3` all keyed to `ABC123` and were reported as the same part number —
+a false exact, which is the most expensive answer this system can produce. The
+key now preserves structure: an internal whitespace run is *written as* a hyphen
+rather than deleted, and `_`, `/`, and `.` are data. The single equivalence the
+corpus evidences survives, and the three it does not were withdrawn (§12.3,
+AD-037). FU1 changed the normalization, its docstrings, the tests that had
+encoded the old behaviour, and this documentation. It added no capability, moved
+no corpus expectation, and started no later phase; the roadmap numbering is
+unchanged.
+
+**What 2A added.** One pure primitive,
+`product_intelligence/research/identity.py`, described in full in §12.1: a
+documented conservative normalization profile (as corrected by FU1), a
+comparison returning `EXACT`,
+`NORMALIZED_EXACT`, or `UNKNOWN`, and an auditable frozen result carrying both
+values and both normalized keys. **It resolves no product**: it compares two
+part numbers it is handed, and nothing in the system hands it a second one —
+there is no search, no candidate source, and no resolver. It reads no
+description, holds no catalog, computes no confidence, and does no partial or
+fuzzy matching. No model, no migration, no dependency, and no UI change arrived
+with it, the web shell and the run lifecycle are untouched, and no corpus
+expectation was altered — the corpus was used as test input and it still loads
+unchanged.
 
 **What 1B added.** The first browser surface: `GET /research/new` (the form),
 `POST /research/new` (creates exactly one run through
@@ -1215,3 +1485,6 @@ capability and started no later phase; the roadmap numbering is unchanged.
 | AD-032 | The web layer is a Django application with no model, and its form validates by *constructing* `ResearchRequest` rather than by restating the rules. Both fields are individually optional and keep their submitted text (`strip=False`); no part-number normalization happens at the boundary. | Two policies for what valid intake is would drift, and nothing would fail when they did — a form that grew its own "at least one field" rule, or its own trimming, would silently decide what the canonical contract is supposed to decide. Constructing the contract and translating `DomainValidationError` into a visible error keeps one authority and makes the persisted values identical to what any other intake would produce. `strip=False` matters even though Django's stripping agrees with the contract today: leaving it on would mean the form quietly co-owns a normalization rule, and a later change on either side would be invisible until stored values disagreed. Normalizing a part number here would be worse still — it is a matching decision (2A/3C) taken in the one layer forbidden to make one, where one character can mean a different product. The application holds no model because a run outlives the request that created it and belongs to no caller (AD-025). | Accepted (1B) |
 | AD-033 | A GET creates nothing. The browser workflow is Post/Redirect/Get, and the launcher entry point that turns `?mpn=…&description=…` into a run stays in 5B. | The 1B route shape is deliberately the one 5B will adapt, which makes "it would be two lines to honour the parameters now" the obvious mistake to prevent. A GET that creates records is a side effect on a method defined not to have one: a prefetch, a crawler, a bookmark, or a refresh would each start research, and the run table would fill with requests nobody made. Post/Redirect/Get is the other half — without the redirect, the page a user lands on is the submission itself, and reloading a report would silently create duplicates of it. The launcher also needs decisions 1B has not made (URL length limits, truncation policy, encoding), so implementing it early would guess at them. | Accepted (1B) |
 | AD-034 | The report shell states that research execution is not connected. No spinner, no polling, no simulated delay, no placeholder price, median, seller table, or example comparable. | A progress indicator over nothing is fabricated certainty with an animation (AD-009): it tells the user work is under way, and the only honest fact is that no execution engine exists. The same reasoning rules out placeholder values — a `$0` or an `N/A median` on a page titled with a real part number is a claim the system has no evidence for, and the evidence-first rule (AD-007) means a number appears only with the listings behind it. A blank "no results exist" section is not a gap in the phase; it is the accurate report, and it is the durable place later phases fill. Displaying an evaluation-corpus case here would be worse again: benchmark truth is reference data, never a result (AD-020). | Accepted (1B) |
+| AD-035 | **Amended by AD-037.** Originally: part-number normalization removes one closed, explicitly enumerated formatting allowlist — ASCII whitespace plus `-`, `_`, `/`, `.` — with ASCII-only case folding, everything else being data. | The *exclusions* stand and are the durable half of this entry: "remove every non-alphanumeric character" is rejected because it erases characters that distinguish real products and widens itself every time an unfamiliar character appears; an enumerated set makes each addition an edit someone has to defend; and broad Unicode compatibility folding is excluded because it merges code points whose identity equivalence no phase has approved, which is also why case folding is an explicit ASCII table rather than `str.upper()`. What did not stand was *removal*: deleting the enumerated characters discarded where a boundary was, not merely how it was written. See AD-037. | Amended (2A-FU1) |
+| AD-036 | The 2A comparator returns only `EXACT`, `NORMALIZED_EXACT`, or `UNKNOWN`; it carries no confidence, invents no product facts, does no partial or fuzzy matching, and is wired into nothing. | Each exclusion closes a specific way a narrow primitive turns into a false conclusion. `CONFLICT` would be the comparator claiming evidence is incompatible when all it saw was two different strings. `PARTIAL` — or any containment, edit-distance, or similarity rule — would raise recall by weakening identity, which is the one trade this product cannot make: `MTFDKCC3T8TFR` is a family prefix, not an orderable part. A confidence band would equate mechanism with trustworthiness, and `EXACT` is not `HIGH`: the string matched, which says nothing about whether the source, the description, or the listing is sound. A catalog inside the comparator would take benchmark answers from the evaluation corpus and make them production resolution logic, which is test leakage with the corpus's own truth. And wiring it into the web shell or the run lifecycle would connect a comparator to a system that supplies no candidates, so anything displayed would be invented — integration belongs to the phase with real candidate evidence. A guard test asserts `runs`, `web`, and `evaluation` do not import the research core. | Accepted (2A) |
+| AD-037 | Normalization canonicalizes how a structural boundary was written and never whether one exists. An internal ASCII-whitespace run is *written as* a hyphen; no separator is deleted; and `_`, `/`, `.` are data rather than spellings of a hyphen. | AD-035's implementation deleted every enumerated separator wherever it appeared, which collapsed `AB-C123`, `ABC-123`, `ABC123`, and `A-B-C-1-2-3` onto one key and reported them as the same part number. Those are false exacts, and a false exact is the failure this product is built to avoid — the first pair is the clearest: the same characters with the boundary in a different place are not the same identifier by any reading. The error was evidential, not clerical. The corpus supports exactly one substitution — SYN-0008's `bcm957504 n425g` for `BCM957504-N425G`, whitespace against a hyphen — and the implementation had generalized one case about one separator into a rule about four, then gone further and thrown position away as well. Five verified part numbers cannot establish that separator position is globally irrelevant across manufacturers, and the burden runs the other way: an equivalence is approved per separator, with evidence, or it is not approved. Preserving structure also repairs auditability, because a normalized key that keeps its boundaries shows a reviewer *why* two values matched rather than only that they did. The cost is abstention on `ABC_123` against `ABC-123` (§12.2), which is the cheap direction: a missed normalized match costs a re-query, a false exact costs a wrong price on a real order. | Accepted (2A-FU1) |
