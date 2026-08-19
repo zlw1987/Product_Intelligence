@@ -95,6 +95,18 @@ min/max/median. Proven against the same five recorded 3A fixtures plus a wide
 set of synthetic edge cases, entirely offline. **Nothing is wired to it:** a
 submitted run is still `CREATED`.
 
+**Phase PRODUCT-INTEL.3C is complete: deterministic MPN matching and listing
+rejection** — given a `ResearchRequest` and one normalised listing, it decides
+whether the listing belongs to the requested product
+(`product_intelligence/research/matching.py`). The existing 2A comparator
+owns `EXACT` / `NORMALIZED_EXACT` on explicit MPN fields only, after narrow
+`mpn:` wrapper cleanup (evidenced by one recorded page publishing its MPN as
+`"mpn:MZ-QL23T800"`). SKU and title text alone produce `REJECTED`, never
+`ACCEPTED`. `PARTIAL` matches are explicitly rejected. No LLM call, no
+persistence, no orchestration. Proven against the same five recorded real-page
+fixtures plus a wide set of synthetic edge cases. **Nothing is wired to it:**
+a submitted run is still `CREATED`.
+
 What exists today:
 
 * the canonical architecture and roadmap document
@@ -128,6 +140,10 @@ What exists today:
   (`product_intelligence/research/normalization.py`): price, currency,
   availability, condition, and seller, each converted or abstained with a
   recorded reason — no identity decision, no aggregate, no FX
+* deterministic MPN matching and listing rejection
+  (`product_intelligence/research/matching.py`): explicit MPN field compared
+  with the 2A comparator, `mpn:` wrapper cleanup, SKU/title rejected,
+  PARTIAL explicitly refused — no LLM, no persistence, no orchestration
 * deterministic tests for those contracts, for the corpus, for the lifecycle,
   for the browser workflow, for the comparison, for the provider boundary, for
   the Serper adapter's mapping, for page-fetch safety, for extraction and
@@ -136,22 +152,22 @@ What exists today:
 
 **What does not exist:** market research of any kind. There is no candidate
 discovery beyond one raw search call, no product lookup, no product resolver,
-no description interpretation, no listing matching or rejection, no price
-calculation, no comparable-product discovery, no LLM integration, no
-structured API, and no integration with any calling system. None of it is
-stubbed or partially present — those are later phases. A run can be created
-through the browser and moved through its states by code; nothing yet moves
-one, because nothing yet does research. The comparison primitive can say
-whether two part numbers are the same part number, and nothing supplies it with
-a second one. Search can return real results, a page can be fetched and read,
-and a raw observation can be normalized into comparable values — but nothing
-calls any of them from the run lifecycle or the web shell, nothing decides
-which URL to open, nothing says whether a normalized observation belongs to
-the requested product, and **no price is computed anywhere**. The corpus
-describes what good answers would look like; nothing produces or scores an
-answer.
+no description interpretation, no price calculation, no comparable-product
+discovery, no LLM integration, no structured API, and no integration with
+any calling system. None of it is stubbed or partially present — those are
+later phases. A run can be created through the browser and moved through its
+states by code; nothing yet moves one, because nothing yet does research.
+The comparison primitive can say whether two part numbers are the same part
+number, and nothing supplies it with a second one. Search can return real
+results, a page can be fetched and read, a raw observation can be normalized
+into comparable values, and a normalized listing can be assessed against the
+requested MPN — but nothing calls any of them from the run lifecycle or the
+web shell, nothing decides which URL to open, nothing orchestrates the
+deterministic steps into a research run, and **no price is computed
+anywhere**. The corpus describes what good answers would look like; nothing
+produces or scores an answer.
 
-Next planned phase: **PRODUCT-INTEL.3C — MPN matching + rejection.**
+Next planned phase: **PRODUCT-INTEL.4A — Price aggregation.**
 
 ## The browser workflow
 
@@ -486,7 +502,8 @@ product_intelligence/
   runs/                            persisted run lifecycle (implemented)
   research/                        part-number comparison (implemented) +
                                     raw listing extraction (implemented) +
-                                    listing normalization (implemented)
+                                    listing normalization (implemented) +
+                                    MPN matching + rejection (implemented)
   providers/                       search boundary + serper.py (implemented) +
                                     page-fetch boundary + http_page.py
                                     (implemented)
@@ -638,6 +655,60 @@ abstention — back to the raw text that produced it. The normal test suite
 still makes **zero** network requests: normalization is regression-tested
 against the same five recorded 3A fixtures, plus a wide set of inline
 synthetic edge cases for the ambiguous and malformed shapes above.
+
+## Matching a listing
+
+3C adds the first decision on whether a listing belongs to the requested
+product:
+
+```text
+ResearchRequest  +  NormalizedListingObservation
+        ↓
+  evidence detection + deterministic MPN comparison
+        ↓
+  ACCEPTED / REJECTED / UNDECIDED  +  match type  +  reason
+```
+
+**The acceptance policy is conservative.** A listing is ACCEPTED only when
+an explicit manufacturer-part-number field exists and the 2A comparator
+returns `EXACT` or `NORMALIZED_EXACT`. No other evidence source — SKU, title
+text, URL — automatically establishes identity. Unknown beats fabricated
+certainty.
+
+**Evidence sources.** The same character sequence has different semantics
+depending on which field published it:
+
+* `EXPLICIT_MPN_FIELD` — the page published a structured MPN field (ACCEPTED
+  if it matches)
+* `SKU_FIELD` — the page published a structured SKU field (REJECTED)
+* `TITLE_TEXT` — the requested MPN appears as a token in the product title
+  (REJECTED, recorded for traceability)
+* `NONE` — no candidate identifier was found (REJECTED)
+
+**Wrapper cleanup.** One recorded fixture (`exxactcorp_pm9a3_mz_ql23t800.html`)
+publishes its MPN as `"mpn:MZ-QL23T800"`. The `mpn:` prefix is a field-label
+wrapper, not part of the identifier. A narrow cleanup strips this literal
+prefix (case-insensitive) from an explicit MPN field only — never from a SKU,
+never from title text, never generalized to arbitrary `key:` stripping. The
+2A comparator (`identity.normalize_part_number`) is deliberately unchanged.
+
+**PARTIAL matching.** When one normalized key is a strict prefix of the other
+at a preserved identifier boundary (hyphen, underscore, slash, dot), the
+match type is `PARTIAL` and the decision is `REJECTED`. The relation is
+symmetric: either key may be the shorter one. One-character differences stay
+differences — `ABC123` vs `ABC1234` is a mismatch, not a partial.
+
+**No LLM, no persistence, no orchestration.** The assessment is a pure
+function: `assess_listing_identity(request, listing) -> ListingIdentityAssessment`.
+The result is frozen and auditable — a reviewer can trace the raw MPN text,
+the compared text, the evidence source, the match type, the decision, and the
+rejection reason back through the full chain to the raw page HTML.
+
+**Nothing is wired to it.** `runs/` and `web/` are unchanged, and a submitted
+run is still `CREATED`. The normal test suite makes **zero** network requests:
+matching is regression-tested against the same five recorded 3A fixtures,
+proving real pages classify as expected, plus a wide set of synthetic edge
+cases.
 
 ## Architecture in one paragraph
 

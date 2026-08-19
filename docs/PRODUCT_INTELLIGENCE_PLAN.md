@@ -27,8 +27,9 @@ browser-based report.
 The value of the product is **defensible answers**, not fast answers. A price
 range the user cannot trace back to real listings is worse than no answer.
 
-Status: `APPROVED / PLANNED` — the mission is agreed; none of the research
-capability is built.
+Status: `APPROVED / PLANNED` — the mission is agreed; isolated research
+primitives through 3C now exist, but end-to-end research and reporting does
+not.
 
 ## 2. Problem statement
 
@@ -143,7 +144,9 @@ Repository layout:
 │   ├── evaluation/                    corpus contracts, validation, loader (0B)
 │   ├── runs/                          persisted run lifecycle + migration (1A)
 │   ├── research/                      part-number comparison (2A) +
-│   │                                  raw listing extraction (3A)
+│   │                                  raw listing extraction (3A) +
+│   │                                  listing normalization (3B) +
+│   │                                  MPN matching + rejection (3C)
 │   ├── providers/                     search boundary (2B) + Serper (2C) +
 │   │                                  page-fetch boundary and fetcher (3A)
 │   └── web/                           standalone form + report shell (1B)
@@ -173,16 +176,12 @@ layer, the run-persistence layer, the Django project, the standalone web intake
 and report shell, the deterministic part-number comparison primitive inside the
 core (§12.1), the search-provider boundary (§13.1), its first real adapter
 (§13.5), the page-fetch boundary and its standard-library fetcher (§13.6),
-deterministic raw listing extraction (§16.1), and deterministic listing
-normalization (§16.2). `APPROVED / PLANNED` for every box below "Canonical
+deterministic raw listing extraction (§16.1), deterministic listing
+normalization (§16.2), and deterministic MPN matching + rejection (§16.3). `APPROVED / PLANNED` for every box below "Canonical
 Research Request" in the diagram: a run records *that* research was requested
-and how it ended, and the web shell starts nothing. The core can now compare
-two part numbers it is handed, fetch a public page safely, extract raw listing
-observations from what that page publishes, and turn one raw observation's
-commercial attributes into a deterministic value or a recorded reason it could
-not — but nothing orchestrates that sequence, and nothing in the run lifecycle
-or the web shell invokes any of it, so no box in the diagram from "Product
-Resolver" onward does anything yet.
+and how it ended, and the web shell starts nothing. The core can now compare two part numbers it is handed, fetch a public page safely, extract raw listing observations from what that page publishes, turn one raw observation's commercial attributes into a deterministic value or a recorded reason it could not, and decide whether a normalised listing belongs to the requested product through deterministic MPN matching with explicit accept/reject/undecided outcomes. — but nothing orchestrates that sequence, and nothing in the run
+lifecycle or the web shell invokes any of it; isolated core primitives exist
+through 3C, but no orchestration connects them.
 
 ## 6. Multi-interface intake design
 
@@ -212,9 +211,8 @@ reaches resolution, pricing, or comparison logic.
 
 Status: `IMPLEMENTED` for the standalone web form (1B), which normalizes its two
 submitted strings into a `ResearchRequest` and creates one run.
-`APPROVED / PLANNED` for every other mechanism. Nothing downstream of the
-canonical request exists, so an intake produces a recorded request, not
-research.
+`APPROVED / PLANNED` for every other mechanism. Downstream research primitives
+exist through 3C, but intake only creates a run and invokes none of them.
 
 ## 7. Legacy desktop client compatibility strategy
 
@@ -456,16 +454,17 @@ generated inside the domain.
 **Vocabularies** — `IdentityMatchType`, `ConfidenceLevel`,
 `VerificationStatus`, `EvidenceDecision`, `ResearchRunState`.
 
-Status: `IMPLEMENTED` — as contracts with contract-level validation only. Two
-things consume them: the persistence layer (§15), which stores a
-`ResearchRequest` and rebuilds one, and the part-number comparison primitive
-(§12.1), which reads the part number a request carries. Nothing researches
-anything, and nothing in the domain compares or normalizes a part number.
+Status: `IMPLEMENTED` — as contracts with contract-level validation only.
+The persistence layer (§15) stores and rebuilds a `ResearchRequest`.
+The research core (§12–§16) consumes `ResearchRequest`, `IdentityMatchType`,
+and `EvidenceDecision`: 2A reads the part number a request carries;
+3C uses `EvidenceDecision` and `IdentityMatchType` for accept/reject/undecided
+outcomes. Nothing in the domain compares, normalizes, or aggregates.
 
-Deliberately **not** modelled yet: listings, price aggregates, comparable
-products, specifications. Building the full schema before the behaviour exists
-would guess wrong. `ResearchRun` is now modelled — as a lifecycle record only
-(§15), not as a container of results that do not exist.
+Listings, normalized listings, and identity assessments are research-layer
+contracts (`product_intelligence.research`), not domain-layer contracts. The
+domain owns the request and the vocabulary enums; the research core owns the
+observation and assessment types.
 
 ## 11. Evidence model principles
 
@@ -647,10 +646,11 @@ and matched, while `AB-C123` keys to `AB-C123` against `ABC-123` and did not.
 It is not persisted, is not a model, and no logging infrastructure was added
 for it.
 
-**Nothing is wired to it.** The primitive supplies a comparison; no phase yet
-supplies a candidate. The web shell, the run lifecycle, and the corpus are
-unchanged, and a guard test asserts that `runs/`, `web/`, and `evaluation/` do
-not import the research core (AD-036).
+**Nothing is wired to it.** The primitive supplies a comparison; it discovers
+no candidates itself. 3C consumes it with explicit listing MPN candidates
+extracted from pages, but the web shell and the run lifecycle still do not
+orchestrate research. A guard test asserts that `runs/`, `web/`, and
+`evaluation/` do not import the research core (AD-036).
 
 ### 12.2 Known limits of the profile
 
@@ -1380,12 +1380,12 @@ Rules:
 Which aggregate constitutes "market price", and how outliers are handled, are
 `UNDECIDED` — to be settled in 4A with the evaluation corpus from 0B.
 
-3A and 3B are implemented and answer only steps 1 and 2. **No market price is
-computed anywhere**, and nothing matches, rejects, or aggregates an
-observation — a normalized price does not imply a valid listing, and 3B decides
-nothing about whether an observation belongs to the requested product. §16.1
-and §16.2 record exactly what was built and what was deliberately left to 3C
-and 4A.
+3A, 3B, and 3C are implemented and answer steps 1 through 3. **No market
+price is computed anywhere.** Matching and rejection exist in isolation — a
+normalised listing is classified against the requested part number, and the
+decision is recorded — but nothing orchestrates search, fetch, extraction,
+normalization, or matching together. 4A owns aggregation over accepted
+listings. §16.1, §16.2, and §16.3 record exactly what was built.
 
 Binding constraints on the phases above, recorded in 2B so each phase starts
 with them rather than rediscovering them:
@@ -1800,8 +1800,143 @@ shows the evidence.
 
 Status: `IMPLEMENTED` (3B) for deterministic price, currency, availability,
 condition, and seller normalization, and for the quantity/pack-size evidence
-audit. `APPROVED / PLANNED` for 3C onward. **No listing is accepted, rejected,
-or priced anywhere.**
+audit. 3C (next) accepts or rejects listing identity. No aggregation or
+market price exists yet.
+
+### 16.3 What 3C implemented
+
+The third step of the pipeline, and only the third: **each normalised listing
+is classified against the requested part number, and a decision is recorded**.
+
+```text
+ResearchRequest  +  NormalizedListingObservation
+        ↓
+  evidence detection + deterministic MPN comparison
+        ↓
+  ACCEPTED / REJECTED / UNDECIDED  +  match type  +  reason
+```
+
+The contract and the function live in the research core:
+`product_intelligence/research/matching.py`.
+
+#### `ListingIdentityAssessment`
+
+Frozen, auditable dataclass carrying:
+
+* `normalized_listing` — the exact `NormalizedListingObservation` (which itself
+  carries the raw `ListingObservation`).
+* `requested_part_number` — the MPN the request was looking for.
+* `candidate_part_number_raw` — the raw candidate identifier from the listing.
+* `candidate_part_number_compared` — the candidate text after any wrapper
+  cleanup (may differ from raw).
+* `candidate_evidence_source` — `EXPLICIT_MPN_FIELD`, `SKU_FIELD`,
+  `TITLE_TEXT`, or `NONE`.
+* `match_type` — `EXACT`, `NORMALIZED_EXACT`, `PARTIAL`, or `UNKNOWN`.
+* `decision` — `ACCEPTED`, `REJECTED`, or `UNDECIDED`.
+* `rejection_reason` — `NO_REQUESTED_MPN`, `NO_EXPLICIT_MPN_EVIDENCE`,
+  `MPN_MISMATCH`, or `PARTIAL_MPN_ONLY` (always present for `REJECTED` /
+  `UNDECIDED`; always `None` for `ACCEPTED`).
+
+#### Constructor invariants
+
+The dataclass carries a `__post_init__` that enforces the 3C state invariants
+on *any* construction, not just the builder:
+
+* `ACCEPTED` requires `EXPLICIT_MPN_FIELD` evidence, `EXACT` or
+  `NORMALIZED_EXACT` match type, and no rejection reason.
+* `REJECTED` requires a non-`None` rejection reason.
+* `UNDECIDED` requires `UNKNOWN` match type and `NO_REQUESTED_MPN` reason.
+* `PARTIAL` match type must always pair with `REJECTED` decision and
+  `PARTIAL_MPN_ONLY` reason.
+
+Impossible combinations raise `ValueError` at construction. No override
+framework exists.
+
+#### Acceptance policy
+
+A listing is `ACCEPTED` **only** when:
+
+1. An explicit manufacturer-part-number field exists on the listing.
+2. After narrow `mpn:` wrapper cleanup, the existing 2A comparator returns
+   `EXACT` or `NORMALIZED_EXACT`.
+
+No other evidence source — SKU, title text, URL — automatically establishes
+identity. Unknown beats fabricated certainty.
+
+#### Narrow `mpn:` wrapper cleanup
+
+One recorded fixture (`exxactcorp_pm9a3_mz_ql23t800.html`) publishes its MPN as
+`"mpn:MZ-QL23T800"`. The literal `mpn:` prefix is a field-label wrapper, not
+part of the identifier. A narrow cleanup strips this prefix (case-insensitively)
+from an explicit MPN field only — never from a SKU, never from title text, never
+generalized to arbitrary `key:` stripping. The 2A normalizer is unchanged.
+
+#### Empty / structure-only explicit MPN
+
+When the explicit MPN field carries no part-number content after cleanup
+(e.g. `"mpn:"` yielding `""`, or a structure-only value like `"---"`), the
+candidate is classified as `UNKNOWN` with `REJECTED` /
+`NO_EXPLICIT_MPN_EVIDENCE` — not `MPN_MISMATCH`, because there is no
+different candidate MPN to mismatch against.
+
+#### SKU and title text
+
+SKU field (`REJECTED` with `NO_EXPLICIT_MPN_EVIDENCE`) and title text
+(`REJECTED` with `NO_EXPLICIT_MPN_EVIDENCE`) are recorded for auditability but
+never produce `ACCEPTED`. Even if a SKU equals the requested MPN
+character-for-character, it stays rejected — the two are semantically distinct
+fields.
+
+#### PARTIAL boundary rule
+
+When the requested MPN and the candidate MPN are not `EXACT` or
+`NORMALIZED_EXACT` but one is a strict prefix of the other at a preserved
+identifier boundary (`-`, `_`, `/`, `.`) — e.g. `MTFDKCC3T8TFR` vs
+`MTFDKCC3T8TFR-1BC1ZABYY` — the match type is `PARTIAL` and the decision is
+`REJECTED` with `PARTIAL_MPN_ONLY`. A mid-alphanumeric-token prefix
+(`ABC123` vs `ABC1234`) is not classified as partial; it stays `UNKNOWN`.
+PARTIAL is explicitly rejected — it is not price-eligible identity evidence.
+
+#### Description-only request
+
+When the request carries no MPN, the decision is `UNDECIDED` with
+`NO_REQUESTED_MPN` — not `REJECTED`, because there is nothing to reject
+against.
+
+#### Rejected evidence remains reachable
+
+Every assessment holds the full `NormalizedListingObservation`, which holds the
+raw `ListingObservation`. A reviewer can trace the raw MPN text, the compared
+text, the evidence source, the match type, the decision, and the rejection
+reason back through the full chain to the raw page HTML.
+
+#### Commercial normalization issues do not decide identity
+
+Price, currency, availability, condition, and seller issues are not identity
+reasons. `IdentityRejectionReason` carries no `BAD_PRICE`, `WRONG_CURRENCY`,
+or `UNRECOGNIZED_CONDITION` member.
+
+#### What 3C did not do
+
+* **No LLM call.** All decisions are deterministic string comparisons against
+  the existing 2A comparator. No model, no prompt, no embedding.
+* **No persistence.** No model, no migration. The assessment is a pure function
+  result.
+* **No orchestration.** No search, no fetch, no extraction, no normalization,
+  no run transition. It takes values it is handed.
+* **No aggregation (4A).** No count, low, median, high, or range.
+* **No integration.** `runs/` and `web/` import no part of `providers/` or of
+  the matching core. A submitted run is still `CREATED`.
+* **No description semantics.** The description field is carried but never
+  read. Interpreting it is 6A/7B work.
+* **No manufacturer trust rules.** No per-manufacturer normalization profiles.
+* **No fuzzy matching, edit distance, or character-confusion tables.**
+  `O`/`0` and `I`/`l`/`1` are never interchanged.
+
+Status: `IMPLEMENTED` (3C) for deterministic MPN matching and listing rejection
+against the five recorded real-page fixtures plus synthetic and adversarial edge
+cases. `APPROVED / PLANNED` for 4A onward. **No market price is computed
+anywhere, and none is claimed.**
 
 ## 17. Comparable-product direction
 
@@ -2022,7 +2157,8 @@ Status: `IMPLEMENTED` for the domain contracts, the evaluation corpus, the run
 lifecycle, the web shell, the part-number comparison, the search-provider
 boundary, the Serper adapter's offline fixture-based regression tests, the
 page-fetch boundary and its fetcher, raw listing extraction against recorded
-real pages, and the architecture guards.
+real pages, deterministic listing normalization, deterministic MPN matching
+and listing rejection, and the architecture guards.
 
 ## 21. Evaluation strategy
 
@@ -2150,8 +2286,8 @@ PRODUCT-INTEL.2B   Search provider abstraction                  IMPLEMENTED
 PRODUCT-INTEL.2C   First real search provider (Serper)          IMPLEMENTED
 PRODUCT-INTEL.3A   Market listing extraction                    IMPLEMENTED
 PRODUCT-INTEL.3B   Listing normalization                        IMPLEMENTED
-PRODUCT-INTEL.3C   MPN matching + rejection                     NEXT
-PRODUCT-INTEL.4A   Price aggregation
+PRODUCT-INTEL.3C   MPN matching + rejection                     IMPLEMENTED
+PRODUCT-INTEL.4A   Price aggregation                             NEXT
 PRODUCT-INTEL.4B   Price Intelligence web report
 
 ----- PRICE MVP -----
@@ -2181,20 +2317,19 @@ Future:
   additional LLM providers
 ```
 
-Every phase after 3B is `APPROVED / PLANNED` and unimplemented. Do not
+Every phase after 3C is `APPROVED / PLANNED` and unimplemented. Do not
 execute a later phase while working on an earlier one.
 
-**The next phase is the priority.** 3B turned raw listing text into
-deterministic, comparable values — `"1055.85"` into `Decimal("1055.85")`,
-`"undefined"` into `None` plus a recorded `INVALID_PRICE` issue,
-`"false"` into `UNKNOWN` availability rather than a guessed `OUT_OF_STOCK` —
-without deciding anything about which product a listing describes. That is
-exactly what is still missing: nothing yet says whether a normalized listing's
-published part number is the one that was requested. 3C — classifying each
-normalized observation against `research.identity`'s `EXACT` /
-`NORMALIZED_EXACT` / `UNKNOWN` comparison (2A), with every rejection recorded
-and its reason kept — is what turns a pile of normalized observations into
-evidence a price conclusion could actually cite.
+**The next phase is the priority.** 3C turned a pile of normalized
+observations into deterministic accept/reject decisions on part-number
+identity: an explicit MPN field compared with the 2A comparator (after narrow
+`mpn:` wrapper cleanup) produces `ACCEPTED` for `EXACT` / `NORMALIZED_EXACT`
+and nothing weaker does; SKU and title text alone produce `REJECTED`; and
+`PARTIAL` overlap is explicitly `REJECTED` with `PARTIAL_MPN_ONLY` — proven
+against the same five recorded real-page fixtures plus a wide set of
+synthetic and adversarial edge cases. **No LLM call, no persistence, no
+orchestration.** 4A — aggregating a price from the accepted listings — is what
+turns the accepted set into a market conclusion.
 
 ### 22.1 Corrective follow-up phases
 
@@ -2236,11 +2371,11 @@ cross-process transition atomicity · distributed locking · a server database
 in place of development SQLite.
 
 Also deferred as capability, per the roadmap rather than per this list: real
-product lookup, LLM calls, prompt engineering, price calculation, listing
-*matching and rejection*, comparable discovery, similarity scoring, launcher
-code of any kind, and the research API. Real web search exists as of 2C, real
-page fetching plus raw listing extraction as of 3A, and deterministic listing
-normalization as of 3B — all three can be called directly — but
+product lookup, LLM calls, prompt engineering, price calculation, comparable
+discovery, similarity scoring, launcher code of any kind, and the research API.
+Real web search exists as of 2C, real page fetching plus raw listing extraction
+as of 3A, deterministic listing normalization as of 3B, and deterministic MPN
+matching and listing rejection as of 3C — all four can be called directly — but
 *orchestration* (query generation from a `ResearchRequest`, deciding which
 candidate URLs to open, automatic invocation from a research run) remains
 deferred: nothing calls `search()`, `fetch()`, or
@@ -2267,6 +2402,16 @@ or hardcoded · seller entity resolution · condition or availability inference
 from marketing prose (`"like new"`, `"open box"`) · persistence of a
 `NormalizedListingObservation` · any acceptance, rejection, confidence, or
 aggregate field on the normalized contract.
+
+Deferred specifically around MPN matching and listing rejection (3C), so that
+a later phase does not read their absence as an oversight: fuzzy or
+edit-distance matching over part numbers · character-confusion tables
+(`O`/`0`, `I`/`l`/`1`) · semantic matching from description text ·
+per-manufacturer normalization profiles or trust rules · SKU-as-MPN inference
+rules · listing acceptance on description-only matches · confidence scoring on
+the assessment · persistence of a `ListingIdentityAssessment` · any aggregation
+over accepted listings. `PARTIAL` classification exists and is explicitly
+rejected — it is informative but not price-eligible identity evidence.
 
 Deferred specifically around part-number identity (2A), so that a later phase
 does not read their absence as an oversight: partial or fuzzy part-number
@@ -2320,6 +2465,7 @@ Completed:
 - PRODUCT-INTEL.2C
 - PRODUCT-INTEL.3A
 - PRODUCT-INTEL.3B
+- PRODUCT-INTEL.3C
 
 Current approved implementation state:
 - Project architecture established
@@ -2346,8 +2492,12 @@ Current approved implementation state:
 - Deterministic listing normalization established (NormalizedListingObservation
   + price/currency/availability/condition/seller normalization), deciding no
   identity and computing no aggregate
+- Deterministic MPN matching and listing rejection established
+  (ListingIdentityAssessment + EvidenceSource + IdentityRejectionReason),
+  explicit MPN field compared with 2A comparator, mpn: wrapper cleanup,
+  SKU/title rejected, PARTIAL explicitly refused, no LLM or orchestration
 - Focused contract, lifecycle, web, identity, provider, Serper-adapter,
-  page-fetch, extraction, normalization, and boundary tests established
+  page-fetch, extraction, normalization, matching, and boundary tests established
 
 Not yet implemented:
 - Research execution of any kind
@@ -2355,7 +2505,7 @@ Not yet implemented:
 - Query generation from a ResearchRequest
 - Any orchestration from a search result to a page fetch to an extraction to
   a normalization
-- Listing matching, rejection, or price aggregation
+- Listing price aggregation over accepted listings
 - Quantity, pack-size, or unit-price normalization (no fixture evidence yet —
   §16.2)
 - Browser-rendered fetching (not justified by the 3A sample - see 13.6)
@@ -2373,7 +2523,7 @@ Not yet implemented:
   ordinary execution)
 
 Next planned phase:
-- PRODUCT-INTEL.3C — MPN matching + rejection
+- PRODUCT-INTEL.4A — Price aggregation
 ```
 
 Concretely, the repository contains: this document, `CLAUDE.md`, `README.md`, a
@@ -2383,12 +2533,13 @@ run-persistence layer and its two migrations, the standalone web shell, the
 deterministic part-number comparison primitive, the search-provider boundary,
 the Serper adapter with its recorded fixture and manual smoke script, the
 page-fetch boundary and its fetcher, deterministic raw listing extraction and
-its five recorded real-page fixtures, deterministic listing normalization, and
-over a thousand passing tests, all offline. There is still no research
-capability: nothing orchestrates a search, fetches a page, extracts a listing,
-normalizes it as part of any automatic flow, resolves a product, or prices
-anything — each phase through 3B proved that one more step of the pipeline
-works correctly in isolation, and that is the whole of what any of them claim.
+its five recorded real-page fixtures, deterministic listing normalization,
+deterministic MPN matching and listing rejection, and over a thousand
+passing tests, all offline. There is still no research capability: nothing
+orchestrates a search, fetches a page, extracts a listing, normalizes it,
+or assesses its identity as part of any automatic flow — each phase through
+3C proved that one more step of the pipeline works correctly in isolation,
+and that is the whole of what any of them claim.
 
 **What 3B added.** One module, `product_intelligence/research/normalization.py`,
 described in full in §16.2: `NormalizedListingObservation`,
@@ -2586,3 +2737,4 @@ capability and started no later phase; the roadmap numbering is unchanged.
 | AD-045 | Extraction reads only structured data a page deliberately published — `schema.org` JSON-LD first, flat product meta second and only when JSON-LD yielded nothing — and every extracted value stays raw text. No visible-text price scan exists, and none may be added. An `AggregateOffer` yields no price at all. | Three real pages sampled in this phase settle this better than argument could. One publishes `"price": "undefined"` inside a well-formed `Offer`: a converting extractor raises on it or silently drops the offer, and a reviewer sees neither. One publishes `"1055.85"` in JSON-LD and `"1,055.85"` in OpenGraph — the same money, twice, on one page, which is why the second mechanism is a fallback rather than an addition; running both would turn one offer into two observations and 4A counts observations. One publishes a price with no currency anywhere and an `availability` of `"false"`, which no vocabulary contains. Converting at this layer would mean each of those either fails or is guessed at inside a parser with nowhere to record which, whereas raw text moves the decision to 3B where "unparseable price" and "no currency" are outcomes with reasons attached. The prohibition on visible-text scanning is stronger than a preference and is recorded as permanent: the sampled storefront carries fourteen distinct dollar amounts — a shipping threshold, financing bounds, a per-instalment figure, four recommended products in markup identical to the real price element — so first-match, lowest-match, and largest-match rules each return a wrong number with total confidence. The `AggregateOffer` refusal is the same rule in miniature: a low and a high across sellers is a range, and picking an end is lowest-wins wearing a schema name. Parsing with `parse_float=str` is what makes "raw" true rather than aspirational — a float has already discarded how the page wrote the number. | Accepted (3A) |
 | AD-046 | A raw price becomes `Decimal` only when it names one unambiguous amount; anything naming a range, a discount, or a recurring payment abstains with `AMBIGUOUS_PRICE`, and anything else unparseable abstains with `INVALID_PRICE` — never a chosen amount, never `Decimal("0")`. Currency normalizes to a small conservative code set with no symbol treated as globally unique (`$` and `¥` are never mapped, embedded in a price or not), and no exchange-rate conversion exists anywhere, in this phase or any later one. **An unambiguous currency embedded directly in `price_text` (`"EUR 100"`, `"100 EUR"`, `"€100"`) is real currency evidence and is reconciled with `currency_text` rather than discarded**: agreement (or one source alone) yields that currency; disagreement between the two yields `currency_code=None` plus a recorded `CONFLICTING_CURRENCY` issue, without discarding an otherwise-valid `price_amount`. A price decorated with a currency marker on both sides (`"EUR 100 USD"`, `"$100 EUR"`) never normalizes cleanly, agreeing or not. | `"from $399"`, `"$399 - $449"`, `"$33/mo"`, and `"You save $565"` each contain a syntactically valid-looking number, and picking any of them — first, lowest, largest, or "the one after the word 'from'" — would be the identical mistake 3A already refused for visible-text scanning (AD-045), moved one layer later where it would be easier to excuse as "just normalization". `"undefined"` becoming `Decimal("0")` would be worse than raising: a template failure would silently enter arithmetic as a real, cheap price. On currency, `$` prices four different national currencies and `¥` prices two; mapping either to one guess is the fabricated certainty AD-009 already forbids, so both stay unmapped even though doing so leaves some real prices with `currency_code=None`. FX conversion is excluded on the same evidentiary standard as everything else in this system: a rate is itself a market observation with its own source and retrieval time, and applying one silently would manufacture a number no evidence supports — §16 already committed to this for 4A, and 3B is the first phase in a position to violate it by convenience. The reconciliation rule closes a gap found before the phase was frozen: an earlier draft derived `currency_code` from `currency_text` alone, so `price_text="EUR 100"` beside `currency_text="USD"` silently normalized to `currency_code="USD"` — contradictory evidence producing a clean, confident, wrong answer, which is exactly the false confidence AD-009 forbids. Discarding the embedded evidence instead (keeping `currency_text` as the sole source) would have been equally wrong in the other direction: a page that plainly writes `"EUR 100"` and nothing else is not thereby evidence-free about its own currency. Refusing doubly-decorated text is the same abstention discipline applied to the decoration itself, not just the digits: a regex with two independently optional decoration slots can match `"EUR 100 USD"` structurally, and treating that as one clean price/currency pair — by picking a side or by inferring agreement — would be a guess wearing a successful parse. | Accepted (3B) |
 | AD-047 | Quantity, pack size, and unit-price normalization were not implemented in 3B, and `ListingObservation` was not extended to carry raw fields for them. | The phase instructions required checking real evidence before building: an audit of every field in all five recorded 3A fixtures found no structured field on any of them meaning "this offer sells N units for this price" — an inventory count, a minimum-order quantity, and a capacity figure are each a different fact, and none is pack size. Building the normalization logic anyway would mean inventing a raw input to feed it, most plausibly by parsing a product title (`"3.84TB"`, `"MZ-QL23T800"`) — exactly the guess 3A's own MPN-in-title exclusion already rejected for identity, applied here to commercial quantity instead. Extending `ListingObservation` speculatively would also break 3A's own precedent: `ExtractionMethod` deliberately carries no member for an unbuilt mechanism, on the stated principle that a vocabulary entry nothing produces is a placeholder for behaviour that does not exist. The absence is recorded here, in §16.2, and in the completion report specifically so 3C is not the phase that discovers it by surprise. | Accepted (3B) |
+| AD-048 | Only an explicit MPN field carrying `EXACT` or `NORMALIZED_EXACT` (2A) is automatically accepted; SKU and title evidence alone never establish MPN identity; `PARTIAL` is informative but never price-eligible identity evidence. | Three concrete risks are being closed. First: a SKU is a retailer's internal identifier and may equal an MPN by coincidence, by convention, or never — treating it as MPN evidence would let a false match through every time a retailer happens to reuse the manufacturer's format. Second: title text is free-form marketing prose where the MPN may appear as a contained token (`"Samsung MZ-QL23T800 Ultra"`) and accepting it would be matching a substring, which is precisely the partial-identity trap that costs a wrong price on a real order. Third: partial overlap (`MTFDKCC3T8TFR` vs `MTFDKCC3T8TFR-1BC1ZABYY`) looks like evidence but is exactly the family-prefix confusion the system must avoid — PARTIAL does not establish requested-product identity and therefore is not price-eligible evidence. The acceptance rule is therefore narrow: one explicit structured MPN field, one deterministic comparator (2A), and nothing weaker crosses the line. When no explicit MPN is published, the listing is `REJECTED` with `NO_EXPLICIT_MPN_EVIDENCE`, not `UNKNOWN` — the absence of evidence is recorded, not left silent. A narrow `mpn:` wrapper cleanup is permitted because one recorded page (`exxactcorp_pm9a3_mz_ql23t800.html`) publishes its MPN as `"mpn:MZ-QL23T800"`, and the `mpn:` prefix is a field-label wrapper, not the identifier itself. It applies to the explicit MPN field only, is not generalized to arbitrary `key:` stripping, and leaves the 2A normalizer unchanged. | Accepted (3C) |

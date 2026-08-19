@@ -21,15 +21,17 @@ It is not an ERP module and does not require one to function.
 **PRODUCT-INTEL.1A-FU1**; **PRODUCT-INTEL.1B is complete**;
 **PRODUCT-INTEL.2A is complete**, together with its corrective follow-up
 **PRODUCT-INTEL.2A-FU1**; **PRODUCT-INTEL.2B is complete**;
-**PRODUCT-INTEL.2C is complete**; **PRODUCT-INTEL.3A is complete**; and
-**PRODUCT-INTEL.3B is complete**. The repository contains architecture
-documentation, a minimal Django project, domain contracts, the evaluation
-corpus and its loader, the persistent research-run lifecycle and its
-migrations, the standalone browser shell, the deterministic part-number
-comparison, the search-provider boundary, the first real search-provider
-adapter (Serper, ordinary Google Search), the page-fetch boundary and its
-standard-library fetcher, deterministic raw listing extraction, five recorded
-real-page fixtures, deterministic listing normalization, and their tests.
+**PRODUCT-INTEL.2C is complete**; **PRODUCT-INTEL.3A is complete**;
+**PRODUCT-INTEL.3B is complete**; and **PRODUCT-INTEL.3C is complete**. The
+repository contains architecture documentation, a minimal Django project,
+domain contracts, the evaluation corpus and its loader, the persistent
+research-run lifecycle and its migrations, the standalone browser shell, the
+deterministic part-number comparison, the search-provider boundary, the first
+real search-provider adapter (Serper, ordinary Google Search), the page-fetch
+boundary and its standard-library fetcher, deterministic raw listing
+extraction, five recorded real-page fixtures, deterministic listing
+normalization, deterministic MPN matching and listing rejection, and their
+tests.
 
 FU1 corrected two contract-level defects before 0A was frozen: an impossible
 guarantee that arbitrary unencoded URL parameters arrive losslessly (see the
@@ -106,17 +108,16 @@ computes no aggregate** — `identity.py` is never imported, and there is no
 accepted/rejected field, no confidence, and no min/max/median anywhere on the
 normalized contract.
 
-**There is still no research capability.** A page can now be fetched safely,
-read deterministically, and normalized into comparable values, but nothing
-orchestrates that: nothing generates a query, decides which candidate URL to
-open, matches a normalized observation to a request, computes a price, finds a
-comparable, or moves a run out of `CREATED` — the report page still says
-research execution is not connected.
+**There is still no research capability.** A page can be fetched safely,
+read deterministically, normalized into comparable values, and assessed
+against a requested MPN — but nothing orchestrates that: nothing generates
+a query, decides which candidate URL to open, matches a listing to a
+request from search results, computes a price, finds a comparable, or moves
+a run out of `CREATED` — the report page still says research execution is
+not connected.
 
-Next planned phase: **PRODUCT-INTEL.3C — MPN matching + rejection.** Do not
-start it unless asked. It is the priority after 3B: normalized observations now
-exist, and nothing yet says whether any of them describes the product that was
-actually requested.
+Next planned phase: **PRODUCT-INTEL.4A — Price aggregation.** Do not start
+it unless asked.
 
 ## Before you implement anything
 
@@ -517,6 +518,60 @@ rules:
   and the existing guard that checks the whole `product_intelligence.research`
   namespace already covers the new module. A submitted run is still `CREATED`.
 
+**MPN matching + rejection (3C).** `product_intelligence/research/matching.py`
+owns `ListingIdentityAssessment`, `EvidenceSource`,
+`IdentityRejectionReason`, and `assess_listing_identity` /
+`assess_listing_identities`. Binding rules:
+
+* **It is a pure function of a `ResearchRequest` and a
+  `NormalizedListingObservation`.** No I/O, no Django, no provider import,
+  no clock, no environment access. It imports only `domain` (for the request
+  contract and vocabulary), `research.identity` (for the 2A comparator),
+  `research.listings` (for the raw observation), and
+  `research.normalization` (for the normalised observation). No LLM, no
+  network, no persistence.
+* **Explicit MPN field only for automatic acceptance.** ACCEPTED requires
+  an explicit structured MPN field on the listing AND `EXACT` or
+  `NORMALIZED_EXACT` from the 2A comparator. No other evidence source — SKU,
+  title text, URL — automatically establishes identity. Unknown beats
+  fabricated certainty.
+* **SKU and title text alone produce REJECTED.** SKU field (`REJECTED` with
+  `NO_EXPLICIT_MPN_EVIDENCE`) and title text (`REJECTED` with
+  `NO_EXPLICIT_MPN_EVIDENCE`) are recorded for auditability but never
+  produce `ACCEPTED`. Even if a SKU happens to equal the requested MPN
+  character-for-character, it stays rejected.
+* **`mpn:` wrapper cleanup is narrow.** One recorded page publishes its MPN as
+  `"mpn:MZ-QL23T800"`. The literal `mpn:` prefix is stripped from an
+  explicit MPN field only, case-insensitively. It is NOT generalized into
+  arbitrary `key:` stripping, manufacturer prefixes, or arbitrary
+  colon-prefix removal. The 2A normalizer (`identity.py`) is unchanged.
+* **`PARTIAL` matches are explicitly rejected.** When one key is a strict
+  prefix of the other at a preserved separator boundary (`-`, `_`, `/`, `.`),
+  the match type is `PARTIAL` and the decision is `REJECTED` with reason
+  `PARTIAL_MPN_ONLY`. A mid-alphanumeric-token prefix (`ABC123` vs
+  `ABC1234`) is not classified as partial.
+* **No `CONFLICT` or `PARTIAL` from 2A's comparator.** The identity module
+  returns only `EXACT`, `NORMALIZED_EXACT`, or `UNKNOWN`. 3C adds `PARTIAL`
+  as a narrow, explicit classification — never `CONFLICT`.
+* **No confidence score.** `ListingIdentityAssessment` carries no numeric
+  confidence. `EXACT` is not `HIGH`, and no part number is mapped to a
+  manufacturer, product, family, or category at runtime.
+* **Description-only request is UNDECIDED.** When the request has no MPN,
+  the decision is `UNDECIDED` with `NO_REQUESTED_MPN` — it is not `REJECTED`,
+  because there is nothing to reject against.
+* **The assessment is frozen and auditable.**
+  `ListingIdentityAssessment` holds the full `NormalizedListingObservation`
+  (which holds the raw `ListingObservation`), the requested MPN, the raw
+  candidate text, the compared candidate text, the evidence source, the match
+  type, the decision, and the rejection reason. A reviewer can trace every
+  field back to the raw page HTML.
+* **`assess_listing_identities` is batch, not orchestration.** It applies
+  `assess_listing_identity` to each observation in order. No fetching, no
+  searching, no persistence.
+* **Nothing is wired to it.** `runs/` and `web/` import no part of `research`,
+  and the existing guard that checks the whole `product_intelligence.research`
+  namespace already covers the new module. A submitted run is still `CREATED`.
+
 **Legacy client constraint.** The production sales-order system is Microsoft
 Visual FoxPro 5.0. Assume it has *no* usable REST client, JSON, OAuth, modern
 TLS, modern HTTP library, Unicode sophistication, or browser integration. Its
@@ -607,7 +662,7 @@ Django model, and never part of a research run. Full rules in
 2C First real search provider (Serper)        <- complete
 3A Market listing extraction                  <- complete
 3B Listing normalization                      <- complete
-3C MPN matching + rejection                   <- next
+3C MPN matching + rejection                   <- complete
 4A Price aggregation
 4B Price Intelligence web report      ----- PRICE MVP -----
 5A Structured external intake API
@@ -671,6 +726,12 @@ additional search and LLM providers.
   `identity` or `extraction`, or if the 3B API is missing from
   `product_intelligence.research.__all__`. If a guard fails, fix the design,
   not the test.
+  `tests/research/test_listing_matching_boundaries.py` fails if `matching.py`
+  imports anything beyond stdlib, `product_intelligence.domain`, and
+  `product_intelligence.research`; if it imports `decimal`, `statistics`, or
+  `math` (4A work); if it imports persistence, providers, web, or evaluation;
+  if it imports subprocess, socket, urllib, or any LLM provider package;
+  or if the 3C API is missing from `product_intelligence.research.__all__`.
 * **A corrective follow-up phase has a higher bar from 2B onward.** Reserve a
   standalone FU for a defect that materially threatens false confidence or a
   false exact, data integrity, security, provider cost, or a hard architectural

@@ -38,8 +38,13 @@ Money becomes `Decimal` only here, never in extraction. No currency is
 converted, no listing is accepted or rejected, and no aggregate is computed —
 those are 3C and 4A.
 
-Listing match and rejection is 3C, pricing is 4A-4B, and comparables are
-7A-7C — none of it exists.
+PRODUCT-INTEL.3C added `matching`: `assess_listing_identity`, which decides
+whether a normalised listing belongs to the requested product. It uses the
+existing 2A comparator on explicit MPN fields only, after narrow ``mpn:``
+wrapper cleanup. SKU and title text alone never produce ACCEPTED. PARTIAL
+matches are explicitly rejected. No LLM call, no persistence, no orchestration.
+
+Pricing is 4A-4B, and comparables are 7A-7C — neither exists.
 """
 
 from product_intelligence.research.extraction import extract_listing_observations
@@ -57,6 +62,13 @@ from product_intelligence.research.listings import (
     ExtractionMethod,
     ListingObservation,
 )
+from product_intelligence.research.matching import (
+    EvidenceSource,
+    IdentityRejectionReason,
+    ListingIdentityAssessment,
+    assess_listing_identity,
+    assess_listing_identities,
+)
 from product_intelligence.research.normalization import (
     NormalizationIssue,
     NormalizationIssueCode,
@@ -72,7 +84,10 @@ __all__ = [
     "CANONICAL_SEPARATOR",
     "PRESERVED_SEPARATORS",
     "STRUCTURAL_CHARACTERS",
+    "EvidenceSource",
     "ExtractionMethod",
+    "IdentityRejectionReason",
+    "ListingIdentityAssessment",
     "ListingObservation",
     "NormalizationIssue",
     "NormalizationIssueCode",
@@ -80,6 +95,8 @@ __all__ = [
     "NormalizedCondition",
     "NormalizedListingObservation",
     "PartNumberMatchAssessment",
+    "assess_listing_identity",
+    "assess_listing_identities",
     "compare_part_numbers",
     "compare_request_to_candidate",
     "extract_listing_observations",
