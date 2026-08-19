@@ -22,16 +22,17 @@ It is not an ERP module and does not require one to function.
 **PRODUCT-INTEL.2A is complete**, together with its corrective follow-up
 **PRODUCT-INTEL.2A-FU1**; **PRODUCT-INTEL.2B is complete**;
 **PRODUCT-INTEL.2C is complete**; **PRODUCT-INTEL.3A is complete**;
-**PRODUCT-INTEL.3B is complete**; and **PRODUCT-INTEL.3C is complete**. The
-repository contains architecture documentation, a minimal Django project,
-domain contracts, the evaluation corpus and its loader, the persistent
-research-run lifecycle and its migrations, the standalone browser shell, the
-deterministic part-number comparison, the search-provider boundary, the first
-real search-provider adapter (Serper, ordinary Google Search), the page-fetch
-boundary and its standard-library fetcher, deterministic raw listing
-extraction, five recorded real-page fixtures, deterministic listing
-normalization, deterministic MPN matching and listing rejection, and their
-tests.
+**PRODUCT-INTEL.3B is complete**; **PRODUCT-INTEL.3C is complete**; and
+**PRODUCT-INTEL.4A is complete**. The repository contains architecture
+documentation, a minimal Django project, domain contracts, the evaluation
+corpus and its loader, the persistent research-run lifecycle and its
+migrations, the standalone browser shell, the deterministic part-number
+comparison, the search-provider boundary, the first real search-provider
+adapter (Serper, ordinary Google Search), the page-fetch boundary and its
+standard-library fetcher, deterministic raw listing extraction, five recorded
+real-page fixtures, deterministic listing normalization, deterministic MPN
+matching and listing rejection, deterministic price aggregation over
+identity-accepted listings, and their tests.
 
 FU1 corrected two contract-level defects before 0A was frozen: an impossible
 guarantee that arbitrary unencoded URL parameters arrive losslessly (see the
@@ -108,15 +109,17 @@ computes no aggregate** — `identity.py` is never imported, and there is no
 accepted/rejected field, no confidence, and no min/max/median anywhere on the
 normalized contract.
 
-**There is still no research capability.** A page can be fetched safely,
+**There is still no end-to-end research execution.** A page can be fetched safely,
 read deterministically, normalized into comparable values, and assessed
 against a requested MPN — but nothing orchestrates that: nothing generates
-a query, decides which candidate URL to open, matches a listing to a
-request from search results, computes a price, finds a comparable, or moves
-a run out of `CREATED` — the report page still says research execution is
-not connected.
+a query, decides which candidate URL to open, matches a listing to a request
+from search results, finds a comparable, or moves a run out of `CREATED`. 4A
+can compute bucket-level deterministic statistics when handed pre-built 3C
+assessments, but there is no automatic run execution, no web price report, and
+no global market-price selection — the report page still says research
+execution is not connected.
 
-Next planned phase: **PRODUCT-INTEL.4A — Price aggregation.** Do not start
+Next planned phase: **PRODUCT-INTEL.4B — Price Intelligence web report.** Do not start
 it unless asked.
 
 ## Before you implement anything
@@ -572,6 +575,76 @@ owns `ListingIdentityAssessment`, `EvidenceSource`,
   and the existing guard that checks the whole `product_intelligence.research`
   namespace already covers the new module. A submitted run is still `CREATED`.
 
+**Price aggregation (4A).** `product_intelligence/research/aggregation.py`
+owns `aggregate_listing_prices`, `PriceAggregationResult`,
+`PriceAggregateBucket`, `PriceAggregationExclusion`,
+`PriceAggregationExclusionReason`, and the domain's `ConfidenceLevel` enum
+(used by buckets). Binding rules:
+
+* **It is a pure function of 3C assessments.** No I/O, no Django, no provider
+  import, no clock, no environment access. It imports only `domain` (for the
+  request contract and vocabulary), `research.listings` (for the raw
+  observation), `research.normalization` (for the normalised observation),
+  and `research.matching` (for the identity assessment). No LLM, no network,
+  no persistence.
+* **Only identity-accepted listings with price, currency, and known condition
+  enter a bucket.** A `PriceAggregateBucket` contains only
+  `ListingIdentityAssessment` objects with decision `ACCEPTED`, a `Decimal`
+  price, a known currency code, and a known (non-`UNKNOWN`) condition.
+  Every non-accepted or ineligible assessment is an exclusion, not a silent
+  drop.
+* **Grouping is exact currency + exact known condition.** No FX conversion —
+  prices in different currencies can never enter the same bucket. `UNKNOWN`
+  condition is excluded, not grouped.
+* **Exact duplicate INPUT VALUES refused.** Two
+  `ListingIdentityAssessment` objects that compare equal by value raise
+  `ValueError` when supplied as input. This prevents double-counting the same
+  evidence. **No broad market-listing deduplication** exists — genuinely
+  different assessments with the same price, currency, and condition are not
+  duplicates because their evidence (source, seller, observation) differs.
+* **Statistics are computed, not stored.** A bucket's `count`, `low`,
+  `median`, `high` are all recomputed from its assessments in
+  `__post_init__` and compared against supplied values. Mismatch raises
+  `ValueError`.
+* **Custom exact Decimal median.** For even counts, uses the exact Decimal
+  midpoint of the two middle values. No `statistics.median` dependency.
+* **Market range: count < 3 -> both None, count >= 3 -> both present.
+  `market_range_low` == `low`, `market_range_high` == `high`. Never
+  one-sided.**
+* **Confidence is derived from count, not guessed.** `LOW` for count 1-2,
+  `MEDIUM` for count >= 3. **4A never produces `HIGH` or `VERY_HIGH`.**
+  No manual override, no LLM confidence, no heuristic.
+* **VerificationStatus from bucket count only.**
+  `UNKNOWN` when zero buckets. `VERIFIED` when exactly one bucket.
+  `AMBIGUOUS` when more than one bucket. No `EXCLUDED` or `PARTIAL` status.
+* **Exclusion reasons in fixed precedence order.**
+  `IDENTITY_NOT_ACCEPTED` (not that product),
+  `NO_NUMERIC_PRICE` (accepted but no `Decimal` price),
+  `NO_COMPARABLE_CURRENCY` (accepted, has price, no currency),
+  `UNKNOWN_CONDITION` (accepted, has price and currency, condition not
+  confidently mapped). A listing with multiple ineligibilities is excluded
+  for the first matching reason.
+* **Bucket field types enforced.** `count` must be `int` (not `bool`);
+  `low`, `median`, `high` must be `Decimal`; `market_range_low`,
+  `market_range_high` must be `Decimal` or `None` (paired);
+  `confidence` must be `ConfidenceLevel`.
+* **Result multiplicity preserved.** Every input assessment appears exactly
+  once across all buckets and exclusions, enforced with `Counter` (not `set`)
+  so that an assessment appearing twice in output is caught.
+* **Result request provenance enforced.** Every assessment's
+  `requested_part_number` must equal the result's
+  `request.manufacturer_part_number` exactly.
+* **Canonical bucket keys enforced.** At most one bucket per exact
+  `(currency_code, condition)` in a `PriceAggregationResult`.
+* **No FX conversion, no outlier removal, no availability eligibility rule,
+  no unit-price inference, no global market price.** The module imports
+  `decimal` and `collections` (both stdlib) and nothing else beyond the
+  approved research-core imports.
+* **Every input assessment appears in exactly one bucket or exclusion**,
+  enforced at construction. No invented evidence, no dropped evidence.
+* **Nothing is wired to it.** `runs/` and `web/` import no part of the
+  aggregation module. A submitted run is still `CREATED`.
+
 **Legacy client constraint.** The production sales-order system is Microsoft
 Visual FoxPro 5.0. Assume it has *no* usable REST client, JSON, OAuth, modern
 TLS, modern HTTP library, Unicode sophistication, or browser integration. Its
@@ -663,7 +736,7 @@ Django model, and never part of a research run. Full rules in
 3A Market listing extraction                  <- complete
 3B Listing normalization                      <- complete
 3C MPN matching + rejection                   <- complete
-4A Price aggregation
+4A Price aggregation                          <- complete
 4B Price Intelligence web report      ----- PRICE MVP -----
 5A Structured external intake API
 5B Visual FoxPro 5 launcher integration  ----- FOXPRO MVP -----
@@ -721,11 +794,11 @@ additional search and LLM providers.
   fails if the 3A extractor imports `decimal`, `statistics`, or `math`, or if
   `identity.py` acquires a parser.
   `tests/research/test_listing_normalization_boundaries.py` fails if
-  `normalization.py` is not the only research-core module importing `decimal`,
-  if `extraction.py` regains a monetary import, if normalization imports
-  `identity` or `extraction`, or if the 3B API is missing from
-  `product_intelligence.research.__all__`. If a guard fails, fix the design,
-  not the test.
+  `normalization.py` and `aggregation.py` are not the permitted
+  research-core modules importing `decimal`, if `extraction.py` regains a
+  monetary import, if normalization imports `identity` or `extraction`, or if
+  the 3B API is missing from `product_intelligence.research.__all__`. If a
+  guard fails, fix the design, not the test.
   `tests/research/test_listing_matching_boundaries.py` fails if `matching.py`
   imports anything beyond stdlib, `product_intelligence.domain`, and
   `product_intelligence.research`; if it imports `decimal`, `statistics`, or

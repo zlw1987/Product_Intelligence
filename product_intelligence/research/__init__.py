@@ -44,9 +44,25 @@ existing 2A comparator on explicit MPN fields only, after narrow ``mpn:``
 wrapper cleanup. SKU and title text alone never produce ACCEPTED. PARTIAL
 matches are explicitly rejected. No LLM call, no persistence, no orchestration.
 
-Pricing is 4A-4B, and comparables are 7A-7C — neither exists.
+PRODUCT-INTEL.4A added `aggregation`: `aggregate_listing_prices`, which
+takes a ``ResearchRequest`` and pre-built ``ListingIdentityAssessment``
+values, classifies each as price-eligible or excluded, groups eligible
+prices by (currency, known-condition), and computes deterministic
+statistics (count/low/median/high/market-range) per group. No FX,
+no outlier removal, no availability policy, no unit price. UNKNOWN
+condition is excluded. Multiple non-comparable buckets produce
+AMBIGUOUS. The result retains every input assessment.
+
+Pricing is 4A-4B, and comparables are 7A-7C — 4A exists, 4B and 7A-7C do not.
 """
 
+from product_intelligence.research.aggregation import (
+    PriceAggregateBucket,
+    PriceAggregationExclusion,
+    PriceAggregationExclusionReason,
+    PriceAggregationResult,
+    aggregate_listing_prices,
+)
 from product_intelligence.research.extraction import extract_listing_observations
 from product_intelligence.research.identity import (
     ASCII_WHITESPACE,
@@ -95,6 +111,11 @@ __all__ = [
     "NormalizedCondition",
     "NormalizedListingObservation",
     "PartNumberMatchAssessment",
+    "PriceAggregateBucket",
+    "PriceAggregationExclusion",
+    "PriceAggregationExclusionReason",
+    "PriceAggregationResult",
+    "aggregate_listing_prices",
     "assess_listing_identity",
     "assess_listing_identities",
     "compare_part_numbers",

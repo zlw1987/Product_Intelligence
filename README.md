@@ -107,6 +107,16 @@ persistence, no orchestration. Proven against the same five recorded real-page
 fixtures plus a wide set of synthetic edge cases. **Nothing is wired to it:**
 a submitted run is still `CREATED`.
 
+**Phase PRODUCT-INTEL.4A is complete: deterministic price aggregation** —
+given pre-built 3C identity assessments, it classifies each as
+price-eligible or excluded, groups eligible prices by exact currency and
+known condition, and computes deterministic statistics (count, low, median,
+high, and market range) per group
+(`product_intelligence/research/aggregation.py`). No FX conversion, no
+outlier removal, no unit-price inference, no global market-price selection,
+and no orchestration. Bucket-level observed statistics now exist, but
+nothing orchestrates the pipeline or displays the result in the web report.
+
 What exists today:
 
 * the canonical architecture and roadmap document
@@ -144,30 +154,39 @@ What exists today:
   (`product_intelligence/research/matching.py`): explicit MPN field compared
   with the 2A comparator, `mpn:` wrapper cleanup, SKU/title rejected,
   PARTIAL explicitly refused — no LLM, no persistence, no orchestration
+* deterministic price aggregation
+  (`product_intelligence/research/aggregation.py`): eligibility classification
+  with ordered exclusion reasons, currency+condition bucket grouping,
+  computed statistics with exact Decimal median, derived confidence
+  (LOW/MEDIUM), exact-duplicate input refusal by value, multiplicity
+  preservation with Counter, request provenance validation, and canonical
+  bucket keys — no FX, no outlier removal, no global market-price selection
 * deterministic tests for those contracts, for the corpus, for the lifecycle,
   for the browser workflow, for the comparison, for the provider boundary, for
   the Serper adapter's mapping, for page-fetch safety, for extraction and
   normalization against the recorded real pages (all offline), and for the
   architecture boundaries
 
-**What does not exist:** market research of any kind. There is no candidate
+**What does not exist:** end-to-end research execution. There is no candidate
 discovery beyond one raw search call, no product lookup, no product resolver,
-no description interpretation, no price calculation, no comparable-product
-discovery, no LLM integration, no structured API, and no integration with
-any calling system. None of it is stubbed or partially present — those are
-later phases. A run can be created through the browser and moved through its
-states by code; nothing yet moves one, because nothing yet does research.
-The comparison primitive can say whether two part numbers are the same part
-number, and nothing supplies it with a second one. Search can return real
-results, a page can be fetched and read, a raw observation can be normalized
-into comparable values, and a normalized listing can be assessed against the
-requested MPN — but nothing calls any of them from the run lifecycle or the
-web shell, nothing decides which URL to open, nothing orchestrates the
-deterministic steps into a research run, and **no price is computed
-anywhere**. The corpus describes what good answers would look like; nothing
-produces or scores an answer.
+no description interpretation, no comparable-product discovery, no LLM
+integration, no structured API, and no integration with any calling system.
+None of it is stubbed or partially present — those are later phases. A run
+can be created through the browser and moved through its states by code;
+nothing yet moves one, because nothing yet does research. The comparison
+primitive can say whether two part numbers are the same part number, and
+nothing supplies it with a second one. Search can return real results, a page
+can be fetched and read, a raw observation can be normalized into comparable
+values, a normalized listing can be assessed against the requested MPN, and
+4A can compute bucket-level deterministic statistics when handed pre-built 3C
+assessments — but nothing calls any of them from the run lifecycle or the web
+shell, nothing generates a query, nothing decides which URL to open, nothing
+orchestrates the deterministic steps into a research run, no global
+market-price is selected, and **the web report does not yet display price
+intelligence**. The corpus describes what good answers would look like;
+nothing produces or scores an answer.
 
-Next planned phase: **PRODUCT-INTEL.4A — Price aggregation.**
+Next planned phase: **PRODUCT-INTEL.4B — Price Intelligence web report.**
 
 ## The browser workflow
 

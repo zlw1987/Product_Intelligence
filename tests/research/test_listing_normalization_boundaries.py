@@ -31,24 +31,31 @@ def test_the_normalization_module_exists() -> None:
     assert NORMALIZATION_MODULE.read_text(encoding="utf-8").strip()
 
 
-def test_normalization_is_the_only_module_permitted_to_use_decimal() -> None:
-    """`decimal` becomes legitimate at 3B, and only at this one module.
+def test_normalization_and_aggregation_may_use_decimal() -> None:
+    """`decimal` is legitimate in `normalization.py` (3B, where raw text
+    becomes Decimal) and `aggregation.py` (4A, where Decimal values are
+    aggregated). No other research-core module may import it.
 
     `extraction.py` (3A) and `identity.py` (2A) already forbid it explicitly;
-    this asserts the positive claim so the guard cannot pass vacuously — if
-    nothing in the research core imported `decimal`, the exclusions on the
-    other two modules would be proving nothing.
+    this asserts the positive claim so the guard cannot pass vacuously.
     """
     modules = _top_level_imports(NORMALIZATION_MODULE.read_text(encoding="utf-8"))
     assert "decimal" in modules
 
+    aggregation_module = RESEARCH_ROOT / "aggregation.py"
+    if aggregation_module.exists():
+        agg_modules = _top_level_imports(aggregation_module.read_text(encoding="utf-8"))
+        assert "decimal" in agg_modules, (
+            "aggregation.py must import decimal for price arithmetic"
+        )
+
     for path in _python_files(RESEARCH_ROOT):
-        if path in (NORMALIZATION_MODULE,):
+        if path in (NORMALIZATION_MODULE, aggregation_module):
             continue
         other_modules = _top_level_imports(path.read_text(encoding="utf-8"))
         assert "decimal" not in other_modules, (
-            f"{path.name} imports decimal; only normalization.py may convert "
-            "a price to a number"
+            f"{path.name} imports decimal; only normalization.py and "
+            "aggregation.py may use money arithmetic"
         )
 
 
