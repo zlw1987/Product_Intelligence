@@ -10,181 +10,17 @@ module of one.
 
 ## Current status
 
-**Phase PRODUCT-INTEL.0A is complete: architecture and domain contracts.**
-Its corrective follow-up **PRODUCT-INTEL.0A-FU1 is complete** as well: it
-withdrew an impossible promise that arbitrary unencoded URL parameters would
-arrive losslessly, and closed a domain contract that allowed an `EXACT` product
-identity carrying no part number.
+For the exact current phase, implementation snapshot, and what is not yet
+connected, see **[docs/PRODUCT_INTELLIGENCE_STATUS.md](docs/PRODUCT_INTELLIGENCE_STATUS.md)**.
 
-**Phase PRODUCT-INTEL.0B is complete: the evaluation corpus** — the benchmark
-later phases will be measured against, established before there is anything to
-measure so that expectations cannot be quietly rewritten to suit an
-implementation.
-
-**Phase PRODUCT-INTEL.1A is complete: the research-run lifecycle** — one
-durable record per research request, with an opaque identifier, an explicit
-state machine, and audit timestamps. Its corrective follow-up
-**PRODUCT-INTEL.1A-FU1 is complete** as well: the stored state/timestamp
-invariant is now complete rather than partial, a run can only be created in
-`CREATED`, and the Django floor moved to the supported LTS line.
-
-**Phase PRODUCT-INTEL.1B is complete: the standalone browser shell** — a form,
-a durable report address, and the canonical request between them. **It creates
-a research run; it does not execute research.**
-
-**Phase PRODUCT-INTEL.2A is complete: the deterministic part-number
-comparison** — given a requested part number and a candidate one, it answers
-`EXACT`, `NORMALIZED_EXACT`, or `UNKNOWN`, and shows the normalized keys behind
-the answer. **It compares two part numbers it is handed; it does not find
-candidates and does not resolve a product.** Its corrective follow-up
-**PRODUCT-INTEL.2A-FU1 is complete** as well: normalization was deleting
-separators rather than canonicalizing them, which made `AB-C123` and `ABC-123`
-the same part number. Separator position is now preserved.
-
-**Phase PRODUCT-INTEL.2B is complete: the search-provider boundary** — the
-provider-neutral shape the research core will depend on instead of a vendor.
-**It defines contracts and integrates no provider:** there is no adapter, no
-HTTP call, no credential, no vendor dependency, and nothing in the system calls
-it.
-
-**Phase PRODUCT-INTEL.2C is complete: the first real search provider,
-Serper** — one adapter, `product_intelligence/providers/serper.py`, behind the
-2B boundary, calling Serper's ordinary Google Search endpoint. It maps
-`organic` results to `SearchResult`/`SearchResponse` and fabricates neither a
-price (`price_hint_text` stays `None`) nor a part number
-(`part_number_hint` stays `None`) — ordinary search publishes neither. The
-credential is read from `SERPER_API_KEY` in the server environment only.
-Regression tests run entirely offline against a sanitized recorded fixture in
-`tests/fixtures/providers/serper/`; the normal test suite makes zero calls to
-Serper. **Nothing is wired to it:** the run lifecycle and the web shell are
-unchanged, and a submitted run is still `CREATED` and stays there.
-
-**Phase PRODUCT-INTEL.3A is complete: market listing extraction** — the first
-vertical slice from a real public URL to a raw observation. A page-fetch
-boundary (`product_intelligence/providers/page.py`) with one standard-library
-fetcher (`http_page.py`): bounded timeout, redirects and response size,
-HTML-only, GET-only, no credential, and refusal of any destination resolving to
-a non-public address, revalidated on every redirect hop. Then deterministic
-extraction in the research core (`research/listings.py`, `research/extraction.py`)
-reading `schema.org` JSON-LD and flat product meta into raw
-`ListingObservation`s. **Every value stays text** — no `Decimal`, no currency,
-no vocabulary, no arithmetic — and **no price is ever read out of visible page
-text**. Seven real public pages were fetched once each; five returned a document
-and three yielded usable structured data, all five recorded as sanitized
-fixtures in `tests/fixtures/pages/`. **No browser, crawler, or paid scraping
-dependency was added, and none is justified yet. Nothing is wired to it:** a
-submitted run is still `CREATED`.
-
-**Phase PRODUCT-INTEL.3B is complete: deterministic listing normalization** —
-turning one raw `ListingObservation`'s commercial attributes into a
-comparable value, or a recorded reason it could not
-(`product_intelligence/research/normalization.py`). A valid, unambiguous price
-becomes `Decimal`; `"undefined"`, a range (`"$399 - $449"`), a financing
-payment (`"$33/mo"`), and a discount (`"20% OFF"`) all abstain with a recorded
-`NormalizationIssue` instead of being guessed at, and `"1,00,055"` /
-`"1.055,85"` are refused rather than reinterpreted as one locale or the other.
-Currency, availability, and condition each normalize through a small
-conservative vocabulary — `availability_text="false"` stays `UNKNOWN`, never a
-guessed `OUT_OF_STOCK` — and **no exchange-rate conversion exists anywhere**.
-Quantity, pack size, and unit price were **not** implemented: no recorded 3A
-fixture publishes raw evidence for any of the three, so none was invented.
-**It decides no identity and computes no aggregate** — the published MPN/SKU
-text is untouched, `identity.py` is never imported, and the normalized
-contract carries no accepted/rejected field, no confidence, and no
-min/max/median. Proven against the same five recorded 3A fixtures plus a wide
-set of synthetic edge cases, entirely offline. **Nothing is wired to it:** a
-submitted run is still `CREATED`.
-
-**Phase PRODUCT-INTEL.3C is complete: deterministic MPN matching and listing
-rejection** — given a `ResearchRequest` and one normalised listing, it decides
-whether the listing belongs to the requested product
-(`product_intelligence/research/matching.py`). The existing 2A comparator
-owns `EXACT` / `NORMALIZED_EXACT` on explicit MPN fields only, after narrow
-`mpn:` wrapper cleanup (evidenced by one recorded page publishing its MPN as
-`"mpn:MZ-QL23T800"`). SKU and title text alone produce `REJECTED`, never
-`ACCEPTED`. `PARTIAL` matches are explicitly rejected. No LLM call, no
-persistence, no orchestration. Proven against the same five recorded real-page
-fixtures plus a wide set of synthetic edge cases. **Nothing is wired to it:**
-a submitted run is still `CREATED`.
-
-**Phase PRODUCT-INTEL.4A is complete: deterministic price aggregation** —
-given pre-built 3C identity assessments, it classifies each as
-price-eligible or excluded, groups eligible prices by exact currency and
-known condition, and computes deterministic statistics (count, low, median,
-high, and market range) per group
-(`product_intelligence/research/aggregation.py`). No FX conversion, no
-outlier removal, no unit-price inference, no global market-price selection,
-and no orchestration. Bucket-level observed statistics now exist, but
-nothing orchestrates the pipeline or displays the result in the web report.
-
-What exists today:
-
-* the canonical architecture and roadmap document
-* durable project guidance for Claude Code sessions (`CLAUDE.md`)
-* a minimal Django project with two applications and one model
-* the domain contract layer: `ResearchRequest`, `ProductIdentity`,
-  `EvidenceReference`, and their controlled vocabularies
-* the evaluation corpus (`evaluation/`) — 19 cases: 5 real product identities
-  with manufacturer provenance and 14 constructed cases covering near-miss part
-  numbers, conflicts, partials, accessory confusion, ambiguity, and unknowns —
-  with its schema, validation, and loader
-* the persisted `ResearchRun` (`product_intelligence/runs/`) and its migrations
-* the standalone web shell (`product_intelligence/web/`): the intake form, the
-  report shell, and their routes
-* the deterministic part-number comparison
-  (`product_intelligence/research/identity.py`) and its normalization profile
-* the search-provider boundary (`product_intelligence/providers/search.py`):
-  `SearchQuery`, `SearchResult`, `SearchResponse`, the `SearchProvider`
-  protocol, and one boundary exception
-* the Serper adapter (`product_intelligence/providers/serper.py`): the first
-  real `SearchProvider`, calling Serper's ordinary Google Search endpoint, plus
-  a sanitized recorded fixture (`tests/fixtures/providers/serper/`) and a
-  manual live-smoke script (`scripts/serper_live_smoke.py`)
-* the page-fetch boundary (`product_intelligence/providers/page.py`) and its
-  standard-library fetcher (`http_page.py`)
-* deterministic raw listing extraction (`product_intelligence/research/
-  listings.py`, `extraction.py`), five sanitized recorded real-page fixtures
-  (`tests/fixtures/pages/`), and a manual smoke script
-  (`scripts/page_extract_smoke.py`)
-* deterministic listing normalization
-  (`product_intelligence/research/normalization.py`): price, currency,
-  availability, condition, and seller, each converted or abstained with a
-  recorded reason — no identity decision, no aggregate, no FX
-* deterministic MPN matching and listing rejection
-  (`product_intelligence/research/matching.py`): explicit MPN field compared
-  with the 2A comparator, `mpn:` wrapper cleanup, SKU/title rejected,
-  PARTIAL explicitly refused — no LLM, no persistence, no orchestration
-* deterministic price aggregation
-  (`product_intelligence/research/aggregation.py`): eligibility classification
-  with ordered exclusion reasons, currency+condition bucket grouping,
-  computed statistics with exact Decimal median, derived confidence
-  (LOW/MEDIUM), exact-duplicate input refusal by value, multiplicity
-  preservation with Counter, request provenance validation, and canonical
-  bucket keys — no FX, no outlier removal, no global market-price selection
-* deterministic tests for those contracts, for the corpus, for the lifecycle,
-  for the browser workflow, for the comparison, for the provider boundary, for
-  the Serper adapter's mapping, for page-fetch safety, for extraction and
-  normalization against the recorded real pages (all offline), and for the
-  architecture boundaries
-
-**What does not exist:** end-to-end research execution. There is no candidate
-discovery beyond one raw search call, no product lookup, no product resolver,
-no description interpretation, no comparable-product discovery, no LLM
-integration, no structured API, and no integration with any calling system.
-None of it is stubbed or partially present — those are later phases. A run
-can be created through the browser and moved through its states by code;
-nothing yet moves one, because nothing yet does research. The comparison
-primitive can say whether two part numbers are the same part number, and
-nothing supplies it with a second one. Search can return real results, a page
-can be fetched and read, a raw observation can be normalized into comparable
-values, a normalized listing can be assessed against the requested MPN, and
-4A can compute bucket-level deterministic statistics when handed pre-built 3C
-assessments — but nothing calls any of them from the run lifecycle or the web
-shell, nothing generates a query, nothing decides which URL to open, nothing
-orchestrates the deterministic steps into a research run, no global
-market-price is selected, and **the web report does not yet display price
-intelligence**. The corpus describes what good answers would look like;
-nothing produces or scores an answer.
+Briefly: **PRODUCT-INTEL.4A (price aggregation) is complete**. The repository
+contains the domain contracts, evaluation corpus, persistent run lifecycle,
+standalone web shell, deterministic part-number comparison, search-provider
+boundary, Serper adapter, page-fetch boundary, raw listing extraction,
+listing normalization, MPN matching and rejection, and price aggregation —
+all with tests. **Nothing is orchestrated**: a submitted run stays `CREATED`,
+the web report does not yet display price intelligence, and no research
+executes automatically.
 
 Next planned phase: **PRODUCT-INTEL.4B — Price Intelligence web report.**
 
@@ -512,6 +348,7 @@ expose it beyond a trusted network.
 ```text
 CLAUDE.md                          operating rules for Claude Code sessions
 docs/PRODUCT_INTELLIGENCE_PLAN.md  canonical architecture and roadmap
+docs/PRODUCT_INTELLIGENCE_STATUS.md  volatile current-state
 config/                            Django project configuration
 evaluation/                        evaluation corpus + its README (implemented)
   corpus/                          real_verified.json, synthetic.json
@@ -743,8 +580,11 @@ expensive failure this system can produce.
 
 ## Where to read next
 
-`docs/PRODUCT_INTELLIGENCE_PLAN.md` is canonical: mission, scope, non-goals,
-architecture, the Visual FoxPro 5 compatibility constraint, provider
-boundaries, the phased roadmap, current status, and the decision log. It
-labels every item `IMPLEMENTED`, `APPROVED / PLANNED`, `DEFERRED`, or
-`UNDECIDED`.
+- `docs/PRODUCT_INTELLIGENCE_STATUS.md` — current completed phase, next phase,
+  implementation snapshot, what is not yet connected.
+- `docs/PRODUCT_INTELLIGENCE_PLAN.md` — canonical long-form architecture:
+  mission, scope, non-goals, architecture, the Visual FoxPro 5 compatibility
+  constraint, provider boundaries, the phased roadmap, phase specifications,
+  decision log, and historical rationale. Labels every item `IMPLEMENTED`,
+  `APPROVED / PLANNED`, `DEFERRED`, or `UNDECIDED`.
+- `CLAUDE.md` — durable AI operating instructions for coding sessions.

@@ -132,10 +132,11 @@ Repository layout:
 
 ```text
 /
-├── CLAUDE.md                          durable operating instructions
-├── README.md                          developer orientation
-├── docs/PRODUCT_INTELLIGENCE_PLAN.md  this document
-├── manage.py                          Django entry point
+├── CLAUDE.md                               durable operating instructions
+├── README.md                               developer orientation
+├── docs/PRODUCT_INTELLIGENCE_PLAN.md       this document
+├── docs/PRODUCT_INTELLIGENCE_STATUS.md     volatile current-state
+├── manage.py                               Django entry point
 ├── config/                            Django project configuration
 ├── evaluation/                        benchmark data + its README (0B)
 │   └── corpus/                        real_verified.json, synthetic.json
@@ -153,6 +154,15 @@ Repository layout:
 │   └── web/                           standalone form + report shell (1B)
 └── tests/                             focused deterministic tests
 ```
+
+Repository documents, by ownership:
+
+| Document | Role |
+| --- | --- |
+| `CLAUDE.md` | Durable repository-level agent operating contract |
+| `docs/PRODUCT_INTELLIGENCE_STATUS.md` | Volatile current-state snapshot |
+| `docs/PRODUCT_INTELLIGENCE_PLAN.md` | Canonical long-form architecture, roadmap, phase specifications, and decisions |
+| `README.md` | Human/developer orientation |
 
 The evaluation corpus sits outside the Python package deliberately: it is
 reviewable reference data, not application code and not runtime state. Only its
@@ -2613,285 +2623,22 @@ intake design · every evaluation pass/fail threshold (§21.3) · the recorded
 listing-snapshot format for price evaluation (§21.4). Search vendor is settled
 as of 2C: Serper, ordinary Google Search only.
 
-## 24. CURRENT STATUS
+## 24. Current repository status
 
-```text
-CURRENT STATUS
+The volatile current implementation snapshot is maintained in:
 
-Completed:
-- PRODUCT-INTEL.0A
-- PRODUCT-INTEL.0A-FU1 (corrective follow-up attached to 0A)
-- PRODUCT-INTEL.0B
-- PRODUCT-INTEL.1A
-- PRODUCT-INTEL.1A-FU1 (corrective follow-up attached to 1A)
-- PRODUCT-INTEL.1B
-- PRODUCT-INTEL.2A
-- PRODUCT-INTEL.2A-FU1 (corrective follow-up attached to 2A)
-- PRODUCT-INTEL.2B
-- PRODUCT-INTEL.2C
-- PRODUCT-INTEL.3A
-- PRODUCT-INTEL.3B
-- PRODUCT-INTEL.3C
-- PRODUCT-INTEL.4A
+    docs/PRODUCT_INTELLIGENCE_STATUS.md
 
-Current approved implementation state:
-- Project architecture established
-- Durable Claude guidance established
-- Initial domain contracts established
-- Evaluation corpus, its contracts, validation, and loader established
-- Persistent ResearchRun lifecycle established
-- Standalone web intake form and durable report shell established
-- Deterministic part-number comparison primitive established
-- Provider-neutral search boundary established (contracts + protocol)
-- Serper adapter established: the first real SearchProvider, ordinary Google
-  Search, offline fixture-based regression tests, one sanitized recorded
-  response, one manual live-smoke script — wired into nothing
-- Page-fetch boundary established (PageFetchRequest, FetchedPage, PageFetcher,
-  PageFetchError, UnsafeFetchTargetError) with one standard-library fetcher:
-  bounded timeout, redirects and response size, HTML-only content types,
-  GET-only, no credential, and refusal of non-public destinations revalidated
-  on every redirect hop — wired into nothing
-- Deterministic raw listing extraction established (ListingObservation +
-  schema.org JSON-LD and flat product meta extraction), converting nothing and
-  deciding nothing
-- Five sanitized recorded real-page fixtures and one manual page-extract smoke
-  script established
-- Deterministic listing normalization established (NormalizedListingObservation
-  + price/currency/availability/condition/seller normalization), deciding no
-  identity and computing no aggregate
-- Deterministic MPN matching and listing rejection established
-  (ListingIdentityAssessment + EvidenceSource + IdentityRejectionReason),
-  explicit MPN field compared with 2A comparator, mpn: wrapper cleanup,
-  SKU/title rejected, PARTIAL explicitly refused, no LLM or orchestration
-- Deterministic price aggregation established (aggregate_listing_prices,
-  PriceAggregationResult, PriceAggregateBucket, PriceAggregationExclusion,
-  currency+condition grouping, eligibility with precedence, exact-duplicate
-  input refusal by value, computed statistics with exact Decimal median,
-  derived confidence LOW/MEDIUM, bucket and result type enforcement,
-  multiplicity preservation with Counter, request provenance validation,
-  canonical bucket keys, exclusion with ordered reasons)
-- Focused contract, lifecycle, web, identity, provider, Serper-adapter,
-  page-fetch, extraction, normalization, matching, aggregation, and boundary tests established
+STATUS.md owns:
+- latest completed phase
+- next planned phase
+- concise implemented-capability snapshot
+- current blockers/debt
+- latest validation baseline
 
-Not yet implemented:
-- Research execution of any kind
-- Candidate discovery beyond one raw, unorchestrated search call
-- Query generation from a ResearchRequest
-- Any orchestration from a search result to a page fetch to an extraction to
-  a normalization
+This canonical plan does not duplicate that operational snapshot.
 
-- Quantity, pack-size, or unit-price normalization (no fixture evidence yet —
-  §16.2)
-- Browser-rendered fetching (not justified by the 3A sample - see 13.6)
-- Crawling or link traversal
-- LLM providers
-- Product resolver
-- Description interpretation
-- Market pricing
-- Comparable products
-- Structured intake API
-- FoxPro integration
-- SAP integration
-- Report access control
-- Duplicate paid-call protection (not yet needed: nothing calls Serper from
-  ordinary execution)
-
-Next planned phase:
-- PRODUCT-INTEL.4B — Price Intelligence web report
-```
-
-Concretely, the repository contains: this document, `CLAUDE.md`, `README.md`, a
-minimal Django project with two applications (one of which holds the only
-model), the domain contract layer, the evaluation corpus layer, the
-run-persistence layer and its two migrations, the standalone web shell, the
-deterministic part-number comparison primitive, the search-provider boundary,
-the Serper adapter with its recorded fixture and manual smoke script, the
-page-fetch boundary and its fetcher, deterministic raw listing extraction and
-its five recorded real-page fixtures, deterministic listing normalization,
-deterministic MPN matching and listing rejection, deterministic price
-aggregation over identity-accepted listings, and over a thousand
-passing tests, all offline. There is still no research capability: nothing
-orchestrates a search, fetches a page, extracts a listing, normalizes it,
-assesses its identity, or aggregates its prices as part of any automatic
-flow — each phase through 4A proved that one more step of the pipeline works
-correctly in isolation, and that is the whole of what any of them claim.
-
-**What 3B added.** One module, `product_intelligence/research/normalization.py`,
-described in full in §16.2: `NormalizedListingObservation`,
-`NormalizationIssue`, `NormalizationIssueCode`, `NormalizedAvailability`,
-`NormalizedCondition`, and `normalize_listing_observation`. A raw
-`ListingObservation`'s price, currency, availability, condition, and seller
-become deterministic values — `Decimal`, an ISO-style currency code, a small
-controlled vocabulary — or abstain with a recorded reason when the raw text
-cannot be converted without guessing, proven against the same five recorded
-3A fixtures plus synthetic tests for the ambiguous and malformed shapes the
-phase instructions specified. **It decides no identity and computes no
-aggregate**: the published MPN and SKU fields are untouched, `identity.py` is
-never imported, and there is no accepted/rejected field, no min/max/median,
-and no currency conversion anywhere. Quantity, pack size, and unit price were
-not implemented — no recorded fixture publishes raw evidence for any of the
-three, and `ListingObservation` was not speculatively extended to invent a
-field nothing produces. `runs/` and `web/` are unchanged, and a submitted run
-is still `CREATED`.
-
-**What 4A added.** One module, `product_intelligence/research/aggregation.py`,
-described in full in §16.4: `aggregate_listing_prices`,
-`PriceAggregationResult`, `PriceAggregateBucket`, `PriceAggregationExclusion`,
-`PriceAggregationExclusionReason`. It takes 3C identity assessments and
-produces currency+condition buckets of accepted listings with count/low/median/high
-statistics, market range (paired, present when count >= 3), and derived confidence
-levels (LOW for count 1-2, MEDIUM for count >= 3; 4A never produces HIGH).
-Every non-accepted assessment is an exclusion with a reason in fixed precedence
-order; no listing is silently dropped. Exact duplicate input values refused
-at the boundary (value-based, not identity-based). No broad market-listing
-deduplication exists. Grouping is by exact currency (never cross-currency) and
-known condition (UNKNOWN excluded, not grouped). Median uses custom exact Decimal
-midpoint. Result multiplicity preserved with Counter (not set). Request provenance
-validated. Canonical bucket keys enforced. Type enforcement on bucket fields:
-count (not bool), monetary (Decimal), range (paired). No FX conversion, no
-outlier removal, no LLM confidence, no persistence, no wiring. The module
-imports `decimal` and `collections` (both stdlib). `runs/` and `web/` are
-unchanged, and a submitted run is still `CREATED`.
-
-**What 3C added.** One module, `product_intelligence/research/matching.py`,
-described in full in §14: `ListingIdentityAssessment`, `EvidenceSource`,
-`IdentityRejectionReason`, and `assess_listing_identity`. It takes a
-`ResearchRequest` and a `NormalizedListingObservation` and returns a frozen,
-auditable assessment: ACCEPTED only when an explicit MPN field carries
-`EXACT` or `NORMALIZED_EXACT` from the 2A comparator; SKU and title evidence
-produce REJECTED with `NO_EXPLICIT_MPN_EVIDENCE`; `PARTIAL` is explicitly
-refused; and a description-only request is UNDECIDED. The `mpn:` wrapper
-cleanup is narrow: one recorded page publishes `"mpn:MZ-QL23T800"` and only
-that literal prefix is stripped. No confidence score, no product catalog,
-no LLM, no orchestration. `runs/` and `web/` are unchanged, and a submitted
-run is still `CREATED`.
-
-**What 2C added.** One adapter, `product_intelligence/providers/serper.py`,
-described in full in §13.5: `SerperSearchProvider`, calling Serper's ordinary
-Google Search endpoint and mapping `organic` results onto the unchanged 2B
-contracts. `price_hint_text` and `part_number_hint` stay `None` for every
-result — confirmed against a real recorded response, not merely asserted —
-because ordinary search publishes neither, and the adapter never calls
-`research.identity`. The credential is read from `SERPER_API_KEY` in the
-server environment only, sent in Serper's documented header, and never appears
-in a log, exception, fixture, or raw reference. One real response was
-recorded, sanitized (nothing needed redacting — Serper's JSON does not echo
-the credential), and committed to `tests/fixtures/providers/serper/`; the
-offline suite exercises the adapter's actual mapping code against it, so
-`pytest` still makes zero network calls. Two live calls were made total during
-development. **It resolves no product and prices nothing**: `runs/` and
-`web/` import no part of `providers`, a submitted run is still `CREATED`, and
-Serper being metered has no operational consequence yet because nothing calls
-it outside a manual script and tests. The generic 2B boundary required no
-change to accommodate the real payload.
-
-**What 2B added.** One module, `product_intelligence/providers/search.py`,
-described in full in §13.1: `SearchQuery`, `SearchResult`, `SearchResponse`, the
-`SearchProvider` protocol, and one `SearchProviderError`. It is a shape, and
-deliberately nothing more — **no provider is integrated**. There is no adapter,
-no HTTP call, no credential, no environment variable, no vendor dependency, no
-registry or factory, and nothing in the system calls `search()`: a run submitted
-through the browser is still `CREATED`, and the report still says research
-execution is not connected. A search result carries a price *hint* that stays
-text and a part-number *hint* that stays unverified, provider-native material
-stays opaque, and result URLs are constrained to absolute `http`/`https`. No
-model, no migration, no dependency, and no UI change arrived with it; the 2A
-comparator and the evaluation corpus are untouched. 2B also recorded the
-operational constraints later phases inherit — source-specific extraction (§16,
-3A), currency normalization without conversion (§16, 3B), aggregation
-comparability (§16, 4A), paid-call protection as distinct from caching (§18.1),
-the access-control blocker for internal pricing (§19), and the recorded-fixture
-policy (§13.3).
-
-**What 2A-FU1 corrected.** One defect found in review, before 2A was frozen:
-**normalization discarded separator position.** Removing every structural
-character wherever it appeared meant `AB-C123`, `ABC-123`, `ABC123`, and
-`A-B-C-1-2-3` all keyed to `ABC123` and were reported as the same part number —
-a false exact, which is the most expensive answer this system can produce. The
-key now preserves structure: an internal whitespace run is *written as* a hyphen
-rather than deleted, and `_`, `/`, and `.` are data. The single equivalence the
-corpus evidences survives, and the three it does not were withdrawn (§12.3,
-AD-037). FU1 changed the normalization, its docstrings, the tests that had
-encoded the old behaviour, and this documentation. It added no capability, moved
-no corpus expectation, and started no later phase; the roadmap numbering is
-unchanged.
-
-**What 2A added.** One pure primitive,
-`product_intelligence/research/identity.py`, described in full in §12.1: a
-documented conservative normalization profile (as corrected by FU1), a
-comparison returning `EXACT`,
-`NORMALIZED_EXACT`, or `UNKNOWN`, and an auditable frozen result carrying both
-values and both normalized keys. **It resolves no product**: it compares two
-part numbers it is handed, and nothing in the system hands it a second one —
-there is no search, no candidate source, and no resolver. It reads no
-description, holds no catalog, computes no confidence, and does no partial or
-fuzzy matching. No model, no migration, no dependency, and no UI change arrived
-with it, the web shell and the run lifecycle are untouched, and no corpus
-expectation was altered — the corpus was used as test input and it still loads
-unchanged.
-
-**What 1B added.** The first browser surface: `GET /research/new` (the form),
-`POST /research/new` (creates exactly one run through
-`create_from_request` and redirects), `GET /research/<uuid>` (the durable report
-shell), and `/` redirecting to the form. The form's only job is translation —
-raw strings in, a canonical `ResearchRequest` out, or the contract's own error
-shown on the page. **It executes no research**: a submitted run is `CREATED` and
-stays there, nothing calls `transition_to`, and the report says research
-execution is not connected yet instead of showing progress. No model was added,
-no migration was needed, and no search, provider, LLM, launcher, queue, or
-authentication arrived with it.
-
-**What 1A added.** One persisted record: `ResearchRun`, in
-`product_intelligence/runs/`, with a UUID identity, the canonical MPN and
-description from a `ResearchRequest`, a state drawn from the existing
-`ResearchRunState` vocabulary, three lifecycle timestamps, one supported
-transition method, and one migration. It stores that research was asked for and
-how the attempt ended. **It runs no research**: there is still no search, no
-model call, no resolver, no pricing, no comparables, no view, no URL, and no
-background processing — nothing yet moves a run out of `CREATED`. 1A also
-corrected stale documentation that described Python 3.10.1 as the development
-interpreter (AD-017).
-
-**What 1A-FU1 corrected.** Two defects found in review, before 1A was frozen:
-
-1. **An incomplete stored invariant.** 1A enforced the lifecycle in application
-   code and backed it with one narrow database rule ("finished implies
-   started"). An audit of what an ordinary `objects.create(...)` could persist
-   found ten invalid shapes getting through — `RUNNING` with no start time,
-   `COMPLETED` that never finished, `CREATED` carrying both timestamps, and runs
-   created directly in a terminal state. One constraint now describes the whole
-   shape, and a run must be created in `CREATED` (§15.5, §15.6, AD-030).
-2. **An unsupported dependency floor.** `requirements.txt` allowed Django 5.1
-   because that is where `CheckConstraint(condition=…)` appeared — a reason
-   about API availability, not about support. 5.1 no longer receives security
-   fixes; the floor is now the 5.2 LTS line (AD-031).
-
-FU1 changed the model's constraints and save path, added migration `0002`,
-corrected the dependency range and documentation, and added regression tests.
-It added no capability and started no later phase; the roadmap numbering is
-unchanged.
-
-**What 0B added.** The evaluation corpus: 19 cases (5 `REAL_VERIFIED` seed
-identities with manufacturer provenance, 14 `SYNTHETIC` cases covering twelve
-adversarial classes), a strict JSON case schema, deterministic validation with
-mutation tests, and one loader so later phases do not each invent their own
-parsing. It measures nothing yet — there is no resolver — and it added no
-research capability, no persistence, and no runtime state.
-
-**What 0A-FU1 corrected.** Two contract-level defects found in independent
-review, before 0A was frozen:
-
-1. **An impossible transport guarantee.** The FoxPro compatibility contract
-   promised that arbitrary unencoded URL parameter values would survive
-   without silent corruption. Reserved characters make that unachievable — see
-   §7.2 and AD-018. The approved legacy path is now minimal percent-encoding
-   plus browser launch, with raw values accepted best-effort only.
-2. **An impossible `ProductIdentity` state.** The type could represent an
-   `EXACT`, high-confidence, established identity with no part number at all —
-   see §10 and AD-019. Construction now rejects it.
-
-FU1 changed documentation, one domain invariant, and tests. It added no
-capability and started no later phase; the roadmap numbering is unchanged.
+§22 remains the canonical phased roadmap and implementation-history record.
 
 ## 25. Architecture decision log
 
