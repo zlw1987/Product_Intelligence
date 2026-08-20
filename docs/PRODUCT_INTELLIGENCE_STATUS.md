@@ -10,8 +10,9 @@ For the full architectural rationale and phase specifications, see
 
 ## Next planned phase
 
-**PRODUCT-INTEL.4B — Price Intelligence web report.** Do not start it unless
-asked.
+**PRODUCT-INTEL.4B — Price Intelligence result persistence + read-only web
+report.** Do not start it unless asked. 4C (research execution orchestration)
+follows 4B and precedes the PRICE MVP.
 
 ## Implemented primitives (through 4A)
 
