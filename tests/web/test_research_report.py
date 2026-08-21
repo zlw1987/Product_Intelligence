@@ -97,7 +97,7 @@ class ReportContentTests(TestCase):
         response = self.client.get(detail_url(create_run()))
 
         self.assertContains(response, "Research request created.")
-        self.assertContains(response, "not connected")
+        self.assertContains(response, "not yet connected")
 
     def test_the_page_shows_no_fabricated_result(self) -> None:
         """No placeholder price and no empty-value filler.

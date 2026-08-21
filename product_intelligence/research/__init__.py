@@ -94,11 +94,18 @@ from product_intelligence.research.normalization import (
     normalize_listing_observation,
     normalize_listing_observations,
 )
+from product_intelligence.research.price_result_codec import (
+    PRICE_RESULT_SCHEMA_VERSION,
+    PriceResultCodecError,
+    decode_price_aggregation_result,
+    encode_price_aggregation_result,
+)
 
 __all__ = [
     "ASCII_WHITESPACE",
     "CANONICAL_SEPARATOR",
     "PRESERVED_SEPARATORS",
+    "PRICE_RESULT_SCHEMA_VERSION",
     "STRUCTURAL_CHARACTERS",
     "EvidenceSource",
     "ExtractionMethod",
@@ -115,11 +122,14 @@ __all__ = [
     "PriceAggregationExclusion",
     "PriceAggregationExclusionReason",
     "PriceAggregationResult",
+    "PriceResultCodecError",
     "aggregate_listing_prices",
     "assess_listing_identity",
     "assess_listing_identities",
     "compare_part_numbers",
     "compare_request_to_candidate",
+    "decode_price_aggregation_result",
+    "encode_price_aggregation_result",
     "extract_listing_observations",
     "normalize_listing_observation",
     "normalize_listing_observations",

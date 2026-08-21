@@ -247,7 +247,8 @@ def test_the_provider_layer_adds_no_model_and_no_migration() -> None:
 
     assert not list(PROVIDERS_ROOT.rglob("models.py"))
     assert not list(PROVIDERS_ROOT.rglob("migrations"))
-    assert {model._meta.label for model in apps.get_models()} == {"runs.ResearchRun"}
+    expected = {"runs.ResearchRun", "runs.PriceIntelligenceSnapshot"}
+    assert {model._meta.label for model in apps.get_models()} == expected
 
 
 def test_importing_the_provider_boundary_pulls_in_no_third_party_dependency() -> None:

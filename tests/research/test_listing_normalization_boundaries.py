@@ -33,8 +33,10 @@ def test_the_normalization_module_exists() -> None:
 
 def test_normalization_and_aggregation_may_use_decimal() -> None:
     """`decimal` is legitimate in `normalization.py` (3B, where raw text
-    becomes Decimal) and `aggregation.py` (4A, where Decimal values are
-    aggregated). No other research-core module may import it.
+    becomes Decimal), `aggregation.py` (4A, where Decimal values are
+    aggregated), and `price_result_codec.py` (4B, where Decimal strings in
+    a codec payload are decoded back to Decimal). No other research-core
+    module may import it.
 
     `extraction.py` (3A) and `identity.py` (2A) already forbid it explicitly;
     this asserts the positive claim so the guard cannot pass vacuously.
@@ -49,13 +51,22 @@ def test_normalization_and_aggregation_may_use_decimal() -> None:
             "aggregation.py must import decimal for price arithmetic"
         )
 
+    codec_module = RESEARCH_ROOT / "price_result_codec.py"
+    if codec_module.exists():
+        codec_modules = _top_level_imports(codec_module.read_text(encoding="utf-8"))
+        assert "decimal" in codec_modules, (
+            "price_result_codec.py must import decimal for codec decoding"
+        )
+
+    allowed_decimal = {NORMALIZATION_MODULE, aggregation_module, codec_module}
+
     for path in _python_files(RESEARCH_ROOT):
-        if path in (NORMALIZATION_MODULE, aggregation_module):
+        if path in allowed_decimal:
             continue
         other_modules = _top_level_imports(path.read_text(encoding="utf-8"))
         assert "decimal" not in other_modules, (
-            f"{path.name} imports decimal; only normalization.py and "
-            "aggregation.py may use money arithmetic"
+            f"{path.name} imports decimal; only normalization.py, "
+            "aggregation.py, and price_result_codec.py may use Decimal"
         )
 
 

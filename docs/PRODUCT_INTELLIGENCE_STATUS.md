@@ -1,57 +1,76 @@
 # Product Intelligence — Current Status
 
-Volatile current-state document. Updated on ordinary phase completion.
-For the full architectural rationale and phase specifications, see
-[PRODUCT_INTELLIGENCE_PLAN.md](PRODUCT_INTELLIGENCE_PLAN.md).
+## Completed phase
 
-## Current completed phase
+**PRODUCT-INTEL.4B — Price Intelligence web report** (2026-08-20).
 
-**PRODUCT-INTEL.4A — Price aggregation.**
+Implementation complete; freeze validation pending.
 
-## Next planned phase
+The durable report at `/research/<uuid>` now reads an optional
+`PriceIntelligenceSnapshot` and renders the full price intelligence
+result: buckets, contributing evidence, and excluded listings.
+It starts nothing, transitions nothing, and writes no timestamp.
+A corrupt payload or request-provenance mismatch shows the snapshot
+as unavailable — it never renders partially-decoded data as verified.
 
-**PRODUCT-INTEL.4B — Price Intelligence result persistence + read-only web
-report.** Do not start it unless asked. 4C (research execution orchestration)
-follows 4B and precedes the PRICE MVP.
+### What is connected
 
-## Implemented primitives (through 4A)
+* The codec round-trips `PriceAggregationResult` through versioned opaque
+  JSON in `PriceIntelligenceSnapshot`.
+* The report view decodes, validates provenance, and presents the result.
+* The decoder fails closed: corrupt payloads, unknown schema versions,
+  and provenance mismatches all show the snapshot as unavailable.
+* External text from listing observations is HTML-escaped.
+* The report is read-only: multiple GET requests change no state.
 
-- **0A / 0A-FU1** — Architecture, domain contracts, and contract-level corrections.
-- **0B** — Evaluation corpus (19 cases: 5 real, 14 synthetic), schema, validation, loader.
-- **1A / 1A-FU1** — Persisted `ResearchRun` lifecycle with state machine, timestamps,
-  and DB check constraint.
-- **1B** — Standalone web shell: form at `/research/new`, report at `/research/<uuid>`,
-  creates a `CREATED` run, executes nothing.
-- **2A / 2A-FU1** — Deterministic part-number comparison (`identity.py`):
-  `EXACT`, `NORMALIZED_EXACT`, `UNKNOWN`. Structure-preserving normalization.
-- **2B** — Search-provider boundary (`search.py`): `SearchQuery`, `SearchResult`,
-  `SearchResponse`, `SearchProvider` protocol, one exception. Stdlib contracts only.
-- **2C** — Serper adapter (`serper.py`): first real `SearchProvider`, ordinary Google
-  Search, offline fixture-based tests. Not wired into anything.
-- **3A** — Page fetch boundary (`page.py`, `http_page.py`): bounded, safe, stdlib.
-  Raw listing extraction (`listings.py`, `extraction.py`): JSON-LD + meta, all text,
-  five recorded real-page fixtures.
-- **3B** — Listing normalization (`normalization.py`): price to `Decimal` or abstain,
-  currency, availability, condition, seller. No identity decision, no aggregate.
-- **3C** — MPN matching and rejection (`matching.py`): explicit MPN field acceptance,
-  SKU/title rejection, `PARTIAL` refused, `mpn:` wrapper cleanup.
-- **4A** — Price aggregation (`aggregation.py`): eligibility with precedence,
-  currency+condition buckets, computed statistics, derived confidence.
+### What is NOT connected
 
-## Not yet connected
+* **Research execution does not exist.** A submitted run stays `CREATED`.
+  Nothing runs automatically, nothing is queued.
+* **No orchestration layer.** Phases 3A–4A produce a result manually; no
+  code connects search → fetch → extract → normalize → match → aggregate.
+  That is phase 4C (`execution/`).
+* **No LLM.** The LLM boundary exists as documentation only (§14).
+* **No launcher integration.** FoxPro/SAP/ERP launchers are not built.
 
-- No end-to-end research execution.
-- No orchestration (query generation, candidate URL selection, pipeline invocation).
-- No automatic `ResearchRun` execution — a submitted run stays `CREATED`.
-- No web price intelligence presentation — the report shell is empty.
-- No global market-price selection or cross-bucket policy.
-- No comparable-product system.
-- No runtime LLM integration.
-- No structured intake API (5A).
-- No FoxPro launcher integration (5B).
-- No SAP integration.
+### Next phase
 
-## Current validation baseline
+**PRODUCT-INTEL.4C — Research orchestration.**
 
-As frozen for 4A: **1305 passed, 39 subtests passed** from the ordinary
-repository test run.
+Create the `execution/` application layer that coordinates one `ResearchRun`
+through provider I/O and the deterministic research primitives of phases 2A–4A.
+**Do not start until 4B freeze validation is green.**
+
+## Implementation snapshot
+
+| Component | Package | Status |
+| --- | --- | --- |
+| Domain contracts + vocabularies | `domain/` | Implemented |
+| Evaluation corpus + loader | `evaluation/` | Implemented |
+| Persisted run lifecycle | `runs/` | Implemented (ResearchRun) |
+| Price intelligence snapshot | `runs/` | Implemented (PriceIntelligenceSnapshot) |
+| Standalone web shell | `web/` | Implemented (form + report) |
+| Part-number comparison | `research/identity` | Implemented |
+| Search provider boundary | `providers/search.py` | Implemented |
+| Serper adapter | `providers/serper.py` | Implemented |
+| Page fetch + extraction | `providers/http_page.py` + `research/listings.py` | Implemented |
+| Listing normalization | `research/normalization.py` | Implemented |
+| MPN matching + rejection | `research/matching.py` | Implemented |
+| Price aggregation | `research/aggregation.py` | Implemented |
+| Versioned codec | `research/price_result_codec.py` | Implemented |
+| Price report presentation | `web/presentation.py` | Implemented |
+| Research orchestration | `execution/` | **Not started (4C)** |
+| LLM boundary | docs only | Planned |
+| FoxPro/SAP launcher | — | Planned (5A/5B) |
+
+## Validation baseline
+
+* 4B implementation is present.
+* Pi-session focused/non-subprocess validation is green.
+* Pi full-session: 1433 passed, 7 failed (across 6 subprocess-boundary test
+  functions), 39 subtests passed.
+* Pi full-session subprocess-boundary failures remain.
+* Independent ordinary-terminal freeze validation is pending.
+* `python manage.py check` — 0 issues
+* `python manage.py makemigrations --check --dry-run` — no changes detected
+* Architecture guard tests enforce layer boundaries

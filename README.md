@@ -13,23 +13,26 @@ module of one.
 For the exact current phase, implementation snapshot, and what is not yet
 connected, see **[docs/PRODUCT_INTELLIGENCE_STATUS.md](docs/PRODUCT_INTELLIGENCE_STATUS.md)**.
 
-Briefly: **PRODUCT-INTEL.4A (price aggregation) is complete**. The repository
-contains the domain contracts, evaluation corpus, persistent run lifecycle,
-standalone web shell, deterministic part-number comparison, search-provider
-boundary, Serper adapter, page-fetch boundary, raw listing extraction,
-listing normalization, MPN matching and rejection, and price aggregation —
+Briefly: **PRODUCT-INTEL.4B (price intelligence web report) is complete**.
+The repository contains the domain contracts, evaluation corpus, persistent
+run lifecycle, standalone web shell, deterministic part-number comparison,
+search-provider boundary, Serper adapter, page-fetch boundary, raw listing
+extraction, listing normalization, MPN matching and rejection, price
+aggregation, versioned codec, and the read-only price intelligence report —
 all with tests. **Nothing is orchestrated**: a submitted run stays `CREATED`,
-the web report does not yet display price intelligence, and no research
-executes automatically.
+and no research executes automatically. The report reads a persisted
+`PriceIntelligenceSnapshot` and presents the full result — buckets,
+contributing evidence, and excluded listings. A corrupt payload or
+request-provenance mismatch shows the snapshot as unavailable.
 
-Next planned phase: **PRODUCT-INTEL.4B — Price Intelligence web report.**
+Next planned phase: **PRODUCT-INTEL.4C — Research execution orchestration.**
 
 ## The browser workflow
 
 ```text
 GET  /research/new       the form: manufacturer part number, description
 POST /research/new       -> ResearchRequest -> ResearchRun (CREATED) -> redirect
-GET  /research/<uuid>    the durable report shell
+GET  /research/<uuid>    the durable report (with optional price snapshot)
 GET  /                   redirect to /research/new
 ```
 
@@ -40,11 +43,13 @@ form constructs the contract and shows what it says, rather than keeping a
 second copy of the policy. Nothing at this boundary normalizes a part number;
 case, punctuation, and interior spacing are stored exactly as typed.
 
-**The report shell executes no research and says so.** It shows the identifier,
-the state, the part number, the description, and the creation time, states that
-research execution is not connected yet, and shows no price, median, seller, or
-comparable — real or placeholder. There is no spinner, no polling, and no
-simulated progress: a submitted run is `CREATED` and stays there.
+**The report is read-only.** It shows the identifier, the state, the part
+number, the description, the creation time, and — if a `PriceIntelligenceSnapshot`
+exists — the full price intelligence result: comparable price buckets,
+contributing evidence, and excluded listings. It starts nothing, transitions
+nothing, and writes no timestamp. A corrupt snapshot payload or a
+request-provenance mismatch shows the snapshot as unavailable. The snapshot
+never renders partially-decoded data as verified.
 
 Post/Redirect/Get means reloading a report never creates a second run, and a GET
 of the form creates nothing at all — the launcher entry point that turns
@@ -355,15 +360,18 @@ evaluation/                        evaluation corpus + its README (implemented)
 product_intelligence/
   domain/                          contracts + vocabularies (implemented)
   evaluation/                      corpus validation + loader (implemented)
-  runs/                            persisted run lifecycle (implemented)
+  runs/                            persisted run lifecycle (implemented) +
+                                    price intelligence snapshot (implemented)
   research/                        part-number comparison (implemented) +
                                     raw listing extraction (implemented) +
                                     listing normalization (implemented) +
-                                    MPN matching + rejection (implemented)
+                                    MPN matching + rejection (implemented) +
+                                    price aggregation (implemented) +
+                                    versioned codec (implemented)
   providers/                       search boundary + serper.py (implemented) +
                                     page-fetch boundary + http_page.py
                                     (implemented)
-  web/                             standalone form + report shell (implemented)
+  web/                             standalone form + price report (implemented)
 scripts/
   serper_live_smoke.py             manual, explicit live-call check (2C)
   page_extract_smoke.py            manual, explicit live-fetch check (3A)

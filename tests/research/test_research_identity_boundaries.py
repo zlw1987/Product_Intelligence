@@ -205,16 +205,16 @@ def test_the_domain_does_not_import_the_research_core() -> None:
 
 @pytest.mark.parametrize(
     "root",
-    [PACKAGE_ROOT / "runs", PACKAGE_ROOT / "web", PACKAGE_ROOT / "evaluation"],
+    [PACKAGE_ROOT / "runs", PACKAGE_ROOT / "evaluation"],
     ids=lambda p: p.name,
 )
 def test_no_outer_layer_is_wired_to_the_identity_primitive_yet(root: Path) -> None:
     """2A supplies a comparison; nothing yet supplies a candidate to compare.
 
-    Persistence, the browser shell, and the benchmark are all unchanged by this
-    phase. Runtime integration waits for the phase that has real candidate
-    evidence — a comparator wired into a form would have nothing to compare, so
-    anything it displayed would be invented.
+    Persistence and the benchmark are both unchanged by this phase.
+    Runtime integration waits for the phase that has real candidate evidence.
+    The web layer is excluded from this check because 1B and 4B import
+    research contracts (and the codec) for the report view.
     """
     for path in _python_files(root):
         offending = {
@@ -230,7 +230,8 @@ def test_the_identity_primitive_adds_no_model_and_no_migration() -> None:
 
     assert not list(RESEARCH_ROOT.rglob("models.py"))
     assert not list(RESEARCH_ROOT.rglob("migrations"))
-    assert {model._meta.label for model in apps.get_models()} == {"runs.ResearchRun"}
+    expected = {"runs.ResearchRun", "runs.PriceIntelligenceSnapshot"}
+    assert {model._meta.label for model in apps.get_models()} == expected
 
 
 def test_importing_the_research_core_pulls_in_no_third_party_dependency() -> None:

@@ -28,8 +28,8 @@ The value of the product is **defensible answers**, not fast answers. A price
 range the user cannot trace back to real listings is worse than no answer.
 
 Status: `APPROVED / PLANNED` — the mission is agreed; isolated research
-primitives through 4A now exist, but end-to-end research and reporting does
-not.
+primitives through 4A exist, the 4B price intelligence report is implemented,
+but end-to-end research EXECUTION does not.
 
 ## 2. Problem statement
 
@@ -144,16 +144,18 @@ Repository layout:
 ├── product_intelligence/
 │   ├── domain/                        contracts + vocabularies (0A)
 │   ├── evaluation/                    corpus contracts, validation, loader (0B)
-│   ├── runs/                          persisted run lifecycle + migration (1A)
+│   ├── runs/                          persisted run lifecycle + migration (1A) +
+│   │                                  price intelligence snapshot (4B)
 │   ├── research/                      part-number comparison (2A) +
 │   │                                  raw listing extraction (3A) +
 │   │                                  listing normalization (3B) +
 │   │                                  MPN matching + rejection (3C) +
-│   │                                  price aggregation (4A)
+│   │                                  price aggregation (4A) +
+│   │                                  versioned codec (4B)
 │   ├── providers/                     search boundary (2B) + Serper (2C) +
 │   │                                  page-fetch boundary and fetcher (3A)
 │   ├── execution/                     research orchestration (4C, future)
-│   └── web/                           standalone form + report shell (1B)
+│   └── web/                           standalone form + price report (1B, 4B)
 └── tests/                             focused deterministic tests
 ```
 
@@ -176,7 +178,7 @@ a Django model:
 
 | Layer | Owns | Must not know about |
 | --- | --- | --- |
-| `runs/` | The durable `ResearchRun` record, its lifecycle, its migration | Callers, vendors, transports, research results |
+| `runs/` | The durable `ResearchRun` record, its lifecycle, its migration, the `PriceIntelligenceSnapshot` model (4B) | Callers, vendors, transports, research semantics |
 
 `web/` became a Django application in 1B, holding the intake form, two views,
 the routes, and the templates. It contains no model: a run outlives the request
@@ -203,11 +205,11 @@ core (§12.1), the search-provider boundary (§13.1), its first real adapter
 (§13.5), the page-fetch boundary and its standard-library fetcher (§13.6),
 deterministic raw listing extraction (§16.1), deterministic listing
 normalization (§16.2), deterministic MPN matching + rejection (§16.3),
-and isolated deterministic price aggregation (§16.4). `APPROVED / PLANNED` for every box below "Canonical
-Research Request" in the diagram: a run records *that* research was requested
-and how it ended, and the web shell starts nothing. The core can now compare two part numbers it is handed, fetch a public page safely, extract raw listing observations from what that page publishes, turn one raw observation's commercial attributes into a deterministic value or a recorded reason it could not, decide whether a normalised listing belongs to the requested product through deterministic MPN matching with explicit accept/reject/undecided outcomes, and compute deterministic price aggregation over those accepted listings with bucket-level statistics and full multiplicity accounting. — but nothing orchestrates that sequence, and nothing in the run
-lifecycle or the web shell invokes any of it; isolated core primitives exist
-through 4A, but no orchestration connects them.
+isolated deterministic price aggregation (§16.4), and the 4B persisted
+read-only price intelligence report. The listed isolated research primitives
+and the 4B report are implemented; end-to-end execution/orchestration remains
+planned; still-unimplemented capabilities such as full product resolution /
+comparable-product research remain planned.
 
 ## 6. Multi-interface intake design
 
@@ -421,8 +423,14 @@ enabled on the POST. The identifier in a report URL is still not access control
 development and trusted internal use, not public deployment.
 
 Status: `IMPLEMENTED` (1B) for the form, the report shell, the routes, and the
-run creation between them. `APPROVED / PLANNED` for everything the report would
-display once research exists.
+run creation between them. `IMPLEMENTED` (4B) for the report shell extended
+with persisted price-result presentation: the report reads an optional
+`PriceIntelligenceSnapshot`, decodes it through the versioned codec, validates
+request provenance, and renders buckets, contributing evidence, and excluded
+listings. Corrupt payload or provenance mismatch fails closed with zero
+aggregate numbers. **Research EXECUTION does not exist:** a submitted run stays
+`CREATED`, nothing runs automatically, and no orchestration connects search
+through extraction, normalization, matching, and aggregation.
 
 ## 9. Future ERP integration strategy
 
@@ -508,7 +516,13 @@ observation and assessment types.
    `UNVERIFIED` or `UNKNOWN`, not a number.
 
 Status: `APPROVED / PLANNED` as principles; `IMPLEMENTED` only as the
-`EvidenceReference` contract. There is no evidence store.
+`EvidenceReference` contract. There is no complete standalone evidence store.
+Price-result evidence *is* persisted inside `PriceIntelligenceSnapshot` (4B):
+nested `ListingObservation`, `NormalizedListingObservation`, and
+`ListingIdentityAssessment` values are serialized as opaque JSON. However,
+no standalone Django model exists for those contracts — they live only as
+nested values inside the snapshot payload, and are not independently
+queryable.
 
 ## 12. Deterministic vs LLM responsibilities
 
@@ -1200,8 +1214,11 @@ attempt ended. It performs no research.
 
 ### 15.1 Where it lives
 
-`product_intelligence/runs/` — a small Django application whose only model is
-`ResearchRun` (AD-025). The reasoning is the layer table in §5:
+`product_intelligence/runs/` — a small Django application whose 1A model was
+`ResearchRun` (AD-025). 4B added a second model, `PriceIntelligenceSnapshot`,
+which persists the price intelligence result as opaque versioned JSON
+(AD-050). Both models live in `runs/` — the persistence package — so that no
+other layer carries a Django model. The reasoning is the layer table in §5:
 
 * `domain/` is stdlib-only contracts, and a model there would break both the
   rule and the guard test that enforces it;
@@ -1241,6 +1258,31 @@ list.
 
 A run is created from a `ResearchRequest` and can rebuild one, so later phases
 consume the contract rather than the database row.
+
+### 15.2b The 4B snapshot model (PriceIntelligenceSnapshot)
+
+4B added `PriceIntelligenceSnapshot` as the second model in `runs/`. It is a
+run one-to-one primary key (AD-050):
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `run` | one-to-one to `ResearchRun` | The owning run (PK = FK; the ResearchRun UUID serves as snapshot identity) |
+| `schema_version` | small int, >= 1 | Codec version for the payload |
+| `payload` | JSONField | Opaque versioned `PriceAggregationResult` dict |
+| `created_at` | timestamp | When the snapshot was persisted |
+
+The `payload` is opaque: `runs/` stores it but does not interpret its
+structure. The codec in `research/price_result_codec.py` transforms the
+research-layer contract to and from JSON. `runs/` imports no part of
+`research/`.
+
+`PriceIntelligenceSnapshot.created_at` is persistence time — it records
+when the price result was stored, not when any source was fetched.
+4B does NOT establish or persist source retrieval time through
+`ListingObservation`. Execution/fetch provenance and any execution-level
+retrieval timestamps remain part of 4C's evidence-persistence design.
+
+Cascade delete: deleting the `ResearchRun` deletes its snapshot.
 
 ### 15.3 Identity
 
@@ -1389,8 +1431,9 @@ Planned pipeline, all deterministic:
    §12.1 for the exact and normalized cases; record every rejection with a
    reason. Partial-overlap classification is 3C's own work — 2A does not
    attempt it.
-4. **Aggregation** (4A) — count, low, median, high, and an estimated market
-   range computed from accepted listings only.
+4. **Aggregation** (4A) — count, low, median, high, and an observed
+   low/high market range (when count >= 3), computed from accepted
+   listings only.
 5. **Orchestration** (4C) — coordinate one `ResearchRun` end-to-end: query
    generation, candidate selection, search invocation, page fetching,
    extraction, normalization, matching, aggregation, result persistence,
@@ -1398,7 +1441,7 @@ Planned pipeline, all deterministic:
    protection. `APPROVED / PLANNED`.
 6. **Report** (4B) — persist the `PriceAggregationResult` as a
    `PriceIntelligenceSnapshot` and present the numbers together with the
-   listings and the rejections that produced them. `APPROVED / PLANNED`.
+   listings and the rejections that produced them. `IMPLEMENTED`.
 
 Rules:
 
@@ -1421,7 +1464,7 @@ exact currency and known condition. No automatic outlier removal exists,
 and no global market-price is selected. The execution orchestration that
 connects these steps, persists the result, and transitions the run lifecycle
 is 4C (AD-051). The read-only web report that presents a persisted result
-is 4B (AD-050). Neither is implemented yet.
+is 4B (AD-050) and is now implemented.
 
 Binding constraints on the phases above, recorded in 2B so each phase starts
 with them rather than rediscovering them:
@@ -1971,10 +2014,12 @@ or `UNRECOGNIZED_CONDITION` member.
 
 Status: `IMPLEMENTED` (3C) for deterministic MPN matching and listing rejection
 against the five recorded real-page fixtures plus synthetic and adversarial edge
-cases. `APPROVED / PLANNED` for 4B onward. 4A exists as an isolated primitive
-and computes bucket-level statistics over supplied assessments, but no
-orchestration, no web report, and no global market-price selection are
-connected.
+cases. `IMPLEMENTED` (4A) for isolated deterministic price aggregation.
+`IMPLEMENTED` (4B) for price-result persistence via `PriceIntelligenceSnapshot`
+and the read-only web report that presents the full result: buckets, contributing
+evidence, and excluded listings. **Orchestration does not exist:** no code
+connects search through extraction, normalization, matching, and aggregation.
+4C is `APPROVED / PLANNED`.
 
 ### 16.4 What 4A implemented
 
@@ -2131,7 +2176,70 @@ availability or normalization issues. An `UNKNOWN` availability is irrelevant
 for price aggregation.
 
 Status: `IMPLEMENTED` (4A) for deterministic price aggregation over
-identity-accepted listings. `APPROVED / PLANNED` for 4B onward.
+identity-accepted listings.
+
+### 16.5 What 4B implemented
+
+4B implemented price-result persistence and the read-only web report.
+No orchestration was added.
+
+**Snapshot model.** `PriceIntelligenceSnapshot` in `runs/`: one-to-one to
+`ResearchRun`, storing `schema_version`, opaque versioned JSON `payload`,
+and `created_at`. The payload holds the full `PriceAggregationResult` as
+versioned JSON. Cascade delete on run deletion.
+
+**V1 codec.** `research/price_result_codec.py`: pure module (stdlib + domain
++ research contracts only, no Django, no I/O). `encode_price_aggregation_result`
+produces a JSON-serialisable dict with canonical assessment-index references
+(assessments stored once, referenced by index in buckets and exclusions).
+`decode_price_aggregation_result` reconstructs all nested contracts through
+normal constructors. Schema-version gate rejects unknown versions. Decimal
+preserved as strings, enums as explicit strings, strict schema (no extra keys,
+no missing keys, no type coercion). Fail-closed decode: all nested constructor
+failures — `ResearchRequest`, `ListingObservation`, `NormalizationIssue`,
+`NormalizedListingObservation`, `ListingIdentityAssessment`,
+`PriceAggregateBucket`, `PriceAggregationExclusion`, and
+`PriceAggregationResult` — are wrapped as `PriceResultCodecError`.
+
+**Canonical assessment-index references.** The encoder maps each distinct
+assessment VALUE to a canonical integer index. Bucket and exclusion membership
+references assessments by index. The decoder resolves indexes back to the
+assessment objects. Hash collisions are handled correctly: the mapping uses
+assessment objects as dict keys (hash + equality), not `hash(assessment)`.
+
+**Request provenance.** The decoded result's `ResearchRequest` is compared
+to the run's request. A mismatch shows the snapshot as unavailable — zero
+numbers rendered.
+
+**Read-only GET.** `/research/<uuid>` reads the snapshot, decodes it,
+validates provenance, and renders. Multiple GET requests change no state.
+No run transitions, no timestamp writes.
+
+**UNKNOWN / VERIFIED / AMBIGUOUS presentation.** The report renders all three
+verification statuses. UNKNOWN shows no buckets but shows excluded listings
+with their 3C rejection evidence. VERIFIED shows buckets with contributing
+evidence and any excluded listings. AMBIGUOUS shows multiple non-comparable
+price groups.
+
+**Contributing + excluded evidence.** Each contributing listing shows:
+source URL (hyperlinked when safe), product title, seller, normalized price,
+condition, evidence source, raw MPN, compared MPN, match type, raw price text.
+Each excluded listing shows the same plus: 3C rejection reason, exclusion
+reason, identity decision, and match type.
+
+**URL hyperlink validation.** External page URLs are validated before
+hyperlinking: absolute `http`/`https` with non-empty hostname, no embedded
+credentials, no HTML-breaking characters. Malformed URLs (e.g. bad IPv6)
+return False rather than raising. No network request, no URL rewriting.
+
+**Snapshot timestamp is persistence time.** The `created_at` on the snapshot
+model records when the price result was stored, not when any source was
+fetched. 4B does not persist source retrieval time; execution/fetch
+provenance and retrieval timestamps are part of 4C's evidence-persistence design.
+
+**No orchestration.** A submitted run stays `CREATED`. Nothing runs
+automatically. No pipeline connects search through extraction, normalization,
+matching, and aggregation.
 
 ## 17. Comparable-product direction
 
@@ -2258,7 +2366,8 @@ Principles:
   non-stdlib import, a calling-system concept, or a vendor name.
   `tests/runs/test_research_run_boundaries.py` fails if a research run gains a
   caller-shaped or provider-shaped column, if the domain or research core gains
-  a Django import, or if a second model appears.
+  a Django import, or if Django models appear outside `runs/` (the approved
+  models are `ResearchRun` and `PriceIntelligenceSnapshot`).
   `tests/web/test_web_boundaries.py` fails if an inner layer imports the web
   layer, if the web layer gains a model, a vendor name, a provider import, a
   network client, or a call to `transition_to`.
@@ -2484,7 +2593,7 @@ PRODUCT-INTEL.3B   Listing normalization                        IMPLEMENTED
 PRODUCT-INTEL.3C   MPN matching + rejection                     IMPLEMENTED
 PRODUCT-INTEL.4A   Price aggregation                            IMPLEMENTED
 PRODUCT-INTEL.4B   Price Intelligence result persistence +
-                   read-only web report
+                   read-only web report                         IMPLEMENTED
 PRODUCT-INTEL.4C   Research execution orchestration
 
 ----- PRICE MVP -----
@@ -2514,7 +2623,7 @@ Future:
   additional LLM providers
 ```
 
-Every phase after 4A is `APPROVED / PLANNED` and unimplemented. Do not
+Every phase after 4B is `APPROVED / PLANNED` and unimplemented. Do not
 execute a later phase while working on an earlier one.
 
 **The next phase is the priority.** 4A turned 3C's accepted listings into
@@ -2589,7 +2698,7 @@ phase does not read their absence as an oversight: browser-rendered fetching of
 any kind (headless browser, browser farm, managed scraping service) ·
 bot-detection evasion, user-agent rotation, and proxies · retry policy and
 backoff · robots/politeness scheduling · crawling, link traversal, and sitemap
-discovery · asset fetching · page or response caching · persistence of a
+discovery · asset fetching · page or response caching · a standalone Django model for
 `FetchedPage` or a `ListingObservation` · a source-specific extraction strategy
 (permitted by §16 once a fixture justifies one; none did) · microdata and RDFa
 parsing · visible-text price extraction of any kind (permanently excluded, not
@@ -2601,8 +2710,8 @@ does not read their absence as an oversight: quantity and pack-size
 normalization and unit-price calculation (no recorded fixture publishes raw
 evidence for any of the three — §16.2) · currency conversion of any kind, live
 or hardcoded · seller entity resolution · condition or availability inference
-from marketing prose (`"like new"`, `"open box"`) · persistence of a
-`NormalizedListingObservation` · any acceptance, rejection, confidence, or
+from marketing prose (`"like new"`, `"open box"`) · a standalone Django model
+for `NormalizedListingObservation` · any acceptance, rejection, confidence, or
 aggregate field on the normalized contract.
 
 Deferred specifically around MPN matching and listing rejection (3C), so that
@@ -2611,7 +2720,7 @@ edit-distance matching over part numbers · character-confusion tables
 (`O`/`0`, `I`/`l`/`1`) · semantic matching from description text ·
 per-manufacturer normalization profiles or trust rules · SKU-as-MPN inference
 rules · listing acceptance on description-only matches · confidence scoring on
-the assessment · persistence of a `ListingIdentityAssessment` · any aggregation
+the assessment · a standalone Django model for `ListingIdentityAssessment` · any aggregation
 over accepted listings. `PARTIAL` classification exists and is explicitly
 rejected — it is informative but not price-eligible identity evidence.
 
@@ -2696,7 +2805,7 @@ This canonical plan does not duplicate that operational snapshot.
 | AD-022 | Expected answers use an evaluation-only vocabulary (`EXACT_IDENTITY`, `AMBIGUOUS`, `CONFLICT`, `UNKNOWN`) rather than reusing `IdentityMatchType`, and record no query, provider, prompt, ranking, threshold, or numeric score. | The two vocabularies answer different questions: `IdentityMatchType` says by what mechanism something matched, an expectation says what class of answer is correct. A case asserting that a formatting variant resolves to a known part number is deliberately silent about whether a resolver gets there by exact comparison or by normalization — that is 2A/3C's design decision, and encoding it now would make the benchmark measure obedience to a guess instead of correctness. | Accepted (0B) |
 | AD-023 | No price, stock, or lifecycle claim enters the corpus. Price evaluation will operate against preserved timestamped listing snapshots: recorded listings at time T → deterministic aggregation → expected aggregate for that snapshot. | A market price is an observation at a moment, not a property of a product. "This SSD should cost $430" would be stale within weeks and would then fail a *correct* implementation for the crime of running later — a benchmark that punishes correctness is worse than none. An expectation about arithmetic over a fixed set of recorded observations stays true permanently, and it tests what the system actually owns: the aggregation and the accept/reject decisions. | Accepted (0B) |
 | AD-024 | An expected answer may be changed only with a stated reason of kind A (factually wrong), B (source changed), C (ambiguous case definition), or D (requirement changed). A failing implementation is explicitly not a valid reason. | Without this rule the corpus decays into a record of what the code already does, which measures nothing. The failure mode is quiet and rational-looking at each step — one case adjusted per phase, each time to unblock work — so the prohibition has to be written down rather than assumed. | Accepted (0B) |
-| AD-025 | Persistence lives in its own Django application, `product_intelligence/runs/`, holding the project's only model. The domain and the research core stay database-free, and the web layer does not own the lifecycle. | Each of the three alternatives breaks something specific. A model in `domain/` would make the contracts require Django to import, contradicting AD-013 and failing the guard that enforces it. A model in `research/` would tie the engine to a database, so no part of it could be reasoned about or tested without one — and the engine is the piece most likely to be exercised in isolation. Ownership in `web/` would make a run's existence a property of the transport that created it, which is exactly the caller-coupling AD-001 exists to prevent; a run outlives its request and belongs to no client. A fourth package costs one directory and keeps the dependency arrow pointing one way: `runs` imports `domain`, never the reverse. | Accepted (1A) |
+| AD-025 | Persistence lives in its own Django application, `product_intelligence/runs/`, holding the project's models. The domain and the research core stay database-free, and the web layer does not own the lifecycle. 4B added `PriceIntelligenceSnapshot` as a second model (see AD-050); both live in `runs/` so no other layer carries a Django model. | Each of the three alternatives breaks something specific. A model in `domain/` would make the contracts require Django to import, contradicting AD-013 and failing the guard that enforces it. A model in `research/` would tie the engine to a database, so no part of it could be reasoned about or tested without one — and the engine is the piece most likely to be exercised in isolation. Ownership in `web/` would make a run's existence a property of the transport that created it, which is exactly the caller-coupling AD-001 exists to prevent; a run outlives its request and belongs to no client. A fourth package costs one directory and keeps the dependency arrow pointing one way: `runs` imports `domain`, never the reverse. | Accepted (1A) |
 | AD-026 | A run's primary key is an application-generated random UUID, serving as both the database key and the public report identifier. Opacity is explicitly **not** access control. | The report URL `/research/<id>` has to be durable and non-enumerable, and a UUID primary key gives both without a second identifier to keep in sync — a separate public id alongside a sequential key would add a consistency obligation for no capability. Generating it in the application rather than the database means the identity exists before the first write, so nothing has to round-trip to learn it. The second half of the decision matters more than the first: unguessability is not authorization, and writing it down here is what stops a later phase from treating "the URL is hard to guess" as a security answer. Report visibility stays `UNDECIDED` per §19. | Accepted (1A) |
 | AD-027 | Transitions go through one method against an explicit table; terminal states are terminal; an illegal move raises and changes nothing; assigning `state` on a saved run and calling `save()` is refused. | Two failure modes are worth engineering against. The first is silent coercion — clamping an illegal move to the nearest legal state would tell a caller a run progressed when it did not, which is AD-009's fabricated certainty wearing a state machine's clothes. The second is the bypass: a convention that says "use `transition_to`" is obeyed until the first hurried caller, and then the lifecycle rules are advisory forever. AD-014 says invariants are enforced by tests rather than documents; the same logic applies to the API itself, and the guard costs a handful of lines. Retry and reopen stay out because no phase has asked for them and a re-run is honestly a new run. | Accepted (1A) |
 | AD-028 | A run records three timestamps and nothing else about its history. No event table, and no persisted failure diagnostics. | `created_at` / `started_at` / `finished_at` fully audit a lifecycle with four edges — a history table would record the same three facts in a shape justified only by transitions that do not exist. `FAILED` is a state, not a stack trace: nothing currently executes a run, so any diagnostics schema would be designed against imagined failures and would be wrong in the specific ways that matter. Research history is 8B, and the phase that first produces real failures is the one that can see what is worth keeping. | Accepted (1A) |
@@ -2707,7 +2816,7 @@ This canonical plan does not duplicate that operational snapshot.
 | AD-033 | A GET creates nothing. The browser workflow is Post/Redirect/Get, and the launcher entry point that turns `?mpn=…&description=…` into a run stays in 5B. | The 1B route shape is deliberately the one 5B will adapt, which makes "it would be two lines to honour the parameters now" the obvious mistake to prevent. A GET that creates records is a side effect on a method defined not to have one: a prefetch, a crawler, a bookmark, or a refresh would each start research, and the run table would fill with requests nobody made. Post/Redirect/Get is the other half — without the redirect, the page a user lands on is the submission itself, and reloading a report would silently create duplicates of it. The launcher also needs decisions 1B has not made (URL length limits, truncation policy, encoding), so implementing it early would guess at them. | Accepted (1B) |
 | AD-034 | The report shell states that research execution is not connected. No spinner, no polling, no simulated delay, no placeholder price, median, seller table, or example comparable. | A progress indicator over nothing is fabricated certainty with an animation (AD-009): it tells the user work is under way, and the only honest fact is that no execution engine exists. The same reasoning rules out placeholder values — a `$0` or an `N/A median` on a page titled with a real part number is a claim the system has no evidence for, and the evidence-first rule (AD-007) means a number appears only with the listings behind it. A blank "no results exist" section is not a gap in the phase; it is the accurate report, and it is the durable place later phases fill. Displaying an evaluation-corpus case here would be worse again: benchmark truth is reference data, never a result (AD-020). | Accepted (1B) |
 | AD-035 | **Amended by AD-037.** Originally: part-number normalization removes one closed, explicitly enumerated formatting allowlist — ASCII whitespace plus `-`, `_`, `/`, `.` — with ASCII-only case folding, everything else being data. | The *exclusions* stand and are the durable half of this entry: "remove every non-alphanumeric character" is rejected because it erases characters that distinguish real products and widens itself every time an unfamiliar character appears; an enumerated set makes each addition an edit someone has to defend; and broad Unicode compatibility folding is excluded because it merges code points whose identity equivalence no phase has approved, which is also why case folding is an explicit ASCII table rather than `str.upper()`. What did not stand was *removal*: deleting the enumerated characters discarded where a boundary was, not merely how it was written. See AD-037. | Amended (2A-FU1) |
-| AD-036 | The 2A comparator returns only `EXACT`, `NORMALIZED_EXACT`, or `UNKNOWN`; it carries no confidence, invents no product facts, does no partial or fuzzy matching, and is wired into nothing. | Each exclusion closes a specific way a narrow primitive turns into a false conclusion. `CONFLICT` would be the comparator claiming evidence is incompatible when all it saw was two different strings. `PARTIAL` — or any containment, edit-distance, or similarity rule — would raise recall by weakening identity, which is the one trade this product cannot make: `MTFDKCC3T8TFR` is a family prefix, not an orderable part. A confidence band would equate mechanism with trustworthiness, and `EXACT` is not `HIGH`: the string matched, which says nothing about whether the source, the description, or the listing is sound. A catalog inside the comparator would take benchmark answers from the evaluation corpus and make them production resolution logic, which is test leakage with the corpus's own truth. And wiring it into the web shell or the run lifecycle would connect a comparator to a system that supplies no candidates, so anything displayed would be invented — integration belongs to the phase with real candidate evidence. A guard test asserts `runs`, `web`, and `evaluation` do not import the research core. | Accepted (2A) |
+| AD-036 | The 2A comparator returns only `EXACT`, `NORMALIZED_EXACT`, or `UNKNOWN`; it carries no confidence, invents no product facts, does no partial or fuzzy matching, and is wired into nothing. | Each exclusion closes a specific way a narrow primitive turns into a false conclusion. `CONFLICT` would be the comparator claiming evidence is incompatible when all it saw was two different strings. `PARTIAL` — or any containment, edit-distance, or similarity rule — would raise recall by weakening identity, which is the one trade this product cannot make: `MTFDKCC3T8TFR` is a family prefix, not an orderable part. A confidence band would equate mechanism with trustworthiness, and `EXACT` is not `HIGH`: the string matched, which says nothing about whether the source, the description, or the listing is sound. A catalog inside the comparator would take benchmark answers from the evaluation corpus and make them production resolution logic, which is test leakage with the corpus's own truth. And wiring it into the web shell or the run lifecycle would connect a comparator to a system that supplies no candidates, so anything displayed would be invented — integration belongs to the phase with real candidate evidence. A guard test asserts `runs` and `evaluation` do not import the research core. `web` has a narrow read-only research dependency (codec + display contracts, approved by AD-050); the guard test enforces an explicit symbol-level allowlist. | Accepted (2A) |
 | AD-037 | Normalization canonicalizes how a structural boundary was written and never whether one exists. An internal ASCII-whitespace run is *written as* a hyphen; no separator is deleted; and `_`, `/`, `.` are data rather than spellings of a hyphen. | AD-035's implementation deleted every enumerated separator wherever it appeared, which collapsed `AB-C123`, `ABC-123`, `ABC123`, and `A-B-C-1-2-3` onto one key and reported them as the same part number. Those are false exacts, and a false exact is the failure this product is built to avoid — the first pair is the clearest: the same characters with the boundary in a different place are not the same identifier by any reading. The error was evidential, not clerical. The corpus supports exactly one substitution — SYN-0008's `bcm957504 n425g` for `BCM957504-N425G`, whitespace against a hyphen — and the implementation had generalized one case about one separator into a rule about four, then gone further and thrown position away as well. Five verified part numbers cannot establish that separator position is globally irrelevant across manufacturers, and the burden runs the other way: an equivalence is approved per separator, with evidence, or it is not approved. Preserving structure also repairs auditability, because a normalized key that keeps its boundaries shows a reviewer *why* two values matched rather than only that they did. The cost is abstention on `ABC_123` against `ABC-123` (§12.2), which is the cheap direction: a missed normalized match costs a re-query, a false exact costs a wrong price on a real order. | Accepted (2A-FU1) |
 | AD-038 | The provider boundary returns provider-neutral observations. `SearchQuery` is one external search operation and is deliberately not `ResearchRequest`; a provider is a `Protocol` with one synchronous `search` method and no registry, factory, fallback chain, retry policy, or async variant. | Two different mistakes are being avoided at once. Passing `ResearchRequest` into a provider would make the adapter decide what to search for — query generation is a research decision, and one request may legitimately produce several queries, so the provider would end up owning research semantics inside a transport layer. Building a provider *framework* would be the opposite error: registries, factories, and fallback chains are machinery for a problem the project does not have, since exactly one provider arrives in 2C and nothing has shown a need for a second. A protocol with one method costs nothing to replace and nothing to carry, and the boundary's whole job is to be the thing business logic depends on instead of a vendor (AD-011). The one exception type follows the same logic: a taxonomy of timeout / quota / auth / parse failures designed before any provider has failed would be wrong in the places that matter, and 2C can subdivide it against real behaviour. | Accepted (2B) |
 | AD-039 | A search result carries a price *hint* as text and a part-number *hint* as unverified published text. The contract has no numeric price field, no currency, and no match or confidence field; result URLs must be absolute `http`/`https`. | A search snippet saying `$399.99` is not a price: it may be a sale price, a monthly payment, a shipping charge, a range, a price for a multi-pack, or a different currency's symbol, and choosing among those is exactly what 3A/3B exist to do with recorded rules and rejection reasons. A `Decimal` field on this contract would let a snippet enter arithmetic as though it were a verified market observation, which is fabricated certainty (AD-009) arriving through the cheapest possible door — so the absence of the field, asserted by a test on the exact field list, is the safeguard. The part-number hint is the same argument for identity: a value a provider publishes is an observation, and calling it verified would make a vendor the authority on product identity, which AD-008 forbids. Keeping it unnormalized also keeps the two paths distinct — a *published* field is a hint, a part number *inferred* from title or snippet text is extraction (3A/3C) and must carry its own rejection reasoning. The URL rule is narrow and separate: a result is evidence only if someone can re-open it, and `javascript:`, `data:`, and `file:` values are not addresses of that kind and must not reach a report. | Accepted (2B) |
@@ -2721,6 +2830,6 @@ This canonical plan does not duplicate that operational snapshot.
 | AD-047 | Quantity, pack size, and unit-price normalization were not implemented in 3B, and `ListingObservation` was not extended to carry raw fields for them. | The phase instructions required checking real evidence before building: an audit of every field in all five recorded 3A fixtures found no structured field on any of them meaning "this offer sells N units for this price" — an inventory count, a minimum-order quantity, and a capacity figure are each a different fact, and none is pack size. Building the normalization logic anyway would mean inventing a raw input to feed it, most plausibly by parsing a product title (`"3.84TB"`, `"MZ-QL23T800"`) — exactly the guess 3A's own MPN-in-title exclusion already rejected for identity, applied here to commercial quantity instead. Extending `ListingObservation` speculatively would also break 3A's own precedent: `ExtractionMethod` deliberately carries no member for an unbuilt mechanism, on the stated principle that a vocabulary entry nothing produces is a placeholder for behaviour that does not exist. The absence is recorded here, in §16.2, and in the completion report specifically so 3C is not the phase that discovers it by surprise. | Accepted (3B) |
 | AD-048 | Only an explicit MPN field carrying `EXACT` or `NORMALIZED_EXACT` (2A) is automatically accepted; SKU and title evidence alone never establish MPN identity; `PARTIAL` is informative but never price-eligible identity evidence. | Three concrete risks are being closed. First: a SKU is a retailer's internal identifier and may equal an MPN by coincidence, by convention, or never — treating it as MPN evidence would let a false match through every time a retailer happens to reuse the manufacturer's format. Second: title text is free-form marketing prose where the MPN may appear as a contained token (`"Samsung MZ-QL23T800 Ultra"`) and accepting it would be matching a substring, which is precisely the partial-identity trap that costs a wrong price on a real order. Third: partial overlap (`MTFDKCC3T8TFR` vs `MTFDKCC3T8TFR-1BC1ZABYY`) looks like evidence but is exactly the family-prefix confusion the system must avoid — PARTIAL does not establish requested-product identity and therefore is not price-eligible evidence. The acceptance rule is therefore narrow: one explicit structured MPN field, one deterministic comparator (2A), and nothing weaker crosses the line. When no explicit MPN is published, the listing is `REJECTED` with `NO_EXPLICIT_MPN_EVIDENCE`, not `UNKNOWN` — the absence of evidence is recorded, not left silent. A narrow `mpn:` wrapper cleanup is permitted because one recorded page (`exxactcorp_pm9a3_mz_ql23t800.html`) publishes its MPN as `"mpn:MZ-QL23T800"`, and the `mpn:` prefix is a field-label wrapper, not the identifier itself. It applies to the explicit MPN field only, is not generalized to arbitrary `key:` stripping, and leaves the 2A normalizer unchanged. | Accepted (3C) |
 | AD-049 | Aggregation groups identity-accepted listings by exact currency + known condition, computes count/low/median/high from each bucket, derives confidence LOW/MEDIUM from observation count, and excludes every non-accepted or ineligible listing with a recorded reason. Exact duplicate input values refused at the boundary. No FX conversion, no outlier removal, no broad market-listing deduplication, no LLM confidence, no invented evidence, no availability eligibility rule. | Grouping by exact currency (never cross-currency) and known condition (UNKNOWN excluded, not grouped) keeps comparable pools real: a $100 USD price and a $100 EUR price are not the same price, and a NEW listing and a REFURBISHED listing serve different market expectations. Median uses custom exact Decimal midpoint for even counts — no `statistics.median` dependency. Confidence derived from count (`LOW` for 1-2, `MEDIUM` for >=3) tells the user how many independent observations support the number. 4A never produces `HIGH` or `VERY_HIGH`. Exact duplicate INPUT VALUES (two ListingIdentityAssessment objects equal by value) are refused at the input boundary with `ValueError` — the check is value-based, not identity-based, so separately constructed equal objects are caught. No broad market-listing deduplication exists: genuinely different assessments with the same price, currency, and condition are not duplicates because their evidence (source, seller, observation) differs. The exclusion discipline follows AD-007: evidence-first means the user can see not only what was accepted but why each rejected or ineligible listing was excluded. No FX conversion, no outlier removal, no unit-price inference, no manual override — those would each add a decision the system has no evidence to make and no mechanism to audit. | Accepted (4A) |
-| AD-050 | One versioned `PriceIntelligenceSnapshot` per `ResearchRun`, persisted in `runs/`, using the `ResearchRun` UUID as the snapshot identity. The snapshot preserves a `PriceAggregationResult` as opaque versioned JSON (`schema_version` + `payload`) with a `created_at` timestamp. A separate codec module in `research/price_result_codec.py` encodes and decodes the result: pure, no Django, no I/O, Decimal preserved as strings, enums explicit, nested contracts reconstructed through normal constructors. 4B reads and presents the snapshot at `/research/<uuid>` as a read-only report. It does not execute research. Request-provenance mismatch or corrupt payload fails closed with no price numbers rendered. | `PriceAggregationResult` is the durable price intelligence answer for one run. The report URL `/research/<uuid>` must survive across requests and deployments, so the result it renders must be persisted. The `ResearchRun` UUID already identifies the result uniquely — a second identifier would add a consistency obligation for no capability. Naming it `PriceIntelligenceSnapshot` rather than `ResearchResult` is deliberate: it preserves the price pipeline evidence (listing observations through identity assessments through aggregation) but is not the complete execution evidence store (it cannot represent search candidates never fetched, page-fetch failures, or pages producing zero observations — that is 4C's question). Versioned opaque JSON with a decoder that fails closed on unknown versions means the report stays interpretable and never renders partially-corrupt data as verified. The codec lives in `research/` as a pure module because it transforms research-layer contracts to and from JSON — it is serialization discipline, not persistence logic, and must not touch Django. | Accepted (4B architecture checkpoint) |
+| AD-050 | One versioned `PriceIntelligenceSnapshot` per `ResearchRun`, persisted in `runs/`, using the `ResearchRun` UUID as the snapshot identity. The snapshot preserves a `PriceAggregationResult` as opaque versioned JSON (`schema_version` + `payload`) with a `created_at` timestamp. A separate codec module in `research/price_result_codec.py` encodes and decodes the result: pure, no Django, no I/O, Decimal preserved as strings, enums explicit, nested contracts reconstructed through normal constructors. 4B reads and presents the snapshot at `/research/<uuid>` as a read-only report. It does not execute research. Request-provenance mismatch or corrupt payload fails closed with no price numbers rendered. | `PriceAggregationResult` is the durable price intelligence answer for one run. The report URL `/research/<uuid>` must survive across requests and deployments, so the result it renders must be persisted. The `ResearchRun` UUID already identifies the result uniquely — a second identifier would add a consistency obligation for no capability. Naming it `PriceIntelligenceSnapshot` rather than `ResearchResult` is deliberate: it preserves the price pipeline evidence (listing observations through identity assessments through aggregation) but is not the complete execution evidence store (it cannot represent search candidates never fetched, page-fetch failures, or pages producing zero observations — that is 4C's question). Versioned opaque JSON with a decoder that fails closed on unknown versions means the report stays interpretable and never renders partially-corrupt data as verified. The codec lives in `research/` as a pure module because it transforms research-layer contracts to and from JSON — it is serialization discipline, not persistence logic, and must not touch Django. | Accepted (4B architecture checkpoint) · IMPLEMENTED (4B) |
 | AD-051 | Research orchestration is a separate application layer (`execution/`) and phase (4C), rather than living in `research/` or `web/`. `execution/` coordinates one `ResearchRun` through provider I/O and deterministic research primitives. Deterministic research and evidence decisions — identity resolution, listing acceptance/rejection, price eligibility, aggregation semantics — remain owned by `research/`. `execution/` invokes those decision primitives but must not reimplement or override them. `execution/` may import `domain`, `research`, `providers`, and `runs`, but must not import `web/`. `research/` remains pure and must not import `execution`, `providers`, `runs`, or Django. `web/` may invoke execution but must not carry research semantics. | The previous PLAN stated that `research/` owns orchestration. But `research/` is intentionally pure — its guard tests enforce stdlib-only imports and forbid persistence, provider, network, and Django dependencies. Real orchestration must coordinate all of those. Putting orchestration in `web/` would make research semantics a property of the transport layer, violating caller-independence (AD-001): the core would then be structured around how the browser submits a request rather than around the canonical `ResearchRequest`. The execution layer sits between them: it imports what it needs to run a pipeline, but stays independent of which client triggered the run. This preserves both boundaries — `research/` stays testable without a database or network, and `web/` stays a presentation and intake layer. Coordination is not authority: `execution/` orchestrates the pipeline steps but does not make evidence decisions — listing acceptance, price eligibility, and identity resolution remain `research/` primitives that `execution/` calls, not reimplements. `execution/` does not exist yet; it is created in 4C alongside the orchestration implementation. | Accepted (4B architecture checkpoint) |
 | AD-052 | `PriceIntelligenceSnapshot` is not the complete research-execution evidence store. It preserves evidence reachable through `ListingObservation` → `NormalizedListingObservation` → `ListingIdentityAssessment` → `PriceAggregationResult`. It cannot represent search candidates never fetched, page-fetch failures, blocked pages, or fetched pages producing zero observations. 4C must decide how those execution attempts and outcomes are preserved before claiming end-to-end evidence completeness. | The snapshot is a price result, not an execution log. A search that returns 10 candidates, of which 3 were fetched, 2 were blocked, and 1 produced zero observations — the snapshot can only represent the three that yielded observations and their downstream assessments. The other seven execution events are silently lost. That is acceptable for 4B's read-only report: it renders what the aggregation produced, and says honestly when nothing exists. But 4C, which owns the full orchestration pipeline, must decide whether to preserve execution evidence beyond what the aggregation carries. That decision depends on whether a partial run's diagnostic value justifies additional persistence surface — a question 4C can answer with real failure data rather than speculation. | Accepted (4B architecture checkpoint) |

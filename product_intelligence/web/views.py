@@ -1,34 +1,37 @@
-"""Standalone intake and report views (PRODUCT-INTEL.1B).
+"""Standalone intake and report views (PRODUCT-INTEL.1B, extended 4B).
 
-Two views, and between them the whole browser workflow that exists today:
+Two views, and between them the whole browser workflow:
 
 ```text
 GET  /research/new      the form
 POST /research/new      -> ResearchRequest -> ResearchRun (CREATED) -> redirect
-GET  /research/<uuid>   the durable report shell
+GET  /research/<uuid>   the durable report (with optional price snapshot, 4B)
 ```
 
 **No research happens here.** A submitted run is stored in `CREATED` and stays
-there: nothing in this layer calls `transition_to`, because nothing exists to
-move it — there is no search, no resolver, no pricing, and no background
-processing. The report says so in those terms rather than showing a spinner.
-
-The web layer owns transport and presentation only. It does not decide what a
-valid request is (`ResearchRequest` does), and it does not decide how a run is
-stored or advanced (`ResearchRun` does). It uses the supported creation API,
-`ResearchRun.objects.create_from_request`, never a direct `create()`,
-`bulk_create()`, `update()`, or raw SQL.
+there. The report reads an optional ``PriceIntelligenceSnapshot`` and renders
+it if present. It starts nothing, transitions nothing, and writes no timestamp.
 """
 
 from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 import uuid
 
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
-from product_intelligence.runs.models import ResearchRun
+from product_intelligence.research.price_result_codec import (
+    PriceResultCodecError,
+    decode_price_aggregation_result,
+)
+from product_intelligence.runs.models import PriceIntelligenceSnapshot, ResearchRun
 from product_intelligence.web.forms import ResearchRequestForm
+
+if TYPE_CHECKING:
+    from product_intelligence.research.aggregation import PriceAggregationResult
+from product_intelligence.web.presentation import build_report_presentation
 
 
 def research_new(request: HttpRequest) -> HttpResponse:
@@ -40,10 +43,8 @@ def research_new(request: HttpRequest) -> HttpResponse:
     nothing.
 
     A GET is *always* a form display, even when query parameters are present.
-    The launcher entry point that turns `?mpn=…&description=…` into a run is
-    phase 5B and is deliberately not implemented here: making a GET create a
-    record would mean a crawler, a prefetch, or a refresh silently starting
-    research. Query parameters are ignored, not honoured, and not echoed.
+    The launcher entry point that turns ``?mpn=…&description=…`` into a run is
+    phase 5B and is deliberately not implemented here.
     """
     if request.method == "POST":
         form = ResearchRequestForm(request.POST)
@@ -57,22 +58,62 @@ def research_new(request: HttpRequest) -> HttpResponse:
 
 
 def research_detail(request: HttpRequest, run_id: uuid.UUID) -> HttpResponse:
-    """The durable report shell for one run.
+    """The durable report for one run.
 
-    Read-only in the strictest sense: it loads a row and renders it. It starts
-    nothing, transitions nothing, and writes no timestamp — a report that
-    advanced the thing it reports on would be a research trigger wearing a
-    report's clothes.
+    Read-only in the strictest sense: loads rows and renders them. Starts
+    nothing, transitions nothing, writes no timestamp.
 
-    An unknown identifier is a 404. A malformed one never reaches this view at
-    all: the URL converter refuses it, so the router answers 404 rather than the
-    view raising on a bad UUID.
-
-    The identifier in the URL is not a permission check. It resists enumeration
-    and does nothing else; whether reports need authentication is still an open
-    decision (§19 of the canonical plan), which is why this shell is not ready
-    for deployment outside a trusted network.
+    When a ``PriceIntelligenceSnapshot`` exists, the report decodes it and
+    presents the price intelligence evidence. On decode failure, corrupt
+    payload, unsupported schema version, or request-provenance mismatch, the
+    report renders *zero* price numbers and shows a neutral unavailable
+    notice.
     """
     run = get_object_or_404(ResearchRun, pk=run_id)
 
-    return render(request, "web/research_detail.html", {"run": run})
+    # --- Attempt to load and decode the snapshot ---
+    decoded_result: PriceAggregationResult | None = None
+    snapshot_error: str | None = None
+    snapshot_created_at = None
+
+    try:
+        snapshot = run.price_intelligence_snapshot
+    except PriceIntelligenceSnapshot.DoesNotExist:
+        snapshot = None
+
+    if snapshot is not None:
+        snapshot_created_at = snapshot.created_at
+        try:
+            decoded = decode_price_aggregation_result(
+                snapshot.payload,
+                schema_version=snapshot.schema_version,
+            )
+        except PriceResultCodecError:
+            snapshot_error = (
+                "The stored price result is invalid or in an unsupported "
+                "format."
+            )
+        else:
+            # --- Request provenance check ---
+            if decoded.request != run.to_research_request():
+                snapshot_error = (
+                    "The stored price result does not match this research "
+                    "request."
+                )
+            else:
+                decoded_result = decoded
+
+    # --- Build presentation from decoded result ---
+    report_presentation = None
+    if decoded_result is not None:
+        report_presentation = build_report_presentation(decoded_result)
+
+    context = {
+        "run": run,
+        "report_presentation": report_presentation,
+        "snapshot_error": snapshot_error,
+        "snapshot_created_at": snapshot_created_at,
+        "has_snapshot": snapshot is not None,
+    }
+
+    return render(request, "web/research_detail.html", context)

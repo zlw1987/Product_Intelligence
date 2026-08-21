@@ -1,26 +1,12 @@
-"""Persistent research-run records (PRODUCT-INTEL.1A).
+"""Persistent research-run records and price intelligence snapshots.
 
-A `ResearchRun` is the durable lifecycle record for exactly one canonical
-`ResearchRequest`. It answers "was this asked, when, and how did it end?" and
-nothing else. It holds no research results, because no research capability
-exists yet.
+PRODUCT-INTEL.1A added `ResearchRun`: the durable lifecycle record for exactly
+one canonical `ResearchRequest`.
 
-What is deliberately absent
----------------------------
-
-* **Caller-specific fields.** No calling application, no order number, no
-  customer, no user, no transport metadata. The core cannot tell which intake
-  produced a request, and a persisted run must not reintroduce that knowledge
-  through the back door. Caller metadata, if a later phase needs it for audit,
-  belongs at the intake boundary alongside the run, never inside it.
-* **Provider fields.** No search provider, no model provider. Vendors live
-  behind provider boundaries and are not part of a run's identity.
-* **Results, evidence, listings, prices, comparables.** Later phases.
-* **An event/history table.** Three timestamps are enough to audit the only
-  lifecycle that exists. A per-transition history is not built on speculation.
-* **Failure diagnostics.** `FAILED` is a state, not a stack trace. Exception
-  persistence and diagnostics infrastructure are deferred until a phase
-  actually produces failures worth recording.
+PRODUCT-INTEL.4B added `PriceIntelligenceSnapshot`: the persisted price
+aggregation result, stored as opaque versioned JSON. The codec that encodes
+and decodes the payload lives in `research/price_result_codec.py`, not here —
+`runs/` stores, it does not interpret.
 """
 
 from __future__ import annotations
@@ -406,3 +392,89 @@ class ResearchRun(models.Model):
 
         super().save(*args, **kwargs)  # type: ignore[arg-type]
         self._persisted_state = self.state
+
+
+# ---------------------------------------------------------------------------
+# PriceIntelligenceSnapshot — 4B
+# ---------------------------------------------------------------------------
+
+
+class PriceIntelligenceSnapshot(models.Model):
+    """A persisted, versioned price-aggregation result for one ResearchRun.
+
+    PRODUCT-INTEL.4B.
+
+    The snapshot is **storage, not interpretation**. It holds opaque JSON
+    (``schema_version`` + ``payload``) plus a creation timestamp. Encoding
+    and decoding happen in the research-layer codec
+    (``research/price_result_codec.py``), not here.
+
+    Identity
+    --------
+
+    The primary key is the ``ResearchRun`` UUID via a ``OneToOneField``.
+    There is no separate snapshot UUID — a run has at most one snapshot, and
+    its identity is the run's identity. This avoids a second identifier to
+    keep consistent and means the snapshot is always found through the run.
+
+    ``schema_version``
+        The codec version that produced ``payload``. The only supported
+        version is 1. An unsupported version causes the report to fail
+        closed rather than attempt best-effort migration.
+
+    ``payload``
+        A ``JSONField`` holding the codec-encoded ``PriceAggregationResult``.
+        The schema is owned by the codec, not the model.
+
+    ``created_at``
+        When the snapshot row was persisted. This is **not** source retrieval
+        time or market-price freshness. A safe label is
+        "Price result snapshot stored at" or it may be omitted.
+
+    What this model deliberately does **not** carry
+    ------------------------------------------------
+
+    * Seller columns, price columns, status columns.
+    * Duplicate request fields.
+    * Report HTML.
+    * Error diagnostics.
+    * Provider fields.
+    * Execution fields.
+
+    The model is a versioned JSON box. Reading the box is the codec's job.
+    """
+
+    run = models.OneToOneField(
+        ResearchRun,
+        on_delete=models.CASCADE,
+        primary_key=True,
+        related_name="price_intelligence_snapshot",
+        help_text="The research run this snapshot belongs to.",
+    )
+
+    schema_version = models.PositiveSmallIntegerField(
+        help_text="Codec version that produced the payload. Initial supported "
+        "value is 1.",
+    )
+
+    payload = models.JSONField(
+        help_text="Versioned codec-encoded PriceAggregationResult.",
+    )
+
+    created_at = models.DateTimeField(
+        default=timezone.now,
+        editable=False,
+        help_text="When this snapshot record was persisted. Not source "
+        "retrieval time or market-price freshness.",
+    )
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(schema_version__gte=1),
+                name="price_intelligence_snapshot_schema_version_gte_1",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"PriceIntelligenceSnapshot {self.run_id} (v{self.schema_version})"

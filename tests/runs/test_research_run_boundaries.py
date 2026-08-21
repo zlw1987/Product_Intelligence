@@ -50,6 +50,15 @@ EXPECTED_FIELDS = {
     "created_at",
     "started_at",
     "finished_at",
+    "price_intelligence_snapshot",  # 4B: reverse OneToOne from snapshot
+}
+
+# The exact fields on PriceIntelligenceSnapshot (4B).
+EXPECTED_SNAPSHOT_FIELDS = {
+    "run",
+    "schema_version",
+    "payload",
+    "created_at",
 }
 
 
@@ -61,6 +70,59 @@ def test_a_research_run_has_exactly_the_approved_fields() -> None:
     from product_intelligence.runs.models import ResearchRun
 
     assert {field.name for field in ResearchRun._meta.get_fields()} == EXPECTED_FIELDS
+
+
+def test_a_price_snapshot_has_exactly_the_approved_fields() -> None:
+    from product_intelligence.runs.models import PriceIntelligenceSnapshot
+
+    assert (
+        {field.name for field in PriceIntelligenceSnapshot._meta.get_fields()}
+        == EXPECTED_SNAPSHOT_FIELDS
+    )
+
+
+def test_a_price_snapshot_carries_no_caller_or_provider_data() -> None:
+    from product_intelligence.runs.models import PriceIntelligenceSnapshot
+
+    field_names = {field.name for field in PriceIntelligenceSnapshot._meta.get_fields()}
+    forbidden = {
+        "caller",
+        "client",
+        "source_system",
+        "search_provider",
+        "llm_provider",
+        "provider",
+        "model_name",
+        "order_number",
+        "customer",
+        "user",
+    }
+
+    assert not field_names & forbidden
+
+
+def test_a_price_snapshot_carries_no_raw_business_columns() -> None:
+    """The snapshot is a versioned JSON box, not a denormalised fact table."""
+    from product_intelligence.runs.models import PriceIntelligenceSnapshot
+
+    field_names = {field.name for field in PriceIntelligenceSnapshot._meta.get_fields()}
+    forbidden = {
+        "seller",
+        "seller_name",
+        "price",
+        "price_amount",
+        "currency",
+        "currency_code",
+        "status",
+        "decision",
+        "manufacturer_part_number",
+        "description",
+        "report_html",
+        "error",
+        "error_message",
+    }
+
+    assert not field_names & forbidden
 
 
 def test_a_research_run_carries_no_caller_or_provider_data() -> None:
@@ -151,7 +213,8 @@ def test_the_evaluation_corpus_is_not_persisted() -> None:
     from django.apps import apps
 
     model_labels = {model._meta.label for model in apps.get_models()}
-    assert model_labels == {"runs.ResearchRun"}
+    expected = {"runs.ResearchRun", "runs.PriceIntelligenceSnapshot"}
+    assert model_labels == expected
 
     for path in _python_files(RUNS_ROOT):
         modules = _top_level_imports(path.read_text(encoding="utf-8"))

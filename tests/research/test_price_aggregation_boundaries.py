@@ -143,12 +143,21 @@ class TestAggregationDoesNotWireOthers:
                         )
 
     def test_web_does_not_import_aggregation(self) -> None:
-        """web/ must not import aggregation (4B is separate)."""
+        """web/ may import aggregation through the codec and presentation
+        helper (4B), but not through other modules.
+
+        ``views.py`` imports from ``research`` (the codec path), and
+        ``presentation.py`` imports from aggregation for display. All other
+        web modules (forms, urls) must not touch aggregation.
+        """
         web_dir = (
             pathlib.Path(__file__).resolve().parent.parent.parent
             / "product_intelligence" / "web"
         )
+        allowed_modules = {"views", "presentation", "__init__"}
         for py_file in web_dir.glob("*.py"):
+            if py_file.stem in allowed_modules:
+                continue
             source = py_file.read_text(encoding="utf-8")
             tree = ast.parse(source)
             for node in ast.walk(tree):

@@ -1,15 +1,5 @@
 {% extends "web/base.html" %}
 
-{% comment %}
-The report shell shows persisted facts and nothing else. There is no placeholder
-price, no empty median, no seller table, and no example comparable — an invented
-number in a report is worse than a blank page, because a reader would believe
-it. Later phases fill this space with real results and the evidence behind them.
-
-`started_at` and `finished_at` appear only when a run actually carries them,
-which today is never: nothing moves a run out of CREATED.
-{% endcomment %}
-
 {% block title %}Research run {{ run.id }} — Product Intelligence{% endblock %}
 
 {% block content %}
@@ -51,20 +41,341 @@ which today is never: nothing moves a run out of CREATED.
 {% if run.state == "CREATED" %}
   <p class="notice">
     Research request created.
-    <strong>Research execution is not connected yet.</strong>
-    No search provider, product resolver, pricing, or comparable-product
-    research exists, so this request has not been executed — and it is not
-    queued, running, or waiting. Nothing is in progress.
+    <strong>Research execution is not yet connected.</strong>
+    Nothing is in progress. This request will not run automatically.
   </p>
 {% endif %}
 
-<h2>Results</h2>
+<h2>Price intelligence</h2>
 
-<p class="notice">
-  No results exist. Market pricing, comparable products, and the evidence
-  behind them are later phases, and this page shows only what is actually
-  recorded.
-</p>
+{% if snapshot_error %}
+  <p class="notice">
+    Stored price result unavailable. {{ snapshot_error }}
+  </p>
+
+{% elif not has_snapshot %}
+  <p class="notice">
+    No research result available.
+  </p>
+
+{% elif report_presentation.verification_status == "UNKNOWN" %}
+  <p><strong>Price aggregation status:</strong> UNKNOWN</p>
+  <p>No comparable price was established for this request.</p>
+
+  {% if report_presentation.exclusions %}
+    <h3>Excluded listings</h3>
+    {% for excl in report_presentation.exclusions %}
+      <div class="evidence-entry">
+        <p><strong>Source:</strong>
+          {% if excl.assessment.source_url_safe %}
+            <a href="{{ excl.assessment.source_url }}">{{ excl.assessment.source_url }}</a>
+          {% else %}
+            {{ excl.assessment.source_url }}
+          {% endif %}
+        </p>
+        {% if excl.assessment.product_title %}
+          <p><strong>Product title:</strong> {{ excl.assessment.product_title }}</p>
+        {% endif %}
+        {% if excl.assessment.seller_name %}
+          <p><strong>Seller:</strong> {{ excl.assessment.seller_name }}</p>
+        {% endif %}
+        {% if excl.assessment.rejection_reason %}
+          <p><strong>3C rejection reason:</strong> {{ excl.assessment.rejection_reason }}</p>
+        {% endif %}
+        <p><strong>Exclusion reason:</strong> {{ excl.exclusion_reason }}</p>
+        {% if excl.assessment.decision %}
+          <p><strong>Identity decision:</strong> {{ excl.assessment.decision }}</p>
+          {% if excl.assessment.match_type %}
+            <p><strong>Match type:</strong> {{ excl.assessment.match_type }}</p>
+          {% endif %}
+        {% endif %}
+        {% if excl.assessment.candidate_evidence_source %}
+          <p><strong>Evidence source:</strong> {{ excl.assessment.candidate_evidence_source }}</p>
+        {% endif %}
+        {% if excl.assessment.raw_candidate_mpn %}
+          <p><strong>Raw candidate MPN:</strong> {{ excl.assessment.raw_candidate_mpn }}</p>
+        {% endif %}
+        {% if excl.assessment.compared_candidate_mpn %}
+          <p><strong>Compared candidate MPN:</strong> {{ excl.assessment.compared_candidate_mpn }}</p>
+        {% endif %}
+        {% if excl.assessment.raw_price_text %}
+          <p><strong>Raw price text:</strong> {{ excl.assessment.raw_price_text }}</p>
+        {% endif %}
+        {% if excl.assessment.raw_currency_text %}
+          <p><strong>Raw currency text:</strong> {{ excl.assessment.raw_currency_text }}</p>
+        {% endif %}
+        {% if excl.assessment.raw_condition_text %}
+          <p><strong>Raw condition text:</strong> {{ excl.assessment.raw_condition_text }}</p>
+        {% endif %}
+      </div>
+    {% endfor %}
+  {% endif %}
+
+{% elif report_presentation.verification_status == "VERIFIED" %}
+  <p><strong>Price aggregation status:</strong> VERIFIED</p>
+
+  {% for bucket in report_presentation.buckets %}
+    <div class="bucket-entry">
+      <h3>Comparable price group</h3>
+      <dl>
+        <dt>Currency</dt>
+        <dd>{{ bucket.currency_code }}</dd>
+
+        <dt>Condition</dt>
+        <dd>{{ bucket.condition }}</dd>
+
+        <dt>Observations</dt>
+        <dd>{{ bucket.count }}</dd>
+
+        <dt>Low</dt>
+        <dd>{{ bucket.currency_code }} {{ bucket.low }}</dd>
+
+        <dt>Median</dt>
+        <dd>{{ bucket.currency_code }} {{ bucket.median }}</dd>
+
+        <dt>High</dt>
+        <dd>{{ bucket.currency_code }} {{ bucket.high }}</dd>
+
+        <dt>Confidence</dt>
+        <dd>{{ bucket.confidence }}</dd>
+      </dl>
+
+      {% if bucket.has_market_range %}
+        <p>
+          <strong>Observed market range:</strong>
+          {{ bucket.currency_code }} {{ bucket.market_range_low }}
+          — {{ bucket.currency_code }} {{ bucket.market_range_high }}
+        </p>
+      {% elif bucket.count < 3 %}
+        <p class="notice">
+          Sample size is too small ({{ bucket.count }} observation{{ bucket.count|pluralize }})
+          to establish an observed market range.
+        </p>
+      {% endif %}
+
+      {% if bucket.assessments %}
+        <h4>Contributing evidence ({{ bucket.count }})</h4>
+        {% for assessment in bucket.assessments %}
+          <div class="evidence-entry">
+            <p><strong>Source:</strong>
+              {% if assessment.source_url_safe %}
+                <a href="{{ assessment.source_url }}">{{ assessment.source_url }}</a>
+              {% else %}
+                {{ assessment.source_url }}
+              {% endif %}
+            </p>
+            {% if assessment.product_title %}
+              <p><strong>Product title:</strong> {{ assessment.product_title }}</p>
+            {% endif %}
+            {% if assessment.seller_name %}
+              <p><strong>Seller:</strong> {{ assessment.seller_name }}</p>
+            {% endif %}
+            {% if assessment.normalized_price %}
+              <p><strong>Normalized price:</strong> {{ assessment.currency_code }} {{ assessment.normalized_price }}</p>
+            {% endif %}
+            {% if assessment.condition %}
+              <p><strong>Condition:</strong> {{ assessment.condition }}</p>
+            {% endif %}
+            <p><strong>Evidence source:</strong> {{ assessment.candidate_evidence_source }}</p>
+            <p><strong>Raw candidate MPN:</strong> {{ assessment.raw_candidate_mpn }}</p>
+            <p><strong>Compared candidate MPN:</strong> {{ assessment.compared_candidate_mpn }}</p>
+            <p><strong>Match type:</strong> {{ assessment.match_type }}</p>
+            {% if assessment.raw_price_text %}
+              <p><strong>Raw price text:</strong> {{ assessment.raw_price_text }}</p>
+            {% endif %}
+          </div>
+        {% endfor %}
+      {% endif %}
+    </div>
+  {% endfor %}
+
+  {% if report_presentation.exclusions %}
+    <h3>Excluded listings</h3>
+    {% for excl in report_presentation.exclusions %}
+      <div class="evidence-entry">
+        <p><strong>Source:</strong>
+          {% if excl.assessment.source_url_safe %}
+            <a href="{{ excl.assessment.source_url }}">{{ excl.assessment.source_url }}</a>
+          {% else %}
+            {{ excl.assessment.source_url }}
+          {% endif %}
+        </p>
+        {% if excl.assessment.product_title %}
+          <p><strong>Product title:</strong> {{ excl.assessment.product_title }}</p>
+        {% endif %}
+        {% if excl.assessment.seller_name %}
+          <p><strong>Seller:</strong> {{ excl.assessment.seller_name }}</p>
+        {% endif %}
+        {% if excl.assessment.rejection_reason %}
+          <p><strong>3C rejection reason:</strong> {{ excl.assessment.rejection_reason }}</p>
+        {% endif %}
+        <p><strong>Exclusion reason:</strong> {{ excl.exclusion_reason }}</p>
+        {% if excl.assessment.decision %}
+          <p><strong>Identity decision:</strong> {{ excl.assessment.decision }}</p>
+          {% if excl.assessment.match_type %}
+            <p><strong>Match type:</strong> {{ excl.assessment.match_type }}</p>
+          {% endif %}
+        {% endif %}
+        {% if excl.assessment.candidate_evidence_source %}
+          <p><strong>Evidence source:</strong> {{ excl.assessment.candidate_evidence_source }}</p>
+        {% endif %}
+        {% if excl.assessment.raw_candidate_mpn %}
+          <p><strong>Raw candidate MPN:</strong> {{ excl.assessment.raw_candidate_mpn }}</p>
+        {% endif %}
+        {% if excl.assessment.compared_candidate_mpn %}
+          <p><strong>Compared candidate MPN:</strong> {{ excl.assessment.compared_candidate_mpn }}</p>
+        {% endif %}
+        {% if excl.assessment.raw_price_text %}
+          <p><strong>Raw price text:</strong> {{ excl.assessment.raw_price_text }}</p>
+        {% endif %}
+        {% if excl.assessment.raw_currency_text %}
+          <p><strong>Raw currency text:</strong> {{ excl.assessment.raw_currency_text }}</p>
+        {% endif %}
+        {% if excl.assessment.raw_condition_text %}
+          <p><strong>Raw condition text:</strong> {{ excl.assessment.raw_condition_text }}</p>
+        {% endif %}
+      </div>
+    {% endfor %}
+  {% endif %}
+
+{% elif report_presentation.verification_status == "AMBIGUOUS" %}
+  <p><strong>Price aggregation status:</strong> AMBIGUOUS</p>
+  <p>
+    Multiple non-comparable price groups were found. These groups differ by
+    currency and/or condition, and no single market price is selected.
+  </p>
+
+  {% for bucket in report_presentation.buckets %}
+    <div class="bucket-entry">
+      <h3>Price group: {{ bucket.currency_code }} / {{ bucket.condition }}</h3>
+      <dl>
+        <dt>Currency</dt>
+        <dd>{{ bucket.currency_code }}</dd>
+
+        <dt>Condition</dt>
+        <dd>{{ bucket.condition }}</dd>
+
+        <dt>Observations</dt>
+        <dd>{{ bucket.count }}</dd>
+
+        <dt>Low</dt>
+        <dd>{{ bucket.currency_code }} {{ bucket.low }}</dd>
+
+        <dt>Median</dt>
+        <dd>{{ bucket.currency_code }} {{ bucket.median }}</dd>
+
+        <dt>High</dt>
+        <dd>{{ bucket.currency_code }} {{ bucket.high }}</dd>
+
+        <dt>Confidence</dt>
+        <dd>{{ bucket.confidence }}</dd>
+      </dl>
+
+      {% if bucket.has_market_range %}
+        <p>
+          <strong>Observed market range:</strong>
+          {{ bucket.currency_code }} {{ bucket.market_range_low }}
+          — {{ bucket.currency_code }} {{ bucket.market_range_high }}
+        </p>
+      {% elif bucket.count < 3 %}
+        <p class="notice">
+          Sample size is too small ({{ bucket.count }} observation{{ bucket.count|pluralize }})
+          to establish an observed market range.
+        </p>
+      {% endif %}
+
+      {% if bucket.assessments %}
+        <h4>Contributing evidence ({{ bucket.count }})</h4>
+        {% for assessment in bucket.assessments %}
+          <div class="evidence-entry">
+            <p><strong>Source:</strong>
+              {% if assessment.source_url_safe %}
+                <a href="{{ assessment.source_url }}">{{ assessment.source_url }}</a>
+              {% else %}
+                {{ assessment.source_url }}
+              {% endif %}
+            </p>
+            {% if assessment.product_title %}
+              <p><strong>Product title:</strong> {{ assessment.product_title }}</p>
+            {% endif %}
+            {% if assessment.seller_name %}
+              <p><strong>Seller:</strong> {{ assessment.seller_name }}</p>
+            {% endif %}
+            {% if assessment.normalized_price %}
+              <p><strong>Normalized price:</strong> {{ assessment.currency_code }} {{ assessment.normalized_price }}</p>
+            {% endif %}
+            {% if assessment.condition %}
+              <p><strong>Condition:</strong> {{ assessment.condition }}</p>
+            {% endif %}
+            <p><strong>Evidence source:</strong> {{ assessment.candidate_evidence_source }}</p>
+            <p><strong>Raw candidate MPN:</strong> {{ assessment.raw_candidate_mpn }}</p>
+            <p><strong>Compared candidate MPN:</strong> {{ assessment.compared_candidate_mpn }}</p>
+            <p><strong>Match type:</strong> {{ assessment.match_type }}</p>
+            {% if assessment.raw_price_text %}
+              <p><strong>Raw price text:</strong> {{ assessment.raw_price_text }}</p>
+            {% endif %}
+          </div>
+        {% endfor %}
+      {% endif %}
+    </div>
+  {% endfor %}
+
+  {% if report_presentation.exclusions %}
+    <h3>Excluded listings</h3>
+    {% for excl in report_presentation.exclusions %}
+      <div class="evidence-entry">
+        <p><strong>Source:</strong>
+          {% if excl.assessment.source_url_safe %}
+            <a href="{{ excl.assessment.source_url }}">{{ excl.assessment.source_url }}</a>
+          {% else %}
+            {{ excl.assessment.source_url }}
+          {% endif %}
+        </p>
+        {% if excl.assessment.product_title %}
+          <p><strong>Product title:</strong> {{ excl.assessment.product_title }}</p>
+        {% endif %}
+        {% if excl.assessment.seller_name %}
+          <p><strong>Seller:</strong> {{ excl.assessment.seller_name }}</p>
+        {% endif %}
+        {% if excl.assessment.rejection_reason %}
+          <p><strong>3C rejection reason:</strong> {{ excl.assessment.rejection_reason }}</p>
+        {% endif %}
+        <p><strong>Exclusion reason:</strong> {{ excl.exclusion_reason }}</p>
+        {% if excl.assessment.decision %}
+          <p><strong>Identity decision:</strong> {{ excl.assessment.decision }}</p>
+          {% if excl.assessment.match_type %}
+            <p><strong>Match type:</strong> {{ excl.assessment.match_type }}</p>
+          {% endif %}
+        {% endif %}
+        {% if excl.assessment.candidate_evidence_source %}
+          <p><strong>Evidence source:</strong> {{ excl.assessment.candidate_evidence_source }}</p>
+        {% endif %}
+        {% if excl.assessment.raw_candidate_mpn %}
+          <p><strong>Raw candidate MPN:</strong> {{ excl.assessment.raw_candidate_mpn }}</p>
+        {% endif %}
+        {% if excl.assessment.compared_candidate_mpn %}
+          <p><strong>Compared candidate MPN:</strong> {{ excl.assessment.compared_candidate_mpn }}</p>
+        {% endif %}
+        {% if excl.assessment.raw_price_text %}
+          <p><strong>Raw price text:</strong> {{ excl.assessment.raw_price_text }}</p>
+        {% endif %}
+        {% if excl.assessment.raw_currency_text %}
+          <p><strong>Raw currency text:</strong> {{ excl.assessment.raw_currency_text }}</p>
+        {% endif %}
+        {% if excl.assessment.raw_condition_text %}
+          <p><strong>Raw condition text:</strong> {{ excl.assessment.raw_condition_text }}</p>
+        {% endif %}
+      </div>
+    {% endfor %}
+  {% endif %}
+
+{% endif %}
+
+{% if snapshot_created_at and not snapshot_error %}
+  <p class="notice">
+    Price result snapshot stored at {{ snapshot_created_at|date:"Y-m-d H:i:s T" }}.
+  </p>
+{% endif %}
 
 <p><a href="{% url 'research-new' %}">Create another research request</a></p>
 {% endblock %}
