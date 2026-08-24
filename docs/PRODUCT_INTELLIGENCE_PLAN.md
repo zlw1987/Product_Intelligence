@@ -2677,8 +2677,13 @@ tooling.
 Deferred specifically around the run lifecycle (1A), so that later phases do
 not read their absence as an oversight: retry / reopen / resume semantics · a
 per-transition event or history table · persisted failure diagnostics ·
-cross-process transition atomicity · distributed locking · a server database
-in place of development SQLite.
+distributed locking · a server database in place of development SQLite.
+
+**4C-A implements atomic execution claim and terminal transition using a
+database-level compare-and-set pattern (conditional UPDATE) instead of
+`SELECT FOR UPDATE`.** The atomicity is portable across SQLite, PostgreSQL,
+and MySQL. The decision to persist evidence relationally in `runs/` was
+recorded in 4C-A and is stable for the MVP.
 
 Also deferred as capability, per the roadmap rather than per this list: real
 product lookup, LLM calls, prompt engineering, global market-price selection

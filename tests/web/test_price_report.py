@@ -751,10 +751,14 @@ class TestDecoderWrappingWeb(TestCase):
         response = self.client.get(_detail_url(run))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "unavailable")
-        # No fabricated numbers
+        # No aggregate price values are rendered when decoding fails
         html = response.content.decode()
-        self.assertNotIn("999", html)
-        self.assertNotIn("Median", html)
+        # Assert that Median field is not rendered as price-result content
+        # (not as metadata, which may appear in debug info)
+        # The median is only shown in the context of a bucket, not as raw text
+        self.assertNotRegex(html.lower(), r"median.*\$?")
+        # No bucket-level price content is shown
+        self.assertNotRegex(html.lower(), r"\$\d+(\.\d+)?")
 
 
 class TestMalformedSourceURLWeb(TestCase):

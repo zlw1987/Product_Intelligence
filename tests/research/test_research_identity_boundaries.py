@@ -230,7 +230,7 @@ def test_the_identity_primitive_adds_no_model_and_no_migration() -> None:
 
     assert not list(RESEARCH_ROOT.rglob("models.py"))
     assert not list(RESEARCH_ROOT.rglob("migrations"))
-    expected = {"runs.ResearchRun", "runs.PriceIntelligenceSnapshot"}
+    expected = {"runs.ResearchRun", "runs.PriceIntelligenceSnapshot", "runs.ExecutionEvidenceRecord"}
     assert {model._meta.label for model in apps.get_models()} == expected
 
 

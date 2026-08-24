@@ -478,3 +478,137 @@ class PriceIntelligenceSnapshot(models.Model):
 
     def __str__(self) -> str:
         return f"PriceIntelligenceSnapshot {self.run_id} (v{self.schema_version})"
+
+
+# ---------------------------------------------------------------------------
+# ExecutionEvidenceRecord — 4C-A
+# ---------------------------------------------------------------------------
+
+
+class ExecutionEvidenceRecord(models.Model):
+    """One execution attempt as part of a ResearchRun.
+
+    PRODUCT-INTEL.4C-A.
+
+    Each record represents one call to a research primitive (search, fetch,
+    extract, normalize, match, aggregate) and records the outcome.
+
+    Identity
+    --------
+
+    The primary key is an autoincrement integer, not the ResearchRun UUID.
+    One run may have many evidence records, and they are ordered by
+    `attempt_number`.
+
+    ordering
+    --------
+
+    Records are ordered by `attempt_number`, which is assigned by the
+    orchestration layer. The attempt number is monotonically increasing
+    within one run.
+
+    run
+        The ResearchRun this evidence belongs to. Cascade delete: deleting
+        a run deletes all its evidence records.
+
+    attempt_number
+        The ordered position of this attempt within the run. The orchestrator
+        assigns this; it must be unique per run and monotonically increasing.
+        Must be >= 1 (attempt 0 is rejected).
+
+    stage
+        The research primitive that was called (SEARCH, FETCH, EXTRACT, etc.).
+
+    outcome
+        The result of the primitive call (SUCCESS, FAILED, SKIPPED, BLOCKED, EMPTY).
+
+    candidate_url
+        The URL that was operated on, if applicable. For SEARCH, this is
+        empty string (no single URL). For FETCH, EXTRACT, NORMALIZE, MATCH,
+        this is the URL being processed. Stored exactly as observed, never
+        normalized.
+
+    detail_code
+        A stable machine-readable code explaining the outcome. Never raw
+        exception text or provider-specific values. For SUCCESS, detail_code
+        is often "OK". For other outcomes, it explains the failure mode.
+        Empty string means "no detail".
+
+    created_at
+        When the evidence record was persisted. This is the persistence time,
+        not the time the primitive was called. The orchestrator decides
+        whether to record before or after the call.
+    """
+
+    from product_intelligence.domain import ExecutionDetailCode, ExecutionOutcome, ExecutionStage
+
+    run = models.ForeignKey(
+        "ResearchRun",
+        on_delete=models.CASCADE,
+        related_name="execution_evidence",
+        help_text="The research run this evidence belongs to.",
+    )
+
+    attempt_number = models.PositiveIntegerField(
+        help_text="Ordered position of this attempt within the run. "
+        "Must be unique per run and >= 1.",
+    )
+
+    stage = models.CharField(
+        max_length=16,
+        choices=[(stage.value, stage.value) for stage in ExecutionStage],
+        help_text="The research primitive that was called.",
+    )
+
+    outcome = models.CharField(
+        max_length=16,
+        choices=[(outcome.value, outcome.value) for outcome in ExecutionOutcome],
+        help_text="The result of the primitive call.",
+    )
+
+    candidate_url = models.TextField(
+        blank=True,
+        help_text="The URL operated on, if applicable. Empty if not a URL-based "
+        "primitive (e.g., SEARCH).",
+    )
+
+    detail_code = models.CharField(
+        max_length=64,
+        blank=True,
+        help_text="Stable machine-readable code explaining the outcome. "
+        "Never raw exception text.",
+    )
+
+    created_at = models.DateTimeField(
+        default=timezone.now,
+        editable=False,
+        help_text="When this evidence record was persisted.",
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["run", "attempt_number"],
+                name="execution_evidence_unique_attempt_per_run",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(attempt_number__gte=1),
+                name="execution_evidence_attempt_number_ge_1",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(candidate_url="") | models.Q(candidate_url__regex=r"^https?://"),
+                name="execution_evidence_url_or_empty",
+            ),
+        ]
+        ordering = ["run", "attempt_number"]
+        indexes = [
+            models.Index(fields=["run", "attempt_number"]),
+            models.Index(fields=["run", "stage"]),
+            models.Index(fields=["run", "outcome"]),
+        ]
+
+    def __str__(self) -> str:
+        return (
+            f"ExecutionEvidence {self.run_id}:{self.attempt_number} "
+            f"[{self.stage}/{self.outcome}]"
+        )

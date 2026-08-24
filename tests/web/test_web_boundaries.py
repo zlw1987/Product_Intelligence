@@ -161,7 +161,7 @@ def test_the_web_layer_defines_no_model() -> None:
 
     assert not list(WEB_ROOT.rglob("models.py"))
     assert not list(WEB_ROOT.rglob("migrations"))
-    expected = {"runs.ResearchRun", "runs.PriceIntelligenceSnapshot"}
+    expected = {"runs.ResearchRun", "runs.PriceIntelligenceSnapshot", "runs.ExecutionEvidenceRecord"}
     assert {model._meta.label for model in apps.get_models()} == expected
     assert not apps.get_app_config("web").models
 

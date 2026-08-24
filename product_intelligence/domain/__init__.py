@@ -28,6 +28,7 @@ from product_intelligence.domain.enums import (
     VerificationStatus,
 )
 from product_intelligence.domain.errors import DomainValidationError
+from product_intelligence.domain.evidence import ExecutionDetailCode, ExecutionOutcome, ExecutionStage
 from product_intelligence.domain.models import (
     EvidenceReference,
     ProductIdentity,
@@ -38,6 +39,9 @@ __all__ = [
     "ESTABLISHED_MATCH_TYPES",
     "ConfidenceLevel",
     "DomainValidationError",
+    "ExecutionDetailCode",
+    "ExecutionOutcome",
+    "ExecutionStage",
     "EvidenceDecision",
     "EvidenceReference",
     "IdentityMatchType",

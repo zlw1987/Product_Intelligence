@@ -32,26 +32,72 @@ from product_intelligence.runs.errors import (
 
 __all__ = [
     "ALLOWED_TRANSITIONS",
+    "ClaimExecutionFailed",
+    "claim_execution",
+    "complete_execution",
+    "ExecutionDetailCode",
+    "ExecutionEvidenceRecord",
+    "ExecutionOutcome",
+    "ExecutionStage",
     "InvalidInitialResearchRunState",
     "InvalidResearchRunTransition",
+    "retry_run",
     "ResearchRun",
     "ResearchRunLifecycleError",
     "TERMINAL_STATES",
     "UnsupportedResearchRunStateChange",
 ]
 
-_MODEL_EXPORTS = frozenset({"ALLOWED_TRANSITIONS", "ResearchRun", "TERMINAL_STATES"})
+_MODEL_EXPORTS = frozenset({"ALLOWED_TRANSITIONS", "ResearchRun", "TERMINAL_STATES", "PriceIntelligenceSnapshot", "ExecutionEvidenceRecord"})
+
+# Evidence enums and primitives are pure Python (no Django import), so they can
+# be exposed directly from this package without lazy loading.
+_EVIDENCE_EXPORTS = frozenset({
+    "ClaimExecutionFailed",
+    "claim_execution",
+    "complete_execution",
+    "ExecutionDetailCode",
+    "ExecutionOutcome",
+    "ExecutionStage",
+    "retry_run",
+})
 
 
 def __getattr__(name: str) -> object:
-    """Expose the model lazily.
+    """Expose the model, evidence enum, or execution primitive lazily.
 
     Importing this package must not require the Django app registry to be
     ready, so ``models`` is imported on first attribute access rather than at
-    package import time. The error types have no such constraint and are
-    imported directly.
+    package import time. The error types and execution primitives have no such
+    constraint and are imported directly. Evidence enums are also available
+    from the runs.models package.
     """
+    if name in _EVIDENCE_EXPORTS:
+        # Check each name individually to find the right source
+        if name == "ExecutionDetailCode":
+            from product_intelligence.domain import ExecutionDetailCode
+            return ExecutionDetailCode
+        elif name == "ExecutionOutcome":
+            from product_intelligence.domain import ExecutionOutcome
+            return ExecutionOutcome
+        elif name == "ExecutionStage":
+            from product_intelligence.domain import ExecutionStage
+            return ExecutionStage
+        elif name == "ClaimExecutionFailed":
+            from product_intelligence.runs import execution_claims
+            return getattr(execution_claims, name)
+        elif name == "complete_execution":
+            from product_intelligence.runs import execution_claims
+            return getattr(execution_claims, name)
+        elif name == "retry_run":
+            from product_intelligence.runs import execution_claims
+            return getattr(execution_claims, name)
+        elif name == "claim_execution":
+            from product_intelligence.runs import execution_claims
+            return getattr(execution_claims, name)
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
     if name in _MODEL_EXPORTS:
+        # Import from runs.models (the main models.py file)
         from product_intelligence.runs import models
 
         return getattr(models, name)

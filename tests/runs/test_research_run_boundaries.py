@@ -51,6 +51,7 @@ EXPECTED_FIELDS = {
     "started_at",
     "finished_at",
     "price_intelligence_snapshot",  # 4B: reverse OneToOne from snapshot
+    "execution_evidence",  # 4C-A: reverse FK to execution evidence records
 }
 
 # The exact fields on PriceIntelligenceSnapshot (4B).
@@ -213,7 +214,11 @@ def test_the_evaluation_corpus_is_not_persisted() -> None:
     from django.apps import apps
 
     model_labels = {model._meta.label for model in apps.get_models()}
-    expected = {"runs.ResearchRun", "runs.PriceIntelligenceSnapshot"}
+    expected = {
+        "runs.ResearchRun",
+        "runs.PriceIntelligenceSnapshot",
+        "runs.ExecutionEvidenceRecord",  # 4C-A
+    }
     assert model_labels == expected
 
     for path in _python_files(RUNS_ROOT):
