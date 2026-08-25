@@ -1,0 +1,1184 @@
+{
+  "corpus_version": 1,
+  "note": "Semantic match qualification corpus for offline LLM model evaluation. This is separate from the deterministic evaluation corpus. Cases are primary semantic cases (non-authoritative evidence) unless marked as authority_safety_probe. All cases marked project_uat are required UAT cases.",
+  "cases": [
+    {
+      "case_id": "SMQ-0001",
+      "case_class": "title_exact_mpn",
+      "target": {
+        "manufacturer_part_number": "MZ1L2960HCJR-00A07",
+        "description": "Samsung SSD PM9A3 960GB M.2 NVMe PCIe Gen4"
+      },
+      "candidate": {
+        "product_title": "SSD disk Samsung PM9A3 960GB M.2 22110 NVMe PCIe Gen4 x4 | MZ1L2960HCJR-00A07",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "TITLE_TEXT",
+      "expected_decision": "MATCH",
+      "critical_reason": "Exact MPN in title text with matching product description. Evidence from TITLE_TEXT (non-authoritative) but strong semantic match.",
+      "provenance": "project_uat"
+    },
+    {
+      "case_id": "SMQ-0002",
+      "case_class": "base_mpn_only",
+      "target": {
+        "manufacturer_part_number": "MZ1L2960HCJR-00A07",
+        "description": "Samsung SSD PM9A3 960GB M.2 NVMe PCIe Gen4"
+      },
+      "candidate": {
+        "product_title": "Samsung PM9A3 MZ1L2960HCJR 960 GB",
+        "manufacturer_part_number_text": "MZ1L2960HCJR",
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "TITLE_TEXT",
+      "expected_decision": "UNCERTAIN",
+      "critical_reason": "Base family/product/capacity align, but the -00A07 suffix/revision is not established.",
+      "provenance": "project_uat"
+    },
+    {
+      "case_id": "SMQ-0003",
+      "case_class": "different_capacity",
+      "target": {
+        "manufacturer_part_number": "MZ1L2960HCJR-00A07",
+        "description": "Samsung SSD PM9A3 960GB M.2 NVMe PCIe Gen4"
+      },
+      "candidate": {
+        "product_title": "Samsung PM9A3 1.92TB M.2 PCIe 4.0 SSD",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "TITLE_TEXT",
+      "expected_decision": "NO_MATCH",
+      "critical_reason": "Same family but different capacity (960GB vs 1.92TB).",
+      "provenance": "project_uat"
+    },
+    {
+      "case_id": "SMQ-0004",
+      "case_class": "oem_revision_variant",
+      "target": {
+        "manufacturer_part_number": "MZ1L2960HCJR-00A07",
+        "description": "Samsung SSD PM9A3 960GB M.2 NVMe PCIe Gen4"
+      },
+      "candidate": {
+        "product_title": "Samsung MZ1L2960HCJR-00A08 PM9A3 960GB SSD",
+        "manufacturer_part_number_text": "MZ1L2960HCJR-00A08",
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "EXPLICIT_MPN_FIELD",
+      "expected_decision": "NO_MATCH",
+      "critical_reason": "Explicit MPN field shows conflicting revision -00A08 vs target -00A07. This is the authority safety probe for explicit conflict.",
+      "provenance": "project_uat",
+      "is_authority_safety_probe": true
+    },
+    {
+      "case_id": "SMQ-0005",
+      "case_class": "accessory_trap",
+      "target": {
+        "manufacturer_part_number": "MZ1L2960HCJR-00A07",
+        "description": "Samsung SSD PM9A3 960GB M.2 NVMe PCIe Gen4"
+      },
+      "candidate": {
+        "product_title": "2.5-inch drive tray compatible with Samsung MZ1L2960HCJR-00A07",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "TITLE_TEXT",
+      "expected_decision": "NO_MATCH",
+      "critical_reason": "Accessory/tray wording means this is not the SSD itself.",
+      "provenance": "project_uat"
+    },
+    {
+      "case_id": "SMQ-0006",
+      "case_class": "replacement_trap",
+      "target": {
+        "manufacturer_part_number": "MZ1L2960HCJR-00A07",
+        "description": "Samsung SSD PM9A3 960GB M.2 NVMe PCIe Gen4"
+      },
+      "candidate": {
+        "product_title": "Replacement SSD caddy for MZ1L2960HCJR-00A07",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "TITLE_TEXT",
+      "expected_decision": "NO_MATCH",
+      "critical_reason": "Replacement/caddy wording means this is not the SSD itself.",
+      "provenance": "project_uat"
+    },
+    {
+      "case_id": "SMQ-0007",
+      "case_class": "different_capacity",
+      "target": {
+        "manufacturer_part_number": "MZ-QL23T800",
+        "description": "Samsung PM9A3 3.84TB U.2 NVMe SSD"
+      },
+      "candidate": {
+        "product_title": "Samsung PM9A3 960GB M.2 PCIe 4.0 SSD",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "TITLE_TEXT",
+      "expected_decision": "NO_MATCH",
+      "critical_reason": "Same family but different capacity (960GB vs 3.84TB) and different form factor (M.2 vs U.2).",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SMQ-0008",
+      "case_class": "different_form_factor",
+      "target": {
+        "manufacturer_part_number": "MZ-QL23T800",
+        "description": "Samsung PM9A3 3.84TB U.2 NVMe SSD"
+      },
+      "candidate": {
+        "product_title": "Samsung 980 PRO 2TB M.2 NVMe SSD",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "TITLE_TEXT",
+      "expected_decision": "NO_MATCH",
+      "critical_reason": "Same brand/family but different form factor (M.2 vs U.2) and different capacity.",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SMQ-0009",
+      "case_class": "different_interface",
+      "target": {
+        "manufacturer_part_number": "MZ-QL23T800",
+        "description": "Samsung PM9A3 3.84TB U.2 NVMe SSD"
+      },
+      "candidate": {
+        "product_title": "Samsung 870 EVO 2TB 2.5-inch SATA SSD",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "TITLE_TEXT",
+      "expected_decision": "NO_MATCH",
+      "critical_reason": "Same brand but different interface (SATA vs NVMe) and different series.",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SMQ-0010",
+      "case_class": "suffix_missing",
+      "target": {
+        "manufacturer_part_number": "MTFDKCC3T8TFR-1BC1ZABYY",
+        "description": "Micron 7450 PRO 3.84TB U.3 NVMe PCIe Gen4 SSD"
+      },
+      "candidate": {
+        "product_title": "Micron 7450 PRO 3.84TB U.3 SSD",
+        "manufacturer_part_number_text": "MTFDKCC3T8TFR",
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "TITLE_TEXT",
+      "expected_decision": "UNCERTAIN",
+      "critical_reason": "Base part number matches but configuration suffix -1BC1ZABYY is not established.",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SMQ-0011",
+      "case_class": "oem_revision_variant",
+      "target": {
+        "manufacturer_part_number": "MZ1L2960HCJR-00A07",
+        "description": "Samsung SSD PM9A3 960GB M.2 NVMe PCIe Gen4"
+      },
+      "candidate": {
+        "product_title": "Samsung MZ1L2960HCJR-00A08 PM9A3 960GB SSD",
+        "manufacturer_part_number_text": "MZ1L2960HCJR-00A08",
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "EXPLICIT_MPN_FIELD",
+      "expected_decision": "NO_MATCH",
+      "critical_reason": "Explicit conflicting MPN: -00A08 is not -00A07 (different revision).",
+      "provenance": "synthetic",
+      "is_authority_safety_probe": true
+    },
+    {
+      "case_id": "SMQ-0012",
+      "case_class": "compatible_with_trap",
+      "target": {
+        "manufacturer_part_number": "MZ1L2960HCJR-00A07",
+        "description": "Samsung SSD PM9A3 960GB M.2 NVMe PCIe Gen4"
+      },
+      "candidate": {
+        "product_title": "PCIe M.2 NVMe SSD enclosure compatible with MZ1L2960HCJR-00A07",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "TITLE_TEXT",
+      "expected_decision": "NO_MATCH",
+      "critical_reason": "Compatible-with wording means this is an enclosure, not the SSD.",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SMQ-0013",
+      "case_class": "multipack_trap",
+      "target": {
+        "manufacturer_part_number": "MZ1L2960HCJR-00A07",
+        "description": "Samsung SSD PM9A3 960GB M.2 NVMe PCIe Gen4"
+      },
+      "candidate": {
+        "product_title": "Samsung PM9A3 960GB M.2 NVMe SSD - Pack of 5",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "TITLE_TEXT",
+      "expected_decision": "NO_MATCH",
+      "critical_reason": "Pack of 5 multipack is not a single unit.",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SMQ-0014",
+      "case_class": "drive_vs_enclosure",
+      "target": {
+        "manufacturer_part_number": "MZ1L2960HCJR-00A07",
+        "description": "Samsung SSD PM9A3 960GB M.2 NVMe PCIe Gen4"
+      },
+      "candidate": {
+        "product_title": "Samsung MZ1L2960HCJR-00A07 2.5-inch SSD adapter sleeve",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "TITLE_TEXT",
+      "expected_decision": "NO_MATCH",
+      "critical_reason": "Adapter sleeve is an accessory, not the SSD itself.",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SMQ-0015",
+      "case_class": "specification_rich",
+      "target": {
+        "manufacturer_part_number": "",
+        "description": "Samsung PM9A3 960GB NVMe M.2 SSD enterprise"
+      },
+      "candidate": {
+        "product_title": "Samsung PM9A3 960GB M.2 2280 NVMe PCIe Gen4 x4 SSD",
+        "manufacturer_part_number_text": null,
+        "sku_text": "501489",
+        "description_or_specs": "PM9A3 series, 960GB capacity, M.2 2280 form factor, NVMe PCIe Gen4 x4 interface"
+      },
+      "candidate_evidence_source": "SKU_FIELD",
+      "expected_decision": "UNCERTAIN",
+      "critical_reason": "Target has no MPN, candidate has SKU only. Attributes align but no explicit MPN match possible.",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SMQ-0016",
+      "case_class": "brand_family_only",
+      "target": {
+        "manufacturer_part_number": "MZ1L2960HCJR-00A07",
+        "description": "Samsung SSD PM9A3 960GB M.2 NVMe PCIe Gen4"
+      },
+      "candidate": {
+        "product_title": "Samsung 980 PRO 1TB M.2 NVMe SSD",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "TITLE_TEXT",
+      "expected_decision": "NO_MATCH",
+      "critical_reason": "Same brand but different product family (980 PRO vs PM9A3) and different capacity.",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SMQ-0017",
+      "case_class": "title_exact_mpn",
+      "target": {
+        "manufacturer_part_number": "PK8071305072902",
+        "description": "Intel Xeon Gold 6430 processor"
+      },
+      "candidate": {
+        "product_title": "Intel PK8071305072902 Xeon Gold 6430 60MB Cache 2.10GHz Processor",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "TITLE_TEXT",
+      "expected_decision": "MATCH",
+      "critical_reason": "Exact requested MPN appears in title with matching product description.",
+      "provenance": "synthetic",
+      "is_authority_safety_probe": false
+    },
+    {
+      "case_id": "SMQ-0018",
+      "case_class": "different_capacity",
+      "target": {
+        "manufacturer_part_number": "PK8071305072902",
+        "description": "Intel Xeon Gold 6430 processor"
+      },
+      "candidate": {
+        "product_title": "Intel Xeon Gold 6430 30MB Cache Processor",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "TITLE_TEXT",
+      "expected_decision": "NO_MATCH",
+      "critical_reason": "Same product line but different cache size (30MB vs 60MB) indicates different SKU.",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SMQ-0019",
+      "case_class": "base_mpn_only",
+      "target": {
+        "manufacturer_part_number": "KSM48R40BS4TMM-32HMR",
+        "description": "Kingston 32GB DDR5-4800 ECC Registered DIMM"
+      },
+      "candidate": {
+        "product_title": "Kingston KSM48R40BS4TMM 32GB DDR5-4800 ECC Registered DIMM",
+        "manufacturer_part_number_text": "KSM48R40BS4TMM",
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "TITLE_TEXT",
+      "expected_decision": "UNCERTAIN",
+      "critical_reason": "Base part number matches but configuration suffix -32HMR is not established.",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SMQ-0020",
+      "case_class": "title_exact_mpn",
+      "target": {
+        "manufacturer_part_number": "BCM957504-N425G",
+        "description": "Broadcom NetXtreme-E 10/25/40/50G Ethernet Adapter"
+      },
+      "candidate": {
+        "product_title": "Broadcom BCM957504-N425G PCIe Network Adapter",
+        "manufacturer_part_number_text": "BCM957504-N425G",
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "TITLE_TEXT",
+      "expected_decision": "MATCH",
+      "critical_reason": "Exact requested MPN with hyphen appears in title with matching adapter description.",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SMQ-0021",
+      "case_class": "compatible_with_trap",
+      "target": {
+        "manufacturer_part_number": "MZ1L2960HCJR-00A07",
+        "description": "Samsung SSD PM9A3 960GB M.2 NVMe PCIe Gen4"
+      },
+      "candidate": {
+        "product_title": "M.2 NVMe SSD heatsink for Samsung MZ1L2960HCJR-00A07",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "TITLE_TEXT",
+      "expected_decision": "NO_MATCH",
+      "critical_reason": "Heatsink/for wording means this is an accessory, not the SSD.",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SMQ-0022",
+      "case_class": "accessory_trap",
+      "target": {
+        "manufacturer_part_number": "MZ1L2960HCJR-00A07",
+        "description": "Samsung SSD PM9A3 960GB M.2 NVMe PCIe Gen4"
+      },
+      "candidate": {
+        "product_title": "Samsung SSD kit with MZ1L2960HCJR-00A07 and mounting bracket",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "TITLE_TEXT",
+      "expected_decision": "NO_MATCH",
+      "critical_reason": "Kit wording means this is a bundle, not the standalone SSD.",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SMQ-0023",
+      "case_class": "replacement_trap",
+      "target": {
+        "manufacturer_part_number": "MZ1L2960HCJR-00A07",
+        "description": "Samsung SSD PM9A3 960GB M.2 NVMe PCIe Gen4"
+      },
+      "candidate": {
+        "product_title": "SSD replacement for MZ1L2960HCJR-00A07 - same specs",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "TITLE_TEXT",
+      "expected_decision": "UNCERTAIN",
+      "critical_reason": "Replacement wording indicates similar product but not necessarily identical MPN.",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SMQ-0024",
+      "case_class": "multipack_trap",
+      "target": {
+        "manufacturer_part_number": "MZ1L2960HCJR-00A07",
+        "description": "Samsung SSD PM9A3 960GB M.2 NVMe PCIe Gen4"
+      },
+      "candidate": {
+        "product_title": "Samsung PM9A3 960GB NVMe SSD x2 pack",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "TITLE_TEXT",
+      "expected_decision": "NO_MATCH",
+      "critical_reason": "Pack of 2 multipack is not a single unit.",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SMQ-0025",
+      "case_class": "drive_vs_enclosure",
+      "target": {
+        "manufacturer_part_number": "MZ1L2960HCJR-00A07",
+        "description": "Samsung SSD PM9A3 960GB M.2 NVMe PCIe Gen4"
+      },
+      "candidate": {
+        "product_title": "M.2 to 2.5-inch SATA adapter for Samsung MZ1L2960HCJR-00A07",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "TITLE_TEXT",
+      "expected_decision": "NO_MATCH",
+      "critical_reason": "Adapter means this is a conversion accessory, not the SSD.",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SMQ-0026",
+      "case_class": "different_capacity",
+      "target": {
+        "manufacturer_part_number": "MTFDKCC3T8TFR-1BC1ZABYY",
+        "description": "Micron 7450 PRO 3.84TB U.3 NVMe PCIe Gen4 SSD"
+      },
+      "candidate": {
+        "product_title": "Micron 7450 PRO 7.68TB U.3 NVMe SSD",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "TITLE_TEXT",
+      "expected_decision": "NO_MATCH",
+      "critical_reason": "Same family but different capacity (7.68TB vs 3.84TB).",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SMQ-0027",
+      "case_class": "different_form_factor",
+      "target": {
+        "manufacturer_part_number": "MTFDKCC3T8TFR-1BC1ZABYY",
+        "description": "Micron 7450 PRO 3.84TB U.3 NVMe PCIe Gen4 SSD"
+      },
+      "candidate": {
+        "product_title": "Micron 7450 PRO 3.84TB 2.5-inch SATA SSD",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "TITLE_TEXT",
+      "expected_decision": "NO_MATCH",
+      "critical_reason": "Same capacity but different form factor (2.5-inch vs U.3) and interface (SATA vs NVMe).",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SMQ-0028",
+      "case_class": "different_interface",
+      "target": {
+        "manufacturer_part_number": "MZ1L2960HCJR-00A07",
+        "description": "Samsung SSD PM9A3 960GB M.2 NVMe PCIe Gen4"
+      },
+      "candidate": {
+        "product_title": "Samsung 970 EVO 960GB M.2 SATA SSD",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "TITLE_TEXT",
+      "expected_decision": "NO_MATCH",
+      "critical_reason": "Same brand/family but different interface (SATA vs NVMe) and different series.",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SMQ-0029",
+      "case_class": "suffix_missing",
+      "target": {
+        "manufacturer_part_number": "MZ1L2960HCJR-00A07",
+        "description": "Samsung SSD PM9A3 960GB M.2 NVMe PCIe Gen4"
+      },
+      "candidate": {
+        "product_title": "Samsung PM9A3 MZ1L2960HCJR 960GB SSD",
+        "manufacturer_part_number_text": "MZ1L2960HCJR",
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "TITLE_TEXT",
+      "expected_decision": "UNCERTAIN",
+      "critical_reason": "Base MPN matches but suffix/revision -00A07 not established.",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SMQ-0030",
+      "case_class": "oem_revision_variant",
+      "target": {
+        "manufacturer_part_number": "PK8071305072902",
+        "description": "Intel Xeon Gold 6430 processor"
+      },
+      "candidate": {
+        "product_title": "Intel PK8071305072901 Xeon Gold 6430 Processor",
+        "manufacturer_part_number_text": "PK8071305072901",
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "EXPLICIT_MPN_FIELD",
+      "expected_decision": "NO_MATCH",
+      "critical_reason": "Explicit conflicting MPN: PK8071305072901 is not PK8071305072902.",
+      "provenance": "synthetic",
+      "is_authority_safety_probe": true
+    },
+    {
+      "case_id": "SMQ-0031",
+      "case_class": "compatible_with_trap",
+      "target": {
+        "manufacturer_part_number": "KSM48R40BS4TMM-32HMR",
+        "description": "Kingston 32GB DDR5-4800 ECC Registered DIMM"
+      },
+      "candidate": {
+        "product_title": "Memory module compatible with Kingston KSM48R40BS4TMM-32HMR",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "TITLE_TEXT",
+      "expected_decision": "NO_MATCH",
+      "critical_reason": "Compatible-with wording means this is a different product that matches specs, not the exact part.",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SMQ-0032",
+      "case_class": "replacement_trap",
+      "target": {
+        "manufacturer_part_number": "BCM957504-N425G",
+        "description": "Broadcom NetXtreme-E 10/25/40/50G Ethernet Adapter"
+      },
+      "candidate": {
+        "product_title": "Network card replacement for BCM957504-N425G",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "TITLE_TEXT",
+      "expected_decision": "UNCERTAIN",
+      "critical_reason": "Replacement wording is a warning signal. The listing may describe a compatible alternative or substitute, not the target product itself. Without clear product identity, a cautious model should return UNCERTAIN.",
+      "provenance": "synthetic",
+      "is_authority_safety_probe": false
+    },
+    {
+      "case_id": "SMQ-0033",
+      "case_class": "multipack_trap",
+      "target": {
+        "manufacturer_part_number": "MZ1L2960HCJR-00A07",
+        "description": "Samsung SSD PM9A3 960GB M.2 NVMe PCIe Gen4"
+      },
+      "candidate": {
+        "product_title": "Samsung PM9A3 NVMe SSD - Quantity 10",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "TITLE_TEXT",
+      "expected_decision": "NO_MATCH",
+      "critical_reason": "Quantity 10 multipack is not a single unit.",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SMQ-0034",
+      "case_class": "drive_vs_enclosure",
+      "target": {
+        "manufacturer_part_number": "MZ1L2960HCJR-00A07",
+        "description": "Samsung SSD PM9A3 960GB M.2 NVMe PCIe Gen4"
+      },
+      "candidate": {
+        "product_title": "M.2 NVMe SSD caddy for Samsung MZ1L2960HCJR-00A07",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "TITLE_TEXT",
+      "expected_decision": "NO_MATCH",
+      "critical_reason": "Caddy is a mounting accessory, not the SSD itself.",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SMQ-0035",
+      "case_class": "brand_family_only",
+      "target": {
+        "manufacturer_part_number": "MZ1L2960HCJR-00A07",
+        "description": "Samsung SSD PM9A3 960GB M.2 NVMe PCIe Gen4"
+      },
+      "candidate": {
+        "product_title": "Samsung 990 PRO 2TB M.2 NVMe SSD",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "TITLE_TEXT",
+      "expected_decision": "NO_MATCH",
+      "critical_reason": "Same brand but different product family (990 PRO vs PM9A3) and different capacity.",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SMQ-0036",
+      "case_class": "specification_rich",
+      "target": {
+        "manufacturer_part_number": "",
+        "description": "Intel Xeon Gold 6430 60MB cache 2.10GHz"
+      },
+      "candidate": {
+        "product_title": "Intel Xeon Gold 6430 60MB Cache 2.10GHz Processor",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "description_or_specs": "6430 model, 60MB L3 cache, 2.10GHz base frequency, 600W TDP"
+      },
+      "candidate_evidence_source": "NONE",
+      "expected_decision": "UNCERTAIN",
+      "critical_reason": "Target has no MPN, candidate has no explicit MPN. Attributes align closely but no MPN match possible.",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SMQ-0037",
+      "case_class": "title_exact_mpn",
+      "target": {
+        "manufacturer_part_number": "MZ1L2960HCJR-00A07",
+        "description": "Samsung SSD PM9A3 960GB M.2 NVMe PCIe Gen4"
+      },
+      "candidate": {
+        "product_title": "Samsung MZ1L2960HCJR-00A07 PM9A3 960GB PCI Express M.2 Solid State Drive - New",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "TITLE_TEXT",
+      "expected_decision": "MATCH",
+      "critical_reason": "Exact requested MPN appears in title with matching product description.",
+      "provenance": "synthetic",
+      "is_authority_safety_probe": false
+    },
+    {
+      "case_id": "SMQ-0038",
+      "case_class": "different_capacity",
+      "target": {
+        "manufacturer_part_number": "PK8071305072902",
+        "description": "Intel Xeon Gold 6430 processor"
+      },
+      "candidate": {
+        "product_title": "Intel Xeon Gold 6430 45MB Cache Processor",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "TITLE_TEXT",
+      "expected_decision": "NO_MATCH",
+      "critical_reason": "Same product line but different cache size (45MB vs 60MB) indicates different SKU.",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SMQ-0039",
+      "case_class": "base_mpn_only",
+      "target": {
+        "manufacturer_part_number": "KSM48R40BS4TMM-32HMR",
+        "description": "Kingston 32GB DDR5-4800 ECC Registered DIMM"
+      },
+      "candidate": {
+        "product_title": "Kingston DDR5-4800 ECC Registered DIMM 32GB",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "TITLE_TEXT",
+      "expected_decision": "UNCERTAIN",
+      "critical_reason": "Description matches but no MPN at all, so exact match cannot be confirmed.",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SMQ-0040",
+      "case_class": "suffix_missing",
+      "target": {
+        "manufacturer_part_number": "BCM957504-N425G",
+        "description": "Broadcom NetXtreme-E 10/25/40/50G Ethernet Adapter"
+      },
+      "candidate": {
+        "product_title": "Broadcom BCM957504 Network Adapter",
+        "manufacturer_part_number_text": "BCM957504",
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "TITLE_TEXT",
+      "expected_decision": "UNCERTAIN",
+      "critical_reason": "Base part number matches but suffix -N425G is not established.",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SMQ-0041",
+      "case_class": "oem_revision_variant",
+      "target": {
+        "manufacturer_part_number": "MTFDKCC3T8TFR-1BC1ZABYY",
+        "description": "Micron 7450 PRO 3.84TB U.3 NVMe PCIe Gen4 SSD"
+      },
+      "candidate": {
+        "product_title": "Micron 7450 PRO 3.84TB U.3 NVMe SSD MTFDKCC3T8TFR-1BC1ZABYX",
+        "manufacturer_part_number_text": "MTFDKCC3T8TFR-1BC1ZABYX",
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "EXPLICIT_MPN_FIELD",
+      "expected_decision": "NO_MATCH",
+      "critical_reason": "Explicit conflicting MPN: suffix -1BC1ZABYX is not -1BC1ZABYY.",
+      "provenance": "synthetic",
+      "is_authority_safety_probe": true
+    },
+    {
+      "case_id": "SMQ-0042",
+      "case_class": "compatible_with_trap",
+      "target": {
+        "manufacturer_part_number": "MZ1L2960HCJR-00A07",
+        "description": "Samsung SSD PM9A3 960GB M.2 NVMe PCIe Gen4"
+      },
+      "candidate": {
+        "product_title": "Samsung MZ1L2960HCJR-00A07 replacement drive",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "TITLE_TEXT",
+      "expected_decision": "UNCERTAIN",
+      "critical_reason": "Replacement wording indicates similar product but not necessarily identical MPN.",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SMQ-0043",
+      "case_class": "replacement_trap",
+      "target": {
+        "manufacturer_part_number": "MZ1L2960HCJR-00A07",
+        "description": "Samsung SSD PM9A3 960GB M.2 NVMe PCIe Gen4"
+      },
+      "candidate": {
+        "product_title": "SSD upgrade kit including MZ1L2960HCJR-00A07 and installation tools",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "TITLE_TEXT",
+      "expected_decision": "NO_MATCH",
+      "critical_reason": "Kit wording means this is a bundle, not the standalone SSD.",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SMQ-0044",
+      "case_class": "multipack_trap",
+      "target": {
+        "manufacturer_part_number": "MZ1L2960HCJR-00A07",
+        "description": "Samsung SSD PM9A3 960GB M.2 NVMe PCIe Gen4"
+      },
+      "candidate": {
+        "product_title": "Samsung PM9A3 960GB NVMe SSD - 4 pack",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "TITLE_TEXT",
+      "expected_decision": "NO_MATCH",
+      "critical_reason": "Pack of 4 multipack is not a single unit.",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SMQ-0045",
+      "case_class": "drive_vs_enclosure",
+      "target": {
+        "manufacturer_part_number": "MZ1L2960HCJR-00A07",
+        "description": "Samsung SSD PM9A3 960GB M.2 NVMe PCIe Gen4"
+      },
+      "candidate": {
+        "product_title": "M.2 NVMe SSD enclosure with Samsung MZ1L2960HCJR-00A07",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "TITLE_TEXT",
+      "expected_decision": "NO_MATCH",
+      "critical_reason": "Encl osure means this is a housing accessory, not the SSD itself.",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SMQ-0046",
+      "case_class": "brand_family_only",
+      "target": {
+        "manufacturer_part_number": "PK8071305072902",
+        "description": "Intel Xeon Gold 6430 processor"
+      },
+      "candidate": {
+        "product_title": "Intel Xeon Gold 6420 45MB Cache Processor",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "TITLE_TEXT",
+      "expected_decision": "NO_MATCH",
+      "critical_reason": "Same brand but different product (6420 vs 6430) and different cache size.",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SMQ-0047",
+      "case_class": "specification_rich",
+      "target": {
+        "manufacturer_part_number": "",
+        "description": "Micron 7450 PRO 3.84TB U.3 NVMe"
+      },
+      "candidate": {
+        "product_title": "Micron 7450 PRO 3.84TB U.3 NVMe PCIe Gen4 SSD",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "description_or_specs": "7450 PRO series, 3.84TB capacity, U.3 form factor, NVMe PCIe Gen4 x4"
+      },
+      "candidate_evidence_source": "NONE",
+      "expected_decision": "UNCERTAIN",
+      "critical_reason": "Target has no MPN, candidate has no explicit MPN. Attributes align closely but no MPN match possible.",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SMQ-0048",
+      "case_class": "title_exact_mpn",
+      "target": {
+        "manufacturer_part_number": "BCM957504-N425G",
+        "description": "Broadcom NetXtreme-E Ethernet Adapter"
+      },
+      "candidate": {
+        "product_title": "Broadcom BCM957504-N425G NetXtreme-E 10/25/40/50G Ethernet Adapter",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "TITLE_TEXT",
+      "expected_decision": "MATCH",
+      "critical_reason": "Exact requested MPN appears in title with matching product description.",
+      "provenance": "synthetic",
+      "is_authority_safety_probe": false
+    },
+    {
+      "case_id": "SMQ-0049",
+      "case_class": "different_capacity",
+      "target": {
+        "manufacturer_part_number": "KSM48R40BS4TMM-32HMR",
+        "description": "Kingston 32GB DDR5-4800 ECC Registered DIMM"
+      },
+      "candidate": {
+        "product_title": "Kingston 64GB DDR5-4800 ECC Registered DIMM",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "TITLE_TEXT",
+      "expected_decision": "NO_MATCH",
+      "critical_reason": "Same family but different capacity (64GB vs 32GB).",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SMQ-0050",
+      "case_class": "accessory_trap",
+      "target": {
+        "manufacturer_part_number": "MZ1L2960HCJR-00A07",
+        "description": "Samsung SSD PM9A3 960GB M.2 NVMe PCIe Gen4"
+      },
+      "candidate": {
+        "product_title": "Mounting bracket for Samsung MZ1L2960HCJR-00A07 SSD",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "TITLE_TEXT",
+      "expected_decision": "NO_MATCH",
+      "critical_reason": "Mounting bracket is an accessory, not the SSD itself.",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SMQ-0051",
+      "case_class": "title_exact_mpn",
+      "target": {
+        "manufacturer_part_number": "MZ1L2960HCJR-00A07",
+        "description": "Samsung SSD PM9A3 960GB M.2 NVMe PCIe Gen4"
+      },
+      "candidate": {
+        "product_title": "Samsung MZ1L2960HCJR-00A07 PM9A3 960GB NVMe M.2 SSD",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "TITLE_TEXT",
+      "expected_decision": "MATCH",
+      "critical_reason": "Exact requested MPN appears in title with matching product description.",
+      "provenance": "synthetic",
+      "is_authority_safety_probe": false
+    },
+    {
+      "case_id": "SMQ-0052",
+      "case_class": "title_exact_mpn",
+      "target": {
+        "manufacturer_part_number": "MZ-QL23T800",
+        "description": "Samsung PM9A3 3.84TB U.2 NVMe SSD"
+      },
+      "candidate": {
+        "product_title": "Samsung MZ-QL23T800 PM9A3 3.84TB U.2 NVMe PCIe Gen4 SSD",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "TITLE_TEXT",
+      "expected_decision": "MATCH",
+      "critical_reason": "Exact requested MPN appears in title with matching product description.",
+      "provenance": "synthetic",
+      "is_authority_safety_probe": false
+    },
+    {
+      "case_id": "SMQ-0053",
+      "case_class": "title_exact_mpn",
+      "target": {
+        "manufacturer_part_number": "SYN-Prod-X500",
+        "description": "Synthetic Widget 5000 series"
+      },
+      "candidate": {
+        "product_title": "Widget X500 Series SYN Prod X500 Pro with Advanced Features",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "TITLE_TEXT",
+      "expected_decision": "MATCH",
+      "critical_reason": "Normalized target MPN SYN-Prod-X500 appears in title. Hyphens and spaces are equivalent after normalization (SYN-Prod-X500 normalizes to SYNPRODX500, SYN Prod X500 normalizes to SYNPRODX500).",
+      "provenance": "synthetic",
+      "notes": "Hyphen/whitespace normalization: target uses hyphens (SYN-Prod-X500), title uses spaces (SYN Prod X500). After normalization both produce SYNPRODX500.",
+      "source_url": null,
+      "extraction_method": null,
+      "is_authority_safety_probe": false
+    },
+    {
+      "case_id": "SMQ-0054",
+      "case_class": "title_exact_mpn",
+      "target": {
+        "manufacturer_part_number": "KSM48R40BS4TMM-32HMR",
+        "description": "Kingston 32GB DDR5-4800 ECC Registered DIMM"
+      },
+      "candidate": {
+        "product_title": "Kingston KSM48R40BS4TMM-32HMR 32GB DDR5-4800 ECC Registered DIMM",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "TITLE_TEXT",
+      "expected_decision": "MATCH",
+      "critical_reason": "Exact requested MPN appears in title with matching product description.",
+      "provenance": "synthetic",
+      "is_authority_safety_probe": false
+    },
+    {
+      "case_id": "SMQ-0055",
+      "case_class": "specification_rich",
+      "target": {
+        "manufacturer_part_number": "SYN-SRV-9000",
+        "description": "Synthetic Server 8-core 3.5GHz 64GB RAM 1TB NVMe"
+      },
+      "candidate": {
+        "product_title": "High-Performance Server 8 cores at 3.5GHz 64GB DDR4 ECC 1TB NVMe SSD",
+        "manufacturer_part_number_text": null,
+        "sku_text": "SRV-9000-X",
+        "description_or_specs": "8 cores, 3.5GHz base, 64GB DDR4 ECC, 1TB NVMe, 2U rackmount"
+      },
+      "candidate_evidence_source": "SKU_FIELD",
+      "expected_decision": "UNCERTAIN",
+      "critical_reason": "Candidate SKU SRV-9000-X does not match target MPN SYN-SRV-9000 (different prefix and suffix). Specs align with generic server specifications but provide no MPN identity evidence. Without authoritative MPN field or matching product identifier, identity cannot be confirmed.",
+      "provenance": "synthetic",
+      "notes": "Candidate SKU SRV-9000-X lacks the SYN- prefix and has a -X suffix different from target SYN-SRV-9000. Generic aligned specs do not compensate for absent MPN identity.",
+      "source_url": null,
+      "extraction_method": null,
+      "is_authority_safety_probe": false
+    },
+    {
+      "case_id": "SMQ-0056",
+      "case_class": "title_exact_mpn",
+      "target": {
+        "manufacturer_part_number": "MTFDKCC3T8TFR-1BC1ZABYY",
+        "description": "Micron 7450 PRO 3.84TB U.3 NVMe PCIe Gen4 SSD"
+      },
+      "candidate": {
+        "product_title": "Micron MTFDKCC3T8TFR-1BC1ZABYY 7450 PRO 3.84TB U.3 NVMe PCIe Gen4 SSD",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "TITLE_TEXT",
+      "expected_decision": "MATCH",
+      "critical_reason": "Exact requested MPN appears in title with matching product description.",
+      "provenance": "synthetic",
+      "is_authority_safety_probe": false
+    },
+    {
+      "case_id": "SMQ-0057",
+      "case_class": "base_mpn_only",
+      "target": {
+        "manufacturer_part_number": "MZ1L2960HCJR-00A07",
+        "description": "Samsung SSD PM9A3 960GB M.2 NVMe PCIe Gen4"
+      },
+      "candidate": {
+        "product_title": "Samsung PM9A3 960GB M.2 NVMe SSD MZ1L2960HCJR",
+        "manufacturer_part_number_text": "MZ1L2960HCJR",
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "TITLE_TEXT",
+      "expected_decision": "UNCERTAIN",
+      "critical_reason": "Base MPN matches but suffix -00A07 not established.",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SMQ-0058",
+      "case_class": "oem_revision_variant",
+      "target": {
+        "manufacturer_part_number": "MZ1L2960HCJR-00A07",
+        "description": "Samsung SSD PM9A3 960GB M.2 NVMe PCIe Gen4"
+      },
+      "candidate": {
+        "product_title": "Samsung MZ1L2960HCJR-00A06 PM9A3 960GB SSD",
+        "manufacturer_part_number_text": "MZ1L2960HCJR-00A06",
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "EXPLICIT_MPN_FIELD",
+      "expected_decision": "NO_MATCH",
+      "critical_reason": "Explicit conflicting MPN: -00A06 is not -00A07.",
+      "provenance": "synthetic",
+      "is_authority_safety_probe": true
+    },
+    {
+      "case_id": "SMQ-0059",
+      "case_class": "replacement_trap",
+      "target": {
+        "manufacturer_part_number": "MZ1L2960HCJR-00A07",
+        "description": "Samsung SSD PM9A3 960GB M.2 NVMe PCIe Gen4"
+      },
+      "candidate": {
+        "product_title": "SSD upgrade for MZ1L2960HCJR-00A07 - compatible replacement",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "TITLE_TEXT",
+      "expected_decision": "UNCERTAIN",
+      "critical_reason": "Upgrade/replacement wording indicates similar product but not necessarily identical MPN.",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SMQ-0060",
+      "case_class": "compatible_with_trap",
+      "target": {
+        "manufacturer_part_number": "MZ1L2960HCJR-00A07",
+        "description": "Samsung SSD PM9A3 960GB M.2 NVMe PCIe Gen4"
+      },
+      "candidate": {
+        "product_title": "M.2 NVMe SSD for Samsung MZ1L2960HCJR-00A07 compatible replacement",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "TITLE_TEXT",
+      "expected_decision": "NO_MATCH",
+      "critical_reason": "Compatible-with wording means this is a different product, not the exact part.",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SMQ-0061",
+      "case_class": "title_exact_mpn",
+      "target": {
+        "manufacturer_part_number": "MZ1L2960HCJR-00A07",
+        "description": "Samsung SSD PM9A3 960GB M.2 NVMe PCIe Gen4"
+      },
+      "candidate": {
+        "product_title": "Samsung PM9A3 960GB M.2 NVMe SSD",
+        "manufacturer_part_number_text": "MZ1L2960HCJR-00A07",
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "EXPLICIT_MPN_FIELD",
+      "expected_decision": "MATCH",
+      "critical_reason": "Exact MPN in explicit field - authority safety probe for exact match.",
+      "provenance": "synthetic",
+      "is_authority_safety_probe": true
+    },
+    {
+      "case_id": "SMQ-0062",
+      "case_class": "title_exact_mpn",
+      "target": {
+        "manufacturer_part_number": "SYN-UNIT-789",
+        "description": "Synthetic Unit Module 789 Series"
+      },
+      "candidate": {
+        "product_title": "SYN UNIT 789 Module Complete System",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "TITLE_TEXT",
+      "expected_decision": "MATCH",
+      "critical_reason": "Target MPN SYN-UNIT-789 normalized appears in title. Title has spaces between segments (SYN UNIT 789) but normalizes to same key as target (SYNUNIT789). Product description matches.",
+      "provenance": "synthetic",
+      "notes": "Internal whitespace variation: title uses spaces where target uses hyphens. Normalization makes them equivalent.",
+      "source_url": null,
+      "extraction_method": null,
+      "is_authority_safety_probe": false
+    },
+    {
+      "case_id": "SMQ-0063",
+      "case_class": "title_exact_mpn",
+      "target": {
+        "manufacturer_part_number": "PK8071305072902",
+        "description": "Intel Xeon Gold 6430 processor"
+      },
+      "candidate": {
+        "product_title": "Intel PK8071305072902 Xeon Gold 6430 60MB Cache Processor",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "TITLE_TEXT",
+      "expected_decision": "MATCH",
+      "critical_reason": "Exact requested MPN PK8071305072902 appears in title with matching processor description.",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SMQ-0064",
+      "case_class": "title_exact_mpn",
+      "target": {
+        "manufacturer_part_number": "BCM957504-N425G",
+        "description": "Broadcom NetXtreme-E 10/25/40/50G Ethernet Adapter"
+      },
+      "candidate": {
+        "product_title": "Broadcom NetXtreme-E BCM957504-N425G 25GbE Adapter",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "description_or_specs": null
+      },
+      "candidate_evidence_source": "TITLE_TEXT",
+      "expected_decision": "MATCH",
+      "critical_reason": "Exact MPN in title with matching product description.",
+      "provenance": "synthetic"
+    }
+  ]
+}

@@ -184,6 +184,24 @@
         <h4>Contributing evidence ({{ bucket.count }})</h4>
         {% for assessment in bucket.assessments %}
           <div class="evidence-entry">
+            {% if assessment.seller_name %}
+              <p><strong>Vendor / Seller:</strong> {{ assessment.seller_name }}</p>
+            {% else %}
+              <p><strong>Vendor / Seller:</strong> Not identified</p>
+            {% endif %}
+            {% if assessment.normalized_price %}
+              <p><strong>Price:</strong> {{ assessment.currency_code }} {{ assessment.normalized_price }}</p>
+            {% endif %}
+            {% if assessment.condition %}
+              <p><strong>Condition:</strong> {{ assessment.condition }}</p>
+            {% endif %}
+            {% if assessment.product_title %}
+              <p><strong>Product title:</strong> {{ assessment.product_title }}</p>
+            {% endif %}
+            <p><strong>Identity basis:</strong>
+              <span>Evidence: {{ assessment.candidate_evidence_source }}</span> |
+              <span>Match type: {{ assessment.match_type }}</span>
+            </p>
             <p><strong>Source:</strong>
               {% if assessment.source_url_safe %}
                 <a href="{{ assessment.source_url }}">{{ assessment.source_url }}</a>
@@ -191,22 +209,12 @@
                 {{ assessment.source_url }}
               {% endif %}
             </p>
-            {% if assessment.product_title %}
-              <p><strong>Product title:</strong> {{ assessment.product_title }}</p>
+            {% if assessment.raw_candidate_mpn %}
+              <p><strong>Raw candidate MPN:</strong> {{ assessment.raw_candidate_mpn }}</p>
             {% endif %}
-            {% if assessment.seller_name %}
-              <p><strong>Seller:</strong> {{ assessment.seller_name }}</p>
+            {% if assessment.compared_candidate_mpn %}
+              <p><strong>Compared candidate MPN:</strong> {{ assessment.compared_candidate_mpn }}</p>
             {% endif %}
-            {% if assessment.normalized_price %}
-              <p><strong>Normalized price:</strong> {{ assessment.currency_code }} {{ assessment.normalized_price }}</p>
-            {% endif %}
-            {% if assessment.condition %}
-              <p><strong>Condition:</strong> {{ assessment.condition }}</p>
-            {% endif %}
-            <p><strong>Evidence source:</strong> {{ assessment.candidate_evidence_source }}</p>
-            <p><strong>Raw candidate MPN:</strong> {{ assessment.raw_candidate_mpn }}</p>
-            <p><strong>Compared candidate MPN:</strong> {{ assessment.compared_candidate_mpn }}</p>
-            <p><strong>Match type:</strong> {{ assessment.match_type }}</p>
             {% if assessment.raw_price_text %}
               <p><strong>Raw price text:</strong> {{ assessment.raw_price_text }}</p>
             {% endif %}

@@ -1,33 +1,54 @@
 # Product Intelligence — Current Status
 
-## Completed phase
+## Current state
 
-**PRODUCT-INTEL.4C-B — Research Execution Orchestration** (frozen).
+**PRODUCT-INTEL.PILOT-UX — Corrective review in progress.**
 
-Implementation complete. This phase is now frozen and must not be modified
-unless explicitly required by a corrective follow-up.
+This phase is under corrective review. The previous implementation contained
+correctness defects in the semantic evaluator and corpus. A corrective pass
+is addressing:
+
+1. **Evaluator mathematics fixed**: DecisionMetrics.accuracy no longer
+   double-counts TN values. Perfect prediction yields accuracy = 1.0.
+2. **Invalid/missing output handling**: Missing responses are NOT counted as
+   NO_MATCH predictions. They reduce valid_output_rate but don't affect
+   confusion matrix or accuracy.
+3. **Safety cost semantics corrected**: False MATCH now correctly increases
+   safety_cost (cost = 10), not decreases it.
+4. **Per-class metrics implemented**: All SemanticCaseClass values now have
+   proper metrics, not just TITLE_EXACT_MPN.
+5. **Corpus corrected**:
+   - SMQ-0001 now uses TITLE_TEXT evidence (not EXPLICIT_MPN_FIELD)
+   - SMQ-0004 is now the explicit conflict safety case with EXPLICIT_MPN_FIELD
+   - SMQ-0200-0203 filler cases removed
+   - New MATCH cases added to meet distribution requirements
+6. **Raw-output strict parser implemented**: Parses raw model output with
+   strict rules (no prose, no markdown fences, no arrays).
+7. **Versioned prompt template implemented**: Shared, model-independent prompt
+   with SEMANTIC_PROMPT_VERSION = "1.0".
+8. **Export/import workflow implemented**: corpus_to_jsonl and
+   import_results_from_jsonl functions.
+
+**No production LLM matcher exists.** Semantic qualification harness is
+a candidate, but no model has been evaluated yet.
+
+## Project facts (already delivered outside repo)
+
+- FoxPro launcher: Manually integrated outside repository. Client code
+  maintained in the existing Visual FoxPro sales-order application.
+  Server-side GET prefill contract is implemented. Localhost UAT passed.
+- 4C-B-FU corrective: Exact structural duplicate ListingObservation
+  deduplication implemented in `execution/orchestration._deduplicate_exact_observations`.
 
 ## Next delivery priority
 
-**PRODUCT-INTEL.4C-C — Web Execution/Retry Integration** (corrective review).
+**PRODUCT-INTEL.PILOT-UX — Corrective review completion.**
 
-Web layer wiring is implemented but pending final review. The web layer
-synchronously triggers research execution via the public `execute_research_run`
-API. POST creates a run, executes synchronously, and redirects to the report.
-Execution failures transition the run to FAILED. Retry button creates a new
-run and re-executes.
+After corrective pass is reviewed:
+- Semantic qualification harness validated
+- Human checkbox selection design recorded for future implementation
 
-**PRODUCT-INTEL.5B — FoxPro Launcher** (pending manual insertion + UAT).
-
-Server-side GET prefill contract is implemented. The FoxPro client code
-will be written manually outside this repository by the project lead.
-
-**Customer Pilot v0.1: NOT YET DELIVERED.**
-
-Remaining gates:
-- 4C-C final review
-- FoxPro manual integration (outside this repo)
-- One explicit live smoke test
+**PRODUCT-INTEL.5B — FoxPro Launcher** (client pending outside repo).
 
 ## Phase ownership
 
@@ -35,9 +56,11 @@ Remaining gates:
 | --- | --- | --- |
 | 4C-A | Execution ownership/lifecycle/evidence primitives | Implemented (frozen) |
 | 4C-B | Backend research execution | Implemented (frozen) |
-| 4C-C | Web execution/retry integration | **Implementation candidate** |
+| 4C-B-FU | Exact duplicate deduplication | Implemented (frozen) |
+| 4C-C | Web execution/retry integration | **Implemented (frozen)** |
 | 5A | Structured external API | Not implemented |
 | 5B | FoxPro launcher | Server-side implemented; client pending |
+| PILOT-UX | Pilot UX polish + semantic qualification | **Corrective review** |
 | SAP | SAP launcher integration | Future |
 
 ## Implementation snapshot
@@ -46,6 +69,9 @@ Remaining gates:
 | --- | --- | --- |
 | Domain contracts + vocabularies | `domain/` | Implemented |
 | Evaluation corpus + loader | `evaluation/` | Implemented |
+| Semantic match corpus + evaluator | `evaluation/semantic/` | **Corrective review** |
+| Semantic match prompt template | `evaluation/semantic/prompt.py` | **Implemented** |
+| Semantic match export/import | `evaluation/semantic/` | **Implemented** |
 | Persisted run lifecycle | `runs/` | Implemented (ResearchRun) |
 | Execution evidence model | `runs/` | Implemented (ExecutionEvidenceRecord) |
 | Execution claim service | `runs/` | Implemented (claim_execution) |
@@ -63,8 +89,9 @@ Remaining gates:
 | Versioned codec | `research/price_result_codec.py` | Implemented |
 | Price report presentation | `web/presentation.py` | Implemented |
 | Research orchestration | `execution/` | **Implemented (frozen)** |
-| Web execution wiring | `web/` | **4C-C implementation candidate** |
+| Web execution wiring | `web/` | **Implemented (frozen)** |
 | Structured API | — | 5A (not implemented) |
+| FoxPro launcher | — | Server-side implemented; client pending |
 | SAP launcher | — | Future |
 
 ## Web layer architecture
@@ -101,16 +128,25 @@ Run:
 ```bash
 python -m pytest tests/web -q
 python -m pytest tests/execution -q
+python -m pytest tests/evaluation/semantic -q
 python manage.py check
 python manage.py makemigrations --check --dry-run
 ```
 
-Full suite and architecture guard results will be reported after corrective
-pass completes.
+Note: Two subprocess-based tests in `tests/research/` fail on Windows with
+Python 3.14 due to a known `os.duplicatehandle` issue. This is a platform/version
+problem, not a code defect.
+
+## Next delivery priority
+
+**PRODUCT-INTEL.PILOT-UX — Corrective review completion.**
+
+After corrective pass:
+- Human checkbox selection design recorded for future implementation after
+  semantic qualification harness is trustworthy
 
 ## Known issues / debt
 
-- 4C-B-FU corrective: exact structural duplicate ListingObservation deduplication — IMPLEMENTED. Real UAT defect: a page publishing five identical Product/Offer nodes caused AGGREGATE FAILED with ValueError from 4A's `_refuse_duplicate_assessments`. Fix: deduplicate exact structural duplicates at extraction boundary before normalization/matching, in `execution/orchestration._deduplicate_exact_observations`. 4A is unchanged.
-- 4C-C corrective review pending
-- FoxPro client integration pending (maintained outside repo)
-- Customer Pilot v0.1 delivery pending final review + smoke test
+- Semantic match qualification: harness candidate implemented; no model results yet
+- Human checkbox selection for user-curated summary: design recorded for future
+  implementation after semantic qualification harness is trustworthy
