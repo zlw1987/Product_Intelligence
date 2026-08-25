@@ -38,12 +38,39 @@
   {% endif %}
 </dl>
 
-{% if run.state == "CREATED" %}
+{% if start_error %}
+  <p class="notice error">
+    Research could not be started because the server is not ready to execute
+    this request. Please try again later or contact support.
+  </p>
+{% elif retry_error %}
+  <p class="notice error">
+    Research could not be restarted. Please try again later or contact support.
+  </p>
+{% elif run.state == "CREATED" %}
   <p class="notice">
     Research request created.
-    <strong>Research execution is not yet connected.</strong>
-    Nothing is in progress. This request will not run automatically.
+    Research has not started.
   </p>
+{% endif %}
+
+{% if run.state == "RUNNING" %}
+  <p class="notice">
+    Research is currently running.
+    Please wait while the market research is performed.
+  </p>
+{% endif %}
+
+{% if run.state == "FAILED" %}
+  <p class="notice">
+    Research did not complete successfully.
+    No verified result was published.
+    You may retry the research.
+  </p>
+  <form method="post" action="{% url 'research-retry' run_id=run.id %}">
+    {% csrf_token %}
+    <button type="submit">Retry Research</button>
+  </form>
 {% endif %}
 
 <h2>Price intelligence</h2>

@@ -2,95 +2,43 @@
 
 ## Completed phase
 
-**PRODUCT-INTEL.4C-B — Complete PRICE MVP Backend Research Execution** (2026-08-24).
+**PRODUCT-INTEL.4C-B — Research Execution Orchestration** (frozen).
 
-Implementation complete and tested with 59 execution tests.
+Implementation complete. This phase is now frozen and must not be modified
+unless explicitly required by a corrective follow-up.
 
-Phase 4C-B connects the lifecycle primitives of 4C-A to the research
-primitives (search, fetch, extract, normalize, match, aggregate) to
-orchestrate actual research execution:
+## Next delivery priority
 
-* **Execution orchestration** — `product_intelligence/execution/orchestration.py`
-  coordinates the complete research pipeline from `ResearchRequest` through
-  `claim_execution` → `search` → `fetch` → `extract` → `normalize` → `match` →
-  `aggregate` → `snapshot` → terminal state.
+**PRODUCT-INTEL.4C-C — Web Execution/Retry Integration** (corrective review).
 
-* **One paid search call maximum** — enforced by `claim_execution` (4C-A).
+Web layer wiring is implemented but pending final review. The web layer
+synchronously triggers research execution via the public `execute_research_run`
+API. POST creates a run, executes synchronously, and redirects to the report.
+Execution failures transition the run to FAILED. Retry button creates a new
+run and re-executes.
 
-* **Execution evidence persistence** — `ExecutionEvidenceWriter` provides
-  strict API for recording attempts at each stage with contiguous attempt
-  numbers starting at 1.
+**PRODUCT-INTEL.5B — FoxPro Launcher** (pending manual insertion + UAT).
 
-* **Candidate-level failure resilience** — fetch/extract failures for one
-  URL do NOT fail the whole run; orchestration continues to later candidates.
+Server-side GET prefill contract is implemented. The FoxPro client code
+will be written manually outside this repository by the project lead.
 
-* **URL deduplication** — deterministic first-occurrence-wins exact URL
-  deduplication prevents duplicate fetches.
+**Customer Pilot v0.1: NOT YET DELIVERED.**
 
-* **Safe URL validation** — before fetch, URLs are validated for:
-  * Absolute http(s)://
-  * Non-empty hostname
-  * No embedded credentials
+Remaining gates:
+- 4C-C final review
+- FoxPro manual integration (outside this repo)
+- One explicit live smoke test
 
-* **Zero-results support** — empty search results complete the run with
-  UNKNOWN verification status.
-
-* **Snapshot persistence** — final price result encoded via 4B codec and
-  stored in `PriceIntelligenceSnapshot`, with request provenance validation.
-
-* **Real contract usage** — Uses actual `FetchedPage` contract (`body_text`,
-  `requested_url`, `final_url`) rather than invented contracts.
-
-* **Redirect provenance** — When a URL redirects, FETCH evidence records the
-  requested candidate URL, while extracted `ListingObservation.source_url`
-  preserves the actual `final_url` after redirects.
-
-* **Controlled detail codes** — All execution evidence detail codes use the
-  frozen 4C-A vocabulary; arbitrary strings are rejected.
-
-* **Atomic final publication** — Final snapshot + state transition wrapped
-  in database transaction to ensure snapshot exists ↔ run is COMPLETED,
-  never snapshot exists + RUNNING or FAILED.
-
-* **Fetch statistics** — `fetch_success_count` correctly counts successful
-  PageFetcher calls regardless of extraction results.
-
-## Next delivery priority: Customer Pilot v0.1
-
-The first customer pilot combines:
-
-- **4C-B backend engine** (already implemented) — full research pipeline
-- **4C-C minimum web wiring** — execute button, loading UI, polling for status
-- **5B FoxPro launcher** — legacy intake from FoxPro product/order context
-
-**Goal:** From a FoxPro product/order context, the user can launch the browser
-with MPN + description prefilled, explicitly start market research, and view
-the result.
-
-**NOT required for pilot:**
-- 5A structured API (standalone web form is sufficient for first pilot)
-- SAP launcher (future phase)
-- Comparable-product intelligence (future phase)
-
-### Phase ownership
+## Phase ownership
 
 | Phase | Description | Status |
 | --- | --- | --- |
-| 4C-A | Execution ownership/lifecycle/evidence primitives | Implemented |
-| 4C-B | Backend research execution | Implemented |
-| 4C-C | Web execution/retry integration | Not implemented |
+| 4C-A | Execution ownership/lifecycle/evidence primitives | Implemented (frozen) |
+| 4C-B | Backend research execution | Implemented (frozen) |
+| 4C-C | Web execution/retry integration | **Implementation candidate** |
 | 5A | Structured external API | Not implemented |
-| 5B | FoxPro launcher | Not implemented (pilot scope) |
+| 5B | FoxPro launcher | Server-side implemented; client pending |
 | SAP | SAP launcher integration | Future |
-
-## Validation results
-
-* Focused execution tests: **59 passed**
-* Full suite: 59 passed + 7 subprocess-boundary failures (Windows/Python 3.14
-  infrastructure, not code defects)
-* `python manage.py check` — 0 issues
-* `python manage.py makemigrations --check --dry-run` — no changes detected
-* Architecture guard tests enforce layer boundaries
 
 ## Implementation snapshot
 
@@ -104,7 +52,7 @@ the result.
 | Execution completion service | `runs/` | Implemented (complete_execution) |
 | Retry service | `runs/` | Implemented (retry_run) |
 | Price intelligence snapshot | `runs/` | Implemented (PriceIntelligenceSnapshot) |
-| Standalone web shell | `web/` | Implemented (form + report) |
+| Standalone web shell | `web/` | Implemented |
 | Part-number comparison | `research/identity` | Implemented |
 | Search provider boundary | `providers/search.py` | Implemented |
 | Serper adapter | `providers/serper.py` | Implemented |
@@ -114,6 +62,55 @@ the result.
 | Price aggregation | `research/aggregation.py` | Implemented |
 | Versioned codec | `research/price_result_codec.py` | Implemented |
 | Price report presentation | `web/presentation.py` | Implemented |
-| Research orchestration | `execution/` | **4C-B complete** |
-| Web execution wiring | `web/` | 4C-C (not implemented) |
-| FoxPro/SAP launcher | — | 5B/Future (not implemented) |
+| Research orchestration | `execution/` | **Implemented (frozen)** |
+| Web execution wiring | `web/` | **4C-C implementation candidate** |
+| Structured API | — | 5A (not implemented) |
+| SAP launcher | — | Future |
+
+## Web layer architecture
+
+The web layer may import only the public execution API:
+
+```
+web  ->  product_intelligence.execution  (execute_research_run, ExecutionError)
+web  ->  product_intelligence.runs  (ClaimExecutionFailed, retry_run, ResearchRun)
+```
+
+The web layer MUST NOT import:
+- `product_intelligence.execution.orchestration` (or any execution submodule)
+- `product_intelligence.execution` (bare module import)
+- `product_intelligence.providers` (or any provider submodule)
+- `product_intelligence.runs.execution_claims` (internal)
+
+## FoxPro ownership
+
+FoxPro source code is NOT maintained in this repository. This repository
+owns only the launcher-facing HTTP intake contract:
+
+```
+GET /research/new?mpn=<encoded>&description=<encoded>
+```
+
+The project lead maintains the FoxPro client code manually in the existing
+Visual FoxPro sales-order application.
+
+## Validation results
+
+Run:
+
+```bash
+python -m pytest tests/web -q
+python -m pytest tests/execution -q
+python manage.py check
+python manage.py makemigrations --check --dry-run
+```
+
+Full suite and architecture guard results will be reported after corrective
+pass completes.
+
+## Known issues / debt
+
+- 4C-B-FU corrective: exact structural duplicate ListingObservation deduplication — IMPLEMENTED. Real UAT defect: a page publishing five identical Product/Offer nodes caused AGGREGATE FAILED with ValueError from 4A's `_refuse_duplicate_assessments`. Fix: deduplicate exact structural duplicates at extraction boundary before normalization/matching, in `execution/orchestration._deduplicate_exact_observations`. 4A is unchanged.
+- 4C-C corrective review pending
+- FoxPro client integration pending (maintained outside repo)
+- Customer Pilot v0.1 delivery pending final review + smoke test

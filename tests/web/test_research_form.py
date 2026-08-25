@@ -1,4 +1,4 @@
-"""The standalone intake form (PRODUCT-INTEL.1B).
+"""The standalone intake form (PRODUCT-INTEL.1B, 4C-C).
 
 The form's whole job is translation: raw strings in, a canonical
 `ResearchRequest` out, or a readable error. These tests therefore check what it
@@ -8,6 +8,8 @@ silently owning a policy that belongs to the domain.
 """
 
 from __future__ import annotations
+
+from unittest import mock
 
 from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
@@ -133,10 +135,10 @@ class FormPageTests(TestCase):
         self.assertIn('name="manufacturer_part_number"', html)
         self.assertIn('name="description"', html)
 
-    def test_the_page_states_that_research_is_not_connected(self) -> None:
+    def test_the_page_states_that_research_will_execute_on_submit(self) -> None:
         response = self.client.get(reverse("research-new"))
 
-        self.assertContains(response, "not connected yet")
+        self.assertContains(response, "Run Market Research")
 
     def test_a_get_never_creates_a_run_even_with_query_parameters(self) -> None:
         """The launcher entry point is 5B. A GET is a form display, full stop."""
@@ -171,3 +173,82 @@ class FormPageTests(TestCase):
         response = self.client.get(reverse("research-new"))
 
         self.assertContains(response, "csrfmiddlewaretoken")
+
+
+class FormExecutionIntegrationTests(TestCase):
+    """POST form submission triggers execution (4C-C)."""
+
+    def test_valid_submission_calls_execute_once(self) -> None:
+        """A valid POST creates a run and calls execute_research_run once."""
+        with mock.patch(
+            "product_intelligence.web.views.execute_research_run",
+            return_value=None,
+        ) as mock_exec:
+            self.client.post(
+                reverse("research-new"),
+                {
+                    "manufacturer_part_number": "ABC1234-A",
+                    "description": "24 port managed switch",
+                },
+            )
+
+        self.assertEqual(mock_exec.call_count, 1)
+        run = ResearchRun.objects.get()
+        mock_exec.assert_called_once_with(str(run.id))
+
+    def test_valid_submission_creates_one_run(self) -> None:
+        """A valid POST creates exactly one run."""
+        with mock.patch(
+            "product_intelligence.web.views.execute_research_run",
+            return_value=None,
+        ):
+            self.client.post(
+                reverse("research-new"),
+                {
+                    "manufacturer_part_number": "ABC1234-A",
+                    "description": "",
+                },
+            )
+
+        self.assertEqual(ResearchRun.objects.count(), 1)
+
+    def test_invalid_submission_calls_execute_zero_times(self) -> None:
+        """An invalid POST creates no run and calls execute zero times."""
+        with mock.patch(
+            "product_intelligence.web.views.execute_research_run",
+            return_value=None,
+        ) as mock_exec:
+            self.client.post(
+                reverse("research-new"),
+                {
+                    "manufacturer_part_number": "",
+                    "description": "",
+                },
+            )
+
+        self.assertEqual(ResearchRun.objects.count(), 0)
+        mock_exec.assert_not_called()
+
+    def test_execution_error_still_creates_run_and_redirects(self) -> None:
+        """When execute_research_run raises ExecutionError, run is created and
+        user is redirected to the report (actual terminalization is handled by
+        the real executor, not by this mock)."""
+        from product_intelligence.execution import ExecutionError
+
+        with mock.patch(
+            "product_intelligence.web.views.execute_research_run",
+            side_effect=ExecutionError("search failed"),
+        ):
+            response = self.client.post(
+                reverse("research-new"),
+                {
+                    "manufacturer_part_number": "ABC1234-A",
+                    "description": "",
+                },
+            )
+
+        # Run is created (CREATED state - the mock does not terminalize it)
+        self.assertEqual(ResearchRun.objects.count(), 1)
+        # We redirect to the report so the user can see the current state
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("research", response["Location"])

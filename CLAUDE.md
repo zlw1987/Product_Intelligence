@@ -104,6 +104,48 @@ rules for each implemented phase:
 Do not violate these rules. If a phase seems to require something that
 contradicts a frozen contract, say so and ask — do not just change it.
 
+## Layer boundaries (binding)
+
+### Dependency direction
+
+```
+domain
+    independent
+
+research
+    deterministic / Django-independent
+
+providers
+    external I/O adapters/contracts
+
+runs
+    lifecycle and persistence
+
+execution  <-  domain, research, providers, runs
+    orchestration
+
+web  <-  domain, runs, execution (public API only)
+    presentation/composition
+```
+
+### Web layer imports (4C-C)
+
+**Allowed:**
+- `from product_intelligence.execution import execute_research_run, ExecutionError`
+- `from product_intelligence.runs import ClaimExecutionFailed, retry_run`
+
+**Rejected:**
+- `import product_intelligence.execution` (use explicit imports instead)
+- `from product_intelligence.execution.orchestration import ...`
+- `from product_intelligence.providers import ...`
+- `from product_intelligence.research.identity import ...`
+- `from product_intelligence.runs.execution_claims import ...` (use `product_intelligence.runs` instead)
+
+Web may call only the public execution API, never internal orchestration
+primitives or provider implementations. This enforces caller-independence
+and prevents the web layer from bypassing the provider boundary or
+research primitives.
+
 ## Evidence-first behavior
 
 Every reported price or product fact traces to preserved evidence: source, URL,

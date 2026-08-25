@@ -2,9 +2,7 @@
 
 The dependency arrow points one way. The web layer is allowed to know about
 transports, callers, forms, and HTML; the domain, the research core, and the
-persistence layer are not allowed to know the web layer exists. A view imported
-by a model is how a "quick fix" turns a caller-independent core into a
-web application.
+persistence layer are not allowed to know the web layer exists.
 
 Two further things this phase must not have quietly acquired: all Django
 models remain in `runs/` (including `PriceIntelligenceSnapshot`, added in 4B),
@@ -55,6 +53,11 @@ ALLOWED_RESEARCH_IMPORTS: dict[str, set[str]] = {
     "product_intelligence.research.matching": {
         "ListingIdentityAssessment",
     },
+}
+
+ALLOWED_EXECUTION_IMPORTS: set[str] = {
+    "execute_research_run",
+    "ExecutionError",
 }
 
 
@@ -109,6 +112,48 @@ def _research_import_violation(source: str) -> str | None:
     return None
 
 
+def _execution_import_violation(source: str) -> str | None:
+    """Return a violation message if *source* imports from execution/
+    in an unauthorized way, or None if it passes.
+
+    Web layer may import only the public API: execute_research_run, ExecutionError.
+    """
+    tree = ast.parse(source)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name == "product_intelligence.execution":
+                    return (
+                        "'import product_intelligence.execution' is not permitted; "
+                        "use 'from product_intelligence.execution import ...' with approved symbols."
+                    )
+                if alias.name.startswith("product_intelligence.execution."):
+                    return (
+                        f"'import {alias.name}' (execution submodule) is not permitted."
+                    )
+        elif isinstance(node, ast.ImportFrom):
+            if not node.module or node.level:
+                continue
+            if not node.module.startswith("product_intelligence.execution"):
+                continue
+            # Package-level import (via __init__) is not permitted.
+            if node.module == "product_intelligence.execution":
+                imported_names = {alias.name for alias in node.names}
+                excess = imported_names - ALLOWED_EXECUTION_IMPORTS
+                if excess:
+                    return (
+                        f"imports from product_intelligence.execution include unapproved symbols "
+                        f"{sorted(excess)}; allowed: {sorted(ALLOWED_EXECUTION_IMPORTS)}."
+                    )
+            # Submodule imports are forbidden
+            else:
+                return (
+                    f"import from {node.module} is not permitted; "
+                    "web layer may only import from the public execution API."
+                )
+    return None
+
+
 def _imported_modules(path: Path) -> set[str]:
     """Every dotted module name imported by a file, absolute imports only."""
     modules: set[str] = set()
@@ -119,6 +164,10 @@ def _imported_modules(path: Path) -> set[str]:
             modules.add(node.module)
     return modules
 
+
+# ---------------------------------------------------------------------------
+# Real-file guards (enforced via parametrization)
+# ---------------------------------------------------------------------------
 
 def test_web_package_has_source_files_to_check() -> None:
     """Guard against the scans below silently passing on an empty set."""
@@ -167,7 +216,7 @@ def test_the_web_layer_defines_no_model() -> None:
 
 
 @pytest.mark.parametrize("path", _python_files(WEB_ROOT), ids=lambda p: p.name)
-def test_the_web_layer_names_no_external_vendor(path: Path) -> None:
+def test_web_names_no_external_vendor(path: Path) -> None:
     found = _find_tokens(path.read_text(encoding="utf-8"), VENDOR_TOKENS)
 
     assert not found, f"{path.name} references external vendors {found}"
@@ -196,7 +245,7 @@ def test_web_uses_only_read_side_research_apis(path: Path) -> None:
 
 
 @pytest.mark.parametrize("path", _python_files(WEB_ROOT), ids=lambda p: p.name)
-def test_the_web_layer_pulls_in_no_provider_or_research_capability(path: Path) -> None:
+def test_web_pulls_in_no_provider_or_research_capability(path: Path) -> None:
     """The web shell performs no network access (1B) and does not bypass the
     provider boundary (4B).
 
@@ -218,16 +267,24 @@ def test_the_web_layer_pulls_in_no_provider_or_research_capability(path: Path) -
     ), f"{path.name} imports a provider; web must not import providers."
 
 
-def test_the_web_layer_does_not_transition_a_run() -> None:
+@pytest.mark.parametrize("path", _python_files(WEB_ROOT), ids=lambda p: p.name)
+def test_web_does_not_transition_a_run(path: Path) -> None:
     """Nothing in the shell moves a run out of CREATED, because nothing can.
 
     A lexical check on purpose: the point is that the *name* does not appear.
     The flow tests prove the behaviour; this makes an accidental "just mark it
     running" fail loudly rather than quietly become a fake progress indicator.
     """
-    for path in _python_files(WEB_ROOT):
-        source = path.read_text(encoding="utf-8")
-        assert "transition_to(" not in source, path
+    source = path.read_text(encoding="utf-8")
+    assert "transition_to(" not in source, path
+
+
+@pytest.mark.parametrize("path", _python_files(WEB_ROOT), ids=lambda p: p.name)
+def test_execution_import_violation(path: Path) -> None:
+    """Web layer may import only execute_research_run and ExecutionError from execution."""
+    source = path.read_text(encoding="utf-8")
+    violation = _execution_import_violation(source)
+    assert violation is None, f"{path.name}: {violation}"
 
 
 # ---------------------------------------------------------------------------
@@ -270,3 +327,142 @@ from product_intelligence.research.aggregation import PriceAggregationResult
 from product_intelligence.research.matching import ListingIdentityAssessment
 """
     assert _research_import_violation(source) is None
+
+
+# ---------------------------------------------------------------------------
+# Execution API guards
+# ---------------------------------------------------------------------------
+
+
+def test_guard_allows_execution_api_import() -> None:
+    """Web layer may import execute_research_run and ExecutionError."""
+    source = """\
+from product_intelligence.execution import (
+    execute_research_run,
+    ExecutionError,
+)
+"""
+    assert _execution_import_violation(source) is None
+
+
+def test_guard_rejects_execution_submodule_import() -> None:
+    """Web layer may not import execution internals."""
+    source = "from product_intelligence.execution.orchestration import something"
+    assert _execution_import_violation(source) is not None
+
+
+def test_guard_rejects_execution_package_import() -> None:
+    """Web layer may not 'import product_intelligence.execution'."""
+    source = "import product_intelligence.execution"
+    assert _execution_import_violation(source) is not None
+
+
+def test_guard_rejects_execution_result_import() -> None:
+    """Web layer may not import ExecutionResult (not needed by web)."""
+    source = "from product_intelligence.execution import ExecutionResult"
+    assert _execution_import_violation(source) is not None
+
+
+def test_guard_rejects_provider_import() -> None:
+    """Web layer may not import providers."""
+    source = "from product_intelligence.providers.serper import SerperSearchProvider"
+    tree = ast.parse(source)
+    modules = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module:
+            modules.add(node.module)
+    assert any(m.startswith("product_intelligence.providers") for m in modules)
+
+
+# ---------------------------------------------------------------------------
+# Runs import guard (4C-C)
+# ---------------------------------------------------------------------------
+
+# Web layer is allowed to import:
+#   from product_intelligence.runs import <public symbols>
+# But MUST NOT import any runs/ submodules directly:
+#   from product_intelligence.runs.<submodule> import ...
+# (except models -- but only through the public package, not directly)
+
+ALLOWED_RUNS_SUBMODULES: frozenset[str] = frozenset()  # none - all submodule imports forbidden
+
+FORBIDDEN_RUNS_SUBMODULE_PATTERN = "product_intelligence.runs."
+
+
+def _runs_import_violation(source: str) -> str | None:
+    """Check if source imports runs submodules that web layer may not use.
+
+    Web layer may import from 'product_intelligence.runs' (the package, via its
+    public __init__ lazy-loading API), but MUST NOT import directly from any
+    runs/ submodule other than models.py for the existing approved read/persistence
+    symbols.
+
+    Allowed direct imports from runs.models:
+      ResearchRun, PriceIntelligenceSnapshot (for exception catching via .DoesNotExist)
+
+    Forbidden: from product_intelligence.runs.execution_claims import ...
+               from product_intelligence.runs.errors import ...
+               any other runs.internal submodule
+    """
+    tree = ast.parse(source)
+    ALLOWED_MODELS_IMPORTS = frozenset({"ResearchRun", "PriceIntelligenceSnapshot"})
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            if not node.module or node.level:
+                continue
+            if node.module == "product_intelligence.runs.models":
+                # Direct from runs.models - only allow specific approved symbols
+                imported = {alias.name for alias in node.names}
+                excess = imported - ALLOWED_MODELS_IMPORTS
+                if excess:
+                    return (
+                        f"imports from product_intelligence.runs.models include "
+                        f"unapproved symbols {sorted(excess)}; allowed: "
+                        f"{sorted(ALLOWED_MODELS_IMPORTS)}."
+                    )
+            elif node.module.startswith(FORBIDDEN_RUNS_SUBMODULE_PATTERN):
+                # Any other runs.submodule import is forbidden
+                return (
+                    f"imports from {node.module!r} which is a runs internal "
+                    "submodule; web layer must use the product_intelligence.runs "
+                    "public package API instead."
+                )
+    return None
+
+
+@pytest.mark.parametrize("path", _python_files(WEB_ROOT), ids=lambda p: p.name)
+def test_web_runs_import_guard(path: Path) -> None:
+    """Web layer may import product_intelligence.runs but not its internals."""
+    source = path.read_text(encoding="utf-8")
+    violation = _runs_import_violation(source)
+    assert violation is None, f"{path.name}: {violation}"
+
+
+def test_guard_rejects_runs_execution_claims_import() -> None:
+    """Web layer may not import product_intelligence.runs.execution_claims directly."""
+    source = "from product_intelligence.runs.execution_claims import retry_run"
+    assert _runs_import_violation(source) is not None
+
+
+def test_guard_rejects_runs_models_with_unapproved_symbols() -> None:
+    """Web layer may not import unapproved symbols from product_intelligence.runs.models."""
+    source = "from product_intelligence.runs.models import ExecutionEvidenceRecord"
+    assert _runs_import_violation(source) is not None
+
+
+def test_guard_allows_runs_models_approved_symbols() -> None:
+    """Web layer may import ResearchRun and PriceIntelligenceSnapshot from runs.models."""
+    source = "from product_intelligence.runs.models import ResearchRun, PriceIntelligenceSnapshot"
+    assert _runs_import_violation(source) is None
+
+
+def test_guard_allows_runs_public_package_import() -> None:
+    """Web layer may import from product_intelligence.runs public API."""
+    source = """\
+from product_intelligence.runs import (
+    ClaimExecutionFailed,
+    retry_run,
+    ResearchRun,
+)
+"""
+    assert _runs_import_violation(source) is None

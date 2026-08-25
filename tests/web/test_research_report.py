@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone as datetime_timezone
+from unittest import mock
 
 from django.test import TestCase
 from django.urls import reverse
@@ -93,11 +94,11 @@ class ReportContentTests(TestCase):
 
         self.assertContains(response, "Not supplied")
 
-    def test_the_page_says_research_execution_is_not_connected(self) -> None:
+    def test_the_page_shows_research_has_not_started(self) -> None:
         response = self.client.get(detail_url(create_run()))
 
         self.assertContains(response, "Research request created.")
-        self.assertContains(response, "not yet connected")
+        self.assertContains(response, "Research has not started.")
 
     def test_the_page_shows_no_fabricated_result(self) -> None:
         """No placeholder price and no empty-value filler.
@@ -184,13 +185,22 @@ class EscapingTests(TestCase):
         self.assertIn("2U rail kit", html)
 
     def test_markup_submitted_through_the_form_is_escaped_end_to_end(self) -> None:
-        self.client.post(
-            reverse("research-new"),
-            {
-                "manufacturer_part_number": "<b>ABC1234-A</b>",
-                "description": "</dd><script>alert(1)</script>",
-            },
-        )
+        """Escaping test: verify HTML in submitted form fields is escaped.
+
+        This is a view-behavior test (escaping), not an execution test.
+        execute_research_run is patched so we only test the escape behavior.
+        """
+        with mock.patch(
+            "product_intelligence.web.views.execute_research_run",
+            return_value=None,
+        ):
+            self.client.post(
+                reverse("research-new"),
+                {
+                    "manufacturer_part_number": "<b>ABC1234-A</b>",
+                    "description": "</dd><script>alert(1)</script>",
+                },
+            )
         run = ResearchRun.objects.get()
 
         html = self.client.get(detail_url(run)).content.decode()

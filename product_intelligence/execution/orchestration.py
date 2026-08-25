@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 from django.db import transaction
@@ -36,6 +37,7 @@ from product_intelligence.execution.aggregation import aggregate_prices
 from product_intelligence.execution.deduplication import CandidateDeduplicator
 from product_intelligence.execution.evidence_writer import ExecutionEvidenceWriter
 from product_intelligence.execution import matching as _matching
+from product_intelligence.research.listings import ListingObservation
 from product_intelligence.execution.normalization import normalize_listings
 from product_intelligence.execution.search_query import build_search_query
 from product_intelligence.providers.http_page import HttpPageFetcher
@@ -252,7 +254,7 @@ def _execute_claimed_run(
         fetch_success_count += 1
 
         # Extract listing observations
-        listings = []
+        listings: list = []
         from product_intelligence.research.extraction import (
             extract_listing_observations,
         )
@@ -274,8 +276,17 @@ def _execute_claimed_run(
             )
             continue
 
+        # Deduplicate exact structural duplicates BEFORE normalization/matching.
+        # A real page may publish the exact same Product/Offer node multiple
+        # times in its structured data (HTML/structured-data duplication).
+        # Passing exact duplicates through normalize->match->aggregate produces
+        # duplicate ListingIdentityAssessment values which 4A correctly rejects.
+        # Stable first-occurrence wins; distinct observations from same page are
+        # preserved.
+        unique_listings = _deduplicate_exact_observations(listings)
+
         # Record extract outcome OUTSIDE the primitive try
-        if not listings:
+        if not unique_listings:
             evidence_writer.append_execution_attempt(
                 stage=ExecutionStage.EXTRACT,
                 outcome=ExecutionOutcome.EMPTY,
@@ -289,12 +300,12 @@ def _execute_claimed_run(
                 candidate_url=url,
                 detail_code=ExecutionDetailCode.OK,
             )
-            extract_observation_count += len(listings)
+            extract_observation_count += len(unique_listings)
 
-        # Normalize listings
+        # Normalize listings (use deduplicated list)
         try:
             normalized_listings, norm_codes = normalize_listings(
-                listings, evidence_writer, url
+                unique_listings, evidence_writer, url
             )
         except Exception as exc:
             logger.error("Normalize failed for run %s: %s", claimed_run.id, exc, exc_info=True)
@@ -526,3 +537,47 @@ def _terminalize_run(run: ResearchRun) -> None:
             run.id, exc, exc_info=True,
         )
         raise
+
+
+def _deduplicate_exact_observations(
+    observations: Sequence[ListingObservation],
+) -> tuple[ListingObservation, ...]:
+    """Deduplicate ListingObservation objects by exact value equality.
+
+    A real page may publish the exact same Product/Offer node multiple times
+    in its structured data (HTML/structured-data duplication). This is distinct
+    from multiple independent market observations - it is one observation
+    published multiple times.
+
+    Passing exact structural duplicates through normalize->match->aggregate
+    produces duplicate ListingIdentityAssessment values which 4A correctly
+    rejects with ValueError.
+
+    This function eliminates exact structural duplicates BEFORE they become
+    independent normalization/matching evidence. The fix is at the earliest
+    layer where exact structural duplication becomes known.
+
+    Rules:
+    * Stable first-occurrence wins
+    * Exact dataclass value equality only (frozen dataclass __eq__)
+    * No fuzzy deduplication, no semantic deduplication
+    * No seller deduplication, no price deduplication
+    * No cross-product inference, no cross-URL merging
+    * Every genuinely distinct observation is preserved
+    * Published order of retained observations is preserved
+
+    Parameters
+    ----------
+    observations : Sequence[ListingObservation]
+        Raw observations from one extracted page (may contain duplicates).
+
+    Returns
+    -------
+    tuple[ListingObservation, ...]
+        Deduplicated observations in original order.
+    """
+    seen: list[ListingObservation] = []
+    for obs in observations:
+        if obs not in seen:
+            seen.append(obs)
+    return tuple(seen)
