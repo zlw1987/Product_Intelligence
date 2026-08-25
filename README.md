@@ -13,19 +13,23 @@ module of one.
 For the exact current phase, implementation snapshot, and what is not yet
 connected, see **[docs/PRODUCT_INTELLIGENCE_STATUS.md](docs/PRODUCT_INTELLIGENCE_STATUS.md)**.
 
-Briefly: **PRODUCT-INTEL.4B (price intelligence web report) is complete**.
+Briefly: **PRODUCT-INTEL.4C-B (research execution orchestration) is complete**.
 The repository contains the domain contracts, evaluation corpus, persistent
 run lifecycle, standalone web shell, deterministic part-number comparison,
 search-provider boundary, Serper adapter, page-fetch boundary, raw listing
 extraction, listing normalization, MPN matching and rejection, price
 aggregation, versioned codec, and the read-only price intelligence report —
-all with tests. **Nothing is orchestrated**: a submitted run stays `CREATED`,
-and no research executes automatically. The report reads a persisted
-`PriceIntelligenceSnapshot` and presents the full result — buckets,
-contributing evidence, and excluded listings. A corrupt payload or
-request-provenance mismatch shows the snapshot as unavailable.
+all with tests. **Backend orchestration is now implemented**: a submitted run
+undergoes the full pipeline from `claim_execution` through `search` → `fetch`
+→ `extract` → `normalize` → `match` → `aggregate` → `snapshot` → `COMPLETED`.  
+The report reads a persisted `PriceIntelligenceSnapshot` and presents the full
+result — buckets, contributing evidence, and excluded listings. A corrupt
+payload or request-provenance mismatch shows the snapshot as unavailable.
 
-Next planned phase: **PRODUCT-INTEL.4C — Research execution orchestration.**
+Next planned phase: **PRODUCT-INTEL.4C-C (web integration)** — minimum
+wiring to connect the backend executor to the web UI with execute button,
+loading UI, and polling for status. Phase ownership: 4C-C owns web execution
+wiring; 5B owns FoxPro launcher integration; 5A owns structured API.
 
 ## The browser workflow
 
@@ -92,10 +96,11 @@ That gap is documented rather than chased with triggers or a history table.
 The identifier is a random UUID, so a future report URL is durable and not
 enumerable. **That is not access control:** it authenticates nobody and
 authorizes nothing, and whether reports require authentication is an open
-question for a later phase. Transitions are also not atomic across processes —
-harmless today, since nothing executes a run, and documented in §15.7 of the
-plan rather than papered over. No concurrency mechanism of any kind was
-introduced.
+question for a later phase. Transitions use atomic database compare-and-set
+(§15) to prevent concurrent modification; concurrent execution of the same
+run is impossible because `claim_execution` (§15.6) ensures only one process
+can claim a run for execution. No additional concurrency mechanism was
+introduced beyond what the atomic claim provides.
 
 ## Part-number identity
 
@@ -161,8 +166,10 @@ description agrees, or that a listing belongs to the product. If a request's par
 number matches while its description names a different product, this primitive
 still reports `EXACT` and a later phase reports the conflict. It holds no
 catalog — no part number is mapped to a manufacturer or product anywhere in
-runtime code — reads no description, and **is wired into nothing**: no search
-exists, so nothing supplies a candidate to compare against.
+runtime code — reads no description. **As of 4C-B**, this primitive is wired
+into the backend execution pipeline, which supplies candidates from search
+results and page extraction. The web UI does not yet trigger execution (4C-C
+pending).
 
 ## The search-provider boundary
 
@@ -263,11 +270,13 @@ calls to Serper. A separate, explicitly manual script,
 a safe summary — provider id, query, result count, public titles and URLs —
 never the credential.
 
-**Nothing is wired to this adapter.** The run lifecycle and the web shell do
-not import `product_intelligence.providers`, so a submitted run is still
-`CREATED` and stays there. Serper becoming part of ordinary application
-execution needs basic duplicate-call protection first, since it is a metered,
-paid API — that is future work, not settled by 2C.
+**As of 4C-B, Serper IS wired into the backend executor.** The
+`execution/` package imports the Serper adapter and uses it for search. A
+`ResearchRun` that is claimed for execution calls `SearchProvider.search()`
+exactly once — atomic `claim_execution` prevents duplicate paid calls, and a
+retry creates a new `ResearchRun`. **The web form still only creates a
+`CREATED` run** without triggering execution; 4C-C will wire the web UI to
+the existing backend executor.
 
 ## Requirements
 
@@ -568,11 +577,13 @@ The result is frozen and auditable — a reviewer can trace the raw MPN text,
 the compared text, the evidence source, the match type, the decision, and the
 rejection reason back through the full chain to the raw page HTML.
 
-**Nothing is wired to it.** `runs/` and `web/` are unchanged, and a submitted
-run is still `CREATED`. The normal test suite makes **zero** network requests:
-matching is regression-tested against the same five recorded 3A fixtures,
-proving real pages classify as expected, plus a wide set of synthetic edge
-cases.
+**As of 4C-B, matching IS wired into the backend execution pipeline.**
+`runs/` and `web/` do not directly call matching — the `execution/` package
+orchestrates the pipeline including identity assessment. A submitted web form
+run is still `CREATED` until 4C-C connects the UI to the executor. The normal
+test suite makes **zero** network requests: matching is regression-tested
+against the same five recorded 3A fixtures, proving real pages classify as
+expected, plus a wide set of synthetic edge cases.
 
 ## Architecture in one paragraph
 

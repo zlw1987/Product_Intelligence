@@ -27,9 +27,11 @@ browser-based report.
 The value of the product is **defensible answers**, not fast answers. A price
 range the user cannot trace back to real listings is worse than no answer.
 
-Status: `APPROVED / PLANNED` — the mission is agreed; isolated research
-primitives through 4A exist, the 4B price intelligence report is implemented,
-but end-to-end research EXECUTION does not.
+Status: `PARTIALLY IMPLEMENTED` — isolated research primitives through 4A
+exist, the 4B price intelligence report is implemented, and 4C-B implements
+the backend execution orchestration pipeline. The web form still creates a
+`CREATED` run without triggering execution; 4C-C will wire the web UI to
+the existing backend executor.
 
 ## 2. Problem statement
 
@@ -154,7 +156,7 @@ Repository layout:
 │   │                                  versioned codec (4B)
 │   ├── providers/                     search boundary (2B) + Serper (2C) +
 │   │                                  page-fetch boundary and fetcher (3A)
-│   ├── execution/                     research orchestration (4C, future)
+│   ├── execution/                     research orchestration (4C-B implemented)
 │   └── web/                           standalone form + price report (1B, 4B)
 └── tests/                             focused deterministic tests
 ```
@@ -186,7 +188,7 @@ that created it and belongs to no caller, so the lifecycle stays in `runs/`
 (AD-025, AD-032). The dependency arrow points one way — `web` imports `domain`
 and `runs`, and a guard test fails if any inner layer imports `web`.
 
-`execution/` is the approved future application layer (4C). Real research
+`execution/` is the research orchestration layer (4C-B implemented). Real research
 orchestration must coordinate provider I/O, the deterministic research primitives
 in `research/`, and the `runs/` lifecycle — and `research/` is intentionally
 pure and forbidden from depending on providers, persistence, or network. Neither
@@ -207,9 +209,10 @@ deterministic raw listing extraction (§16.1), deterministic listing
 normalization (§16.2), deterministic MPN matching + rejection (§16.3),
 isolated deterministic price aggregation (§16.4), and the 4B persisted
 read-only price intelligence report. The listed isolated research primitives
-and the 4B report are implemented; end-to-end execution/orchestration remains
-planned; still-unimplemented capabilities such as full product resolution /
-comparable-product research remain planned.
+and the 4B report are implemented; and (4C-B) end-to-end execution/
+orchestration is implemented. Still-unimplemented: web-triggered execution
+(4C-C), structured API (5A), FoxPro launcher (5B). Full product resolution /
+comparable-product research remain future phases.
 
 ## 6. Multi-interface intake design
 
@@ -401,10 +404,10 @@ can drift (AD-032). No part-number normalization happens at the boundary —
 that is 2A/3C work, and inventing a version of it in a form would put a
 matching decision in the one layer forbidden to make one.
 
-**The shell executes no research, and says so.** A submitted run is `CREATED`
-and stays there: the web layer never calls `transition_to`, because there is
-nothing to run. The report states that research execution is not connected yet
-rather than showing a spinner, a progress bar, or a poll — a fake progress
+**The shell executes no research, and says so (4C-C pending).** A submitted
+run is `CREATED` and stays there: the web layer does not yet call the
+backend executor. The report states that research execution is not connected
+yet rather than showing a spinner, a progress bar, or a poll — a fake progress
 indicator is fabricated certainty with an animation (AD-009, AD-034). It shows
 the identifier, state, MPN, description, and `created_at`, with `started_at` and
 `finished_at` displayed only if a run ever carries them. There is no placeholder
@@ -428,9 +431,12 @@ with persisted price-result presentation: the report reads an optional
 `PriceIntelligenceSnapshot`, decodes it through the versioned codec, validates
 request provenance, and renders buckets, contributing evidence, and excluded
 listings. Corrupt payload or provenance mismatch fails closed with zero
-aggregate numbers. **Research EXECUTION does not exist:** a submitted run stays
-`CREATED`, nothing runs automatically, and no orchestration connects search
-through extraction, normalization, matching, and aggregation.
+aggregate numbers. **As of 4C-B, backend research EXECUTION exists:** the
+`execution/` package implements the full orchestration pipeline from
+`claim_execution` through search, fetch, extraction, normalization, matching,
+and aggregation to snapshot persistence. **4C-C is pending** to wire the web UI
+to the existing backend executor; the current web form still creates a `CREATED`
+run without triggering execution automatically.
 
 ## 9. Future ERP integration strategy
 
@@ -686,7 +692,7 @@ and matched, while `AB-C123` keys to `AB-C123` against `ABC-123` and did not.
 It is not persisted, is not a model, and no logging infrastructure was added
 for it.
 
-**Nothing is wired to it.** The primitive supplies a comparison; it discovers
+**Historical note:** At the end of phase 3C, the primitive was not yet wired into execution. As of 4C-B, the matching primitive is fully wired into the orchestration pipeline. The primitive supplies a comparison; it discovers
 no candidates itself. 3C consumes it with explicit listing MPN candidates
 extracted from pages, but the web shell and the run lifecycle still do not
 orchestrate research. A guard test asserts that `runs/`, `web/`, and
@@ -964,15 +970,17 @@ public titles and URLs, never the credential. Two live calls were made during
 2C's development: one to record the fixture, one to validate the shipped
 smoke script.
 
-**Still nothing is wired to it.** `runs/` and `web/` import no part of
-`product_intelligence.providers`, and the guard test that checks this now also
-covers `providers/serper.py` by construction (it scans every file under
-`providers/`). A submitted run is still `CREATED`, and research execution is
-still not connected. Serper is a metered, paid-per-request API; because
-nothing in ordinary application execution calls it yet, duplicate-call
-protection (§18.1) is not yet a live exposure — but it becomes one the moment
-a later phase wires this adapter into research execution, and must be
-addressed no later than that phase.
+**Historical note:** At the end of phase 2C, nothing was wired to the Serper
+adapter. `runs/` and `web/` imported no part of `product_intelligence.providers`,
+and the guard test that checks this also covered `providers/serper.py`. A
+submitted run remained `CREATED`, and research execution was not connected.
+Duplicate-call protection (§18.1) was identified as a live exposure for the
+future phase that would wire the adapter into execution.
+
+**As of 4C-B:** The Serper adapter IS wired into the execution pipeline.
+Duplicate paid-call protection IS implemented via atomic `claim_execution`
+which ensures at most one paid search call per ResearchRun. A new ResearchRun
+created for retry cannot share evidence or snapshot with any prior run.
 
 **Real-response observations**, classified for what they mean to later phases:
 
@@ -1405,17 +1413,19 @@ table, and writes. Two processes holding the same run could both observe
 wins, silently.
 
 This is recorded rather than papered over, and it is not a live risk today:
-nothing executes a run, and there is no background processing, no queue, and no
-worker, so no second writer exists. The honest fix — a conditional update, row
-locking, or both — belongs to the phase that first introduces a concurrent
-writer and can test it. Adding locking now would guard against a scenario the
-system cannot produce.
+as of 4C-B, execution orchestration exists but there is no background processing,
+no queue, and no worker, so no second writer exists for a single run. The honest
+fix — a conditional update, row locking, or both — belongs to the phase that
+first introduces a concurrent writer and can test it. Adding locking now would
+guard against a scenario the system cannot yet produce.
 
 Status: `IMPLEMENTED` (1A) for the record, its identity, its state machine, its
-timestamps, and its migration; and (1B) for the report at `/research/<id>`,
-which reads a run and renders it. The report is read-only: it starts nothing,
-transitions nothing, and writes no timestamp. Nothing in the system moves a run
-out of `CREATED`, because nothing executes one.
+timestamps, and its migration; (1B) for the report at `/research/<id>`, which
+reads a run and renders it; and (4C-B) for the execution orchestration layer
+that moves a run from CREATED through the full pipeline to COMPLETED or FAILED.
+The report is read-only: it starts nothing, transitions nothing, and writes no
+timestamp. The web form does not trigger execution — that is 4C-C's wiring
+responsibility.
 
 ## 16. Price-intelligence direction
 
@@ -1438,7 +1448,7 @@ Planned pipeline, all deterministic:
    generation, candidate selection, search invocation, page fetching,
    extraction, normalization, matching, aggregation, result persistence,
    lifecycle transitions, failure semantics, and duplicate paid-call
-   protection. `APPROVED / PLANNED`.
+   protection. `IMPLEMENTED` (4C-B). Web form wiring is 4C-C.
 6. **Report** (4B) — persist the `PriceAggregationResult` as a
    `PriceIntelligenceSnapshot` and present the numbers together with the
    listings and the rejections that produced them. `IMPLEMENTED`.
@@ -2001,11 +2011,13 @@ or `UNRECOGNIZED_CONDITION` member.
   the existing 2A comparator. No model, no prompt, no embedding.
 * **No persistence.** No model, no migration. The assessment is a pure function
   result.
-* **No orchestration.** No search, no fetch, no extraction, no normalization,
-  no run transition. It takes values it is handed.
+* **No orchestration (at the end of 3C).** No search, no fetch, no extraction,
+  no normalization, no run transition. It takes values it is handed. *As of 4C-B,
+  backend orchestration is implemented; the web form still does not trigger it
+  until 4C-C.*
 * **No aggregation (4A).** No count, low, median, high, or range.
-* **No integration.** `runs/` and `web/` import no part of `providers/` or of
-  the matching core. A submitted run is still `CREATED`.
+* **No integration (at the end of 3C).** `runs/` and `web/` import no part of
+  `providers/` or of the matching core. A submitted run was still `CREATED`.
 * **No description semantics.** The description field is carried but never
   read. Interpreting it is 6A/7B work.
 * **No manufacturer trust rules.** No per-manufacturer normalization profiles.
@@ -2017,9 +2029,11 @@ against the five recorded real-page fixtures plus synthetic and adversarial edge
 cases. `IMPLEMENTED` (4A) for isolated deterministic price aggregation.
 `IMPLEMENTED` (4B) for price-result persistence via `PriceIntelligenceSnapshot`
 and the read-only web report that presents the full result: buckets, contributing
-evidence, and excluded listings. **Orchestration does not exist:** no code
-connects search through extraction, normalization, matching, and aggregation.
-4C is `APPROVED / PLANNED`.
+evidence, and excluded listings. `IMPLEMENTED` (4C-B) for backend orchestration:
+the `execution/` package connects search through extraction, normalization,
+matching, and aggregation with atomic final publication. **4C-C is PLANNED**
+to wire the web UI to the existing backend executor; the web form still only
+creates a `CREATED` run without triggering execution.
 
 ### 16.4 What 4A implemented
 
@@ -2165,11 +2179,13 @@ model, no prompt, no embedding.
 
 **No persistence** — no model, no migration. Aggregation is a pure function.
 
-**No orchestration** — no search, no fetch, no extraction, no normalization,
-no matching, no run transition. It takes values it is handed.
+**No orchestration (at the end of 4A).** No search, no fetch, no extraction,
+no normalization, no matching, no run transition. It takes values it is
+handed. *As of 4C-B, backend orchestration is implemented; the web form
+still does not trigger it until 4C-C.*
 
-**No integration** — `runs/` and `web/` import no part of the aggregation
-module. A submitted run is still `CREATED`.
+**No integration (at the end of 4A).** `runs/` and `web/` import no part
+of the aggregation module. A submitted run was still `CREATED`.
 
 **No availability eligibility rule** — 4A does not check normalized
 availability or normalization issues. An `UNKNOWN` availability is irrelevant
@@ -2237,9 +2253,10 @@ model records when the price result was stored, not when any source was
 fetched. 4B does not persist source retrieval time; execution/fetch
 provenance and retrieval timestamps are part of 4C's evidence-persistence design.
 
-**No orchestration.** A submitted run stays `CREATED`. Nothing runs
-automatically. No pipeline connects search through extraction, normalization,
-matching, and aggregation.
+**No orchestration (at the end of 4B).** A submitted run stayed `CREATED`.
+Nothing ran automatically. No pipeline connected search through extraction,
+normalization, matching, and aggregation. *As of 4C-B, backend orchestration
+is implemented; the web form still does not trigger it until 4C-C.*
 
 ## 17. Comparable-product direction
 
@@ -2298,17 +2315,16 @@ same external request twice because a page was reloaded or a step retried. It is
 policy — all of which remain `DEFERRED` per §23. The second is a design problem
 about how long an answer stays true, and it needs the answers to exist first.
 
-Neither is implemented. 2C integrated Serper, which is metered and paid
-per request, but wired it into nothing: `search()` is only ever called from an
-explicit manual script or from tests against a recorded fixture, so no call
-happens as a side effect of ordinary application use and nothing is paid for
-twice yet.
+**Historical note:** At the end of 2C, neither caching nor paid-call protection
+was implemented. 2C integrated Serper, which is metered and paid
+per request, but wired it into nothing at that time: `search()` was only
+ever called from an explicit manual script or from tests, so no call happened
+as a side effect of ordinary application use.
 
-Status: `DEFERRED` to 8A for general caching. Storage mechanism is `UNDECIDED`.
-Duplicate paid-call protection remains `APPROVED / PLANNED` — required before
-Serper is called from ordinary research execution (a later phase), not before
-2C, which introduces no such call site. No caching or call-deduplication of any
-kind exists.
+Status: **As of 4C-B, duplicate paid-call protection IS IMPLEMENTED.**
+Atomic `claim_execution` ensures at most one paid search call per ResearchRun.
+A new ResearchRun created for retry cannot share evidence or snapshot with any
+prior run. General caching/freshness remains `DEFERRED` to 8A.
 
 ## 19. Security boundaries
 
@@ -2623,7 +2639,31 @@ Future:
   additional LLM providers
 ```
 
-Every phase after 4B is `APPROVED / PLANNED` and unimplemented. Do not
+**Roadmap (as of 4C-B freeze):**
+
+```
+IMPLEMENTED:
+  4C-A  Execution ownership/lifecycle/evidence primitives
+  4C-B  Backend research execution (orchestration pipeline)
+
+PLANNED:
+  4C-C  Web execution/retry integration (web UI wiring)
+
+  5A    Structured external API
+  5B    Visual FoxPro 5 launcher (Customer Pilot priority)
+
+FUTURE:
+  SAP   SAP launcher integration
+```
+
+**Next delivery priority: Customer Pilot v0.1**
+
+Combines: minimum 4C-C web wiring + 5B FoxPro launcher + frozen 4C-B backend.
+
+Goal: From a FoxPro product/order context, launch browser with MPN + description
+prefilled, start market research, view result. NOT required: 5A API, SAP, comparables.
+
+Do not
 execute a later phase while working on an earlier one.
 
 **The next phase is the priority.** 4A turned 3C's accepted listings into
@@ -2692,11 +2732,11 @@ kind, and the research API. Real web search exists as of 2C, real page
 fetching plus raw listing extraction as of 3A, deterministic listing
 normalization as of 3B, deterministic MPN matching and listing rejection as
 of 3C, and deterministic price aggregation (bucket-level statistics) as of 4A
-— all five can be called directly — but *orchestration* (query generation from
-a `ResearchRequest`, deciding which candidate URLs to open, automatic
-invocation from a research run) is 4C: nothing calls `search()`,
-`fetch()`, `normalize_listing_observation()`, or `aggregate_listing_prices()`
-except an explicit manual script and offline tests.
+— all five can be called directly. *As of 4C-B, backend orchestration is
+implemented:* the `execution/` package calls `search()`, `fetch()`,
+`normalize_listing_observation()`, and `aggregate_listing_prices()` as part of
+the ordinary backend research pipeline. *As of 4C-B, nothing calls these from
+the web UI* — that connection is 4C-C. *No API calls these* — that is 5A.
 
 Deferred specifically around page fetching and extraction (3A), so that a later
 phase does not read their absence as an oversight: browser-rendered fetching of
@@ -2836,5 +2876,5 @@ This canonical plan does not duplicate that operational snapshot.
 | AD-048 | Only an explicit MPN field carrying `EXACT` or `NORMALIZED_EXACT` (2A) is automatically accepted; SKU and title evidence alone never establish MPN identity; `PARTIAL` is informative but never price-eligible identity evidence. | Three concrete risks are being closed. First: a SKU is a retailer's internal identifier and may equal an MPN by coincidence, by convention, or never — treating it as MPN evidence would let a false match through every time a retailer happens to reuse the manufacturer's format. Second: title text is free-form marketing prose where the MPN may appear as a contained token (`"Samsung MZ-QL23T800 Ultra"`) and accepting it would be matching a substring, which is precisely the partial-identity trap that costs a wrong price on a real order. Third: partial overlap (`MTFDKCC3T8TFR` vs `MTFDKCC3T8TFR-1BC1ZABYY`) looks like evidence but is exactly the family-prefix confusion the system must avoid — PARTIAL does not establish requested-product identity and therefore is not price-eligible evidence. The acceptance rule is therefore narrow: one explicit structured MPN field, one deterministic comparator (2A), and nothing weaker crosses the line. When no explicit MPN is published, the listing is `REJECTED` with `NO_EXPLICIT_MPN_EVIDENCE`, not `UNKNOWN` — the absence of evidence is recorded, not left silent. A narrow `mpn:` wrapper cleanup is permitted because one recorded page (`exxactcorp_pm9a3_mz_ql23t800.html`) publishes its MPN as `"mpn:MZ-QL23T800"`, and the `mpn:` prefix is a field-label wrapper, not the identifier itself. It applies to the explicit MPN field only, is not generalized to arbitrary `key:` stripping, and leaves the 2A normalizer unchanged. | Accepted (3C) |
 | AD-049 | Aggregation groups identity-accepted listings by exact currency + known condition, computes count/low/median/high from each bucket, derives confidence LOW/MEDIUM from observation count, and excludes every non-accepted or ineligible listing with a recorded reason. Exact duplicate input values refused at the boundary. No FX conversion, no outlier removal, no broad market-listing deduplication, no LLM confidence, no invented evidence, no availability eligibility rule. | Grouping by exact currency (never cross-currency) and known condition (UNKNOWN excluded, not grouped) keeps comparable pools real: a $100 USD price and a $100 EUR price are not the same price, and a NEW listing and a REFURBISHED listing serve different market expectations. Median uses custom exact Decimal midpoint for even counts — no `statistics.median` dependency. Confidence derived from count (`LOW` for 1-2, `MEDIUM` for >=3) tells the user how many independent observations support the number. 4A never produces `HIGH` or `VERY_HIGH`. Exact duplicate INPUT VALUES (two ListingIdentityAssessment objects equal by value) are refused at the input boundary with `ValueError` — the check is value-based, not identity-based, so separately constructed equal objects are caught. No broad market-listing deduplication exists: genuinely different assessments with the same price, currency, and condition are not duplicates because their evidence (source, seller, observation) differs. The exclusion discipline follows AD-007: evidence-first means the user can see not only what was accepted but why each rejected or ineligible listing was excluded. No FX conversion, no outlier removal, no unit-price inference, no manual override — those would each add a decision the system has no evidence to make and no mechanism to audit. | Accepted (4A) |
 | AD-050 | One versioned `PriceIntelligenceSnapshot` per `ResearchRun`, persisted in `runs/`, using the `ResearchRun` UUID as the snapshot identity. The snapshot preserves a `PriceAggregationResult` as opaque versioned JSON (`schema_version` + `payload`) with a `created_at` timestamp. A separate codec module in `research/price_result_codec.py` encodes and decodes the result: pure, no Django, no I/O, Decimal preserved as strings, enums explicit, nested contracts reconstructed through normal constructors. 4B reads and presents the snapshot at `/research/<uuid>` as a read-only report. It does not execute research. Request-provenance mismatch or corrupt payload fails closed with no price numbers rendered. | `PriceAggregationResult` is the durable price intelligence answer for one run. The report URL `/research/<uuid>` must survive across requests and deployments, so the result it renders must be persisted. The `ResearchRun` UUID already identifies the result uniquely — a second identifier would add a consistency obligation for no capability. Naming it `PriceIntelligenceSnapshot` rather than `ResearchResult` is deliberate: it preserves the price pipeline evidence (listing observations through identity assessments through aggregation) but is not the complete execution evidence store (it cannot represent search candidates never fetched, page-fetch failures, or pages producing zero observations — that is 4C's question). Versioned opaque JSON with a decoder that fails closed on unknown versions means the report stays interpretable and never renders partially-corrupt data as verified. The codec lives in `research/` as a pure module because it transforms research-layer contracts to and from JSON — it is serialization discipline, not persistence logic, and must not touch Django. | Accepted (4B architecture checkpoint) · IMPLEMENTED (4B) |
-| AD-051 | Research orchestration is a separate application layer (`execution/`) and phase (4C), rather than living in `research/` or `web/`. `execution/` coordinates one `ResearchRun` through provider I/O and deterministic research primitives. Deterministic research and evidence decisions — identity resolution, listing acceptance/rejection, price eligibility, aggregation semantics — remain owned by `research/`. `execution/` invokes those decision primitives but must not reimplement or override them. `execution/` may import `domain`, `research`, `providers`, and `runs`, but must not import `web/`. `research/` remains pure and must not import `execution`, `providers`, `runs`, or Django. `web/` may invoke execution but must not carry research semantics. | The previous PLAN stated that `research/` owns orchestration. But `research/` is intentionally pure — its guard tests enforce stdlib-only imports and forbid persistence, provider, network, and Django dependencies. Real orchestration must coordinate all of those. Putting orchestration in `web/` would make research semantics a property of the transport layer, violating caller-independence (AD-001): the core would then be structured around how the browser submits a request rather than around the canonical `ResearchRequest`. The execution layer sits between them: it imports what it needs to run a pipeline, but stays independent of which client triggered the run. This preserves both boundaries — `research/` stays testable without a database or network, and `web/` stays a presentation and intake layer. Coordination is not authority: `execution/` orchestrates the pipeline steps but does not make evidence decisions — listing acceptance, price eligibility, and identity resolution remain `research/` primitives that `execution/` calls, not reimplements. `execution/` does not exist yet; it is created in 4C alongside the orchestration implementation. | Accepted (4B architecture checkpoint) |
+| AD-051 | Research orchestration is a separate application layer (`execution/`) and phase (4C), rather than living in `research/` or `web/`. `execution/` coordinates one `ResearchRun` through provider I/O and deterministic research primitives. Deterministic research and evidence decisions — identity resolution, listing acceptance/rejection, price eligibility, aggregation semantics — remain owned by `research/`. `execution/` invokes those decision primitives but must not reimplement or override them. `execution/` may import `domain`, `research`, `providers`, and `runs`, but must not import `web/`. `research/` remains pure and must not import `execution`, `providers`, `runs`, or Django. `web/` may invoke execution but must not carry research semantics. | The previous PLAN stated that `research/` owns orchestration. But `research/` is intentionally pure — its guard tests enforce stdlib-only imports and forbid persistence, provider, network, and Django dependencies. Real orchestration must coordinate all of those. Putting orchestration in `web/` would make research semantics a property of the transport layer, violating caller-independence (AD-001): the core would then be structured around how the browser submits a request rather than around the canonical `ResearchRequest`. The execution layer sits between them: it imports what it needs to run a pipeline, but stays independent of which client triggered the run. This preserves both boundaries — `research/` stays testable without a database or network, and `web/` stays a presentation and intake layer. Coordination is not authority: `execution/` orchestrates the pipeline steps but does not make evidence decisions — listing acceptance, price eligibility, and identity resolution remain `research/` primitives that `execution/` calls, not reimplements. *Note: `execution/` was created in 4C-B alongside the backend orchestration implementation.* | Accepted (4B architecture checkpoint) |
 | AD-052 | `PriceIntelligenceSnapshot` is not the complete research-execution evidence store. It preserves evidence reachable through `ListingObservation` → `NormalizedListingObservation` → `ListingIdentityAssessment` → `PriceAggregationResult`. It cannot represent search candidates never fetched, page-fetch failures, blocked pages, or fetched pages producing zero observations. 4C must decide how those execution attempts and outcomes are preserved before claiming end-to-end evidence completeness. | The snapshot is a price result, not an execution log. A search that returns 10 candidates, of which 3 were fetched, 2 were blocked, and 1 produced zero observations — the snapshot can only represent the three that yielded observations and their downstream assessments. The other seven execution events are silently lost. That is acceptable for 4B's read-only report: it renders what the aggregation produced, and says honestly when nothing exists. But 4C, which owns the full orchestration pipeline, must decide whether to preserve execution evidence beyond what the aggregation carries. That decision depends on whether a partial run's diagnostic value justifies additional persistence surface — a question 4C can answer with real failure data rather than speculation. | Accepted (4B architecture checkpoint) |

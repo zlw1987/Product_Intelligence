@@ -50,6 +50,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 PACKAGE_ROOT = REPO_ROOT / "product_intelligence"
 DOMAIN_ROOT = PACKAGE_ROOT / "domain"
 RESEARCH_ROOT = PACKAGE_ROOT / "research"
+EXECUTION_ROOT = PACKAGE_ROOT / "execution"
 
 # Concepts belonging to a specific calling system. The research core must work
 # identically no matter which client produced the request, so these must never
@@ -98,6 +99,17 @@ def _find_tokens(text: str, tokens: list[str]) -> list[str]:
         for token in tokens
         if re.search(rf"\b{re.escape(token)}\b", lowered)
     ]
+
+
+def _imported_modules(path: Path) -> set[str]:
+    """Every dotted module name imported by a file, absolute imports only."""
+    modules: set[str] = set()
+    for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+        if isinstance(node, ast.Import):
+            modules.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module and not node.level:
+            modules.add(node.module)
+    return modules
 
 
 def test_domain_package_has_source_files_to_check() -> None:
@@ -175,6 +187,29 @@ def test_domain_imports_without_django_network_or_llm_dependencies() -> None:
     )
 
     assert json.loads(result.stdout.strip().splitlines()[-1]) == []
+
+
+def test_the_execution_layer_imports_no_web() -> None:
+    """Execution may import domain/research/providers/runs but NOT web.
+    
+    The web layer imports execution; execution must never import web to avoid
+    circular dependencies and to maintain the invariant that execution is a
+    backend primitive that knows nothing about transports or callers.
+    """
+    # Check that execution package exists and has source files
+    assert EXECUTION_ROOT.exists()
+    assert _python_files(EXECUTION_ROOT)
+    
+    # Verify none of the execution modules import web
+    for path in _python_files(EXECUTION_ROOT):
+        modules = _imported_modules(path)
+        for forbidden in ("product_intelligence.web",):
+            offending = {
+                module
+                for module in modules
+                if module == forbidden or module.startswith(f"{forbidden}.")
+            }
+            assert not offending, f"{path.name} imports {sorted(offending)}; execution must not import web"
 
 
 def test_domain_exports_the_phase_0a_contracts() -> None:

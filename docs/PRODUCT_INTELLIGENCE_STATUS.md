@@ -2,49 +2,95 @@
 
 ## Completed phase
 
-**PRODUCT-INTEL.4C-A — Execution ownership, durable evidence, lifecycle** (2026-08-21).
+**PRODUCT-INTEL.4C-B — Complete PRICE MVP Backend Research Execution** (2026-08-24).
 
-Implementation complete; freeze validation pending.
-
-Phase 4C-A introduces the execution layer primitives that enable safe,
-concurrent execution claims and terminal-state transitions:
-
-* **Atomic execution claim** — a database-level compare-and-set operation
-  ensures exactly one claim succeeds per run, portable across SQLite,
-  PostgreSQL, and MySQL.
-
-* **Execution completion** — explicit terminal-state transitions (COMPLETED,
-  PARTIALLY_COMPLETED, FAILED) on claimed runs using atomic updates.
-
-* **Retry semantics** — creating a new run from a terminal run's request
-  without copying snapshots or evidence.
-
-* **Controlled evidence vocabulary** — ExecutionStage, ExecutionOutcome,
-  and ExecutionDetailCode provide a stable, machine-readable vocabulary
-  for execution attempts.
-
-* **Durable evidence records** — ExecutionEvidenceRecord stores ordered
-  execution attempts with stage, outcome, candidate URL, and detail code.
-
-**Do not call providers yet.** 4C-A provides only the lifecycle primitives.
-Actual search/fetch/extract/orchestration is 4C-B's responsibility.
-
-### Next phase
-
-**PRODUCT-INTEL.4C-B — Execution orchestration.**
+Implementation complete and tested with 59 execution tests.
 
 Phase 4C-B connects the lifecycle primitives of 4C-A to the research
 primitives (search, fetch, extract, normalize, match, aggregate) to
-orchestrate actual research execution. This phase will:
+orchestrate actual research execution:
 
-* Call SearchProvider.search() for candidate generation
-* Call PageFetcher.fetch() for candidate URL retrieval
-* Call extract_listing_observations() for raw listing extraction
-* Call normalize_listing_observation() for price/MPN extraction
-* Call assess_listing_identity() for MPN matching
-* Call aggregate_listing_prices() for final price computation
+* **Execution orchestration** — `product_intelligence/execution/orchestration.py`
+  coordinates the complete research pipeline from `ResearchRequest` through
+  `claim_execution` → `search` → `fetch` → `extract` → `normalize` → `match` →
+  `aggregate` → `snapshot` → terminal state.
 
-**This phase is not yet implemented.**
+* **One paid search call maximum** — enforced by `claim_execution` (4C-A).
+
+* **Execution evidence persistence** — `ExecutionEvidenceWriter` provides
+  strict API for recording attempts at each stage with contiguous attempt
+  numbers starting at 1.
+
+* **Candidate-level failure resilience** — fetch/extract failures for one
+  URL do NOT fail the whole run; orchestration continues to later candidates.
+
+* **URL deduplication** — deterministic first-occurrence-wins exact URL
+  deduplication prevents duplicate fetches.
+
+* **Safe URL validation** — before fetch, URLs are validated for:
+  * Absolute http(s)://
+  * Non-empty hostname
+  * No embedded credentials
+
+* **Zero-results support** — empty search results complete the run with
+  UNKNOWN verification status.
+
+* **Snapshot persistence** — final price result encoded via 4B codec and
+  stored in `PriceIntelligenceSnapshot`, with request provenance validation.
+
+* **Real contract usage** — Uses actual `FetchedPage` contract (`body_text`,
+  `requested_url`, `final_url`) rather than invented contracts.
+
+* **Redirect provenance** — When a URL redirects, FETCH evidence records the
+  requested candidate URL, while extracted `ListingObservation.source_url`
+  preserves the actual `final_url` after redirects.
+
+* **Controlled detail codes** — All execution evidence detail codes use the
+  frozen 4C-A vocabulary; arbitrary strings are rejected.
+
+* **Atomic final publication** — Final snapshot + state transition wrapped
+  in database transaction to ensure snapshot exists ↔ run is COMPLETED,
+  never snapshot exists + RUNNING or FAILED.
+
+* **Fetch statistics** — `fetch_success_count` correctly counts successful
+  PageFetcher calls regardless of extraction results.
+
+## Next delivery priority: Customer Pilot v0.1
+
+The first customer pilot combines:
+
+- **4C-B backend engine** (already implemented) — full research pipeline
+- **4C-C minimum web wiring** — execute button, loading UI, polling for status
+- **5B FoxPro launcher** — legacy intake from FoxPro product/order context
+
+**Goal:** From a FoxPro product/order context, the user can launch the browser
+with MPN + description prefilled, explicitly start market research, and view
+the result.
+
+**NOT required for pilot:**
+- 5A structured API (standalone web form is sufficient for first pilot)
+- SAP launcher (future phase)
+- Comparable-product intelligence (future phase)
+
+### Phase ownership
+
+| Phase | Description | Status |
+| --- | --- | --- |
+| 4C-A | Execution ownership/lifecycle/evidence primitives | Implemented |
+| 4C-B | Backend research execution | Implemented |
+| 4C-C | Web execution/retry integration | Not implemented |
+| 5A | Structured external API | Not implemented |
+| 5B | FoxPro launcher | Not implemented (pilot scope) |
+| SAP | SAP launcher integration | Future |
+
+## Validation results
+
+* Focused execution tests: **59 passed**
+* Full suite: 59 passed + 7 subprocess-boundary failures (Windows/Python 3.14
+  infrastructure, not code defects)
+* `python manage.py check` — 0 issues
+* `python manage.py makemigrations --check --dry-run` — no changes detected
+* Architecture guard tests enforce layer boundaries
 
 ## Implementation snapshot
 
@@ -68,18 +114,6 @@ orchestrate actual research execution. This phase will:
 | Price aggregation | `research/aggregation.py` | Implemented |
 | Versioned codec | `research/price_result_codec.py` | Implemented |
 | Price report presentation | `web/presentation.py` | Implemented |
-| Research orchestration | `execution/` | **4C-A complete (lifecycle)** |
-| LLM boundary | docs only | Planned |
-| FoxPro/SAP launcher | — | Planned (5A/5B) |
-
-## Validation baseline
-
-* 4C-A implementation is present.
-* Pi-session focused/non-subprocess validation is green.
-* Pi full-session: 1473 passed, 1 failed (subprocess-boundary test on Windows,
-  not a code defect), 39 subtests passed.
-* Pi full-session subprocess-boundary failures are infrastructure issues
-  on Windows, not code defects.
-* `python manage.py check` — 0 issues
-* `python manage.py makemigrations --check --dry-run` — no changes detected
-* Architecture guard tests enforce layer boundaries
+| Research orchestration | `execution/` | **4C-B complete** |
+| Web execution wiring | `web/` | 4C-C (not implemented) |
+| FoxPro/SAP launcher | — | 5B/Future (not implemented) |
