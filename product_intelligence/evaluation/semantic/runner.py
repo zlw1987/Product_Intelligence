@@ -391,15 +391,26 @@ class SemanticBenchmarkRunner:
         self._evaluator = evaluator
         self._corpus = load_corpus()
 
-    def _get_transport(self) -> SemanticModelTransport:
-        """Get transport instance."""
+    def _get_transport(self, config: BenchmarkRunConfig | None = None) -> SemanticModelTransport:
+        """Get transport instance.
+
+        When config is provided, use config.transport (normal live path).
+        When config is None but self._transport is set, use self._transport (explicit injection).
+        Otherwise fall back to FakeSemanticModelTransport (test-only).
+
+        Args:
+            config: Benchmark run configuration (optional)
+
+        Returns:
+            SemanticModelTransport instance
+        """
+        # Priority 1: Use config.transport if provided (live CLI/helper path)
+        if config is not None:
+            return config.transport
+        # Priority 2: Use self._transport if explicitly injected (test injection)
         if self._transport is not None:
             return self._transport
-        # For fake transport, pass case_ids for testing with non-heuristic extraction
-        fake_transport = FakeSemanticModelTransport()
-        if isinstance(self._transport, FakeSemanticModelTransport) and hasattr(self._transport, '_case_ids'):
-            # Preserve case_ids if the transport has them set
-            pass
+        # Priority 3: Fallback to fake (test-only, should not happen in live path)
         return FakeSemanticModelTransport()
 
     def run(
@@ -449,7 +460,7 @@ class SemanticBenchmarkRunner:
                 model=config.model,
                 temperature=config.temperature,
                 max_tokens=config.max_tokens,
-                transport=self._get_transport(),
+                transport=self._get_transport(config),
             )
 
             if isinstance(result, TransportResult):

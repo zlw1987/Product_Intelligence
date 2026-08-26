@@ -1450,23 +1450,317 @@ def test_malformed_json_marked_invalid_output():
 def test_filesystem_collision_different_hashes():
     """Regression: Two different unsafe names that collapse to same slug get different hashes."""
     from product_intelligence.evaluation.semantic.runner import _make_filesystem_safe
-    
+
     # Two different names that both end up as 'provider_model' after sanitization
     # "provider/model" has unsafe char (/) -> "provider_model--hash1"
     # "provider/model " has unsafe char (/) AND trailing space -> "provider_model--hash2" (different hash)
     name1 = "provider/model"
     name2 = "provider/model "  # Different: has trailing space
-    
+
     safe1 = _make_filesystem_safe(name1)
     safe2 = _make_filesystem_safe(name2)
-    
+
     # Both should have hashes (both are changed)
     assert "--" in safe1, f"Expected hash suffix in {safe1!r}"
     assert "--" in safe2, f"Expected hash suffix in {safe2!r}"
-    
+
     # They should be DIFFERENT (different hashes based on original names)
     assert safe1 != safe2, f"Different inputs {name1!r} and {name2!r} should produce different outputs {safe1!r} and {safe2!r}"
-    
+
     # Both should contain 'provider_model' as the base
     assert "provider_model" in safe1
     assert "provider_model" in safe2
+
+
+# =============================================================================
+# Issue 4: Live CLI transport wiring - vllm and amax must use real transport
+# =============================================================================
+
+def test_vllm_live_path_uses_real_transport(tmp_path):
+    """Regression: vllm-262k CLI path uses real transport, NOT fake.
+
+    Patch get_openai_transport_for_provider to return a sentinel.
+    Run the normal run_benchmark/helper entry path.
+    Assert that the sentinel transport receives the request.
+    Assert FakeSemanticModelTransport is NOT used.
+
+    Artifacts must use tmp_path to avoid contaminating repository-level
+    semantic_benchmark_runs/ directory.
+    """
+    import unittest.mock
+    from product_intelligence.evaluation.semantic.runner import run_benchmark
+
+    # Create a sentinel transport that we can detect
+    class SentinelTransport:
+        """Mock transport that records being used."""
+        def __init__(self):
+            self.called = False
+            self.config_used = None
+
+        def complete(self, *, system_prompt, user_prompt, model, temperature=0.0, max_tokens=1024):
+            self.called = True
+            return TransportResult(
+                raw_output='{"decision": "MATCH", "confidence": "HIGH", "matched_attributes": [], "conflicting_attributes": [], "missing_critical_attributes": [], "reason_code": "test"}',
+                latency_ms=15.0,
+                provider_status="200",
+                provider_id="sentinel",
+                model_id=model,
+                token_usage={"prompt_tokens": 100, "completion_tokens": 50},
+            )
+
+    sentinel = SentinelTransport()
+
+    # Patch the transport factory to return our sentinel
+    with unittest.mock.patch(
+        "product_intelligence.evaluation.semantic.runner.get_openai_transport_for_provider",
+        return_value=sentinel,
+    ):
+        # Run with vllm-262k provider (FULL mode - vllm models are FULL qualification)
+        # Use tmp_path to avoid writing to repository-level semantic_benchmark_runs/
+        result = run_benchmark(
+            provider="vllm-262k",
+            model="Qwen3.6-27B-262K",
+            case_selection="FULL",
+            temperature=0.0,
+            max_tokens=1024,
+            output_dir=tmp_path,
+        )
+
+    # Verify the sentinel transport was called
+    assert sentinel.called, "Sentinel transport should have been called"
+
+    # Verify the real provider transport was used (not fake)
+    assert result.config.transport is sentinel, "Config should use sentinel transport"
+
+    # Verify no fake transport was used
+    assert not isinstance(result.config.transport, FakeSemanticModelTransport), \
+        "Live path must NOT use FakeSemanticModelTransport"
+
+    # Verify artifacts were written only to tmp_path, not to repository
+    # Repository-level semantic_benchmark_runs/ should remain empty
+    repo_benchmark_dir = Path("semantic_benchmark_runs")
+    if repo_benchmark_dir.exists():
+        # Check that tmp_path artifacts are in a subdirectory of tmp_path, not repository root
+        run_dirs = list(repo_benchmark_dir.iterdir())
+        # Each run directory should start with a timestamp pattern, not be our tmp_path
+        for run_dir in run_dirs:
+            # Run directories are named like: 20250101T120000__provider_model
+            assert not str(run_dir).startswith(str(tmp_path.resolve())), \
+                f"Artifact {run_dir} should not be inside tmp_path {tmp_path}"
+
+    # Verify no semantic_benchmark_runs directory was created in repository root
+    # If artifacts were written correctly to tmp_path, repository should remain clean
+    # (We can't guarantee this absolutely because the runner may have already been
+    # configured elsewhere, but we can assert the run was written to tmp_path)
+    assert str(result.config.output_dir).startswith(str(tmp_path.resolve())), \
+        "Benchmark artifacts should be written to tmp_path, not repository root"
+
+
+def test_amax_live_path_uses_real_transport(tmp_path):
+    """Regression: amax CLI path uses real transport, NOT fake.
+
+    Same proof for provider="amax".
+
+    Artifacts must use tmp_path to avoid contaminating repository-level
+    semantic_benchmark_runs/ directory.
+    """
+    import unittest.mock
+    from product_intelligence.evaluation.semantic.runner import run_benchmark
+
+    # Create a sentinel transport that we can detect
+    class SentinelTransport:
+        """Mock transport that records being used."""
+        def __init__(self):
+            self.called = False
+            self.config_used = None
+
+        def complete(self, *, system_prompt, user_prompt, model, temperature=0.0, max_tokens=1024):
+            self.called = True
+            return TransportResult(
+                raw_output='{"decision": "MATCH", "confidence": "HIGH", "matched_attributes": [], "conflicting_attributes": [], "missing_critical_attributes": [], "reason_code": "test"}',
+                latency_ms=15.0,
+                provider_status="200",
+                provider_id="sentinel",
+                model_id=model,
+                token_usage={"prompt_tokens": 100, "completion_tokens": 50},
+            )
+
+    sentinel = SentinelTransport()
+
+    # Patch the transport factory to return our sentinel
+    with unittest.mock.patch(
+        "product_intelligence.evaluation.semantic.runner.get_openai_transport_for_provider",
+        return_value=sentinel,
+    ):
+        # Run with amax provider (FULL mode - minimax-m2.7 is FULL qualification)
+        # Use tmp_path to avoid writing to repository-level semantic_benchmark_runs/
+        result = run_benchmark(
+            provider="amax",
+            model="minimax-m2.7",
+            case_selection="FULL",
+            temperature=0.0,
+            max_tokens=1024,
+            output_dir=tmp_path,
+        )
+
+    # Verify the sentinel transport was called
+    assert sentinel.called, "Sentinel transport should have been called"
+
+    # Verify the real provider transport was used (not fake)
+    assert result.config.transport is sentinel, "Config should use sentinel transport"
+
+    # Verify no fake transport was used
+    assert not isinstance(result.config.transport, FakeSemanticModelTransport), \
+        "Live path must NOT use FakeSemanticModelTransport"
+
+    # Verify artifacts were written to tmp_path, not repository
+    assert str(result.config.output_dir).startswith(str(tmp_path.resolve())), \
+        "Benchmark artifacts should be written to tmp_path, not repository root"
+
+
+def test_missing_base_url_fails_rather_than_fallback_to_fake():
+    """Regression: Missing PI_SEMANTIC_VLLM_262K_BASE_URL raises ValueError, NOT fake transport.
+
+    Important: The normal provider transport factory must fail rather than
+    silently fall back to FakeSemanticModelTransport.
+    """
+    import os
+    import unittest.mock
+    from product_intelligence.evaluation.semantic.runner import run_benchmark
+
+    # Ensure the env var is NOT set
+    original_value = os.environ.get("PI_SEMANTIC_VLLM_262K_BASE_URL")
+    if "PI_SEMANTIC_VLLM_262K_BASE_URL" in os.environ:
+        del os.environ["PI_SEMANTIC_VLLM_262K_BASE_URL"]
+
+    try:
+        # Try to run with vllm-262k provider - should fail with ValueError
+        try:
+            run_benchmark(
+                provider="vllm-262k",
+                model="Qwen3.6-27B-262K",
+                case_selection="SMOKE",
+            )
+            assert False, "Should have raised ValueError for missing base_url"
+        except ValueError as e:
+            assert "PI_SEMANTIC_VLLM_262K_BASE_URL" in str(e), \
+                f"Error should mention missing env var, got: {e}"
+            assert "required" in str(e).lower(), \
+                f"Error should indicate required env var, got: {e}"
+    finally:
+        # Restore original value
+        if original_value is not None:
+            os.environ["PI_SEMANTIC_VLLM_262K_BASE_URL"] = original_value
+
+
+def test_explicit_fake_injection_still_works():
+    """Regression: Explicit FakeSemanticModelTransport injection still works for tests.
+
+    Existing offline tests that explicitly inject FakeSemanticModelTransport
+    must continue to work.
+    """
+    from product_intelligence.evaluation.semantic.runner import SemanticBenchmarkRunner
+    from product_intelligence.evaluation.semantic.transport import FakeSemanticModelTransport
+
+    transport = FakeSemanticModelTransport(
+        responses={
+            "SMQ-0001": '{"decision": "MATCH", "confidence": "HIGH", "matched_attributes": [], "conflicting_attributes": [], "missing_critical_attributes": [], "reason_code": "test"}',
+        }
+    )
+
+    runner = SemanticBenchmarkRunner(transport=transport)
+    config = BenchmarkRunConfig(
+        provider="amax",
+        model="minimax-m2.7",
+        case_selection="FULL",
+        transport=transport,
+    )
+
+    result = runner.run(config)
+
+    # Should complete successfully with fake transport
+    assert len(result.responses) > 0
+    assert result.config.transport is transport
+    assert isinstance(result.config.transport, FakeSemanticModelTransport)
+
+    # Verify transport was actually used
+    assert transport.call_count > 0, "Fake transport should have been called"
+
+
+def test_runner_get_transport_with_config_uses_config_transport():
+    """Regression: _get_transport(config) uses config.transport, not runner._transport.
+
+    When both config.transport and runner._transport are set, config takes priority.
+    """
+    from product_intelligence.evaluation.semantic.runner import SemanticBenchmarkRunner
+    from product_intelligence.evaluation.semantic.transport import FakeSemanticModelTransport
+
+    runner_transport = FakeSemanticModelTransport(responses={})
+    config_transport = FakeSemanticModelTransport(responses={})
+
+    runner = SemanticBenchmarkRunner(transport=runner_transport)
+    config = BenchmarkRunConfig(
+        provider="amax",
+        model="minimax-m2.7",
+        case_selection="FULL",
+        transport=config_transport,
+    )
+
+    # When passing config, should use config.transport
+    result_transport = runner._get_transport(config)
+    assert result_transport is config_transport, "_get_transport(config) should use config.transport"
+    assert result_transport is not runner_transport, "_get_transport(config) should NOT use runner._transport"
+
+
+def test_runner_get_transport_without_config_uses_runner_transport():
+    """Regression: _get_transport() without config uses runner._transport when set.
+
+    When config is None but runner._transport is set, use runner._transport.
+    """
+    from product_intelligence.evaluation.semantic.runner import SemanticBenchmarkRunner
+    from product_intelligence.evaluation.semantic.transport import FakeSemanticModelTransport
+
+    runner_transport = FakeSemanticModelTransport(responses={})
+
+    runner = SemanticBenchmarkRunner(transport=runner_transport)
+
+    # When no config, should use runner._transport
+    result_transport = runner._get_transport(config=None)
+    assert result_transport is runner_transport, "_get_transport(None) should use runner._transport"
+
+
+def test_runner_get_transport_fallback_creates_fake():
+    """Regression: _get_transport() without config and without runner._transport creates fake.
+
+    This is for backward compatibility - tests that inject nothing get fake.
+    """
+    from product_intelligence.evaluation.semantic.runner import SemanticBenchmarkRunner
+    from product_intelligence.evaluation.semantic.transport import FakeSemanticModelTransport
+
+    runner = SemanticBenchmarkRunner(transport=None)
+
+    # When neither config nor runner._transport, should create fake
+    result_transport = runner._get_transport(config=None)
+    assert isinstance(result_transport, FakeSemanticModelTransport), \
+        "_get_transport() fallback should create FakeSemanticModelTransport"
+
+
+def test_runner_get_transport_fallback_is_not_sentinel():
+    """Regression: Fallback transport is NOT the same as any previously used transport.
+
+    Ensures the fallback is truly a fresh Fake, not a shared instance.
+    """
+    from product_intelligence.evaluation.semantic.runner import SemanticBenchmarkRunner
+    from product_intelligence.evaluation.semantic.transport import FakeSemanticModelTransport
+
+    runner = SemanticBenchmarkRunner(transport=None)
+
+    # First call creates one fake
+    transport1 = runner._get_transport(config=None)
+    # Second call creates another fake
+    transport2 = runner._get_transport(config=None)
+
+    # They should both be Fake but different instances
+    assert isinstance(transport1, FakeSemanticModelTransport)
+    assert isinstance(transport2, FakeSemanticModelTransport)
+    assert transport1 is not transport2, "Each fallback should be a fresh instance"
