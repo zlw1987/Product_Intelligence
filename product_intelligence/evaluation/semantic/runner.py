@@ -58,6 +58,22 @@ from product_intelligence.evaluation.semantic.model_catalog import (
     get_smoke_only_models,
     get_skip_models,
 )
+from product_intelligence.evaluation.semantic.loader import (
+    load_corpus,
+)
+
+
+def _get_canonical_full_case_ids() -> tuple[str, ...]:
+    """Get the canonical FULL corpus ordered case IDs.
+
+    This is the authoritative source for FULL leaderboard eligibility checks.
+    A FULL run must have exactly these case IDs in this exact order.
+
+    Returns:
+        Tuple of case IDs in canonical FULL corpus order
+    """
+    corpus = load_corpus()
+    return tuple(c.case_id for c in corpus.cases)
 
 
 # ---------------------------------------------------------------------------
@@ -122,6 +138,40 @@ RUNNER_VERSION = "1.0"
 SCHEMA_VERSION = "1.0"
 
 
+def _validate_request_timeout(value: float) -> None:
+    """Validate request_timeout_seconds value.
+
+    Rejects:
+    - bool (even though bool is subclass of int in Python)
+    - non-numeric types
+    - values <= 0
+    - NaN
+    - +Inf
+    - -Inf
+
+    Args:
+        value: The timeout value to validate
+
+    Raises:
+        ValueError: If timeout is invalid
+    """
+    import math
+
+    # Must be numeric (int or float), but NOT bool
+    if isinstance(value, bool):
+        raise ValueError(f"request_timeout_seconds must not be boolean, got {type(value).__name__}")
+    if not isinstance(value, (int, float)):
+        raise ValueError(f"request_timeout_seconds must be numeric, got {type(value).__name__}")
+
+    # Must be finite
+    if not math.isfinite(value):
+        raise ValueError(f"request_timeout_seconds must be finite, got {value}")
+
+    # Must be > 0
+    if value <= 0:
+        raise ValueError(f"request_timeout_seconds must be > 0, got {value}")
+
+
 # ---------------------------------------------------------------------------
 # Benchmark run configuration
 # ---------------------------------------------------------------------------
@@ -137,12 +187,17 @@ class BenchmarkRunConfig:
     transport: SemanticModelTransport
     temperature: float = 0.0
     max_tokens: int = 1024
+    request_timeout_seconds: float = 300.0
     output_dir: str | Path | None = None
 
     def __post_init__(self) -> None:
         """Validate configuration against catalog authorization."""
         if self.case_selection not in ("FULL", "SMOKE"):
             raise ValueError(f"Invalid case_selection: {self.case_selection}")
+
+        # Validate request_timeout_seconds: must be numeric, finite, and > 0
+        # This protects manifest provenance even when a custom/fake transport is injected
+        _validate_request_timeout(self.request_timeout_seconds)
 
         # Fail closed on unknown models
         if not is_known_model(self.provider, self.model):
@@ -293,13 +348,14 @@ def _build_manifest(
     run_status: str = "COMPLETED",
     qualification_eligible: bool | None = None,
     qualification_gates_applicable: bool | None = None,
+    attempted_case_ids: tuple[str, ...] | None = None,
 ) -> dict[str, Any]:
     """Build manifest dictionary.
-    
+
     Args:
         config: Benchmark run configuration
         corpus: Loaded semantic corpus
-        case_ids: Ordered tuple of case IDs that were attempted
+        case_ids: Ordered tuple of case IDs that were selected for benchmark
         prompt_version: Prompt version string
         corpus_sha256: SHA256 of corpus source
         prompt_sha256: SHA256 of prompts
@@ -308,7 +364,8 @@ def _build_manifest(
         run_status: Run completion status (COMPLETED, FAILED_CONFIGURATION, FAILED_PROVIDER)
         qualification_eligible: Whether run is eligible for qualification
         qualification_gates_applicable: Whether hard gates apply to this run
-    
+        attempted_case_ids: Ordered tuple of case IDs actually attempted (None for full success)
+
     Returns:
         Manifest dictionary ready for JSON serialization
     """
@@ -334,6 +391,11 @@ def _build_manifest(
     model_obj = get_model_by_provider_model(config.provider, config.model)
     role = model_obj.role.value if model_obj else "unknown"
 
+    # Determine case_count based on attempted_case_ids if provided
+    # case_count should ALWAYS reflect the selected corpus, not attempted
+    # Only use attempted_case_ids for attempted_case_count
+    # case_count is explicitly set to len(case_ids) below
+
     return {
         "benchmark_kind": "semantic_model_qualification",
         "schema_version": SCHEMA_VERSION,
@@ -352,6 +414,9 @@ def _build_manifest(
             "temperature": config.temperature,
             "max_tokens": config.max_tokens,
         },
+        "transport_parameters": {
+            "request_timeout_seconds": config.request_timeout_seconds,
+        },
         "case_selection": config.case_selection,
         # Case IDs: use ordered tuple, NOT sorted
         "case_ids": list(case_ids),  # JSON doesn't support tuple, convert to list
@@ -360,6 +425,9 @@ def _build_manifest(
         "finish_timestamp": finish_time.isoformat(),
         "git_head": git_head,
         "transport_type": type(config.transport).__name__,
+        # Attempted case provenance
+        "attempted_case_ids": list(attempted_case_ids) if attempted_case_ids else list(case_ids),
+        "attempted_case_count": len(attempted_case_ids) if attempted_case_ids else len(case_ids),
         # Run status and qualification
         "run_status": run_status,
         "qualification_eligible": qualification_eligible,
@@ -431,6 +499,16 @@ class SemanticBenchmarkRunner:
         case_ids = self._select_case_ids(config.case_selection)
         cases = tuple(c for c in self._corpus.cases if c.case_id in case_ids)
 
+        # For FULL runs, verify canonical corpus selection
+        if config.case_selection == "FULL":
+            canonical_case_ids = _get_canonical_full_case_ids()
+            if case_ids != canonical_case_ids:
+                raise ValueError(
+                    f"FULL run case_ids do not match canonical corpus selection. "
+                    f"Expected {len(canonical_case_ids)} cases, got {len(case_ids)}. "
+                    f"FULL leaderboard entries must use the complete corpus in canonical order."
+                )
+
         # Build prompts
         prompts = []
         for case in cases:
@@ -453,8 +531,10 @@ class SemanticBenchmarkRunner:
         qualification_gates_applicable = config.case_selection == "FULL"
         requested_model = config.model  # Track requested model for mismatch check
         provider_reported_model: str | None = None
-        
+        attempted_case_ids: list[str] = []  # Track actually attempted case IDs
+
         for case, prompt in prompts:
+            attempted_case_ids.append(case.case_id)  # Record attempt before execution
             result = self._execute_single_request(
                 prompt=prompt,
                 model=config.model,
@@ -464,34 +544,34 @@ class SemanticBenchmarkRunner:
             )
 
             if isinstance(result, TransportResult):
-                # Track provider-reported model from first successful response
-                if provider_reported_model is None and result.provider_reported_model is not None:
-                    provider_reported_model = result.provider_reported_model
-                
-                # Check for model mismatch if provider reported different model
-                if provider_reported_model is not None and provider_reported_model != requested_model:
-                    # MODEL_IDENTITY_MISMATCH - abort immediately
-                    error_type = "MODEL_IDENTITY_MISMATCH"
-                    responses[case.case_id] = {
-                        "case_id": case.case_id,
-                        "raw_output": None,
-                        "latency_ms": None,
-                        "provider_status": None,
-                        "provider_id": None,
-                        "model_id": None,
-                        "token_usage": None,
-                        "valid_output": False,
-                        "error": {
-                            "error_type": error_type,
-                            "transport_status": None,
-                            "http_status": None,
-                        },
-                    }
-                    run_status = "FAILED_CONFIGURATION"
-                    qualification_eligible = False
-                    qualification_gates_applicable = False
-                    break
-                
+                # Check provider-reported model for each response
+                if result.provider_reported_model is not None:
+                    if result.provider_reported_model != requested_model:
+                        # MODEL_IDENTITY_MISMATCH - abort immediately
+                        error_type = "MODEL_IDENTITY_MISMATCH"
+                        responses[case.case_id] = {
+                            "case_id": case.case_id,
+                            "raw_output": None,
+                            "latency_ms": None,
+                            "provider_status": None,
+                            "provider_id": None,
+                            "model_id": None,
+                            "token_usage": None,
+                            # Preserve the actual mismatching provider_reported_model for evidence
+                            "provider_reported_model": result.provider_reported_model,
+                            "finish_reason": None,
+                            "valid_output": False,
+                            "error": {
+                                "error_type": error_type,
+                                "transport_status": None,
+                                "http_status": None,
+                            },
+                        }
+                        run_status = "FAILED_CONFIGURATION"
+                        qualification_eligible = False
+                        qualification_gates_applicable = False
+                        break
+
                 responses[case.case_id] = {
                     "case_id": case.case_id,
                     "raw_output": result.raw_output,
@@ -500,6 +580,7 @@ class SemanticBenchmarkRunner:
                     "provider_id": result.provider_id,
                     "model_id": result.model_id,
                     "provider_reported_model": result.provider_reported_model,
+                    "finish_reason": result.finish_reason,
                     "requested_provider": config.provider,
                     "requested_model": config.model,
                     "token_usage": result.token_usage,
@@ -508,7 +589,7 @@ class SemanticBenchmarkRunner:
                     "valid_output": True,  # Will be updated below
                     "error": None,
                 }
-                
+
                 # Check if raw_output passes the strict parser
                 from product_intelligence.evaluation.semantic.evaluator import (
                     parse_raw_output,
@@ -540,22 +621,22 @@ class SemanticBenchmarkRunner:
                         "http_status": result.http_status,
                     },
                 }
-                
+
                 # Check if this is a RUN-FATAL error
                 from product_intelligence.evaluation.semantic.transport import RUN_FATAL_ERROR_TYPES
-                
+
                 if result.error_type in RUN_FATAL_ERROR_TYPES:
                     # Abort the run immediately
-                    if result.error_type in ("AUTHENTICATION_FAILED", "MODEL_NOT_FOUND", 
+                    if result.error_type in ("AUTHENTICATION_FAILED", "MODEL_NOT_FOUND",
                                              "MODEL_IDENTITY_MISMATCH", "UNSUPPORTED_PARAMETER",
                                              "INVALID_REQUEST_CONFIGURATION"):
                         run_status = "FAILED_CONFIGURATION"
                     else:  # RATE_LIMITED, PROVIDER_UNAVAILABLE
                         run_status = "FAILED_PROVIDER"
-                    
+
                     qualification_eligible = False
                     qualification_gates_applicable = False
-                    
+
                     # Stop processing further cases
                     break
 
@@ -586,6 +667,7 @@ class SemanticBenchmarkRunner:
             run_status=run_status,
             qualification_eligible=qualification_eligible,
             qualification_gates_applicable=qualification_gates_applicable,
+            attempted_case_ids=tuple(attempted_case_ids) if attempted_case_ids else None,
         )
 
         return RunResult(
@@ -599,7 +681,7 @@ class SemanticBenchmarkRunner:
 
     def _select_case_ids(self, case_selection: str) -> tuple[str, ...]:
         """Select case IDs based on selection mode.
-        
+
         Returns a tuple (ordered, deterministic) rather than frozenset.
         """
         if case_selection == "FULL":
@@ -733,30 +815,35 @@ class SemanticBenchmarkRunner:
 
     def _build_smoke_evaluation(self, run_result: RunResult) -> dict[str, Any]:
         """Build SMOKE-specific evaluation artifact.
-        
+
         SMOKE is NOT a 64-case qualification. It's a 5-case runtime screen.
         Evaluation is computed directly from attempted cases, not from
         the frozen full-corpus evaluator.
-        
+
+        After fatal abort, attempted_case_ids/count reflect actual execution,
+        while case_ids/count reflect the originally selected corpus.
+        We MUST use attempted_case_ids for denominator calculations.
+
         Args:
             run_result: Result from benchmark run
-            
+
         Returns:
             SMOKE-specific evaluation dictionary
         """
-        case_ids = run_result.manifest["case_ids"]
-        attempted_case_count = len(case_ids)
-        
+        # Use actual attempted case IDs for denominator, not selected case_ids
+        attempted_case_ids = run_result.manifest.get("attempted_case_ids", [])
+        attempted_case_count = len(attempted_case_ids)
+
         # Count valid responses among attempted cases
         valid_response_count = 0
-        for case_id in case_ids:
+        for case_id in attempted_case_ids:
             record = run_result.responses.get(case_id, {})
             if record.get("valid_output", False):
                 valid_response_count += 1
-        
+
         invalid_response_count = attempted_case_count - valid_response_count
         valid_output_rate = valid_response_count / attempted_case_count if attempted_case_count > 0 else 0.0
-        
+
         return {
             "case_selection": "SMOKE",
             "attempted_case_count": attempted_case_count,
@@ -770,14 +857,14 @@ class SemanticBenchmarkRunner:
 
     def _evaluation_to_dict(self, evaluation_result: Any, case_selection: str) -> dict[str, Any]:
         """Convert evaluation result to dictionary.
-        
+
         For SMOKE runs, hard_gates is null since qualification gates don't apply.
         For FULL runs, normal evaluation metrics/gates are included.
-        
+
         Args:
             evaluation_result: Evaluation result from evaluator
             case_selection: 'FULL' or 'SMOKE'
-            
+
         Returns:
             Dictionary for evaluation.json
         """
@@ -794,13 +881,13 @@ class SemanticBenchmarkRunner:
             "safety_cost": evaluation_result.safety_cost,
             "authority_safety_probes_passed": evaluation_result.authority_safety_probes_passed,
         }
-        
+
         # Only include gates for FULL runs; SMOKE has no hard gates applicable
         if case_selection == "FULL":
             result["gates_passed"] = evaluation_result.gates_passed
         else:
             result["hard_gates"] = None
-            
+
         return result
 
     def _generate_summary(self, run_result: RunResult) -> str:
@@ -809,6 +896,9 @@ class SemanticBenchmarkRunner:
         er = run_result.evaluation_result
         case_selection = config.case_selection
         
+        # Use actual attempted count from manifest, not selected case_ids
+        attempted_case_count = run_result.manifest.get("attempted_case_count", len(run_result.manifest.get("case_ids", [])))
+
         lines = [
             f"# Semantic Model Qualification Summary",
             f"",
@@ -817,7 +907,7 @@ class SemanticBenchmarkRunner:
             f"Role: {run_result.manifest.get('role', 'unknown')}",
             f"Prompt version: 1.0",
             f"Corpus version: {run_result.corpus.corpus_version}",
-            f"Cases attempted: {len(run_result.manifest['case_ids'])}",
+            f"Cases attempted: {attempted_case_count}",
             f"Valid output rate: {er.valid_output_rate:.2%}",
             f"",
             f"## PRIMARY METRICS",
@@ -830,7 +920,7 @@ class SemanticBenchmarkRunner:
             f"**Safety cost**: {er.safety_cost}",
             f"",
         ]
-        
+
         # SMOKE runs don't have hard gates applicable
         if case_selection == "SMOKE":
             lines.extend([
@@ -841,7 +931,7 @@ class SemanticBenchmarkRunner:
                 f"Hard gates: N/A — FULL qualification only",
                 f"",
                 f"Smoke valid-output rate:",
-                f"valid strict outputs / attempted smoke cases ({len(run_result.manifest['case_ids'])})",
+                f"valid strict outputs / attempted smoke cases ({attempted_case_count})",
                 f"",
             ])
         else:
@@ -849,11 +939,11 @@ class SemanticBenchmarkRunner:
                 f"## HARD GATES",
                 f"",
             ])
-            
+
             for gate, passed in er.gates_passed.items():
                 status = "PASS" if passed else "FAIL"
                 lines.append(f"- **{gate}**: {status}")
-        
+
         lines.extend([
             f"",
             f"## CONFUSION MATRIX",
@@ -869,10 +959,10 @@ class SemanticBenchmarkRunner:
             f"## INCORRECT CASES",
             f"",
         ])
-        
+
         # Group incorrect cases by error type
         incorrect = self._collect_incorrect_cases(run_result)
-        
+
         for error_type, cases in incorrect.items():
             if cases:
                 lines.append(f"### {error_type}")
@@ -880,7 +970,7 @@ class SemanticBenchmarkRunner:
                 for case_id, expected, actual in cases:
                     lines.append(f"- **{case_id}**: expected={expected}, actual={actual}")
                 lines.append("")
-        
+
         return "\n".join(lines)
 
     def _collect_incorrect_cases(
@@ -900,6 +990,7 @@ def run_benchmark(
     output_dir: str | Path | None = None,
     temperature: float = 0.0,
     max_tokens: int = 1024,
+    request_timeout_seconds: float = 300.0,
     *,
     transport: SemanticModelTransport | None = None,
 ) -> RunResult:
@@ -912,6 +1003,7 @@ def run_benchmark(
         output_dir: Output directory (optional)
         temperature: Temperature setting (default: 0.0)
         max_tokens: Max tokens (default: 1024)
+        request_timeout_seconds: Request timeout in seconds (default: 300.0)
         transport: Custom transport (optional)
 
     Returns:
@@ -921,9 +1013,13 @@ def run_benchmark(
         provider=provider,
         model=model,
         case_selection=case_selection,
-        transport=transport or get_openai_transport_for_provider(provider),
+        transport=transport or get_openai_transport_for_provider(
+            provider,
+            request_timeout_seconds=request_timeout_seconds,
+        ),
         temperature=temperature,
         max_tokens=max_tokens,
+        request_timeout_seconds=request_timeout_seconds,
         output_dir=output_dir,
     )
 

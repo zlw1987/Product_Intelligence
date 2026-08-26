@@ -630,6 +630,9 @@ def test_smoke_cannot_enter_full_leaderboard():
             prompt_version="1.0",
             prompt_sha256="def456",
             case_ids=tuple([f"SMQ-{i:04d}" for i in range(1, 65)]),
+            request_timeout_seconds=300.0,
+            temperature=0.0,
+            max_tokens=32768,
         ),
         RunComparison(
             provider="amax",
@@ -1276,7 +1279,7 @@ def test_model_mismatch_aborts():
     # Note: We use failure_error_types because model_id in transport is just for reporting,
     # the actual mismatch detection is done in runner.run() based on provider_reported_model
     transport = FakeSemanticModelTransport(
-        model_id="minimax-m2.7-thinking",  # Will be reported as different from requested
+        provider_reported_model="minimax-m2.7-thinking",  # Will be reported as different from requested
     )
     
     runner = SemanticBenchmarkRunner(transport=transport)

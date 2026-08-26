@@ -13,6 +13,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from product_intelligence.evaluation.semantic.loader import load_corpus
+
 
 # ---------------------------------------------------------------------------
 # Error codes for comparison failures (bounded vocabulary)
@@ -38,6 +40,11 @@ PROVENANCE_ERROR_CODES = frozenset([
     "BENCHMARK_KIND_MISMATCH",
     "SMOKE_CANNOT_ENTER_FULL_LEADERBOARD",
     "RUN_NOT_COMPLETED",
+    "REQUEST_TIMEOUT_MISMATCH",
+    "MISSING_REQUEST_TIMEOUT_PROVENANCE",
+    "MISSING_GENERATION_PROVENANCE",
+    "TEMPERATURE_MISMATCH",
+    "MAX_TOKENS_MISMATCH",
 ])
 
 
@@ -81,6 +88,11 @@ class RunComparison:
     prompt_sha256: str | None = None
     case_ids: tuple[str, ...] = field(default_factory=tuple)
     error_codes: tuple[str, ...] = field(default_factory=tuple)  # Why not qualified
+    # Transport parameters (for runtime policy comparison)
+    request_timeout_seconds: float | None = None
+    # Generation parameters (for quality consistency)
+    temperature: float | None = None
+    max_tokens: int | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -134,6 +146,40 @@ def _load_manifest_or_raise(item: dict[str, Any] | str | Path | RunComparison) -
         raise TypeError(f"Expected dict, str, or Path, got {type(item).__name__}")
 
 
+def _compute_gates_passed(gates_data: dict[str, Any]) -> bool:
+    """Compute overall gates_passed from frozen evaluator gate mapping.
+
+    The frozen evaluator stores individual gate booleans. Overall gates_passed
+    is True only when ALL individual gates are True.
+
+    Args:
+        gates_data: Dict from evaluation.json gates_passed field
+
+    Returns:
+        True if all gates passed, False otherwise or if gates_data is empty
+    """
+    if not gates_data:
+        return False
+
+    # All individual gate values must be True for overall to pass
+    return all(bool(v) for v in gates_data.values())
+
+
+# ---------------------------------------------------------------------------
+# Canonical FULL corpus
+# ---------------------------------------------------------------------------
+
+
+def _get_canonical_full_case_ids() -> tuple[str, ...]:
+    """Get the canonical FULL corpus ordered case IDs.
+
+    Returns:
+        Tuple of case IDs in canonical FULL corpus order
+    """
+    corpus = load_corpus()
+    return tuple(c.case_id for c in corpus.cases)
+
+
 # ---------------------------------------------------------------------------
 # Run comparison data
 # ---------------------------------------------------------------------------
@@ -165,6 +211,20 @@ def load_run_comparison(manifest_path: str | Path) -> RunComparison:
     case_ids_raw = manifest.get("case_ids", [])
     case_ids = tuple(case_ids_raw) if case_ids_raw else tuple()
 
+    # Extract request_timeout_seconds from transport_parameters
+    request_timeout_seconds = None
+    transport_params = manifest.get("transport_parameters", {})
+    if transport_params:
+        request_timeout_seconds = transport_params.get("request_timeout_seconds")
+
+    # Extract generation parameters (temperature and max_tokens)
+    temperature = None
+    max_tokens = None
+    generation_params = manifest.get("generation_parameters", {})
+    if generation_params:
+        temperature = generation_params.get("temperature")
+        max_tokens = generation_params.get("max_tokens")
+
     # Extract run_status and related fields (default to COMPLETED if absent)
     run_status = manifest.get("run_status", "COMPLETED")
     qualification_eligible = manifest.get("qualification_eligible", False)
@@ -179,7 +239,10 @@ def load_run_comparison(manifest_path: str | Path) -> RunComparison:
         run_status=run_status,
         qualification_eligible=qualification_eligible,
         qualification_gates_applicable=qualification_gates_applicable,
-        gates_passed=evaluation_data.get("gates_passed", {}).get("all", False),
+        # Compute gates_passed from frozen gate mapping
+        # The evaluator stores individual gate booleans in gates_passed dict
+        # overall = all individual gate values must be True
+        gates_passed=_compute_gates_passed(evaluation_data.get("gates_passed", {})),
         valid_output_rate=evaluation_data.get("valid_output_rate", 0.0),
         match_precision=evaluation_data.get("match_precision", 0.0),
         match_recall=evaluation_data.get("match_recall", 0.0),
@@ -196,6 +259,11 @@ def load_run_comparison(manifest_path: str | Path) -> RunComparison:
         prompt_version=manifest.get("prompt_version"),
         prompt_sha256=manifest.get("prompt_sha256"),
         case_ids=case_ids,
+        # Transport parameters
+        request_timeout_seconds=request_timeout_seconds,
+        # Generation parameters
+        temperature=temperature,
+        max_tokens=max_tokens,
     )
 
 
@@ -217,7 +285,7 @@ def _check_run_qualified_for_full_leaderboard(
     - schema_version is compatible
     - case_selection == FULL
     - case_count == 64 (or whatever the FULL corpus size is)
-    - ordered case_ids match exactly
+    - ordered case_ids match exactly the canonical corpus IDs
     - corpus_version matches
     - corpus_sha256 matches
     - prompt_version matches
@@ -265,6 +333,59 @@ def _check_run_qualified_for_full_leaderboard(
             passed=False,
             error_code="SMOKE_CANNOT_ENTER_FULL_LEADERBOARD",
             detail=f"case_selection={comp.case_selection}, expected FULL for leaderboard",
+        )
+
+    # Check required provenance fields for FULL leaderboard
+    # Timeout must be present
+    if comp.request_timeout_seconds is None:
+        return ProvenanceCheckResult(
+            passed=False,
+            error_code="MISSING_REQUEST_TIMEOUT_PROVENANCE",
+            detail="request_timeout_seconds is required for FULL leaderboard",
+        )
+
+    # Generation parameters must be present
+    if comp.temperature is None:
+        return ProvenanceCheckResult(
+            passed=False,
+            error_code="MISSING_GENERATION_PROVENANCE",
+            detail="temperature is required for FULL leaderboard",
+        )
+    if comp.max_tokens is None:
+        return ProvenanceCheckResult(
+            passed=False,
+            error_code="MISSING_GENERATION_PROVENANCE",
+            detail="max_tokens is required for FULL leaderboard",
+        )
+
+    # Check canonical FULL corpus eligibility
+    canonical_full_case_ids = _get_canonical_full_case_ids()
+
+    # 1. case_count must equal len(canonical_full_case_ids)
+    if comp.case_count != len(canonical_full_case_ids):
+        return ProvenanceCheckResult(
+            passed=False,
+            error_code="CASE_COUNT_MISMATCH",
+            detail=f"case_count={comp.case_count}, expected {len(canonical_full_case_ids)} for FULL corpus",
+        )
+
+    # 2. case_ids must contain exactly the canonical IDs
+    comp_case_ids_set = set(comp.case_ids) if comp.case_ids else set()
+    canonical_set = set(canonical_full_case_ids)
+    if comp_case_ids_set != canonical_set:
+        return ProvenanceCheckResult(
+            passed=False,
+            error_code="CASE_ID_SET_MISMATCH",
+            detail=f"case_ids set mismatch: run has {len(comp_case_ids_set)} IDs, canonical corpus has {len(canonical_set)} IDs",
+        )
+
+    # 3. case_ids must be in the exact canonical order
+    comp_case_ids_tuple = tuple(comp.case_ids) if comp.case_ids else tuple()
+    if comp_case_ids_tuple != canonical_full_case_ids:
+        return ProvenanceCheckResult(
+            passed=False,
+            error_code="CASE_ID_ORDER_MISMATCH",
+            detail="case_ids order differs from canonical corpus order",
         )
 
     return ProvenanceCheckResult(passed=True)
@@ -325,6 +446,74 @@ def _check_provenance_alignment(
             passed=False,
             error_code="PROMPT_SHA256_MISMATCH",
             detail=f"prompt_sha256 mismatch",
+        ))
+
+    # Request timeout check (must match for comparable FULL runs)
+    # If one has timeout and the other doesn't, they are incompatible
+    # If both have timeouts, they must match exactly
+    ref_timeout = reference.request_timeout_seconds
+    cand_timeout = candidate.request_timeout_seconds
+
+    # Both None means incompatible (missing provenance)
+    if ref_timeout is None and cand_timeout is None:
+        results.append(ProvenanceCheckResult(
+            passed=False,
+            error_code="MISSING_REQUEST_TIMEOUT_PROVENANCE",
+            detail="both runs are missing request_timeout_seconds",
+        ))
+    elif ref_timeout is not None and cand_timeout is None:
+        results.append(ProvenanceCheckResult(
+            passed=False,
+            error_code="MISSING_REQUEST_TIMEOUT_PROVENANCE",
+            detail="reference has timeout provenance but candidate is missing",
+        ))
+    elif ref_timeout is None and cand_timeout is not None:
+        results.append(ProvenanceCheckResult(
+            passed=False,
+            error_code="MISSING_REQUEST_TIMEOUT_PROVENANCE",
+            detail="candidate has timeout provenance but reference is missing",
+        ))
+    elif ref_timeout is not None and cand_timeout is not None:
+        # Both have timeout - they must match exactly
+        if ref_timeout != cand_timeout:
+            results.append(ProvenanceCheckResult(
+                passed=False,
+                error_code="REQUEST_TIMEOUT_MISMATCH",
+                detail=f"request_timeout_seconds {ref_timeout} vs {cand_timeout}",
+            ))
+
+    # Generation parameters check (must match for comparable FULL runs)
+    ref_temp = reference.temperature
+    cand_temp = candidate.temperature
+    ref_max_tokens = reference.max_tokens
+    cand_max_tokens = candidate.max_tokens
+
+    # Temperature check
+    if ref_temp is None or cand_temp is None:
+        results.append(ProvenanceCheckResult(
+            passed=False,
+            error_code="MISSING_GENERATION_PROVENANCE",
+            detail=f"temperature missing (reference: {ref_temp}, candidate: {cand_temp})",
+        ))
+    elif ref_temp != cand_temp:
+        results.append(ProvenanceCheckResult(
+            passed=False,
+            error_code="TEMPERATURE_MISMATCH",
+            detail=f"temperature {ref_temp} vs {cand_temp}",
+        ))
+
+    # max_tokens check
+    if ref_max_tokens is None or cand_max_tokens is None:
+        results.append(ProvenanceCheckResult(
+            passed=False,
+            error_code="MISSING_GENERATION_PROVENANCE",
+            detail=f"max_tokens missing (reference: {ref_max_tokens}, candidate: {cand_max_tokens})",
+        ))
+    elif ref_max_tokens != cand_max_tokens:
+        results.append(ProvenanceCheckResult(
+            passed=False,
+            error_code="MAX_TOKENS_MISMATCH",
+            detail=f"max_tokens {ref_max_tokens} vs {cand_max_tokens}",
         ))
 
     # Case count check
@@ -394,6 +583,9 @@ def compare_benchmark_runs(
     - corpus_sha256
     - prompt_version
     - prompt_sha256
+    - request_timeout_seconds (must match exactly)
+    - temperature (must match exactly)
+    - max_tokens (must match exactly)
 
     SMOKE runs are NEVER comparable with FULL runs.
 
@@ -418,10 +610,10 @@ def compare_benchmark_runs(
         elif isinstance(item, (str, Path)):
             comparisons.append(load_run_comparison(item))
         elif isinstance(item, dict):
-            # Convert dict to RunComparison via manifest loading
+            # Dict input is no longer supported - must use paths or RunComparison
             raise TypeError(
-                "Dict input requires a manifest path. "
-                "Use load_run_comparison(path) for manifest dicts."
+                "Dict input is not supported. "
+                "Use a manifest path (str or Path) or a RunComparison instance."
             )
 
     if not comparisons:
@@ -545,6 +737,32 @@ def verify_run_compatibility(
 
     Uses the full provenance check machinery.
     """
+    # Extract timeout from transport_parameters for both manifests
+    timeout1 = None
+    transport_params1 = manifest1.get("transport_parameters", {})
+    if transport_params1:
+        timeout1 = transport_params1.get("request_timeout_seconds")
+
+    timeout2 = None
+    transport_params2 = manifest2.get("transport_parameters", {})
+    if transport_params2:
+        timeout2 = transport_params2.get("request_timeout_seconds")
+
+    # Extract generation parameters
+    temp1 = None
+    max_tokens1 = None
+    gen_params1 = manifest1.get("generation_parameters", {})
+    if gen_params1:
+        temp1 = gen_params1.get("temperature")
+        max_tokens1 = gen_params1.get("max_tokens")
+
+    temp2 = None
+    max_tokens2 = None
+    gen_params2 = manifest2.get("generation_parameters", {})
+    if gen_params2:
+        temp2 = gen_params2.get("temperature")
+        max_tokens2 = gen_params2.get("max_tokens")
+
     comp1 = RunComparison(
         provider=manifest1.get("provider", ""),
         model=manifest1.get("model", ""),
@@ -568,6 +786,9 @@ def verify_run_compatibility(
         prompt_version=manifest1.get("prompt_version"),
         prompt_sha256=manifest1.get("prompt_sha256"),
         case_ids=tuple(manifest1.get("case_ids", [])),
+        request_timeout_seconds=timeout1,
+        temperature=temp1,
+        max_tokens=max_tokens1,
     )
 
     comp2 = RunComparison(
@@ -585,6 +806,7 @@ def verify_run_compatibility(
         match_recall=0.0,
         accuracy=0.0,
         false_match_count=0,
+        safety_cost=0,
         benchmark_kind=manifest2.get("benchmark_kind"),
         schema_version=manifest2.get("schema_version"),
         corpus_version=manifest2.get("corpus_version"),
@@ -592,6 +814,9 @@ def verify_run_compatibility(
         prompt_version=manifest2.get("prompt_version"),
         prompt_sha256=manifest2.get("prompt_sha256"),
         case_ids=tuple(manifest2.get("case_ids", [])),
+        request_timeout_seconds=timeout2,
+        temperature=temp2,
+        max_tokens=max_tokens2,
     )
 
     # Check leaderboard qualification

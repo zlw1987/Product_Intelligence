@@ -65,23 +65,23 @@ ALL_ERROR_TYPES = RUN_FATAL_ERROR_TYPES | CASE_LOCAL_ERROR_TYPES | NETWORK_ERROR
 
 def _classify_http_error(status_code: int, error_body: dict[str, Any] | None = None) -> str:
     """Classify HTTP error status into bounded error types.
-    
+
     Inspects only in memory. Never persists raw body/message.
-    
+
     Args:
         status_code: HTTP status code
         error_body: Parsed error response body (optional)
-        
+
     Returns:
         Bounded error type string
     """
     if error_body is None:
         error_body = {}
-    
+
     # For 400/401/403/404/429/5xx, inspect structured error fields
     error_code = None
     error_type_field = None
-    
+
     if isinstance(error_body, dict):
         # Try structured OpenAI-compatible fields
         if "error" in error_body and isinstance(error_body["error"], dict):
@@ -94,17 +94,17 @@ def _classify_http_error(status_code: int, error_body: dict[str, Any] | None = N
         # Also check top-level message for non-standard formats
         if message is None:
             message = error_body.get("message")
-    
+
     # Classification based on status code and error fields
     if status_code in (401, 403):
         return "AUTHENTICATION_FAILED"
-    
+
     if status_code == 429:
         return "RATE_LIMITED"
-    
+
     if status_code == 404:
         return "MODEL_NOT_FOUND"
-    
+
     if status_code == 400:
         # Inspect error code/type for 400s - do NOT treat all 400 as fatal
         if error_code == "unsupported_parameter":
@@ -117,7 +117,7 @@ def _classify_http_error(status_code: int, error_body: dict[str, Any] | None = N
             return "INVALID_REQUEST_CONFIGURATION"
         if error_code == "content_policy_violation":
             return "CASE_REJECTED"
-        
+
         # Message-based classification for LiteLLM and other providers
         # Inspect message for unsupported parameter indicators (IN MEMORY ONLY)
         if message:
@@ -130,13 +130,13 @@ def _classify_http_error(status_code: int, error_body: dict[str, Any] | None = N
                 "does not support parameters" in msg_lower
             ):
                 return "UNSUPPORTED_PARAMETER"
-        
+
         # Default: non-fatal for case, run continues
         return "HTTP_ERROR"
-    
+
     if 500 <= status_code < 600:
         return "PROVIDER_UNAVAILABLE"
-    
+
     # Unknown/unclassifiable - remain bounded HTTP_ERROR
     return "HTTP_ERROR"
 
@@ -154,6 +154,8 @@ class TransportResult:
     # provider_reported_model is the model name returned by the provider
     # (may differ from requested model for thinking models, etc.)
     provider_reported_model: str | None = None
+    # finish_reason is the reason the model stopped generating
+    finish_reason: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Return a dictionary representation for JSON serialization."""
@@ -165,6 +167,7 @@ class TransportResult:
             "model_id": self.model_id,
             "token_usage": self.token_usage,
             "provider_reported_model": self.provider_reported_model,
+            "finish_reason": self.finish_reason,
         }
 
 
@@ -254,6 +257,8 @@ class FakeSemanticModelTransport(SemanticModelTransport):
         provider_status: str = "200",
         provider_id: str = "fake",
         model_id: str | None = None,
+        provider_reported_model: str | None = None,
+        finish_reason: str | None = None,
         case_ids: tuple[str, ...] | None = None,  # Ordered case IDs for testing
     ):
         """Initialize fake transport.
@@ -266,6 +271,8 @@ class FakeSemanticModelTransport(SemanticModelTransport):
             provider_status: HTTP status to return
             provider_id: Provider identifier
             model_id: Model ID to report (can be different from requested)
+            provider_reported_model: Model name reported by provider (if different)
+            finish_reason: Reason the model stopped generating
             case_ids: Ordered tuple of case IDs being processed (for testing with non-heuristic extraction)
         """
         self._responses = responses or {}
@@ -275,6 +282,8 @@ class FakeSemanticModelTransport(SemanticModelTransport):
         self._provider_status = provider_status
         self._provider_id = provider_id
         self._model_id = model_id
+        self._provider_reported_model = provider_reported_model
+        self._finish_reason = finish_reason
         self._case_ids = case_ids or ()
         self.call_count = 0  # Track number of calls for testing
 
@@ -289,14 +298,14 @@ class FakeSemanticModelTransport(SemanticModelTransport):
     ) -> TransportResult | TransportFailure:
         """Return fake response without network call."""
         self.call_count += 1  # Track call count
-        
+
         # Extract case_id from prompts (for testing)
         case_id = self._extract_case_id(system_prompt, user_prompt)
-        
+
         # If prompt extraction failed but we have case_ids, use call index
         if case_id == "UNKNOWN" and self._case_ids and self.call_count <= len(self._case_ids):
             case_id = self._case_ids[self.call_count - 1]
-        
+
         # Check for specific error type first
         if case_id in self._failure_error_types:
             error_type = self._failure_error_types[case_id]
@@ -305,7 +314,7 @@ class FakeSemanticModelTransport(SemanticModelTransport):
                 transport_status=self._provider_status,
                 http_status=None,
             )
-        
+
         if case_id in self._failures:
             return TransportFailure(
                 error_type="CONNECTION_ERROR",
@@ -321,7 +330,8 @@ class FakeSemanticModelTransport(SemanticModelTransport):
             provider_status=self._provider_status,
             provider_id=self._provider_id,
             model_id=self._model_id or model,  # Report model_id (can differ from requested)
-            provider_reported_model=self._model_id or model,  # Same as model_id for fake
+            provider_reported_model=self._provider_reported_model,
+            finish_reason=self._finish_reason,
             token_usage={"prompt_tokens": 500, "completion_tokens": 50},
         )
 
@@ -355,7 +365,7 @@ class OpenAISemanticTransport(SemanticModelTransport):
         *,
         base_url: str,
         api_key: str | None = None,
-        timeout: float = 30.0,
+        request_timeout_seconds: float = 300.0,
         provider_id: str = "openai-compatible",
     ):
         """Initialize OpenAI-compatible transport.
@@ -363,12 +373,24 @@ class OpenAISemanticTransport(SemanticModelTransport):
         Args:
             base_url: Base URL for the endpoint (e.g., https://api.amax.ai/v1)
             api_key: API key if required (optional for some endpoints)
-            timeout: Request timeout in seconds
+            request_timeout_seconds: Request timeout in seconds (default: 300.0)
             provider_id: Provider identifier for provenance
         """
+        import math
+
+        # Validate request_timeout_seconds: must be numeric, finite, and > 0
+        if not isinstance(request_timeout_seconds, (int, float)):
+            raise ValueError(f"request_timeout_seconds must be numeric, got {type(request_timeout_seconds).__name__}")
+        if isinstance(request_timeout_seconds, bool):
+            raise ValueError(f"request_timeout_seconds must not be boolean, got {type(request_timeout_seconds).__name__}")
+        if not math.isfinite(request_timeout_seconds):
+            raise ValueError(f"request_timeout_seconds must be finite, got {request_timeout_seconds}")
+        if request_timeout_seconds <= 0:
+            raise ValueError(f"request_timeout_seconds must be > 0, got {request_timeout_seconds}")
+
         self._base_url = base_url.rstrip("/")
         self._api_key = api_key
-        self._timeout = timeout
+        self._request_timeout_seconds = request_timeout_seconds
         self._provider_id = provider_id
 
     def complete(
@@ -416,7 +438,7 @@ class OpenAISemanticTransport(SemanticModelTransport):
                         error_type = _classify_http_error(result.status_code, response_data)
                 except (json.JSONDecodeError, Exception):
                     pass  # Use default HTTP_ERROR if body can't be parsed
-                
+
                 return TransportFailure(
                     error_type=error_type,
                     transport_status=str(result.status_code),
@@ -443,6 +465,10 @@ class OpenAISemanticTransport(SemanticModelTransport):
             choice = response_data["choices"][0]
             raw_output = choice.get("message", {}).get("content", "")
 
+            # Extract provider-reported model and finish_reason
+            provider_reported_model = response_data.get("model")
+            finish_reason = choice.get("finish_reason")
+
             # Extract token usage if available
             token_usage = None
             if "usage" in response_data:
@@ -459,13 +485,29 @@ class OpenAISemanticTransport(SemanticModelTransport):
                 provider_status="200",
                 provider_id=self._provider_id,
                 model_id=model,
+                provider_reported_model=provider_reported_model,
+                finish_reason=finish_reason,
                 token_usage=token_usage,
             )
 
         except urllib.error.HTTPError as e:
-            # HTTP errors (4xx, 5xx) - fail closed
+            # HTTP errors (4xx, 5xx) - fail closed with classification
+            error_type = _classify_http_error(e.code)
+
+            # Try to refine classification using structured body if available
+            try:
+                raw_body = e.read()
+                decoded_body = raw_body.decode("utf-8")
+                parsed_body = json.loads(decoded_body)
+
+                if isinstance(parsed_body, dict):
+                    error_type = _classify_http_error(e.code, parsed_body)
+            except Exception:
+                # Keep baseline classification if body can't be parsed
+                pass
+
             return TransportFailure(
-                error_type="HTTP_ERROR",
+                error_type=error_type,
                 transport_status=str(e.code),
                 http_status=e.code,
             )
@@ -532,7 +574,7 @@ class OpenAISemanticTransport(SemanticModelTransport):
         opener = urllib.request.build_opener(NoRedirectHandler)
 
         try:
-            with opener.open(req, timeout=self._timeout) as response:
+            with opener.open(req, timeout=self._request_timeout_seconds) as response:
                 body = response.read().decode("utf-8")
                 return _HTTPResponse(status_code=response.status, body=body)
         except urllib.error.HTTPError as e:
@@ -556,11 +598,15 @@ class _HTTPResponse:
 # ---------------------------------------------------------------------------
 
 
-def get_openai_transport_for_provider(provider: str) -> OpenAISemanticTransport:
+def get_openai_transport_for_provider(
+    provider: str,
+    request_timeout_seconds: float = 300.0,
+) -> OpenAISemanticTransport:
     """Create OpenAI transport from environment configuration.
 
     Args:
         provider: Provider name ('amax' or 'vllm-262k')
+        request_timeout_seconds: Request timeout in seconds (default: 300.0)
 
     Returns:
         Configured OpenAISemanticTransport
@@ -578,6 +624,7 @@ def get_openai_transport_for_provider(provider: str) -> OpenAISemanticTransport:
         return OpenAISemanticTransport(
             base_url=base_url,
             api_key=api_key if api_key else None,
+            request_timeout_seconds=request_timeout_seconds,
             provider_id="amax",
         )
 
@@ -591,6 +638,7 @@ def get_openai_transport_for_provider(provider: str) -> OpenAISemanticTransport:
         return OpenAISemanticTransport(
             base_url=base_url,
             api_key=api_key if api_key else None,
+            request_timeout_seconds=request_timeout_seconds,
             provider_id="vllm-262k",
         )
 

@@ -57,7 +57,6 @@ from product_intelligence.evaluation.semantic.evaluator import (
 )
 from product_intelligence.evaluation.semantic.comparison import (
     compare_benchmark_runs,
-    load_run_manifest,
 )
 
 
@@ -154,6 +153,7 @@ def run_command(args: argparse.Namespace) -> int:
             output_dir=args.output_dir,
             temperature=args.temperature,
             max_tokens=args.max_tokens,
+            request_timeout_seconds=args.request_timeout_seconds,
         )
 
         print()
@@ -258,11 +258,8 @@ def compare_command(args: argparse.Namespace) -> int:
         return 1
 
     try:
-        manifests = []
-        for manifest_path in args.manifests:
-            manifests.append(load_run_manifest(Path(manifest_path)))
-
-        comparison = compare_benchmark_runs(manifests)
+        # Pass paths directly to compare_benchmark_runs - it handles path loading internally
+        comparison = compare_benchmark_runs(args.manifests)
 
         print("Comparison Results:")
         print()
@@ -345,6 +342,10 @@ def create_parser() -> argparse.ArgumentParser:
     run_parser.add_argument(
         "--max-tokens", type=int, default=1024,
         help="Maximum completion tokens (default: 1024)"
+    )
+    run_parser.add_argument(
+        "--request-timeout-seconds", type=float, default=300.0,
+        help="Request timeout in seconds (default: 300.0)"
     )
 
     # Evaluate command
