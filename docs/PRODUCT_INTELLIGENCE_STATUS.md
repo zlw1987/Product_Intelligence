@@ -69,9 +69,15 @@ After corrective pass is reviewed:
 | --- | --- | --- |
 | Domain contracts + vocabularies | `domain/` | Implemented |
 | Evaluation corpus + loader | `evaluation/` | Implemented |
-| Semantic match corpus + evaluator | `evaluation/semantic/` | **Corrective review** |
+| Semantic match corpus + evaluator | `evaluation/semantic/` | **Implemented** |
 | Semantic match prompt template | `evaluation/semantic/prompt.py` | **Implemented** |
 | Semantic match export/import | `evaluation/semantic/` | **Implemented** |
+| Semantic match transport | `evaluation/semantic/transport.py` | **Implemented** |
+| Semantic match model catalog | `evaluation/semantic/model_catalog.py` | **Implemented** |
+| Semantic match benchmark runner | `evaluation/semantic/runner.py` | **Implemented** |
+| Semantic match CLI | `evaluation/semantic/cli.py` | **Implemented** |
+| Semantic match comparison | `evaluation/semantic/comparison.py` | **Implemented** |
+| Semantic match tests | `tests/evaluation/semantic/` | **Implemented** |
 | Persisted run lifecycle | `runs/` | Implemented (ResearchRun) |
 | Execution evidence model | `runs/` | Implemented (ExecutionEvidenceRecord) |
 | Execution claim service | `runs/` | Implemented (claim_execution) |
@@ -144,6 +150,42 @@ problem, not a code defect.
 After corrective pass:
 - Human checkbox selection design recorded for future implementation after
   semantic qualification harness is trustworthy
+
+**PRODUCT-INTEL.5B — FoxPro Launcher** (client pending outside repo).
+
+## Semantic qualification harness
+
+**APPROVED / FROZEN**
+
+The semantic qualification corpus, prompt v1.0, evaluator mathematics,
+qualification thresholds, expected decisions, and safety gates are now
+APPROVED AND FROZEN.
+
+Do NOT modify:
+- evaluation/semantic_corpus/cases.json truth labels or case contents
+- SEMANTIC_PROMPT_VERSION = "1.0"
+- semantic system/user prompt semantics
+- semantic evaluator formulas
+- qualification gates
+- production research/matching.py
+- production aggregation
+- production execution
+
+## Model qualification runner
+
+**IMPLEMENTATION CANDIDATE**
+
+Semantic qualification harness infrastructure is now implemented:
+
+* transport.py - Abstract transport interface + OpenAI-compatible HTTP
+* model_catalog.py - Explicit model catalog (8 primary + 1 smoke + 3 skip)
+* runner.py - Benchmark runner with durable artifacts
+* cli.py - CLI for list-models, run, evaluate, compare
+* comparison.py - Offline comparison utility
+
+All tests use fake transports / recorded responses. No live network calls.
+
+No model results yet. No production semantic matcher selected.
 
 ## Known issues / debt
 

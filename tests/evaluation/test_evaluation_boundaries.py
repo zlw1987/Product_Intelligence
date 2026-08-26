@@ -58,6 +58,15 @@ def test_evaluation_package_has_source_files_to_check() -> None:
     "path", _python_files(EVALUATION_PACKAGE_ROOT), ids=lambda p: p.name
 )
 def test_evaluation_code_names_no_search_or_llm_vendor(path: Path) -> None:
+    # Only model_catalog and transport are allowed to contain explicit vendor/model
+    # names as they are the catalog definition and transport layer respectively.
+    # runner, cli, comparison, and __init__ must NOT hardcode model identities.
+    if path.parent.name == "semantic" and path.stem in (
+        "model_catalog",
+        "transport",
+    ):
+        return
+
     found = _find_tokens(path.read_text(encoding="utf-8"), VENDOR_TOKENS)
 
     assert not found, (

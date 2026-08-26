@@ -16,6 +16,9 @@ db.sqlite3-journal
 .env
 .env.*
 
+# Benchmark artifact directories - never commit runtime artifacts
+/semantic_benchmark_runs/
+
 # Tooling
 .pytest_cache/
 .coverage
