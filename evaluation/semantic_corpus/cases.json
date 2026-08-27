@@ -1,5 +1,5 @@
 {
-  "corpus_version": 1,
+  "corpus_version": 2,
   "note": "Semantic match qualification corpus for offline LLM model evaluation. This is separate from the deterministic evaluation corpus. Cases are primary semantic cases (non-authoritative evidence) unless marked as authority_safety_probe. All cases marked project_uat are required UAT cases.",
   "cases": [
     {
@@ -316,7 +316,7 @@
       "case_class": "different_capacity",
       "target": {
         "manufacturer_part_number": "PK8071305072902",
-        "description": "Intel Xeon Gold 6430 processor"
+        "description": "Intel Xeon Gold 6430 60MB Cache processor"
       },
       "candidate": {
         "product_title": "Intel Xeon Gold 6430 30MB Cache Processor",
@@ -679,7 +679,7 @@
       "case_class": "different_capacity",
       "target": {
         "manufacturer_part_number": "PK8071305072902",
-        "description": "Intel Xeon Gold 6430 processor"
+        "description": "Intel Xeon Gold 6430 60MB Cache processor"
       },
       "candidate": {
         "product_title": "Intel Xeon Gold 6430 45MB Cache Processor",
@@ -1081,8 +1081,8 @@
         "description_or_specs": null
       },
       "candidate_evidence_source": "TITLE_TEXT",
-      "expected_decision": "UNCERTAIN",
-      "critical_reason": "Upgrade/replacement wording indicates similar product but not necessarily identical MPN.",
+      "expected_decision": "NO_MATCH",
+      "critical_reason": "Compatible replacement wording indicates a distinct product relationship, not the target product itself.",
       "provenance": "synthetic"
     },
     {

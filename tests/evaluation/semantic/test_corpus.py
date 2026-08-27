@@ -301,3 +301,232 @@ def test_corpus_no_duplicate_primary_cases():
 
     assert len(duplicates) == 0, \
         f"Duplicate PRIMARY cases found: {duplicates}"
+
+
+def test_semantic_prompt_v1_1_version():
+    """Test semantic match prompt version is 1.1."""
+    from product_intelligence.evaluation.semantic.prompt import SEMANTIC_PROMPT_VERSION
+
+    assert SEMANTIC_PROMPT_VERSION == "1.1", \
+        f"Expected prompt version 1.1, got {SEMANTIC_PROMPT_VERSION}"
+
+
+def test_semantic_prompt_contains_v2_policy():
+    """Test semantic prompt v1.1 contains updated decision policy.
+
+    This test verifies the v1.1 semantics without relying on exact punctuation.
+    """
+    from product_intelligence.evaluation.semantic.prompt import (
+        SYSTEM_PROMPT,
+        USER_PROMPT_TEMPLATE,
+    )
+
+    prompt_text = SYSTEM_PROMPT + "\n" + USER_PROMPT_TEMPLATE
+    prompt_lower = prompt_text.lower()
+
+    # v1.1 should explicitly state: Use ONLY the evidence supplied
+    assert "use only" in prompt_lower and "evidence supplied" in prompt_lower, \
+        "Prompt v1.1 should state to use only supplied evidence"
+
+    # v1.1 must prohibit outside product knowledge
+    assert "outside" in prompt_lower or "outside product knowledge" in prompt_lower, \
+        "Prompt v1.1 must prohibit outside product knowledge"
+
+    # v1.1 must address authoritative MPN precedence
+    assert "authoritative" in prompt_lower or "explicit" in prompt_lower, \
+        "Prompt v1.1 should address authoritative/explicit MPN precedence"
+
+    # v1.1 must have decision precedence rules
+    assert "precedence" in prompt_lower or "apply in order" in prompt_lower, \
+        "Prompt v1.1 should have decision precedence rules"
+
+
+def test_semantic_prompt_v2_only_supplied_evidence():
+    """Test prompt v1.1 enforces using ONLY supplied evidence."""
+    from product_intelligence.evaluation.semantic.prompt import SYSTEM_PROMPT
+
+    # Check that prompt explicitly says "only" and "supplied" together
+    assert "use only the evidence supplied" in SYSTEM_PROMPT.lower(), \
+        "Prompt must enforce using only supplied evidence"
+
+
+def test_semantic_prompt_v2_authoritative_mpn_conflict():
+    """Test prompt v1.1 explicitly states authoritative MPN conflict -> NO_MATCH."""
+    from product_intelligence.evaluation.semantic.prompt import SYSTEM_PROMPT
+
+    prompt_lower = SYSTEM_PROMPT.lower()
+
+    # Must mention that explicit MPN conflict results in NO_MATCH
+    assert "explicit" in prompt_lower and "conflict" in prompt_lower, \
+        "Prompt must address explicit MPN conflict"
+    assert "no_match" in prompt_lower or "no match" in prompt_lower, \
+        "Prompt must indicate NO_MATCH for conflicts"
+
+
+def test_semantic_prompt_v2_authoritative_exact_mpn():
+    """Test prompt v1.1 explicitly states authoritative exact MPN -> MATCH."""
+    from product_intelligence.evaluation.semantic.prompt import SYSTEM_PROMPT
+
+    prompt_lower = SYSTEM_PROMPT.lower()
+
+    # Must mention that exact MPN results in MATCH
+    assert "exact" in prompt_lower and "match" in prompt_lower, \
+        "Prompt must address exact MPN matching"
+
+
+def test_semantic_prompt_v2_title_mpn_requires_product_itself():
+    """Test prompt v1.1 clarifies title MPN MATCH requires product-itself context."""
+    from product_intelligence.evaluation.semantic.prompt import SYSTEM_PROMPT
+
+    prompt_lower = SYSTEM_PROMPT.lower()
+
+    # Must clarify that title MPN is NOT authoritative on its own
+    # and requires product description alignment
+    assert "title" in prompt_lower or "text" in prompt_lower, \
+        "Prompt must address title/text MPN"
+    assert "not authoritative" in prompt_lower or "must also align" in prompt_lower, \
+        "Prompt must clarify title MPN is not authoritative alone"
+
+
+def test_semantic_prompt_v2_accessory_role_nu_match():
+    """Test prompt v1.1 explicitly states accessory/non-core role -> NO_MATCH."""
+    from product_intelligence.evaluation.semantic.prompt import SYSTEM_PROMPT
+
+    prompt_lower = SYSTEM_PROMPT.lower()
+
+    # Must mention accessory/tray/caddy/etc. roles -> NO_MATCH
+    accessories = ["accessory", "tray", "caddy", "enclosure", "adapter",
+                   "heatsink", "cable", "kit", "multipack"]
+    found = any(acc in prompt_lower for acc in accessories)
+    assert found, \
+        "Prompt must address accessory/non-core roles that -> NO_MATCH"
+
+
+def test_semantic_prompt_v2_compatible_with_nu_match():
+    """Test prompt v1.1 explicitly states compatible-with -> NO_MATCH."""
+    from product_intelligence.evaluation.semantic.prompt import SYSTEM_PROMPT
+
+    prompt_lower = SYSTEM_PROMPT.lower()
+
+    # Must mention compatible-with -> NO_MATCH
+    assert "compatible" in prompt_lower and "no_match" in prompt_lower, \
+        "Prompt must state compatible-with -> NO_MATCH"
+
+
+def test_semantic_prompt_v2_replacement_for_may_uncertain():
+    """Test prompt v1.1 clarifies replacement-for alone may remain UNCERTAIN."""
+    from product_intelligence.evaluation.semantic.prompt import SYSTEM_PROMPT
+
+    prompt_lower = SYSTEM_PROMPT.lower()
+
+    # Must mention replacement-for ambiguity
+    assert "replacement" in prompt_lower, \
+        "Prompt must address replacement-for wording"
+    # Should mention that it may remain UNCERTAIN without sufficient evidence
+    assert "uncertain" in prompt_lower, \
+        "Prompt must mention UNCERTAIN for ambiguous cases"
+
+
+def test_semantic_prompt_v2_missing_suffix_vs_different():
+    """Test prompt v1.1 distinguishes missing suffix vs different suffix."""
+    from product_intelligence.evaluation.semantic.prompt import SYSTEM_PROMPT
+
+    prompt_lower = SYSTEM_PROMPT.lower()
+
+    # Must distinguish missing suffix (UNCERTAIN) vs different suffix (NO_MATCH)
+    assert "suffix" in prompt_lower, \
+        "Prompt must address suffix differences"
+
+
+def test_semantic_prompt_v2_spec_only_never_match():
+    """Test prompt v1.1 explicitly states spec-only can never produce MATCH."""
+    from product_intelligence.evaluation.semantic.prompt import SYSTEM_PROMPT
+
+    prompt_lower = SYSTEM_PROMPT.lower()
+
+    # Must state spec similarity alone never produces MATCH
+    assert "spec" in prompt_lower and "never" in prompt_lower and "match" in prompt_lower, \
+        "Prompt must state spec-only can never produce MATCH"
+
+
+def test_semantic_prompt_v2_insufficient_uncertain():
+    """Test prompt v1.1 states insufficient evidence -> UNCERTAIN."""
+    from product_intelligence.evaluation.semantic.prompt import SYSTEM_PROMPT
+
+    prompt_lower = SYSTEM_PROMPT.lower()
+
+    # Must mention insufficient evidence -> UNCERTAIN
+    assert "insufficient" in prompt_lower and "uncertain" in prompt_lower, \
+        "Prompt must state insufficient evidence -> UNCERTAIN"
+
+
+def test_semantic_prompt_v2_false_match_preference():
+    """Test prompt v1.1 states false MATCH preference toward UNCERTAIN."""
+    from product_intelligence.evaluation.semantic.prompt import SYSTEM_PROMPT
+
+    prompt_lower = SYSTEM_PROMPT.lower()
+
+    # Must mention that false MATCH is worse than UNCERTAIN
+    assert "false" in prompt_lower and "match" in prompt_lower, \
+        "Prompt must mention false MATCH safety"
+
+
+def test_semantic_prompt_v2_strict_json():
+    """Test prompt v1.1 enforces strict JSON only."""
+    from product_intelligence.evaluation.semantic.prompt import SYSTEM_PROMPT
+
+    # Must state return JSON directly without markdown/code fences/prose
+    prompt_lower = SYSTEM_PROMPT.lower()
+    assert "json object directly" in prompt_lower, \
+        "Prompt must enforce returning JSON object directly"
+    assert "markdown" in prompt_lower and "code fence" in prompt_lower, \
+        "Prompt must prohibit markdown and code fences"
+    assert "prose" in prompt_lower, \
+        "Prompt must prohibit prose output"
+
+
+def test_semantic_prompt_v1_1_markdown_fences_prohibited():
+    """Test prompt v1.1 explicitly prohibits markdown fences."""
+    from product_intelligence.evaluation.semantic.prompt import SYSTEM_PROMPT
+
+    # Must explicitly prohibit markdown/code fences
+    prompt_lower = SYSTEM_PROMPT.lower()
+    assert "markdown" in prompt_lower and "fence" in prompt_lower, \
+        "Prompt must explicitly prohibit markdown/code fences"
+    assert "code fence" in prompt_lower or "code fence" in prompt_lower, \
+        "Prompt must explicitly prohibit code fences"
+
+
+def test_semantic_corpus_v2_authority_probe_ids_unchanged():
+    """Test that authority probe IDs remain the same in v2 as in v1."""
+    from product_intelligence.evaluation.semantic.loader import load_corpus
+
+    corpus = load_corpus()
+
+    # Authority probe IDs must remain EXACTLY these six
+    expected_authority_ids = {
+        "SMQ-0004",
+        "SMQ-0011",
+        "SMQ-0030",
+        "SMQ-0041",
+        "SMQ-0058",
+        "SMQ-0061",
+    }
+
+    authority_ids = {c.case_id for c in corpus.cases if c.is_authority_safety_probe}
+    assert authority_ids == expected_authority_ids, \
+        f"Authority probe IDs changed from v1! Expected {expected_authority_ids}, got {authority_ids}"
+
+
+def test_semantic_corpus_v2_case_order_unchanged():
+    """Test that case ordering is unchanged from v1 to v2."""
+    from product_intelligence.evaluation.semantic.loader import load_corpus
+
+    corpus = load_corpus()
+
+    # Case IDs should be in order from SMQ-0001 to SMQ-0064
+    expected_ids = [f"SMQ-{i:04d}" for i in range(1, 65)]
+    actual_ids = [c.case_id for c in corpus.cases]
+
+    assert actual_ids == expected_ids, \
+        f"Case order changed from v1! Expected {expected_ids}, got {actual_ids}"

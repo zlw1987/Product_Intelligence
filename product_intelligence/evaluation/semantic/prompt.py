@@ -16,7 +16,7 @@ from typing import Any
 # Prompt version
 # ---------------------------------------------------------------------------
 
-SEMANTIC_PROMPT_VERSION = "1.0"
+SEMANTIC_PROMPT_VERSION = "1.1"
 
 
 # ---------------------------------------------------------------------------
@@ -29,6 +29,8 @@ Your task is to determine whether a candidate product listing matches a target
 product based on manufacturer part number (MPN) and product description evidence.
 
 CRITICAL SAFETY RULES:
+- Use ONLY the evidence supplied in the target and candidate.
+- Do not rely on unstated product specifications or outside product knowledge.
 - A false MATCH (incorrectly claiming a product matches) is materially worse
   than returning UNCERTAIN when evidence is insufficient.
 - One character difference in an MPN can mean an entirely different product.
@@ -49,13 +51,87 @@ CRITICAL SAFETY RULES:
   M.2 vs U.2), and interface differences (e.g., NVMe vs SATA) indicate NO_MATCH.
 - If critical identity evidence is missing or ambiguous, return UNCERTAIN.
 - Do NOT reason about prices or infer seller quality.
+- When uncertain between MATCH and UNCERTAIN, prefer UNCERTAIN.
+
+DECISION PRECEDENCE (apply in order):
+
+A. AUTHORITATIVE EXPLICIT MPN
+
+1. Explicit authoritative MPN conflict (different revision/suffix):
+       -> NO_MATCH
+   Semantic similarity never overrides it.
+
+2. Explicit authoritative exact target MPN:
+       -> MATCH
+   Do not downgrade merely because non-conflicting descriptive fields
+   are missing.
+
+B. CLEAR DIFFERENT PRODUCT ROLE / HARD NEGATIVES
+
+Before allowing title/spec similarity to produce MATCH:
+
+3. Clear accessory / tray / caddy / enclosure / adapter / heatsink /
+   cable / kit / multipack / different product role:
+       -> NO_MATCH
+
+4. "compatible with TARGET" or "compatible replacement for TARGET":
+       -> NO_MATCH
+
+5. "replacement for TARGET" alone, without sufficient identity evidence:
+       -> UNCERTAIN
+
+C. TITLE MPN
+
+6. Exact target MPN clearly present in title/text:
+       -> MATCH
+   ONLY if the listing clearly represents the target product itself
+   and no supplied evidence conflicts.
+
+   An accessory, kit, compatible product, replacement product, or
+   conflicting critical attribute must NOT be rescued by exact-MPN text
+   appearing somewhere in the title.
+
+D. SUFFIX
+
+7. Target ABC-XYZ vs candidate ABC:
+       suffix MISSING
+       -> UNCERTAIN
+       unless other supplied evidence proves identity or mismatch.
+
+8. Target ABC-XYZ vs candidate ABC-XYQ:
+       suffix explicitly DIFFERENT
+       -> NO_MATCH
+
+E. NO USABLE MPN / SPEC-ONLY
+
+9. If target lacks usable MPN, or identity is supported only by aligned
+   manufacturer/family/capacity/form-factor/interface/specs:
+
+       spec similarity alone can NEVER produce MATCH.
+
+   If a supplied critical attribute explicitly conflicts:
+       -> NO_MATCH
+
+   Otherwise:
+       -> UNCERTAIN
+
+F. OTHER CRITICAL CONFLICT
+
+10. Explicit material supplied-evidence conflict in capacity, form factor,
+    interface, revision, suffix, quantity, or product role:
+        -> NO_MATCH
+
+11. Otherwise insufficient identity evidence:
+        -> UNCERTAIN
 
 Decision vocabulary:
 - MATCH: The candidate is very likely the target product based on evidence.
 - NO_MATCH: The candidate is definitely NOT the target product.
 - UNCERTAIN: Insufficient evidence to determine match or no-match.
 
-Response format: JSON object only, no prose."""
+Response format: Return the JSON object directly.
+Do not wrap it in Markdown or code fences.
+Do not include prose before or after the JSON object."""
 
 
 # ---------------------------------------------------------------------------

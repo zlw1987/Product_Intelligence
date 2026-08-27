@@ -27,6 +27,7 @@ from product_intelligence.evaluation.semantic.loader import (
     load_corpus,
 )
 from product_intelligence.evaluation.semantic.prompt import (
+    SEMANTIC_PROMPT_VERSION,
     SemanticPrompt,
     build_prompt,
     export_corpus_to_jsonl,
@@ -659,7 +660,7 @@ class SemanticBenchmarkRunner:
             config=config,
             corpus=self._corpus,
             case_ids=case_ids,
-            prompt_version="1.0",
+            prompt_version=SEMANTIC_PROMPT_VERSION,
             corpus_sha256=corpus_sha256,
             prompt_sha256=prompt_sha256,
             start_time=start_time,

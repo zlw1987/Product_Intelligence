@@ -199,9 +199,11 @@ def test_gpt_oss_smoke_case_ids():
 
 def test_manifest_structure():
     """Test _build_manifest creates correct structure."""
+    from product_intelligence.evaluation.semantic.prompt import SEMANTIC_PROMPT_VERSION
     from product_intelligence.evaluation.semantic.runner import (
         SemanticBenchmarkRunner,
         BenchmarkRunConfig,
+        _build_manifest,
     )
     from product_intelligence.evaluation.semantic.transport import (
         FakeSemanticModelTransport,
@@ -226,7 +228,7 @@ def test_manifest_structure():
         config=config,
         corpus=corpus,
         case_ids=case_ids,
-        prompt_version="1.0",
+        prompt_version=SEMANTIC_PROMPT_VERSION,
         corpus_sha256="test-sha256",
         prompt_sha256="test-prompt-sha256",
         start_time=datetime.now(timezone.utc),
@@ -1000,6 +1002,7 @@ def test_case_ids_are_ordered_tuple():
 
 def test_manifest_case_ids_not_sorted():
     """Test that manifest stores case_ids in original order, not sorted."""
+    from product_intelligence.evaluation.semantic.prompt import SEMANTIC_PROMPT_VERSION
     from product_intelligence.evaluation.semantic.runner import (
         SemanticBenchmarkRunner,
         BenchmarkRunConfig,
@@ -1025,7 +1028,7 @@ def test_manifest_case_ids_not_sorted():
         config=config,
         corpus=corpus,
         case_ids=corpus_case_ids,
-        prompt_version="1.0",
+        prompt_version=SEMANTIC_PROMPT_VERSION,
         corpus_sha256="test-sha",
         prompt_sha256="test-prompt-sha",
         start_time=datetime.now(timezone.utc),
@@ -1767,3 +1770,509 @@ def test_runner_get_transport_fallback_is_not_sentinel():
     assert isinstance(transport1, FakeSemanticModelTransport)
     assert isinstance(transport2, FakeSemanticModelTransport)
     assert transport1 is not transport2, "Each fallback should be a fresh instance"
+
+
+def test_semantic_corpus_v2_version():
+    """Test semantic corpus version is 2."""
+    from product_intelligence.evaluation.semantic.loader import load_corpus
+
+    corpus = load_corpus()
+    assert corpus.corpus_version == 2, f"Expected corpus version 2, got {corpus.corpus_version}"
+
+
+def test_semantic_corpus_v2_case_count():
+    """Test semantic corpus has exactly 64 cases in v2."""
+    from product_intelligence.evaluation.semantic.loader import load_corpus
+
+    corpus = load_corpus()
+    assert len(corpus.cases) == 64, f"Expected 64 cases, got {len(corpus.cases)}"
+
+
+def test_semantic_corpus_v2_authority_probes():
+    """Test semantic corpus v2 has exactly 6 authority probes with correct IDs."""
+    from product_intelligence.evaluation.semantic.loader import load_corpus
+
+    corpus = load_corpus()
+
+    authority_ids = {c.case_id for c in corpus.cases if c.is_authority_safety_probe}
+    expected_authority_ids = {
+        "SMQ-0004",  # Explicit conflict
+        "SMQ-0011",  # Explicit conflict
+        "SMQ-0030",  # Explicit conflict
+        "SMQ-0041",  # Explicit conflict
+        "SMQ-0058",  # Explicit conflict
+        "SMQ-0061",  # Exact MPN match
+    }
+    assert authority_ids == expected_authority_ids, f"Expected authority IDs {expected_authority_ids}, got {authority_ids}"
+    assert len(authority_ids) == 6, f"Expected 6 authority probes, got {len(authority_ids)}"
+
+
+def test_semantic_corpus_v2_primary_count():
+    """Test semantic corpus v2 has exactly 58 primary cases."""
+    from product_intelligence.evaluation.semantic.loader import load_corpus
+
+    corpus = load_corpus()
+
+    primary_cases = [c for c in corpus.cases if not c.is_authority_safety_probe]
+    assert len(primary_cases) == 58, f"Expected 58 primary cases, got {len(primary_cases)}"
+
+
+def test_semantic_corpus_v2_decision_counts():
+    """Test semantic corpus v2 has expected decision counts."""
+    from product_intelligence.evaluation.semantic.loader import load_corpus, SemanticDecision
+    from collections import Counter
+
+    corpus = load_corpus()
+
+    primary_decisions = [c.expected_decision for c in corpus.cases if not c.is_authority_safety_probe]
+    decision_counts = Counter(primary_decisions)
+
+    # v2 counts after SMQ-0059 change: UNCERTAIN -> NO_MATCH
+    # Primary total: 58
+    # MATCH: 13, NO_MATCH: 31, UNCERTAIN: 14
+    assert decision_counts[SemanticDecision.MATCH] == 13, f"Expected 13 MATCH, got {decision_counts[SemanticDecision.MATCH]}"
+    assert decision_counts[SemanticDecision.NO_MATCH] == 31, f"Expected 31 NO_MATCH, got {decision_counts[SemanticDecision.NO_MATCH]}"
+    assert decision_counts[SemanticDecision.UNCERTAIN] == 14, f"Expected 14 UNCERTAIN, got {decision_counts[SemanticDecision.UNCERTAIN]}"
+
+
+def test_semantic_corpus_v2_case_smq0018_target_evidence():
+    """Test SMQ-0018 target evidence explicitly exposes 60MB cache."""
+    from product_intelligence.evaluation.semantic.loader import load_corpus
+
+    corpus = load_corpus()
+    case = corpus.get_case("SMQ-0018")
+
+    # Target description should explicitly state 60MB cache
+    assert "60MB" in case.target.description, \
+        f"SMQ-0018 target description should explicitly state 60MB cache, got: {case.target.description}"
+    # Should be NO_MATCH due to cache difference
+    assert case.expected_decision.value == "NO_MATCH"
+
+
+def test_semantic_corpus_v2_case_smq0038_target_evidence():
+    """Test SMQ-0038 target evidence explicitly exposes 60MB cache."""
+    from product_intelligence.evaluation.semantic.loader import load_corpus
+
+    corpus = load_corpus()
+    case = corpus.get_case("SMQ-0038")
+
+    # Target description should explicitly state 60MB cache
+    assert "60MB" in case.target.description, \
+        f"SMQ-0038 target description should explicitly state 60MB cache, got: {case.target.description}"
+    # Should be NO_MATCH due to cache difference
+    assert case.expected_decision.value == "NO_MATCH"
+
+
+def test_semantic_corpus_v2_case_smq0059_decision_change():
+    """Test SMQ-0059 decision changed from UNCERTAIN to NO_MATCH in v2."""
+    from product_intelligence.evaluation.semantic.loader import load_corpus, SemanticDecision
+
+    corpus = load_corpus()
+    case = corpus.get_case("SMQ-0059")
+
+    # Should be NO_MATCH (changed from UNCERTAIN)
+    assert case.expected_decision == SemanticDecision.NO_MATCH, \
+        f"SMQ-0059 should be NO_MATCH in v2, got {case.expected_decision.value}"
+    # Case class should be compatible_with_trap now (was replacement_trap)
+    # The change was to treat "compatible replacement" as NO_MATCH explicitly
+    # Keep case_class as-is (replacement_trap is still fine)
+
+
+def test_semantic_corpus_v2_case_smq0032_unchanged():
+    """Test SMQ-0032 remains UNCERTAIN in v2."""
+    from product_intelligence.evaluation.semantic.loader import load_corpus, SemanticDecision
+
+    corpus = load_corpus()
+    case = corpus.get_case("SMQ-0032")
+
+    # Should remain UNCERTAIN (replacement-for alone remains ambiguous)
+    assert case.expected_decision == SemanticDecision.UNCERTAIN, \
+        f"SMQ-0032 should remain UNCERTAIN, got {case.expected_decision.value}"
+
+
+def test_semantic_corpus_v2_case_smq0060_unchanged():
+    """Test SMQ-0060 remains NO_MATCH in v2."""
+    from product_intelligence.evaluation.semantic.loader import load_corpus, SemanticDecision
+
+    corpus = load_corpus()
+    case = corpus.get_case("SMQ-0060")
+
+    # Should remain NO_MATCH (explicit compatible-with)
+    assert case.expected_decision == SemanticDecision.NO_MATCH, \
+        f"SMQ-0060 should remain NO_MATCH, got {case.expected_decision.value}"
+
+
+def test_semantic_corpus_v2_only_smq0059_decision_changed():
+    """Prove that ONLY SMQ-0059 decision changed from v1 to v2.
+
+    Uses explicit expected decision map based on known v1 truth.
+    The only v1 -> v2 expected-decision change is:
+        SMQ-0059: UNCERTAIN -> NO_MATCH
+
+    All other cases must remain unchanged from v1 expectations.
+    """
+    from product_intelligence.evaluation.semantic.loader import load_corpus, SemanticDecision
+
+    corpus = load_corpus()
+
+    # Explicit expected decision map for v2
+    # Based on v1 with ONLY SMQ-0059 changed from UNCERTAIN to NO_MATCH
+    expected_v2_decisions = {
+        "SMQ-0001": SemanticDecision.MATCH,
+        "SMQ-0002": SemanticDecision.UNCERTAIN,
+        "SMQ-0003": SemanticDecision.NO_MATCH,
+        "SMQ-0004": SemanticDecision.NO_MATCH,
+        "SMQ-0005": SemanticDecision.NO_MATCH,
+        "SMQ-0006": SemanticDecision.NO_MATCH,
+        "SMQ-0007": SemanticDecision.NO_MATCH,
+        "SMQ-0008": SemanticDecision.NO_MATCH,
+        "SMQ-0009": SemanticDecision.NO_MATCH,
+        "SMQ-0010": SemanticDecision.UNCERTAIN,
+        "SMQ-0011": SemanticDecision.NO_MATCH,
+        "SMQ-0012": SemanticDecision.NO_MATCH,
+        "SMQ-0013": SemanticDecision.NO_MATCH,
+        "SMQ-0014": SemanticDecision.NO_MATCH,
+        "SMQ-0015": SemanticDecision.UNCERTAIN,
+        "SMQ-0016": SemanticDecision.NO_MATCH,
+        "SMQ-0017": SemanticDecision.MATCH,
+        "SMQ-0018": SemanticDecision.NO_MATCH,
+        "SMQ-0019": SemanticDecision.UNCERTAIN,
+        "SMQ-0020": SemanticDecision.MATCH,
+        "SMQ-0021": SemanticDecision.NO_MATCH,
+        "SMQ-0022": SemanticDecision.NO_MATCH,
+        "SMQ-0023": SemanticDecision.UNCERTAIN,
+        "SMQ-0024": SemanticDecision.NO_MATCH,
+        "SMQ-0025": SemanticDecision.NO_MATCH,
+        "SMQ-0026": SemanticDecision.NO_MATCH,
+        "SMQ-0027": SemanticDecision.NO_MATCH,
+        "SMQ-0028": SemanticDecision.NO_MATCH,
+        "SMQ-0029": SemanticDecision.UNCERTAIN,
+        "SMQ-0030": SemanticDecision.NO_MATCH,
+        "SMQ-0031": SemanticDecision.NO_MATCH,
+        "SMQ-0032": SemanticDecision.UNCERTAIN,
+        "SMQ-0033": SemanticDecision.NO_MATCH,
+        "SMQ-0034": SemanticDecision.NO_MATCH,
+        "SMQ-0035": SemanticDecision.NO_MATCH,
+        "SMQ-0036": SemanticDecision.UNCERTAIN,
+        "SMQ-0037": SemanticDecision.MATCH,
+        "SMQ-0038": SemanticDecision.NO_MATCH,
+        "SMQ-0039": SemanticDecision.UNCERTAIN,
+        "SMQ-0040": SemanticDecision.UNCERTAIN,
+        "SMQ-0041": SemanticDecision.NO_MATCH,
+        "SMQ-0042": SemanticDecision.UNCERTAIN,
+        "SMQ-0043": SemanticDecision.NO_MATCH,
+        "SMQ-0044": SemanticDecision.NO_MATCH,
+        "SMQ-0045": SemanticDecision.NO_MATCH,
+        "SMQ-0046": SemanticDecision.NO_MATCH,
+        "SMQ-0047": SemanticDecision.UNCERTAIN,
+        "SMQ-0048": SemanticDecision.MATCH,
+        "SMQ-0049": SemanticDecision.NO_MATCH,
+        "SMQ-0050": SemanticDecision.NO_MATCH,
+        "SMQ-0051": SemanticDecision.MATCH,
+        "SMQ-0052": SemanticDecision.MATCH,
+        "SMQ-0053": SemanticDecision.MATCH,
+        "SMQ-0054": SemanticDecision.MATCH,
+        "SMQ-0055": SemanticDecision.UNCERTAIN,
+        "SMQ-0056": SemanticDecision.MATCH,
+        "SMQ-0057": SemanticDecision.UNCERTAIN,
+        "SMQ-0058": SemanticDecision.NO_MATCH,
+        "SMQ-0059": SemanticDecision.NO_MATCH,  # Only change from v1 (was UNCERTAIN)
+        "SMQ-0060": SemanticDecision.NO_MATCH,
+        "SMQ-0061": SemanticDecision.MATCH,
+        "SMQ-0062": SemanticDecision.MATCH,
+        "SMQ-0063": SemanticDecision.MATCH,
+        "SMQ-0064": SemanticDecision.MATCH,
+    }
+
+    # Verify every case matches expected decision
+    for case in corpus.cases:
+        expected = expected_v2_decisions[case.case_id]
+        assert case.expected_decision == expected, \
+            f"{case.case_id}: expected {expected.value}, got {case.expected_decision.value}"
+
+    # Verify SMQ-0059 specific requirements
+    case_0059 = corpus.get_case("SMQ-0059")
+    assert case_0059.expected_decision == SemanticDecision.NO_MATCH, \
+        "SMQ-0059 must be NO_MATCH in v2"
+    assert case_0059.case_class == "replacement_trap", \
+        "SMQ-0059 case_class must remain replacement_trap in v2"
+
+
+def test_semantic_corpus_v2_provenance_sha256_non_empty():
+    """Test that corpus_sha256 is non-empty and deterministic."""
+    from product_intelligence.evaluation.semantic.runner import _compute_sha256
+    from product_intelligence.evaluation.semantic.loader import load_corpus
+
+    corpus = load_corpus()
+    corpus_str = repr(corpus.cases)
+    corpus_sha256 = _compute_sha256(corpus_str)
+
+    assert len(corpus_sha256) == 64, \
+        f"corpus_sha256 should be 64-char hex, got {len(corpus_sha256)}"
+    assert corpus_sha256 != "0" * 64, \
+        "corpus_sha256 should not be all zeros"
+
+
+def test_semantic_prompt_v2_provenance_sha256_non_empty():
+    """Test that prompt_sha256 is non-empty and deterministic."""
+    from product_intelligence.evaluation.semantic.runner import _compute_sha256
+    from product_intelligence.evaluation.semantic.prompt import SYSTEM_PROMPT, USER_PROMPT_TEMPLATE
+
+    prompt_str = SYSTEM_PROMPT + "\n" + USER_PROMPT_TEMPLATE
+    prompt_sha256 = _compute_sha256(prompt_str)
+
+    assert len(prompt_sha256) == 64, \
+        f"prompt_sha256 should be 64-char hex, got {len(prompt_sha256)}"
+    assert prompt_sha256 != "0" * 64, \
+        "prompt_sha256 should not be all zeros"
+
+
+def test_semantic_runner_manifest_reports_correct_versions():
+    """Test that runner-generated manifest reports corpus_version=2 and prompt_version=1.1."""
+    from datetime import datetime, timezone
+    from product_intelligence.evaluation.semantic.runner import (
+        SemanticBenchmarkRunner,
+        BenchmarkRunConfig,
+        _build_manifest,
+    )
+    from product_intelligence.evaluation.semantic.transport import FakeSemanticModelTransport
+    from product_intelligence.evaluation.semantic.loader import load_corpus
+    from product_intelligence.evaluation.semantic.model_catalog import get_model_by_provider_model
+
+    # Use a valid model from the catalog
+    model = get_model_by_provider_model("amax", "minimax-m2.7")
+    assert model is not None, "Test requires minimax-m2.7 model in catalog"
+
+    corpus = load_corpus()
+    transport = FakeSemanticModelTransport()
+    config = BenchmarkRunConfig(
+        provider=model.provider,
+        model=model.model,
+        case_selection="FULL",
+        transport=transport,
+    )
+
+    case_ids = frozenset(c.case_id for c in corpus.cases)
+
+    manifest = _build_manifest(
+        config=config,
+        corpus=corpus,
+        case_ids=case_ids,
+        prompt_version="1.1",
+        corpus_sha256="test-sha256",
+        prompt_sha256="test-prompt-sha256",
+        start_time=datetime.now(timezone.utc),
+        finish_time=datetime.now(timezone.utc),
+    )
+
+    # Verify manifest contains correct versions
+    assert manifest["corpus_version"] == 2, \
+        f"Manifest should report corpus_version=2, got {manifest['corpus_version']}"
+    assert manifest["prompt_version"] == "1.1", \
+        f"Manifest should report prompt_version=1.1, got {manifest['prompt_version']}"
+
+
+def test_semantic_v1_corpora_are_incompatible_with_v2():
+    """Test that old v1 corpus/prompt provenance is rejected as incompatible.
+
+    The existing comparison logic should fail closed when comparing v1 and v2
+    provenance, without requiring any changes to comparison.py.
+
+    This is a behavioral regression: build two canonical FULL RunComparison
+    objects with all required compatible provenance fields, then assert the
+    existing comparison logic FAILS CLOSED because provenance differs.
+    """
+    from product_intelligence.evaluation.semantic.comparison import (
+        compare_benchmark_runs,
+        RunComparison,
+    )
+    from product_intelligence.evaluation.semantic.runner import (
+        _compute_corpus_sha256,
+        _compute_prompt_sha256,
+        BenchmarkRunConfig,
+    )
+    from product_intelligence.evaluation.semantic.transport import (
+        FakeSemanticModelTransport,
+    )
+    from product_intelligence.evaluation.semantic.loader import load_corpus
+
+    # Build actual v2 hashes using the runner's authoritative mechanisms
+    corpus = load_corpus()
+    transport = FakeSemanticModelTransport()
+    config = BenchmarkRunConfig(
+        provider="amax",
+        model="minimax-m2.7",
+        case_selection="FULL",
+        transport=transport,
+    )
+    cases = tuple(c for c in corpus.cases)
+
+    actual_corpus_sha256 = _compute_corpus_sha256(corpus)
+    actual_prompt_sha256 = _compute_prompt_sha256(cases, config)
+
+    # v2 comparison - correct provenance
+    v2_comp = RunComparison(
+        provider="amax",
+        model="minimax-m2.7",
+        role="primary_candidate",
+        case_selection="FULL",
+        case_count=64,
+        run_status="COMPLETED",
+        qualification_eligible=True,
+        qualification_gates_applicable=True,
+        gates_passed=True,
+        valid_output_rate=1.0,
+        match_precision=1.0,
+        match_recall=1.0,
+        accuracy=1.0,
+        false_match_count=0,
+        safety_cost=0,
+        request_timeout_seconds=300.0,
+        temperature=0.0,
+        max_tokens=32768,
+        corpus_version=2,
+        corpus_sha256=actual_corpus_sha256,  # Correct v2 hash
+        prompt_version="1.1",
+        prompt_sha256=actual_prompt_sha256,  # Correct v1.1 hash
+        case_ids=tuple(f"SMQ-{i:04d}" for i in range(1, 65)),
+        benchmark_kind="semantic_model_qualification",
+        schema_version="1.0",
+    )
+
+    # v1-like comparison - different provenance (version and hash mismatch)
+    v1_comp = RunComparison(
+        provider="amax",
+        model="minimax-m2.7",
+        role="primary_candidate",
+        case_selection="FULL",
+        case_count=64,
+        run_status="COMPLETED",
+        qualification_eligible=True,
+        qualification_gates_applicable=True,
+        gates_passed=True,
+        valid_output_rate=1.0,
+        match_precision=1.0,
+        match_recall=1.0,
+        accuracy=1.0,
+        false_match_count=0,
+        safety_cost=0,
+        request_timeout_seconds=300.0,
+        temperature=0.0,
+        max_tokens=32768,
+        corpus_version=1,  # Different corpus version
+        corpus_sha256="0000000000000000000000000000000000000000000000000000000000000000",  # Different hash
+        prompt_version="1.0",  # Different prompt version
+        prompt_sha256="1111111111111111111111111111111111111111111111111111111111111111",  # Different hash
+        case_ids=tuple(f"SMQ-{i:04d}" for i in range(1, 65)),
+        benchmark_kind="semantic_model_qualification",
+        schema_version="1.0",
+    )
+
+    # Call the existing provenance comparison function
+    try:
+        compare_benchmark_runs([v2_comp, v1_comp])
+        assert False, "Should have raised ValueError for provenance mismatch"
+    except ValueError as e:
+        error_str = str(e)
+        # Assert concrete mismatch error codes
+        assert "CORPUS_VERSION_MISMATCH" in error_str or "PROMPT_VERSION_MISMATCH" in error_str, f"Expected version/hash mismatch, got: {error_str}"
+        assert "v2" in error_str.lower() or "1" in error_str, "Error should mention version mismatch"
+        assert "sha256" in error_str.lower() or "hash" in error_str.lower(), "Error should mention hash mismatch"
+
+
+def test_semantic_prompt_sha256_matches_manifest():
+    """Test that prompt SHA256 computed by runner matches what's in manifest.
+
+    Use the runner's authoritative hash mechanism (_compute_corpus_sha256
+    and _compute_prompt_sha256), not alternative hash formulas like
+    _compute_sha256(SYSTEM_PROMPT + USER_PROMPT_TEMPLATE).
+    """
+    from datetime import datetime, timezone
+    from product_intelligence.evaluation.semantic.runner import (
+        SemanticBenchmarkRunner,
+        BenchmarkRunConfig,
+        _build_manifest,
+        _compute_corpus_sha256,
+        _compute_prompt_sha256,
+    )
+    from product_intelligence.evaluation.semantic.transport import FakeSemanticModelTransport
+    from product_intelligence.evaluation.semantic.loader import load_corpus
+
+    # Use the runner's actual hash mechanisms
+    corpus = load_corpus()
+    transport = FakeSemanticModelTransport()
+    config = BenchmarkRunConfig(
+        provider="amax",
+        model="minimax-m2.7",
+        case_selection="FULL",
+        transport=transport,
+    )
+    cases = tuple(c for c in corpus.cases)
+
+    # Use authoritative runner hashes (module-level functions)
+    corpus_sha256 = _compute_corpus_sha256(corpus)
+    prompt_sha256 = _compute_prompt_sha256(cases, config)
+
+    case_ids = tuple(c.case_id for c in corpus.cases)
+
+    manifest = _build_manifest(
+        config=config,
+        corpus=corpus,
+        case_ids=case_ids,
+        prompt_version="1.1",
+        corpus_sha256=corpus_sha256,
+        prompt_sha256=prompt_sha256,
+        start_time=datetime.now(timezone.utc),
+        finish_time=datetime.now(timezone.utc),
+    )
+
+    # Verify manifest uses the authoritative computed hashes
+    assert manifest["corpus_sha256"] == corpus_sha256
+    assert manifest["prompt_sha256"] == prompt_sha256
+    assert len(manifest["corpus_sha256"]) == 64
+    assert len(manifest["prompt_sha256"]) == 64
+
+
+def test_runner_produces_deterministic_hashes():
+    """Test that the runner's hash computation is deterministic.
+
+    Use the runner's authoritative hash mechanism through SemanticBenchmarkRunner.run().
+    No network calls - use FakeSemanticModelTransport only.
+    """
+    from product_intelligence.evaluation.semantic.runner import (
+        SemanticBenchmarkRunner,
+        BenchmarkRunConfig,
+    )
+    from product_intelligence.evaluation.semantic.transport import FakeSemanticModelTransport
+
+    # Run twice and verify hashes are identical
+    transport = FakeSemanticModelTransport()
+
+    runner1 = SemanticBenchmarkRunner(transport=transport)
+    config1 = BenchmarkRunConfig(
+        provider="amax",
+        model="minimax-m2.7",
+        case_selection="FULL",
+        transport=transport,
+    )
+    result1 = runner1.run(config1)
+
+    transport2 = FakeSemanticModelTransport()
+    runner2 = SemanticBenchmarkRunner(transport=transport2)
+    config2 = BenchmarkRunConfig(
+        provider="amax",
+        model="minimax-m2.7",
+        case_selection="FULL",
+        transport=transport2,
+    )
+    result2 = runner2.run(config2)
+
+    # Both runs should produce identical manifest hashes
+    assert result1.manifest["corpus_sha256"] == result2.manifest["corpus_sha256"]
+    assert result1.manifest["prompt_sha256"] == result2.manifest["prompt_sha256"]
+
+    # Hashes should be 64-char non-empty SHA256 values
+    assert len(result1.manifest["corpus_sha256"]) == 64
+    assert len(result1.manifest["prompt_sha256"]) == 64
+    assert all(c in "0123456789abcdef" for c in result1.manifest["corpus_sha256"])
+    assert all(c in "0123456789abcdef" for c in result1.manifest["prompt_sha256"])
