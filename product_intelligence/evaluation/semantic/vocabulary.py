@@ -4,36 +4,30 @@ This module defines the decision vocabulary and validation logic for
 semantic match qualification. It is used by offline evaluators to validate
 model responses and compute metrics.
 
+Single source of truth (FU3A2)
+------------------------------
+``SemanticDecision``, ``ConfidenceLevel`` and ``SemanticMatchResponse`` are
+NOT defined here. They are re-exported from the neutral production contract
+``product_intelligence.semantic.contract`` so that production and evaluation
+share one implementation object rather than two identical copies.
+
+The names below are the *same objects* as the contract's; ``is`` comparison
+holds. Only evaluation-specific vocabulary (``SemanticCaseClass``) is
+defined locally.
+
 No live model integration is required for this phase.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from enum import Enum
 
-
-class SemanticDecision(str, Enum):
-    """Semantic match decision.
-
-    The three decisions are mutually exclusive:
-
-    * `MATCH` — the candidate is very likely the target product
-    * `NO_MATCH` — the candidate is definitely not the target product
-    * `UNCERTAIN` — insufficient evidence to determine match or no-match
-    """
-
-    MATCH = "MATCH"
-    NO_MATCH = "NO_MATCH"
-    UNCERTAIN = "UNCERTAIN"
-
-
-class ConfidenceLevel(str, Enum):
-    """Confidence in the semantic match decision."""
-
-    HIGH = "HIGH"
-    MEDIUM = "MEDIUM"
-    LOW = "LOW"
+# Canonical contract objects - re-exported, never re-implemented.
+from product_intelligence.semantic.contract import (
+    ConfidenceLevel,
+    SemanticDecision,
+    SemanticMatchResponse,
+)
 
 
 # Semantic decision vocabulary matches EvidenceDecision where applicable:
@@ -48,55 +42,6 @@ class ConfidenceLevel(str, Enum):
 # * Semantic match may be used for cases deterministic 3C cannot resolve
 # * A future semantic MATCH may not immediately become deterministic ACCEPTED
 # * The semantic evaluator may operate at a different confidence threshold
-
-# ---------------------------------------------------------------------------
-# Output contract for semantic matchers
-# ---------------------------------------------------------------------------
-
-
-@dataclass(frozen=True)
-class SemanticMatchResponse:
-    """Structured response from a semantic match model.
-
-    This is the contract that semantic matchers must produce. The evaluator
-    validates responses against this schema.
-    """
-
-    decision: SemanticDecision
-    confidence: ConfidenceLevel
-    matched_attributes: tuple[str, ...]
-    conflicting_attributes: tuple[str, ...]
-    missing_critical_attributes: tuple[str, ...]
-    reason_code: str
-
-    def __post_init__(self) -> None:
-        """Validate the response structure."""
-        if not isinstance(self.decision, SemanticDecision):
-            raise TypeError(
-                f"decision must be SemanticDecision, got {type(self.decision).__name__}"
-            )
-        if not isinstance(self.confidence, ConfidenceLevel):
-            raise TypeError(
-                f"confidence must be ConfidenceLevel, got {type(self.confidence).__name__}"
-            )
-        if not isinstance(self.matched_attributes, tuple):
-            raise TypeError(
-                f"matched_attributes must be tuple, got {type(self.matched_attributes).__name__}"
-            )
-        if not isinstance(self.conflicting_attributes, tuple):
-            raise TypeError(
-                f"conflicting_attributes must be tuple, got {type(self.conflicting_attributes).__name__}"
-            )
-        if not isinstance(self.missing_critical_attributes, tuple):
-            raise TypeError(
-                f"missing_critical_attributes must be tuple, got {type(self.missing_critical_attributes).__name__}"
-            )
-        if not isinstance(self.reason_code, str):
-            raise TypeError(
-                f"reason_code must be str, got {type(self.reason_code).__name__}"
-            )
-        if not self.reason_code:
-            raise ValueError("reason_code must be non-empty")
 
 
 # ---------------------------------------------------------------------------
@@ -168,3 +113,11 @@ class SemanticCaseClass(str, Enum):
             SemanticCaseClass.DRIVE_VS_ENCLOSE: "Drive vs enclosure/accessory",
         }
         return descriptions[self]
+
+
+__all__ = [
+    "SemanticDecision",
+    "ConfidenceLevel",
+    "SemanticMatchResponse",
+    "SemanticCaseClass",
+]

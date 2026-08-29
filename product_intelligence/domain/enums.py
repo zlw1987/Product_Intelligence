@@ -87,11 +87,19 @@ class VerificationStatus(str, Enum):
 
 
 class EvidenceDecision(str, Enum):
-    """Whether a piece of evidence was accepted into a conclusion."""
+    """Whether a piece of evidence was accepted into a conclusion.
+
+    AI_ASSISTED_MATCH is reserved for future semantic integration.
+    It is NOT eligible for VERIFIED status in the 4A price aggregation
+    pipeline. The aggregation module is frozen and must not be changed
+    to allow AI_ASSISTED_MATCH into the deterministic numeric pipeline.
+    """
 
     UNDECIDED = "UNDECIDED"
     ACCEPTED = "ACCEPTED"
     REJECTED = "REJECTED"
+    # Reserved for FU3B+ semantic integration (outside 4A pipeline)
+    AI_ASSISTED_MATCH = "AI_ASSISTED_MATCH"
 
 
 class ResearchRunState(str, Enum):

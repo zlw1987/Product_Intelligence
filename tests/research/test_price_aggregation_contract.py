@@ -23,6 +23,7 @@ from product_intelligence.research.aggregation import (
     PriceAggregationExclusion,
     PriceAggregationExclusionReason,
     PriceAggregationResult,
+    aggregate_listing_prices,
 )
 from product_intelligence.research.listings import (
     ExtractionMethod,
@@ -1057,3 +1058,152 @@ class TestPriceAggregationResultFabrication:
                 buckets=(),
                 verification_status=VerificationStatus.UNKNOWN,
             )
+
+
+# ---------------------------------------------------------------------------
+# AI_ASSISTED_MATCH is outside 4A aggregation entirely
+# ---------------------------------------------------------------------------
+
+
+def _make_ai_assisted_assessment_for_test(
+    price: Decimal = Decimal("100"),
+    currency: str = "USD",
+    condition: NormalizedCondition = NormalizedCondition.NEW,
+) -> ListingIdentityAssessment:
+    """Build an AI_ASSISTED_MATCH assessment with a perfectly valid price.
+
+    Everything a bucket needs is present and well-formed: a Decimal price, a
+    currency, and a known condition. The ONLY thing that differs from an
+    accepted listing is that identity came from a semantic model rather than
+    from the deterministic 2A comparator.
+    """
+    obs = ListingObservation(
+        source_url="https://example.com/ai-assisted",
+        extraction_method=ExtractionMethod.JSON_LD,
+        manufacturer_part_number_text="ABC-123",
+        price_text=str(price),
+        currency_text=currency,
+        condition_text="new",
+    )
+    norm = NormalizedListingObservation(
+        observation=obs,
+        price_amount=price,
+        currency_code=currency,
+        availability=NormalizedAvailability.UNKNOWN,
+        condition=condition,
+        seller_name=None,
+        normalization_issues=(),
+    )
+    return ListingIdentityAssessment(
+        normalized_listing=norm,
+        requested_part_number="ABC-123",
+        candidate_part_number_raw="ABC-123",
+        candidate_part_number_compared="ABC-123",
+        candidate_evidence_source=EvidenceSource.EXPLICIT_MPN_FIELD,
+        match_type=IdentityMatchType.EXACT,
+        decision=EvidenceDecision.AI_ASSISTED_MATCH,
+        rejection_reason=None,
+    )
+
+
+class TestAiAssistedMatchIsOutsideAggregation:
+    """AI_ASSISTED_MATCH does not enter a bucket at all.
+
+    Frozen 4A invariant: ONLY ``EvidenceDecision.ACCEPTED`` enters aggregation.
+    An LLM is never the sole authority for exact product identity, so a
+    semantic match must not be able to produce a reported price - not even a
+    low-confidence one. The guard is that the listing never becomes an
+    observation, not merely that the overall status avoids VERIFIED.
+    """
+
+    def test_ai_assisted_match_is_excluded_from_every_bucket(self) -> None:
+        """A valid numeric price on an AI_ASSISTED_MATCH creates no bucket."""
+        request = ResearchRequest("ABC-123", "SSD")
+        assessment = _make_ai_assisted_assessment_for_test(Decimal("100"))
+
+        # The listing really is numerically perfect - the exclusion below is
+        # about identity authority, not about a missing price.
+        assert assessment.normalized_listing.price_amount == Decimal("100")
+        assert assessment.normalized_listing.currency_code == "USD"
+        assert assessment.normalized_listing.condition is NormalizedCondition.NEW
+
+        result = aggregate_listing_prices(request, (assessment,))
+
+        assert result.buckets == ()
+        assert len(result.exclusions) == 1
+        assert result.exclusions[0].reason is (
+            PriceAggregationExclusionReason.IDENTITY_NOT_ACCEPTED
+        )
+        assert result.exclusions[0].assessment is assessment
+
+    def test_ai_assisted_match_cannot_produce_verified_output(self) -> None:
+        """Three priced AI_ASSISTED_MATCH listings still report UNKNOWN.
+
+        Three comparable observations in one currency and condition is exactly
+        the shape that would otherwise yield a VERIFIED bucket.
+        """
+        request = ResearchRequest("ABC-123", "SSD")
+        assessments = tuple(
+            _make_ai_assisted_assessment_for_test(price)
+            for price in (Decimal("90"), Decimal("100"), Decimal("110"))
+        )
+
+        result = aggregate_listing_prices(request, assessments)
+
+        assert result.verification_status is VerificationStatus.UNKNOWN
+        assert result.buckets == ()
+        assert len(result.exclusions) == 3
+
+    def test_ai_assisted_match_does_not_join_an_accepted_bucket(self) -> None:
+        """It cannot ride along in a bucket built from accepted listings.
+
+        The bucket's statistics must be computed from the ACCEPTED listings
+        alone; the semantic one may not widen the range or move the median.
+        """
+        request = ResearchRequest("ABC-123", "SSD")
+        accepted = (
+            _make_accepted_assessment_for_test(Decimal("100")),
+            _make_accepted_assessment_for_test(Decimal("110")),
+            _make_accepted_assessment_for_test(Decimal("120")),
+        )
+        ai_assisted = _make_ai_assisted_assessment_for_test(Decimal("999"))
+
+        result = aggregate_listing_prices(request, accepted + (ai_assisted,))
+
+        assert len(result.buckets) == 1
+        bucket = result.buckets[0]
+
+        assert bucket.count == 3
+        assert bucket.high == Decimal("120")
+        assert bucket.median == Decimal("110")
+        assert ai_assisted not in bucket.assessments
+
+        assert len(result.exclusions) == 1
+        assert result.exclusions[0].assessment is ai_assisted
+
+    def test_a_bucket_refuses_an_ai_assisted_member_outright(self) -> None:
+        """Hand-constructing a bucket around one is refused at construction.
+
+        The builder excludes it; the contract also refuses to hold it, so no
+        caller can fabricate the state the builder will not produce.
+        """
+        assessment = _make_ai_assisted_assessment_for_test(Decimal("100"))
+
+        with pytest.raises(ValueError, match="only ACCEPTED listings"):
+            PriceAggregateBucket(
+                currency_code="USD",
+                condition=NormalizedCondition.NEW,
+                assessments=(assessment,),
+                count=1,
+                low=Decimal("100"),
+                median=Decimal("100"),
+                high=Decimal("100"),
+                market_range_low=None,
+                market_range_high=None,
+                confidence=ConfidenceLevel.LOW,
+            )
+
+    def test_ai_assisted_match_is_not_accepted(self) -> None:
+        """The two decisions are distinct members, not aliases."""
+        assert EvidenceDecision.AI_ASSISTED_MATCH is not EvidenceDecision.ACCEPTED
+        assert EvidenceDecision.AI_ASSISTED_MATCH != EvidenceDecision.ACCEPTED

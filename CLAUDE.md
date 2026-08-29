@@ -3,6 +3,22 @@
 Operating instructions for any AI coding session in this repository.
 Assume no chat history.
 
+## Agent Safety and Test Preservation
+
+- Never delete, skip, xfail, deselect, ignore, rename, or weaken a failing
+  test merely to make the suite pass.
+- If a test reveals a real defect, fix production code.
+- If a test itself appears wrong, stop and report the conflict before changing
+  it unless the task explicitly authorizes that correction.
+- Replacement tests must preserve or strengthen the original contract.
+- Never change acceptance criteria to match an incorrect implementation.
+- Final reports must identify deleted/changed tests, exact collected/pass/fail
+  counts, and any skips/deselections/xfails.
+- Context compaction is a reliability warning. For complex work, prefer a fresh
+  session rather than continuing after substantial context degradation.
+- Do not use git restore/reset/checkout/stash/clean unless explicitly
+  authorized.
+
 ## Reading order
 
 1. Read this file completely.

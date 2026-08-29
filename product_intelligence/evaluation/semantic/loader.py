@@ -3,6 +3,14 @@
 This module loads and validates the semantic match qualification corpus
 from the JSON file.
 
+Single source of truth (FU3A2B)
+--------------------------------
+``validate_response`` is NOT defined here. It is re-exported from the neutral
+production contract ``product_intelligence.semantic.contract`` so this module
+keeps no second copy. Existing imports of
+``product_intelligence.evaluation.semantic.loader.validate_response`` continue
+to work exactly as before.
+
 No live model integration is required for this phase.
 """
 
@@ -19,6 +27,9 @@ from product_intelligence.evaluation.semantic.vocabulary import (
     SemanticDecision,
     SemanticMatchResponse,
 )
+
+# Canonical contract object - re-exported, never re-implemented.
+from product_intelligence.semantic.contract import validate_response
 
 
 @dataclass(frozen=True)
@@ -297,98 +308,4 @@ def _build_case(case_data: dict[str, Any], case_id: str) -> SemanticMatchCase:
         source_url=case_data.get("source_url"),
         extraction_method=case_data.get("extraction_method"),
         is_authority_safety_probe=case_data.get("is_authority_safety_probe", False),
-    )
-
-
-def validate_response(response: dict[str, Any] | SemanticMatchResponse) -> SemanticMatchResponse:
-    """Validate and normalize a semantic match model response.
-
-    Args:
-        response: The raw response dict or already-constructed SemanticMatchResponse.
-
-    Returns:
-        A validated SemanticMatchResponse.
-
-    Raises:
-        ValueError: If the response is invalid.
-    """
-    if isinstance(response, SemanticMatchResponse):
-        return response
-
-    if not isinstance(response, dict):
-        raise TypeError(f"Response must be dict or SemanticMatchResponse, got {type(response).__name__}")
-
-    # Required fields
-    required = ["decision", "confidence", "matched_attributes",
-                "conflicting_attributes", "missing_critical_attributes", "reason_code"]
-    for field in required:
-        if field not in response:
-            raise ValueError(f"Missing required field: {field}")
-
-    # Validate decision
-    decision_value = response["decision"]
-    if not isinstance(decision_value, str):
-        raise TypeError(f"decision must be string, got {type(decision_value).__name__}")
-    try:
-        decision = SemanticDecision(decision_value)
-    except ValueError:
-        raise ValueError(
-            f"Invalid decision '{decision_value}'. "
-            f"Must be one of: {[d.value for d in SemanticDecision]}"
-        )
-
-    # Validate confidence
-    confidence_value = response["confidence"]
-    if not isinstance(confidence_value, str):
-        raise TypeError(f"confidence must be string, got {type(confidence_value).__name__}")
-    try:
-        confidence = ConfidenceLevel(confidence_value)
-    except ValueError:
-        raise ValueError(
-            f"Invalid confidence '{confidence_value}'. "
-            f"Must be one of: {[c.value for c in ConfidenceLevel]}"
-        )
-
-    # Validate arrays
-    matched_attributes = response["matched_attributes"]
-    if not isinstance(matched_attributes, list):
-        raise TypeError(f"matched_attributes must be array, got {type(matched_attributes).__name__}")
-    for item in matched_attributes:
-        if not isinstance(item, str):
-            raise TypeError(f"matched_attributes items must be string, got {type(item).__name__}")
-
-    conflicting_attributes = response["conflicting_attributes"]
-    if not isinstance(conflicting_attributes, list):
-        raise TypeError(f"conflicting_attributes must be array, got {type(conflicting_attributes).__name__}")
-    for item in conflicting_attributes:
-        if not isinstance(item, str):
-            raise TypeError(f"conflicting_attributes items must be string, got {type(item).__name__}")
-
-    missing_critical_attributes = response["missing_critical_attributes"]
-    if not isinstance(missing_critical_attributes, list):
-        raise TypeError(f"missing_critical_attributes must be array, got {type(missing_critical_attributes).__name__}")
-    for item in missing_critical_attributes:
-        if not isinstance(item, str):
-            raise TypeError(f"missing_critical_attributes items must be string, got {type(item).__name__}")
-
-    # Validate reason_code
-    reason_code = response["reason_code"]
-    if not isinstance(reason_code, str):
-        raise TypeError(f"reason_code must be string, got {type(reason_code).__name__}")
-    if not reason_code:
-        raise ValueError("reason_code must be non-empty")
-
-    # Unknown keys check
-    allowed_keys = set(required)
-    for key in response.keys():
-        if key not in allowed_keys:
-            raise ValueError(f"Unknown key in response: {key}")
-
-    return SemanticMatchResponse(
-        decision=decision,
-        confidence=confidence,
-        matched_attributes=tuple(matched_attributes),
-        conflicting_attributes=tuple(conflicting_attributes),
-        missing_critical_attributes=tuple(missing_critical_attributes),
-        reason_code=reason_code,
     )

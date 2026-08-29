@@ -4,253 +4,37 @@ This module provides a shared, model-independent prompt for semantic matching.
 It is used for offline qualification without any live model integration.
 
 The same prompt is used for every model in first qualification.
+
+Single source of truth (FU3A2)
+------------------------------
+Prompt v1.1 is NOT defined here. ``SEMANTIC_PROMPT_VERSION``, ``SYSTEM_PROMPT``,
+``USER_PROMPT_TEMPLATE``, ``SemanticPrompt`` and ``build_prompt`` are
+re-exported from the neutral production contract
+``product_intelligence.semantic.contract``. Evaluation and production build
+byte-identical prompts because they call the *same function object*.
+
+Only the evaluation-specific JSONL export/import workflow is defined locally.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import json
+from pathlib import Path
 from typing import Any
 
-
-# ---------------------------------------------------------------------------
-# Prompt version
-# ---------------------------------------------------------------------------
-
-SEMANTIC_PROMPT_VERSION = "1.1"
-
-
-# ---------------------------------------------------------------------------
-# System prompt
-# ---------------------------------------------------------------------------
-
-SYSTEM_PROMPT = """You are a product identity matching assistant.
-
-Your task is to determine whether a candidate product listing matches a target
-product based on manufacturer part number (MPN) and product description evidence.
-
-CRITICAL SAFETY RULES:
-- Use ONLY the evidence supplied in the target and candidate.
-- Do not rely on unstated product specifications or outside product knowledge.
-- A false MATCH (incorrectly claiming a product matches) is materially worse
-  than returning UNCERTAIN when evidence is insufficient.
-- One character difference in an MPN can mean an entirely different product.
-- Primary semantic cases normally lack authoritative explicit MPN fields.
-- If an EXPLICIT_MPN_FIELD is supplied, it IS authoritative:
-  * Exact match -> MATCH
-  * Conflicting MPN (different revision/suffix) -> NO_MATCH
-- Semantic reasoning cannot override an explicit MPN conflict.
-- Exact MPN appearing in TITLE_TEXT is strong evidence but is NOT authoritative
-  on its own - product description must also align.
-- Clear accessory roles (tray, caddy, enclosure, heatsink, adapter,
-  standalone kit/bundle, or multipack) are not the target product.
-- WARNING SIGNALS - do not automatically label, investigate further:
-  * "replacement", "compatible with", and "for" are warning signals
-  * Determine whether the listing is the target product itself, an alternative,
-    or an accessory. If product role remains ambiguous, return UNCERTAIN.
-- Capacity differences (e.g., 960GB vs 1.92TB), form factor differences (e.g.,
-  M.2 vs U.2), and interface differences (e.g., NVMe vs SATA) indicate NO_MATCH.
-- If critical identity evidence is missing or ambiguous, return UNCERTAIN.
-- Do NOT reason about prices or infer seller quality.
-- When uncertain between MATCH and UNCERTAIN, prefer UNCERTAIN.
-
-DECISION PRECEDENCE (apply in order):
-
-A. AUTHORITATIVE EXPLICIT MPN
-
-1. Explicit authoritative MPN conflict (different revision/suffix):
-       -> NO_MATCH
-   Semantic similarity never overrides it.
-
-2. Explicit authoritative exact target MPN:
-       -> MATCH
-   Do not downgrade merely because non-conflicting descriptive fields
-   are missing.
-
-B. CLEAR DIFFERENT PRODUCT ROLE / HARD NEGATIVES
-
-Before allowing title/spec similarity to produce MATCH:
-
-3. Clear accessory / tray / caddy / enclosure / adapter / heatsink /
-   cable / kit / multipack / different product role:
-       -> NO_MATCH
-
-4. "compatible with TARGET" or "compatible replacement for TARGET":
-       -> NO_MATCH
-
-5. "replacement for TARGET" alone, without sufficient identity evidence:
-       -> UNCERTAIN
-
-C. TITLE MPN
-
-6. Exact target MPN clearly present in title/text:
-       -> MATCH
-   ONLY if the listing clearly represents the target product itself
-   and no supplied evidence conflicts.
-
-   An accessory, kit, compatible product, replacement product, or
-   conflicting critical attribute must NOT be rescued by exact-MPN text
-   appearing somewhere in the title.
-
-D. SUFFIX
-
-7. Target ABC-XYZ vs candidate ABC:
-       suffix MISSING
-       -> UNCERTAIN
-       unless other supplied evidence proves identity or mismatch.
-
-8. Target ABC-XYZ vs candidate ABC-XYQ:
-       suffix explicitly DIFFERENT
-       -> NO_MATCH
-
-E. NO USABLE MPN / SPEC-ONLY
-
-9. If target lacks usable MPN, or identity is supported only by aligned
-   manufacturer/family/capacity/form-factor/interface/specs:
-
-       spec similarity alone can NEVER produce MATCH.
-
-   If a supplied critical attribute explicitly conflicts:
-       -> NO_MATCH
-
-   Otherwise:
-       -> UNCERTAIN
-
-F. OTHER CRITICAL CONFLICT
-
-10. Explicit material supplied-evidence conflict in capacity, form factor,
-    interface, revision, suffix, quantity, or product role:
-        -> NO_MATCH
-
-11. Otherwise insufficient identity evidence:
-        -> UNCERTAIN
-
-Decision vocabulary:
-- MATCH: The candidate is very likely the target product based on evidence.
-- NO_MATCH: The candidate is definitely NOT the target product.
-- UNCERTAIN: Insufficient evidence to determine match or no-match.
-
-Response format: Return the JSON object directly.
-Do not wrap it in Markdown or code fences.
-Do not include prose before or after the JSON object."""
-
-
-# ---------------------------------------------------------------------------
-# User prompt template
-# ---------------------------------------------------------------------------
-
-USER_PROMPT_TEMPLATE = """Evaluate whether the candidate product matches the target product.
-
-TARGET PRODUCT:
-- Manufacturer Part Number (MPN): {target_mpn}
-- Description: {target_description}
-
-CANDIDATE PRODUCT:
-- Product Title: {candidate_title}
-- Candidate MPN text: {candidate_mpn_field}
-- SKU: {candidate_sku}
-- Description/Specs: {candidate_specs}
-- Evidence Source: {evidence_source}
-
-Based on the evidence above, determine if the candidate is the same product
-as the target.
-
-Consider:
-1. Does the MPN match exactly (watch for revision/suffix differences)?
-2. Does the product description align with the target?
-3. Are there capacity, form factor, or interface differences?
-4. Is there accessory, compatible-with, replacement, or multipack wording?
-5. Is critical identity evidence missing or ambiguous?
-
-Respond with a JSON object:
-{{
-  "decision": "MATCH" or "NO_MATCH" or "UNCERTAIN",
-  "confidence": "HIGH" or "MEDIUM" or "LOW",
-  "matched_attributes": ["list of matching attributes"],
-  "conflicting_attributes": ["list of conflicting attributes"],
-  "missing_critical_attributes": ["list of missing critical evidence"],
-  "reason_code": "short code like 'exact_mpn_match' or 'capacity_mismatch'"
-}}
-
-JSON object only, no prose."""
-
-
-# ---------------------------------------------------------------------------
-# Prompt builder
-# ---------------------------------------------------------------------------
-
-@dataclass(frozen=True)
-class SemanticPrompt:
-    """A constructed semantic match prompt with version tracking."""
-
-    version: str
-    system_prompt: str
-    user_prompt: str
-    case_id: str
-    target_mpn: str
-    target_description: str
-    candidate_title: str
-    candidate_mpn_field: str | None
-    candidate_sku: str | None
-    candidate_specs: str | None
-    evidence_source: str
-
-
-def build_prompt(
-    case_id: str,
-    target_mpn: str,
-    target_description: str,
-    candidate_title: str,
-    candidate_mpn_field: str | None,
-    candidate_sku: str | None,
-    candidate_specs: str | None,
-    evidence_source: str,
-) -> SemanticPrompt:
-    """Build a versioned semantic match prompt for one case.
-
-    Args:
-        case_id: The case identifier
-        target_mpn: The target product's MPN
-        target_description: The target product's description
-        candidate_title: The candidate product's title
-        candidate_mpn_field: The MPN from an explicit field (or None)
-        candidate_sku: The candidate's SKU (or None)
-        candidate_specs: The candidate's description/specs (or None)
-        evidence_source: Where the candidate evidence came from
-
-    Returns:
-        A SemanticPrompt with versioned prompts ready for model input
-    """
-    user_prompt = USER_PROMPT_TEMPLATE.format(
-        target_mpn=target_mpn or "(not provided)",
-        target_description=target_description or "(not provided)",
-        candidate_title=candidate_title or "(not provided)",
-        candidate_mpn_field=candidate_mpn_field or "(not in explicit field)",
-        candidate_sku=candidate_sku or "(not provided)",
-        candidate_specs=candidate_specs or "(not provided)",
-        evidence_source=evidence_source,
-    )
-
-    return SemanticPrompt(
-        version=SEMANTIC_PROMPT_VERSION,
-        system_prompt=SYSTEM_PROMPT,
-        user_prompt=user_prompt,
-        case_id=case_id,
-        target_mpn=target_mpn,
-        target_description=target_description,
-        candidate_title=candidate_title,
-        candidate_mpn_field=candidate_mpn_field,
-        candidate_sku=candidate_sku,
-        candidate_specs=candidate_specs,
-        evidence_source=evidence_source,
-    )
+# Canonical contract objects - re-exported, never re-implemented.
+from product_intelligence.semantic.contract import (
+    SEMANTIC_PROMPT_VERSION,
+    SYSTEM_PROMPT,
+    USER_PROMPT_TEMPLATE,
+    SemanticPrompt,
+    build_prompt,
+)
 
 
 # ---------------------------------------------------------------------------
 # Export / Import workflow
 # ---------------------------------------------------------------------------
-
-import json
-from pathlib import Path
 
 
 def export_corpus_to_jsonl(

@@ -49,6 +49,10 @@ def test_openai_transport_timeout_injection(tmp_path):
         status = 200
         def read(self):
             return b'{"choices":[{"message":{"content":"test"}}],"model":"test","created":123,"object":"chat.completion","system_fingerprint":null,"usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}}'
+        def __enter__(self):
+            return self
+        def __exit__(self, *exc_info):
+            return False
 
     mock_response = MockResponse()
 
