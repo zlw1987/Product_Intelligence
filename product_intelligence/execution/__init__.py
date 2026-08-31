@@ -9,7 +9,7 @@ This package coordinates the deterministic pipeline:
 Key constraints:
 * Maximum ONE paid search call per ResearchRun (enforced by claim_execution)
 * Candidate-level fetch/extract failures do NOT fail the whole run
-* Deterministic primitives only - no LLM, no guessing
+* Deterministic primitives, with optional semantic assist for eligible non-accepted candidates
 * Evidence-first: every conclusion traces to preserved evidence
 
 Dependency direction:
@@ -41,9 +41,13 @@ from product_intelligence.execution.orchestration import (
     ExecutionResult,
     ExecutionError,
 )
+from product_intelligence.execution.semantic_integration import (
+    AiAssistedMatchResult,
+)
 
 __all__ = [
     "execute_research_run",
     "ExecutionResult",
     "ExecutionError",
+    "AiAssistedMatchResult",
 ]

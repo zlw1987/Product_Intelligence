@@ -70,6 +70,9 @@ class ExecutionStage(str, Enum):
     AGGREGATE = "AGGREGATE"
     """aggregate_listing_prices() on a set of assessments."""
 
+    SEMANTIC = "SEMANTIC"
+    """Semantic model evaluation on an unresolved candidate."""
+
 
 class ExecutionOutcome(str, Enum):
     """The result of one execution attempt."""
@@ -159,6 +162,19 @@ class ExecutionDetailCode(str, Enum):
     NO_MPN_IN_OBSERVATION = "NO_MPN_IN_OBSERVATION"
     """MATCH/SUCCESS: listing was rejected (no MPN in observation)."""
 
+    # Semantic-specific codes
+    SEMANTIC_MATCH = "SEMANTIC_MATCH"
+    """SEMANTIC/SUCCESS: semantic model returned MATCH."""
+
+    SEMANTIC_NO_MATCH = "SEMANTIC_NO_MATCH"
+    """SEMANTIC/SUCCESS: semantic model returned NO_MATCH."""
+
+    SEMANTIC_UNCERTAIN = "SEMANTIC_UNCERTAIN"
+    """SEMANTIC/SUCCESS: semantic model returned UNCERTAIN."""
+
+    SEMANTIC_UNAVAILABLE = "SEMANTIC_UNAVAILABLE"
+    """SEMANTIC/FAILED: semantic runtime unavailable."""
+
     @classmethod
     def for_success(cls) -> ExecutionDetailCode:
         """Generic success code."""
@@ -233,3 +249,23 @@ class ExecutionDetailCode(str, Enum):
     def for_aggregate_success(cls) -> ExecutionDetailCode | None:
         """AGGREGATE/SUCCESS has no additional detail."""
         return None
+
+    @classmethod
+    def for_semantic_match(cls) -> ExecutionDetailCode:
+        """SEMANTIC/SUCCESS: semantic model returned MATCH."""
+        return cls.SEMANTIC_MATCH
+
+    @classmethod
+    def for_semantic_no_match(cls) -> ExecutionDetailCode:
+        """SEMANTIC/SUCCESS: semantic model returned NO_MATCH."""
+        return cls.SEMANTIC_NO_MATCH
+
+    @classmethod
+    def for_semantic_uncertain(cls) -> ExecutionDetailCode:
+        """SEMANTIC/SUCCESS: semantic model returned UNCERTAIN."""
+        return cls.SEMANTIC_UNCERTAIN
+
+    @classmethod
+    def for_semantic_unavailable(cls) -> ExecutionDetailCode:
+        """SEMANTIC/FAILED: semantic runtime unavailable."""
+        return cls.SEMANTIC_UNAVAILABLE

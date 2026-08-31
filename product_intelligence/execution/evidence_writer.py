@@ -196,6 +196,15 @@ _VALID_COMBINATIONS: dict[tuple[ExecutionStage, ExecutionOutcome], set[Execution
     (ExecutionStage.AGGREGATE, ExecutionOutcome.FAILED): {
         None,  # Primitive failure - no detail code
     },
+    # SEMANTIC
+    (ExecutionStage.SEMANTIC, ExecutionOutcome.SUCCESS): {
+        ExecutionDetailCode.SEMANTIC_MATCH,
+        ExecutionDetailCode.SEMANTIC_NO_MATCH,
+        ExecutionDetailCode.SEMANTIC_UNCERTAIN,
+    },
+    (ExecutionStage.SEMANTIC, ExecutionOutcome.FAILED): {
+        ExecutionDetailCode.SEMANTIC_UNAVAILABLE,
+    },
 }
 
 

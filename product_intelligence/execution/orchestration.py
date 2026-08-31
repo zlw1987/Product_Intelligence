@@ -9,7 +9,7 @@ This module implements the research pipeline:
 Key invariants:
 * ONE paid search call maximum per ResearchRun (claimed execution)
 * Candidate-level fetch/extract failures are recoverable
-* Deterministic primitives only - no LLM, no guessing
+* Deterministic primitives, with optional semantic assist for eligible non-accepted candidates
 * Evidence-first: every conclusion traces to preserved evidence
 
 Dependency direction:
@@ -34,6 +34,10 @@ from product_intelligence.domain.evidence import (
     ExecutionStage,
 )
 from product_intelligence.execution.aggregation import aggregate_prices
+from product_intelligence.execution.semantic_integration import (
+    AiAssistedMatchResult,
+    evaluate_semantic_matches,
+)
 from product_intelligence.execution.deduplication import CandidateDeduplicator
 from product_intelligence.execution.evidence_writer import ExecutionEvidenceWriter
 from product_intelligence.execution import matching as _matching
@@ -71,6 +75,12 @@ class ExecutionResult:
     accepted_assessment_count: int
     verification_status: object | None
     price_buckets: int
+    ai_assisted_matches: tuple["AiAssistedMatchResult", ...] = ()
+
+    @property
+    def ai_assisted_match_count(self) -> int:
+        """Number of AI-assisted matches (derived, never stored independently)."""
+        return len(self.ai_assisted_matches)
 
 
 class ExecutionError(Exception):
@@ -318,6 +328,12 @@ def _execute_claimed_run(
 
         total_assessments.extend(assessments)
 
+    # Semantic integration: evaluate unresolved candidates with usable evidence
+    # This runs AFTER deterministic matching and does NOT change deterministic semantics
+    ai_assisted_results = evaluate_semantic_matches(
+        request, total_assessments, evidence_writer,
+    )
+
     # Aggregate accepted listings (outside transaction)
     # Evidence write for AGGREGATE is INSIDE aggregate_prices, separate from primitive
     aggregation_result: PriceAggregationResult
@@ -348,6 +364,7 @@ def _execute_claimed_run(
         accepted_assessment_count=accepted_count,
         verification_status=verification_status,
         price_buckets=price_buckets,
+        ai_assisted_matches=ai_assisted_results,
     )
 
 
@@ -473,6 +490,7 @@ def execute_research_run(
             accepted_assessment_count=exec_result.accepted_assessment_count,
             verification_status=exec_result.verification_status,
             price_buckets=exec_result.price_buckets,
+            ai_assisted_matches=exec_result.ai_assisted_matches,
         )
 
     except ExecutionError:

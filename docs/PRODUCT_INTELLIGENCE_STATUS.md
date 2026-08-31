@@ -3,7 +3,8 @@
 ## Current state
 
 **PRODUCT-INTEL.PILOT-UX — Semantic qualification APPROVED/FROZEN;
-FU3A Production Semantic Runtime Contract APPROVED/FROZEN.**
+FU3A Production Semantic Runtime Contract APPROVED/FROZEN;
+FU3B Semantic Execution Integration APPROVED/FROZEN.**
 
 Semantic qualification is APPROVED AND FROZEN:
 - Semantic qualification corpus, prompt v1.1, evaluator mathematics,
@@ -25,6 +26,11 @@ FU3A — Production Semantic Runtime Contract — **APPROVED / FROZEN**
 (corrective history: FU3A2B/C/D/E/F; FU3A2F was the final corrective pass —
 ChatGPT's review of the final FU3A2F `runtime.py` and `test_runtime.py`
 approved the contract):
+
+FU3B — Semantic execution integration — **APPROVED / FROZEN**
+(corrective history: FU3B was the execution-wiring pass; MiniMax M2.7 Thinking
+independently reviewed the final FU3B implementation and found no production-code
+or safety-contract blocker; ChatGPT performed the final approval/freeze review):
 - `product_intelligence/semantic/contract.py` is the single source of truth for
   prompt v1.1, the decision vocabulary, the response schema, and the strict
   parser/validator. The evaluation harness re-exports those same objects;
@@ -50,15 +56,15 @@ approved the contract):
 - Importing `product_intelligence.semantic` pulls in no evaluation module, no
   Django, and no network client. The live transport is resolved lazily.
 
-**No production LLM matcher is wired into execution.** The frozen runtime exists
-and is tested offline; nothing calls it from the research pipeline yet — that
-wiring is FU3B, now unblocked by this freeze.
+**The frozen semantic runtime is wired into execution** behind the semantic integration boundary for explicitly eligible candidates. The frozen runtime exists
+and is tested offline; it is called from the research pipeline through `evaluate_semantic_matches` — that
+wiring was FU3B, now implemented and approved.
 
 **AI_ASSISTED_MATCH remains entirely OUTSIDE existing 4A aggregation.** It is
 not "accepted but not VERIFIED" — an `AI_ASSISTED_MATCH` assessment does not
 enter a price bucket at all, regardless of how valid its price is. Only
 `EvidenceDecision.ACCEPTED` enters 4A aggregation. This exclusion is part of
-the frozen FU3A contract.
+the frozen FU3A/FU3B contract.
 
 ## Project facts (already delivered outside repo)
 
@@ -69,19 +75,31 @@ the frozen FU3A contract.
 - 4C-B-FU corrective: Exact structural duplicate ListingObservation
   deduplication implemented in `execution/orchestration._deduplicate_exact_observations`.
 
-## Next delivery priority
+## FU3B — Semantic execution integration
 
-**FU3A — Production Semantic Runtime Contract: APPROVED / FROZEN.**
-FU3A2B/C/D/E/F are corrective-history labels for the path to this freeze, not
-separate durable phases. This approval unblocks FU3B.
+**APPROVED / FROZEN**
 
-**FU3B — Semantic execution integration: NOT IMPLEMENTED — next.**
-- Wire the frozen semantic runtime into real research execution
-- Restore `tests/execution/test_semantic_integration.py` with equal-or-
-  stronger execution-integration safety coverage than it carried before being
-  deferred
-- Maintain a separate AI-assisted collection path; `AI_ASSISTED_MATCH` stays
-  outside 4A aggregation
+FU3B wires the frozen FU3A semantic runtime into real research execution:
+
+- Deterministic matching remains first authority; deterministic `ACCEPTED` bypasses semantic
+- Explicit `MPN_MISMATCH` bypasses semantic
+- Semantic eligible:
+  - `NO_EXPLICIT_MPN_EVIDENCE + TITLE_TEXT`
+  - `NO_EXPLICIT_MPN_EVIDENCE + SKU_FIELD`
+  - `PARTIAL_MPN_ONLY`
+- Not semantic-enabled in FU3B:
+  - `NO_EXPLICIT_MPN_EVIDENCE + NONE`
+  - description-only / `UNDECIDED`
+- Bounded semantic failure leaves run usable
+- Programming/config exceptions propagate to existing catastrophic boundary
+- AI-assisted matches retained in `ExecutionResult.ai_assisted_matches`
+- `ai_assisted_match_count` is derived
+- `AiAssistedMatchResult` mechanically binds provenance
+- `SEMANTIC` execution evidence uses bounded controlled detail codes
+- Migration 0005 is choices-only metadata
+- `AI_ASSISTED_MATCH` remains entirely outside 4A
+- `PriceIntelligenceSnapshot` remains deterministic-only
+- Human checkbox/UI selection for user-curated summary: deferred future work
 
 ## Phase ownership
 
@@ -90,11 +108,14 @@ separate durable phases. This approval unblocks FU3B.
 | 4C-A | Execution ownership/lifecycle/evidence primitives | Implemented (frozen) |
 | 4C-B | Backend research execution | Implemented (frozen) |
 | 4C-B-FU | Exact duplicate deduplication | Implemented (frozen) |
-| 4C-C | Web execution/retry integration | **Implemented (frozen)** |
+| 4C-C | Web execution/retry integration | Implemented (frozen) |
 | 5A | Structured external API | Not implemented |
 | 5B | FoxPro launcher | Server-side implemented; client integrated outside repo, UAT passed |
-| PILOT-UX | Pilot UX polish + semantic qualification | **Corrective review** |
+| PILOT-UX | Pilot UX polish + semantic qualification | **FROZEN** |
 | SAP | SAP launcher integration | Future |
+
+**Deferred future work:**
+- Human checkbox/UI selection for user-curated summary
 
 ## Implementation snapshot
 
@@ -118,7 +139,7 @@ separate durable phases. This approval unblocks FU3B.
 | Semantic transport tests | `tests/semantic/test_transport.py` | **Implemented** |
 | Semantic runtime boundaries | `tests/semantic/test_runtime_boundaries.py` | **Implemented** |
 | Semantic contract sharing proof | `tests/semantic/test_contract_sharing.py` | **Implemented** |
-| Semantic execution integration | — | **Not implemented (FU3B — next)** |
+| Semantic execution integration | `execution/semantic_integration.py` | **Implemented (frozen, FU3B)** |
 | EvidenceDecision.AI_ASSISTED_MATCH | `domain/enums.py` | **Reserved (frozen semantic identity disposition, FU3A)** |
 | Persisted run lifecycle | `runs/` | Implemented (ResearchRun) |
 | Execution evidence model | `runs/` | Implemented (ExecutionEvidenceRecord) |
@@ -141,6 +162,16 @@ separate durable phases. This approval unblocks FU3B.
 | Structured API | — | 5A (not implemented) |
 | FoxPro launcher | — | Server-side implemented; client integrated outside repo, UAT passed |
 | SAP launcher | — | Future |
+
+## Research orchestration
+
+Base 4C orchestration contract: **frozen**
+FU3B semantic execution extension: **APPROVED / FROZEN**
+
+Implementation snapshot:
+
+- Research orchestration: Base 4C frozen; FU3B semantic extension frozen
+- Semantic execution integration: Implemented / APPROVED / FROZEN
 
 ## Web layer architecture
 
@@ -171,88 +202,53 @@ Visual FoxPro sales-order application.
 
 ## Validation results
 
-Run:
-
-```bash
-python -m pytest tests/web -q
-python -m pytest tests/execution -q
-python -m pytest tests/semantic -q
-python -m pytest tests/evaluation/semantic -q
-python manage.py check
-python manage.py makemigrations --check --dry-run
-```
-
-Exact designated final run at the end of FU3A2F (`python -m pytest -o
-addopts="" -q -ra`, one single run):
+### HISTORICAL FU3A2F FREEZE SNAPSHOT
 
 | Metric | Count |
 | --- | --- |
 | Collected | 2158 |
-| Passed | 2151 (+ 39 subtests) |
+| Passed | 2151 |
 | Failed | 7 |
-| Skipped | 0 |
-| Errors | 0 |
-| Xfailed / deselected | 0 |
+| (+ 39 subtests) | — |
 
-Exact failing node IDs for this designated run (all seven are the known
-subprocess-boundary flake described below; none touches
-`product_intelligence/semantic/`):
+### FU3B FINAL REVIEW SNAPSHOT
 
-* `tests/domain/test_domain_boundaries.py::test_domain_imports_without_django_network_or_llm_dependencies`
-* `tests/evaluation/test_evaluation_boundaries.py::test_loading_the_corpus_imports_no_framework_or_provider`
-* `tests/providers/test_provider_boundaries.py::test_importing_the_provider_boundary_pulls_in_no_third_party_dependency`
-* `tests/providers/test_provider_boundaries.py::test_importing_the_page_boundary_pulls_in_no_third_party_dependency`
-* `tests/research/test_listing_normalization_boundaries.py::test_importing_the_research_core_still_pulls_in_no_third_party_dependency`
-* `tests/research/test_research_identity_boundaries.py::test_importing_the_research_core_pulls_in_no_third_party_dependency`
-* `tests/runs/test_research_run_boundaries.py::test_the_domain_still_imports_without_django_present`
+| Metric | Count |
+| --- | --- |
+| Collected | 2212 |
+| Passed | 2206 |
+| Failed | 6 |
 
-The collected count rose from 2157 (FU3A2E) to 2158 because FU3A2F closed one
-production-contract defect: `SemanticRuntimeResult.__post_init__` did not
-reject a one-attempt failure whose primary status is fallback-eligible (an
-impossible state — the real `evaluate()` routing always makes a second
-attempt for such a status). The fix added one direct-runtime regression test
-proving `evaluate()` still makes two attempts when the primary fails with
-INVALID_RESPONSE and the fallback transport is unconfigured. A previously
-existing test asserting the impossible state
-(`test_every_non_ok_status_constructs_a_valid_one_attempt_failure`) was
-corrected — split into two accurate parametrized proofs, one for
-non-fallback-eligible statuses (construction succeeds) and one for
-fallback-eligible statuses (construction is rejected) — with no net change in
-parametrized instance count. Three further tests that used a fallback-eligible
-status (mostly TIMEOUT) as unrelated filler for an "otherwise valid" one-
-attempt fixture were adjusted to use a non-fallback-eligible status
-(CASE_REJECTED) instead, so each still isolates the single invariant it was
-written to test. No test was deleted, skipped, xfailed, or deselected.
+The six failures were exactly:
 
-This is a single exact snapshot, not a range. Separately, run-to-run
-observation on this workstation: the seven subprocess-boundary tests listed
-above flake independently of any code change, so the same green code can show
-anywhere from 2 to 7 of them failing between consecutive runs. No node outside
-that fixed list of seven has ever failed.
+- `tests/evaluation/test_evaluation_boundaries.py::test_loading_the_corpus_imports_no_framework_or_provider`
+- `tests/providers/test_provider_boundaries.py::test_importing_the_provider_boundary_pulls_in_no_third_party_dependency`
+- `tests/providers/test_provider_boundaries.py::test_importing_the_page_boundary_pulls_in_no_third_party_dependency`
+- `tests/research/test_listing_normalization_boundaries.py::test_importing_the_research_core_still_pulls_in_no_third_party_dependency`
+- `tests/research/test_research_identity_boundaries.py::test_importing_the_research_core_pulls_in_no_third_party_dependency`
+- `tests/runs/test_research_run_boundaries.py::test_the_domain_still_imports_without_django_present`
 
-`python manage.py check` reports no issues; `makemigrations --check --dry-run`
-reports "No changes detected".
+### Targeted final evidence
 
-Note: seven subprocess-based boundary tests fail on this Windows / Python 3.14
-workstation. `subprocess.run(..., capture_output=True)` raises
-`OSError: [WinError 6/50]` from `_winapi.DuplicateHandle`. This is a
-platform/environment problem, not a code defect. The failing nodes are:
+- `tests/execution/test_semantic_integration.py`: 50 passed
+- `tests/execution`: 115 passed
+- `tests/semantic`: 305 passed
+- `tests/research/test_price_aggregation_contract.py`: 46 passed
+- `tests/evaluation/semantic`: 217 passed
 
-* `tests/domain/test_domain_boundaries.py::test_domain_imports_without_django_network_or_llm_dependencies`
-* `tests/evaluation/test_evaluation_boundaries.py::test_loading_the_corpus_imports_no_framework_or_provider`
-* `tests/providers/test_provider_boundaries.py::test_importing_the_provider_boundary_pulls_in_no_third_party_dependency`
-* `tests/providers/test_provider_boundaries.py::test_importing_the_page_boundary_pulls_in_no_third_party_dependency`
-* `tests/research/test_listing_normalization_boundaries.py::test_importing_the_research_core_still_pulls_in_no_third_party_dependency`
-* `tests/research/test_research_identity_boundaries.py::test_importing_the_research_core_pulls_in_no_third_party_dependency`
-* `tests/runs/test_research_run_boundaries.py::test_the_domain_still_imports_without_django_present`
+Note: this Windows / Python 3.14 workstation has a fixed seven-node
+subprocess-boundary flake allowlist. These nodes may fail independently
+between runs with OSError: [WinError 6/50] from
+subprocess.run(..., capture_output=True). In the FU3B authoritative final run,
+six of the seven allowed nodes failed and the remaining allowed node passed.
+No node outside the fixed seven-node allowlist failed.
 
 ## Next delivery priority
 
-**PRODUCT-INTEL.PILOT-UX — FU3A Production Semantic Runtime Contract:
-APPROVED / FROZEN.**
+**PRODUCT-INTEL.PILOT-UX — FU3B Semantic Execution Integration: APPROVED / FROZEN.**
 
-Remaining under PILOT-UX:
-- Human checkbox selection design recorded for future implementation
+Deferred future work:
+- Human checkbox selection for user-curated summary
 
 **PRODUCT-INTEL.5B — FoxPro Launcher**: server side implemented; the client is
 already integrated outside this repository and localhost UAT passed.
@@ -275,7 +271,8 @@ Do NOT modify:
 - qualification gates
 - production research/matching.py
 - production aggregation (4A FROZEN)
-- production execution
+- production execution authority (frozen 4C/FU3B execution semantics preserved;
+  future explicitly approved phases may extend)
 
 Since FU3A2 the frozen prompt text, decision vocabulary, response schema and
 strict parser/validator physically live in
@@ -429,12 +426,9 @@ with `IDENTITY_NOT_ACCEPTED` and cannot contribute to any bucket statistic.
 ## Known issues / debt
 
 - FU3A Production Semantic Runtime Contract: APPROVED / FROZEN
-- Semantic execution integration: FU3B (NOT IMPLEMENTED — next; wire the
-  frozen runtime into research execution and restore
-  `tests/execution/test_semantic_integration.py` with equal-or-stronger
-  execution-integration safety coverage than it carried before being
-  deferred)
-- Human checkbox selection for user-curated summary: design deferred
-- Seven subprocess-based boundary tests fail on this Windows / Python 3.14
-  workstation (`OSError: [WinError 6/50]` from `subprocess.run(capture_output=True)`).
-  Environment limitation, not a product defect.
+- FU3B Semantic Execution Integration: APPROVED / FROZEN
+- Human checkbox/UI selection for user-curated summary: deferred future work
+- This Windows / Python 3.14 workstation has a fixed seven-node subprocess-boundary
+  flake allowlist. In the authoritative FU3B final run, six of the seven allowed
+  nodes failed and the remaining allowed node passed. No node outside the fixed
+  seven-node allowlist failed. Environment limitation, not a product defect.
