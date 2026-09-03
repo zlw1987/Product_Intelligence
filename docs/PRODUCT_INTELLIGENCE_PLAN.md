@@ -35,7 +35,8 @@ and semantic execution integration, and HUMAN-REVIEW implements human review
 for AI-assisted semantic matches. The web form creates a run, triggers
 execution synchronously, and redirects to the report with the full result.
 Remaining future work: structured API (5A), product specification framework
-(6A), comparable-product research (7A-7C).
+(6A), first category-specific specification schema (6B), specification evidence
+extraction and resolution (6C), comparable-product research (7A-7C).
 
 ## 2. Problem statement
 
@@ -214,7 +215,8 @@ orchestration is implemented; web execution/retry integration (4C-C) is
 implemented and frozen; semantic integration (FU3B) is implemented and frozen;
 human review (HUMAN-REVIEW) is implemented and frozen. Still-not-implemented:
 structured API (5A). Full product resolution / comparable-product research
-remain future phases (6A onward).
+remain future phases: 6A/6B/6C are specification prerequisites; 7A-7C are
+comparable-product work.
 
 ## 6. Multi-interface intake design
 
@@ -1222,13 +1224,15 @@ semantic qualification runtime.
 **B. Future generic LLM provider abstraction.** The `LLMProvider` boundary
 abstraction described above — a generic, replaceable LLM provider interface
 analogous to `SearchProvider` — is not yet implemented. It is the planned
-boundary for future specification extraction (6A), comparable-product
+boundary for future specification evidence extraction (6C), comparable-product
 semantics (7A-7C), and any other LLM-assisted capability beyond the existing
 frozen semantic runtime.
 
-Status: `APPROVED / PLANNED` for the generic `LLMProvider` abstraction (B). Not
-scheduled before specification and comparable phases (6A onward). `IMPLEMENTED
-(FROZEN)` for the specific semantic runtime (A) under FU3A/FU3B.
+Status: `APPROVED / PLANNED` for the generic `LLMProvider` abstraction (B).
+generic LLMProvider is not part of 6A or 6B. Earliest specification-extraction
+evaluation is 6C, and even there only if recorded evidence demonstrates
+deterministic extraction is insufficient. `IMPLEMENTED (FROZEN)` for the
+specific semantic runtime (A) under FU3A/FU3B.
 
 ## 15. Research-run lifecycle
 
@@ -2040,7 +2044,9 @@ or `UNRECOGNIZED_CONDITION` member.
 * **No integration (at the end of 3C).** `runs/` and `web/` import no part of
   `providers/` or of the matching core. A submitted run was still `CREATED`.
 * **No description semantics.** The description field is carried but never
-  read. Interpreting it is 6A/7B work.
+  read. 6A itself does not interpret request descriptions. Any future
+description/category/comparable semantic interpretation belongs to a later
+explicitly approved phase.
 * **No manufacturer trust rules.** No per-manufacturer normalization profiles.
 * **No fuzzy matching, edit distance, or character-confusion tables.**
   `O`/`0` and `I`/`l`/`1` are never interchanged.
@@ -2192,8 +2198,11 @@ or flagged.
 **No global "market price"** — aggregation produces bucket-level statistics,
 never a single number summarizing all comparable prices.
 
-**No unit-price inference** — quantity, pack size, per-unit pricing are 6A
-work (§13.8, §16.2). Aggregation operates on the published price as-is.
+**No unit-price inference** — quantity / pack-size normalization and
+unit-price calculation remain deferred pending actual listing evidence and
+a separately approved responsibility; they are NOT part of the 6A
+product-specification framework. Aggregation operates on the published
+price as-is.
 
 **No LLM confidence** — confidence is derived from count, not guessed. No
 model, no prompt, no embedding.
@@ -2296,8 +2305,11 @@ Rules:
 * Similarity is explicitly *not* identity — see §10 and `IdentityMatchType`.
 * A comparison must state what it could not verify.
 
-Specification extraction (6A) and the first category-specific schema (6B)
-precede this work. Which category comes first is `UNDECIDED`.
+The product specification framework (6A), the first category-specific
+schema (6B), and specification evidence extraction and resolution (6C)
+precede this work. Enterprise SSD / storage is the preferred first-category
+direction; the REAL_VERIFIED corpus already contains Samsung PM9A3 and
+Micron 7450 PRO. Final category choice is deferred to 6A/6B review.
 
 Status: `APPROVED / PLANNED`. Nothing implemented.
 
@@ -2658,6 +2670,8 @@ PRODUCT-INTEL.HUMAN-REVIEW  Human review for AI-assisted matches  IMPLEMENTED
 
 PRODUCT-INTEL.6A   Product specification framework            PLANNED
 PRODUCT-INTEL.6B   First category-specific schema             PLANNED
+PRODUCT-INTEL.6C   Specification evidence extraction and
+                   resolution                                 PLANNED
 PRODUCT-INTEL.7A   Comparable-product candidate discovery     PLANNED
 PRODUCT-INTEL.7B   Similarity scoring                         PLANNED
 PRODUCT-INTEL.7C   Comparison web report                      PLANNED
@@ -2697,6 +2711,7 @@ DELIVERED:
 NEXT DELIVERY PRIORITY:
   6A    Product specification framework
   6B    First category-specific schema (Enterprise SSD preferred direction)
+  6C    Specification evidence extraction and resolution
   7A    Comparable-product candidate discovery
   7B    Similarity scoring
   7C    Comparison web report
@@ -2708,18 +2723,426 @@ FUTURE:
 **Next delivery priority: PRODUCT-INTEL.6A**
 
 6A defines the product specification framework: specification definition,
-specification value, units / normalized representation, source evidence,
-unknown / unavailable, conflicting observations, category schema membership,
-provenance. Evidence/authority contracts must be defined BEFORE connecting
-an extractor or LLM. 6A does not implement extraction or select an LLM.
+specification value, specification observation (raw evidence), normalized
+specification observation, specification resolution, category schema,
+and product specification set. It is a pure, deterministic,
+caller-independent framework: no Django model, no persistence, no network
+access, no extraction, no LLM call, no category-specific fields, and no
+reuse of the frozen FU3A/FU3B semantic runtime.
 
-6B follows 6A. Current planning recommendation: Enterprise SSD / storage
-is the preferred first category to evaluate. The REAL_VERIFIED corpus
-already contains Samsung PM9A3 and Micron 7450 PRO alongside CPU, RDIMM,
-and NIC cases. Category choice to be finalized during 6A/6B architecture
-review.
+6A distinguishes source authority (AUTHORITATIVE vs SECONDARY) from
+extraction authority. Source authority is supplied explicitly by the
+evidence-acquisition policy, not auto-classified by hostname or URL.
+An authoritative source does not make an LLM interpretation authoritative.
 
-7A-7C (comparable-product research) depends on 6A/6B.
+6A defines the binding deterministic resolution policy:
+- UNKNOWN — zero usable canonical values
+- VERIFIED — exactly one unique canonical value supported by at least one
+  AUTHORITATIVE observation
+- UNVERIFIED — exactly one unique canonical value with SECONDARY-only
+  support
+- CONFLICT — more than one unique canonical value
+
+No majority voting: evidence multiplicity does not vote truth into
+existence.
+
+6B follows 6A with the first category-specific specification schema.
+Current planning recommendation: Enterprise SSD / storage is the preferred
+first category. The REAL_VERIFIED corpus already contains Samsung PM9A3 and
+Micron 7450 PRO alongside CPU, RDIMM, and NIC cases. Category choice to be
+finalized during 6A/6B architecture review.
+
+6C follows 6A/6B with specification evidence extraction and resolution.
+6C acquires specification evidence from approved sources, extracts raw
+specification observations, preserves source provenance, normalizes using
+the 6B category schema, and feeds normalized evidence into the 6A
+deterministic resolver to produce ProductSpecificationSet results. 6C
+starts with manufacturer-controlled evidence where practical. 6C is where
+the project may evaluate whether deterministic extraction is sufficient or
+whether a separately qualified LLM-assisted extractor is needed. No
+LLM model or provider is selected in 6A or planned in advance of 6C.
+
+7A-7C (comparable-product research) depends on 6A/6B/6C: the 6A framework,
+the 6B category schema, and real specification evidence from 6C.
+
+### 22.0 Product Specification Framework — 6A Phase Contract
+
+The following is the binding canonical contract for 6A implementation.
+Planned implementation lives in:
+
+    product_intelligence/research/specifications.py
+
+6A is:
+
+- **pure** — no side effects, no state beyond its inputs
+- **deterministic** — same inputs always produce the same outputs
+- **caller-independent** — no knowledge of which client or transport produced the data
+- **Django-independent** — no model, no migration, no ORM, no framework
+- **persistence-free** — no database, no file I/O, no storage
+- **provider-free** — no provider interface, no vendor adapter
+- **network-free** — no HTTP, no DNS, no socket, no external call
+- **category-neutral** — no SSD-specific, CPU-specific, or any category-specific fields
+
+It defines seven canonical contracts and one deterministic resolver concept.
+No unnecessary Python syntax or constructor signatures are frozen here;
+semantics are frozen, not incidental implementation style.
+
+#### 22.0.1 SpecificationDefinition
+
+Answers: *"What specification is this?"*
+
+It is a definition/schema concept, NOT a product's actual value.
+
+A SpecificationDefinition semantically includes:
+
+- a stable machine key
+- a human-readable label
+- a value kind
+- an optional canonical unit (where applicable)
+- allowed values (where applicable for ENUM)
+
+Initial supported value kinds are EXACTLY:
+
+| Value kind | Meaning |
+| --- | --- |
+| `TEXT` | Free-text canonical value (e.g. interface connector name) |
+| `DECIMAL` | Numeric canonical value using `Decimal` — never `float` |
+| `BOOLEAN` | True/false canonical value |
+| `ENUM` | One value from a defined allowed set |
+
+Do NOT add `RANGE`, `LIST`, `SET`, `OBJECT`, or `FORMULA` unless a later
+real category demonstrates need.
+
+No SSD-specific definition keys belong in 6A. Those enter through 6B.
+
+**Definition/value compatibility.** A canonical SpecificationValue is
+usable ONLY when it is valid for the SpecificationDefinition it belongs to:
+
+- `TEXT` -> any canonical text value
+- `DECIMAL` -> `Decimal`, never `float`
+- `BOOLEAN` -> boolean value
+- `ENUM` -> value must be a member of the definition's allowed values
+
+A DECIMAL definition may declare a canonical unit. A normalized DECIMAL value
+for that definition is interpreted in that canonical unit. 6A performs NO unit
+conversion — conversion of raw source units into the definition's canonical unit
+belongs to category normalization downstream (6B semantics + 6C execution).
+
+A value of the wrong kind, wrong ENUM member, or otherwise incompatible with
+the definition is NOT usable canonical evidence.
+
+#### 22.0.2 SpecificationValue
+
+A SpecificationValue is a CANONICAL value. It is not raw external text.
+
+Example:
+
+- Source text: `"3,840 GB"`
+- Canonical representation: `Decimal("3.84")` with canonical unit `"TB"`
+
+Or simply:
+
+- `"U.3"`
+- `True`
+
+6A defines what canonical values can represent.
+6A does NOT define how a web page, PDF, LLM, or source string is converted
+into that value. That belongs downstream (6C).
+
+A SpecificationValue is only usable when it is valid for its associated
+SpecificationDefinition (see §22.0.1 definition/value compatibility rules).
+
+#### 22.0.3 SpecificationObservation — Raw Evidence
+
+A SpecificationObservation means:
+
+    "A source published this raw information about this specification."
+
+It does NOT mean:
+
+    "Therefore this value is true."
+
+**Product identity binding.** A SpecificationObservation must semantically bind
+to:
+
+- one established `ProductIdentity`
+- one `SpecificationDefinition`
+
+An identity is established exactly according to the existing
+`ProductIdentity.is_established` semantics. 6A reuses that authority; it does
+NOT invent a new semantic identity tier for specifications. Specifications do
+NOT establish identity.
+
+An observation bound to an unestablished `ProductIdentity` is invalid.
+
+This binding is the mechanism that makes cross-product evidence
+(Product A identity + Product B evidence) mechanically rejectable.
+
+Product identity is not inferred from source URL, hostname, raw text, or LLM
+output. 6C must supply evidence already associated with the established
+identity it is researching.
+
+The observation contract preserves semantic provenance sufficient to
+audit the statement, including:
+
+- product identity binding
+- specification key / definition binding
+- source name
+- source URL
+- retrieval timestamp
+- raw value
+- raw reference / locator (when available)
+- source authority
+
+Raw evidence remains raw.
+
+A raw reference/locator is for audit provenance and is not parsed by generic
+business logic merely because it exists.
+
+#### 22.0.4 Source Authority
+
+Initial source-authority vocabulary:
+
+| Authority | Meaning |
+| --- | --- |
+| `AUTHORITATIVE` | Manufacturer-controlled or otherwise explicitly authoritative product source |
+| `SECONDARY` | Retailer / distributor / marketplace / other supporting source |
+
+6A does NOT infer this tier from hostname or URL.
+A later evidence-acquisition policy supplies the authority classification.
+
+**Binding orthogonality rule: source authority != extraction authority.**
+
+An authoritative source does not make an extraction mechanism authoritative.
+Example: a manufacturer datasheet is an AUTHORITATIVE source, but an LLM's
+interpretation of that datasheet is not thereby an authoritative interpretation.
+An extraction mechanism never inherits truth authority merely from the
+document it reads.
+
+#### 22.0.5 NormalizedSpecificationObservation
+
+Mirrors the project's existing evidence-first 3A → 3B pattern:
+
+    SpecificationObservation
+        ->
+    NormalizedSpecificationObservation
+
+The normalized contract preserves the ORIGINAL observation, including:
+
+- product identity binding
+- specification definition binding
+- source provenance
+- source authority
+
+It carries either:
+
+- a valid canonical SpecificationValue (which MUST be valid for the original
+  SpecificationDefinition per §22.0.1 compatibility rules)
+
+or:
+
+- no canonical value + explicit normalization issue/reason
+
+An ambiguous or unparseable raw value does NOT silently become a fact.
+Issue-only observations are preserved as evidence; they are never silently
+discarded, and no canonical value is guessed.
+
+Example:
+
+- `"3.84 TB"` -> canonical `Decimal("3.84")` TB
+- `"up to 7.68 TB depending on model"` -> no canonical value,
+  explicit ambiguous normalization issue
+
+6A defines this generic contract.
+6B owns category-specific definitions and normalization meaning.
+6C performs real extraction and normalization.
+
+#### 22.0.6 SpecificationResolution — Four-State Deterministic Resolver
+
+**Usable canonical observation.** A usable canonical observation is a
+`NormalizedSpecificationObservation` that:
+
+1. preserves an original `SpecificationObservation`;
+2. therefore remains bound to one established `ProductIdentity`;
+3. remains bound to one `SpecificationDefinition`;
+4. contains a canonical `SpecificationValue` valid for that definition.
+
+An issue-only normalized observation is preserved as evidence but is NOT a
+usable canonical observation for value resolution.
+
+The deterministic resolver operates on usable canonical observations.
+
+**Self-auditing invariants.** A SpecificationResolution represents resolution
+of exactly one established `ProductIdentity` plus exactly one
+`SpecificationDefinition` from an exact collection of
+`NormalizedSpecificationObservation` evidence.
+
+- Every input normalized observation belongs to the SAME established
+  `ProductIdentity` as the resolution.
+- Every input normalized observation belongs to the SAME
+  `SpecificationDefinition` as the resolution.
+- Cross-product evidence is invalid.
+- Cross-specification evidence is invalid.
+- The resolution preserves the evidence collection from which it was derived.
+- Issue-only observations remain preserved even though they do not vote on the
+  canonical value.
+- No evidence is silently dropped merely because it conflicts or failed
+  normalization.
+
+The exact Python field names/signature remain implementation work.
+
+**Resolution states and value consistency.** Exactly four resolution states.
+All usable values must already be valid for the same `SpecificationDefinition`.
+
+| State | Condition |
+| --- | --- |
+| `UNKNOWN` | Zero usable canonical values. Resolved value = none. May still preserve issue-only normalized observations. |
+| `VERIFIED` | Exactly one unique usable canonical value AND >= 1 AUTHORITATIVE usable observation supports it. Resolved value = that value. |
+| `UNVERIFIED` | Exactly one unique usable canonical value AND all usable support is SECONDARY. Resolved value = that value. |
+| `CONFLICT` | More than one unique usable canonical value. Resolved value = none. |
+
+**No majority voting.** Evidence multiplicity does not vote truth into
+existence. No source-count weighting. No "authoritative source automatically
+wins conflict."
+
+Worked examples:
+
+```
+AUTHORITATIVE  3.84 TB
+SECONDARY      3.84 TB
+    -> VERIFIED 3.84 TB
+
+SECONDARY      U.3
+SECONDARY      U.3
+    -> UNVERIFIED U.3
+
+AUTHORITATIVE  3.84 TB
+SECONDARY      7.68 TB
+    -> CONFLICT
+
+9 SECONDARY     3.84 TB
+1 AUTHORITATIVE 7.68 TB
+    -> CONFLICT   (not 9-to-1 voting)
+```
+
+#### 22.0.7 CategorySchema
+
+A CategorySchema is a versioned grouping of definitions for one product
+category. Semantic identity includes:
+
+- stable schema id
+- schema version
+- human-readable label
+- specification definitions
+
+6A defines only the category-neutral mechanism.
+6B creates the first real category schema.
+No enterprise-SSD fields belong in 6A.
+
+**Unique definition keys.** A CategorySchema's SpecificationDefinition keys
+must be unique within that schema. No two definitions in one schema may claim
+the same stable machine key.
+
+The framework must allow a later second category without redesigning the
+fundamental contract.
+
+#### 22.0.8 ProductSpecificationSet — Identity First
+
+A ProductSpecificationSet represents the COMPLETE resolved state for:
+
+    one established ProductIdentity
+        under
+    one CategorySchema
+
+**Identity comes FIRST.** Specifications do not establish product identity.
+
+A ProductSpecificationSet must bind fail-closed to an ESTABLISHED
+`ProductIdentity` (using existing established-identity semantics; do NOT
+redefine `IdentityMatchType`) rather than to an arbitrary free-form product
+label.
+
+**Completeness invariants:**
+
+A. Exactly ONE `SpecificationResolution` exists for EVERY
+   `SpecificationDefinition` in the `CategorySchema`. Specifications with no
+   usable evidence appear explicitly as `UNKNOWN` resolutions.
+
+B. No resolution may exist for a definition outside the `CategorySchema`.
+
+C. No duplicate resolution for the same definition key.
+
+D. Every resolution's `ProductIdentity` must equal the `ProductSpecificationSet`'s
+   `ProductIdentity`.
+
+E. Every resolution's `SpecificationDefinition` must correspond to the exact
+   definition represented by that `CategorySchema` key.
+
+An omitted resolution does NOT silently mean `UNKNOWN`. `UNKNOWN` must be
+explicit.
+
+**Cross-product/specification failure modes.** All of the following fail
+closed:
+
+- Product A identity + Product B resolution/evidence
+- a `capacity` resolution placed under the `form_factor` definition
+- duplicate resolutions for the same specification key
+- a schema definition missing its resolution entirely
+- a resolution for a specification not in the schema
+
+This is the mechanical meaning of:
+
+    Product A identity + Product B specification evidence must be rejected.
+
+6A does not solve persistence or acquisition of that identity.
+6C must consume/provide evidence consistently with this identity binding;
+it must not weaken the identity-first invariant.
+
+#### 22.0.9 Evidence-First Audit Chain
+
+Every `SpecificationResolution` remains auditable back through:
+
+    SpecificationResolution
+        ->
+    NormalizedSpecificationObservation(s)
+        ->
+    SpecificationObservation(s)
+        ->
+    source/raw provenance
+
+and every link in that chain remains bound to the same established
+`ProductIdentity` and `SpecificationDefinition`.
+
+A `ProductSpecificationSet` must never contain a resolved fact whose evidence
+chain cannot be traced. This extends the evidence-first principles of §11
+to specification resolution.
+
+#### 22.0.10 6A Explicit Non-Scope
+
+The following are NOT part of 6A and must not appear in its implementation:
+
+- Django model, migration, or persistence
+- snapshot codec
+- web view, template, or URL
+- execution wiring
+- SearchProvider change
+- provider call
+- network access
+- page fetching
+- HTML extraction
+- PDF extraction
+- specification extraction
+- LLM call
+- FU3A/FU3B semantic-runtime reuse
+- LLM/model qualification
+- product-category classifier
+- SSD-specific specification fields
+- comparable candidate discovery
+- similarity weights
+- compatibility rules
+- similarity score
+- comparison report
+
+Do not add placeholder production types for 6B/6C/7A-7C behaviour.
 
 Do not
 execute a later phase while working on an earlier one.
@@ -2945,3 +3368,4 @@ This canonical plan does not duplicate that operational snapshot.
 | AD-051 | Research orchestration is a separate application layer (`execution/`) and phase (4C), rather than living in `research/` or `web/`. `execution/` coordinates one `ResearchRun` through provider I/O and deterministic research primitives. Deterministic research and evidence decisions — identity resolution, listing acceptance/rejection, price eligibility, aggregation semantics — remain owned by `research/`. `execution/` invokes those decision primitives but must not reimplement or override them. `execution/` may import `domain`, `research`, `providers`, and `runs`, but must not import `web/`. `research/` remains pure and must not import `execution`, `providers`, `runs`, or Django. `web/` may invoke execution but must not carry research semantics. | The previous PLAN stated that `research/` owns orchestration. But `research/` is intentionally pure — its guard tests enforce stdlib-only imports and forbid persistence, provider, network, and Django dependencies. Real orchestration must coordinate all of those. Putting orchestration in `web/` would make research semantics a property of the transport layer, violating caller-independence (AD-001): the core would then be structured around how the browser submits a request rather than around the canonical `ResearchRequest`. The execution layer sits between them: it imports what it needs to run a pipeline, but stays independent of which client triggered the run. This preserves both boundaries — `research/` stays testable without a database or network, and `web/` stays a presentation and intake layer. Coordination is not authority: `execution/` orchestrates the pipeline steps but does not make evidence decisions — listing acceptance, price eligibility, and identity resolution remain `research/` primitives that `execution/` calls, not reimplements. *Note: `execution/` was created in 4C-B alongside the backend orchestration implementation.* | Accepted (4B architecture checkpoint) |
 | AD-052 | `PriceIntelligenceSnapshot` is not the complete research-execution evidence store. It preserves evidence reachable through `ListingObservation` → `NormalizedListingObservation` → `ListingIdentityAssessment` → `PriceAggregationResult`. It cannot represent search candidates never fetched, page-fetch failures, blocked pages, or fetched pages producing zero observations. 4C must decide how those execution attempts and outcomes are preserved before claiming end-to-end evidence completeness. | The snapshot is a price result, not an execution log. A search that returns 10 candidates, of which 3 were fetched, 2 were blocked, and 1 produced zero observations — the snapshot can only represent the three that yielded observations and their downstream assessments. The other seven execution events are silently lost. That is acceptable for 4B's read-only report: it renders what the aggregation produced, and says honestly when nothing exists. But 4C, which owns the full orchestration pipeline, must decide whether to preserve execution evidence beyond what the aggregation carries. That decision depends on whether a partial run's diagnostic value justifies additional persistence surface — a question 4C can answer with real failure data rather than speculation. | Accepted (4B architecture checkpoint) |
 | AD-053 | Human review for AI-assisted semantic matches uses a separate authority overlay. The deterministic `ListingIdentityAssessment` snapshot is never mutated. `AI_ASSISTED_MATCH` is a disposition on `AiAssistedMatchResult`, not a decision on the snapshot assessment. Human confirmation creates a run-scoped `AiAssistedReviewCandidate` with states UNREVIEWED/CONFIRMED/REJECTED. Machine Price (4A aggregation) remains deterministic-only. Reviewed Price is a distinct aggregation contract that includes deterministic ACCEPTED + human-CONFIRMED listings, with per-listing origin (`DETERMINISTIC`/`HUMAN_CONFIRMED`). Human confirmation changes identity authority only — price eligibility still follows deterministic non-identity rules (numeric Decimal, comparable currency, known condition). Candidate binding fails closed. No reviewer identity or authentication was introduced. | Semantic matching (FU3B) produces `AI_ASSISTED_MATCH` dispositions that are intentionally excluded from 4A aggregation. These matches have valid evidence but the system has no way to verify semantic correctness automatically. Human review lets a person confirm or reject these candidates on the report page. The authority model preserves the invariant that deterministic identity is the only automatic authority: the snapshot assessment stays REJECTED for human-confirmed listings. A separate aggregation contract (`aggregate_reviewed_listing_prices`) reads human confirmation state and produces `ReviewedPriceAggregationResult` with origin tracking. This avoids polluting the frozen 4A contract while providing a usable reviewed price view. The candidate model (`AiAssistedReviewCandidate`) is run-scoped with immutable semantic provenance fields, and the review service uses conditional database updates for concurrency safety. Web performs binding validation before any mutation. | Accepted (HUMAN-REVIEW) |
+| AD-054 | 6A/6B/6C responsibility split: 6A is a pure specification framework; 6B supplies the first category-specific schema; 6C acquires, extracts, and normalizes real specification evidence and invokes 6A resolution. | Evidence/authority contracts must precede extraction. Full 6A semantic contract: §22.0. §22.0 also defines the identity/specification provenance-binding chain: every observation binds to an established ProductIdentity and SpecificationDefinition, every resolution is self-auditing over a single identity/spec pair, and ProductSpecificationSet completeness invariants make cross-product evidence mechanically rejectable. 6A defines SpecificationDefinition, SpecificationValue, SpecificationObservation, NormalizedSpecificationObservation, SpecificationResolution, CategorySchema, and ProductSpecificationSet as a deterministic, caller-independent, Django-free, persistence-free, network-free framework. 6A performs no extraction, no LLM call, and no reuse of the frozen FU3A/FU3B semantic runtime. Source authority (AUTHORITATIVE/SECONDARY) is distinguished from extraction authority: an authoritative source does not make an LLM interpretation authoritative. 6B supplies the first category-specific specification schema (Enterprise SSD preferred). 6C acquires specification evidence from approved sources, extracts raw specification observations, preserves source provenance, normalizes using the 6B category schema, and feeds normalized evidence into the 6A deterministic resolver to produce ProductSpecificationSet results. Resolution states: UNKNOWN (zero usable canonical values), VERIFIED (one canonical value with AUTHORITATIVE support), UNVERIFIED (one canonical value with SECONDARY-only support), CONFLICT (more than one canonical value). No majority voting — evidence multiplicity does not vote truth into existence. 7A-7C depend on 6A/6B/6C (framework + category schema + real specification evidence), not merely on schema definitions. | Accepted (architecture documentation) |

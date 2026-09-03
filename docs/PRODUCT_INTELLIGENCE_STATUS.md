@@ -382,13 +382,20 @@ all seven allowed nodes failed. No node outside the fixed seven-node allowlist f
 
 **5B**: Server-side implemented; client integrated outside repo; localhost UAT passed
 
-**6A**: NEXT DELIVERY PRIORITY
+**6A**: NEXT DELIVERY PRIORITY — Product Specification Framework (framework only, no extraction)
 
 **6B**: follows 6A;
+         First Category-Specific Specification Schema;
          Enterprise SSD / storage is preferred first-category direction;
          final choice during 6A/6B review
 
-**7A/7B/7C**: follow 6A/6B
+**6C**: follows 6A/6B;
+         Specification Evidence Extraction & Resolution;
+         acquires evidence, extracts raw observations, preserves provenance,
+         normalizes via 6B schema, invokes 6A resolution;
+         no LLM preselected
+
+**7A/7B/7C**: follow 6A/6B/6C
 
 ## Semantic qualification harness
 
