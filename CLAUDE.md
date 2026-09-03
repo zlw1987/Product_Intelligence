@@ -116,6 +116,11 @@ rules for each implemented phase:
 | 3B listing normalization | §16.2 |
 | 3C MPN matching + rejection | §16.3 |
 | 4A price aggregation | §16.4 |
+| 4B price intelligence persistence + report | §16.5 |
+| 4C execution orchestration + web wiring | §15, §16 |
+| FU3A production semantic runtime | STATUS.md (FU3A section) |
+| FU3B semantic execution integration | STATUS.md (FU3B section) |
+| HUMAN-REVIEW human review for AI-assisted matches | STATUS.md (Human Review section) |
 
 Do not violate these rules. If a phase seems to require something that
 contradicts a frozen contract, say so and ask — do not just change it.
@@ -140,27 +145,36 @@ runs
 execution  <-  domain, research, providers, runs
     orchestration
 
-web  <-  domain, runs, execution (public API only)
+web  <-  domain, runs, execution public API only, research approved read-side symbols only
     presentation/composition
 ```
 
-### Web layer imports (4C-C)
+### Web layer imports (4C-C + HUMAN-REVIEW)
 
 **Allowed:**
 - `from product_intelligence.execution import execute_research_run, ExecutionError`
-- `from product_intelligence.runs import ClaimExecutionFailed, retry_run`
+- `from product_intelligence.runs import ClaimExecutionFailed, retry_run` and other public runs symbols
+- Narrow read-side research imports via symbol-level allowlist:
+  - `product_intelligence.research.price_result_codec` — `PriceResultCodecError`, `decode_price_aggregation_result`
+  - `product_intelligence.research.aggregation` — `PriceAggregationResult`, `aggregate_reviewed_listing_prices`
+  - `product_intelligence.research.matching` — `ListingIdentityAssessment`, `is_human_review_eligible_assessment`
 
 **Rejected:**
 - `import product_intelligence.execution` (use explicit imports instead)
-- `from product_intelligence.execution.orchestration import ...`
-- `from product_intelligence.providers import ...`
-- `from product_intelligence.research.identity import ...`
-- `from product_intelligence.runs.execution_claims import ...` (use `product_intelligence.runs` instead)
+- `from product_intelligence.execution.orchestration import ...` (or any execution submodule)
+- `from product_intelligence.providers import ...` (any provider)
+- `from product_intelligence.research.identity import ...` (research decision primitive)
+- `from product_intelligence.runs.execution_claims import ...` (internal; use `product_intelligence.runs` public API)
+- Any bare `import X` (ast.Import) form for research submodules — only `from ... import ...` with exact approved symbols
+- Any symbol from approved research modules not on the allowlist
 
-Web may call only the public execution API, never internal orchestration
-primitives or provider implementations. This enforces caller-independence
-and prevents the web layer from bypassing the provider boundary or
-research primitives.
+Execution imports remain public-API-only. Providers remain forbidden.
+Execution submodules remain forbidden. `research/identity` remains forbidden.
+HUMAN-REVIEW allows narrow read-side research imports ONLY through the
+symbol-level allowlist enforced by `tests/web/test_web_boundaries.py`.
+Runs-owned services (`runs/ai_assisted_review.py`) own review writes.
+Web may not bypass providers, must not own execution internals,
+and must not carry research semantics.
 
 ## Evidence-first behavior
 
@@ -192,11 +206,18 @@ currency, deduplication, thresholds, validation, timestamps, persistence.
 
 ## LLM is never sole authority for exact identity
 
-An LLM may later assist only with semantics: ambiguous descriptions, category
+A production semantic runtime already exists (FU3A/FU3B): it calls qualified
+models to evaluate narrowly eligible identity candidates where deterministic
+matching produced `REJECTED` with semantic-eligible evidence sources. Its output
+is advisory: semantic MATCH is never treated as exact identity. An LLM may
+assist with additional semantics — ambiguous descriptions, category
 classification, specification extraction, query generation, explaining
-differences, summarizing verified results. **An LLM is never the sole
+differences, summarizing verified results — but **an LLM is never the sole
 authority for exact product identity**, and never produces a number that the
-report presents as fact.
+report presents as fact. Future 6A specification extraction is not implemented.
+
+Frozen authority: deterministic exact identity is automatic; semantic MATCH is
+advisory; human confirmation may create a `HUMAN_CONFIRMED` overlay.
 
 ## Evaluation truth does not move to suit an implementation
 
@@ -211,9 +232,12 @@ the benchmark working. Full rules in `evaluation/README.md`.
 
 ## Provider abstraction
 
-External vendors sit behind `SearchProvider` and `LLMProvider`. No vendor name
-(Tavily, SerpAPI, Google, Bing, OpenAI, Anthropic, ...) may appear in domain
-models or business logic. Vendor names belong only in adapter modules.
+External vendors sit behind `SearchProvider`. A generic `LLMProvider`
+abstraction is planned (PLAN §14B) but not yet implemented. The existing
+FU3A/FU3B semantic runtime uses its own transport module, not a generic
+LLMProvider interface. No vendor name (Tavily, SerpAPI, Google, Bing, OpenAI,
+Anthropic, ...) may appear in domain models or business logic. Vendor names
+belong only in adapter modules.
 
 ## No secrets in clients
 
@@ -261,7 +285,7 @@ See canonical plan §9.
   configure external infrastructure.
 * **Keep the architecture guard tests passing.** They enforce layer boundaries,
   stdlib-only domain contracts, no vendor names in business logic, no Django in
-  the core, single-model persistence, and no crawler/browser dependency. If a
+  the core, and no crawler/browser dependency. If a
   guard fails, fix the design, not the test.
 * **A corrective follow-up phase has a higher bar from 2B onward.** Reserve a
   standalone FU for a defect that materially threatens false confidence or a

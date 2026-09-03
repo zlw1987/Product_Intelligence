@@ -4,7 +4,8 @@
 
 **PRODUCT-INTEL.PILOT-UX — Semantic qualification APPROVED/FROZEN;
 FU3A Production Semantic Runtime Contract APPROVED/FROZEN;
-FU3B Semantic Execution Integration APPROVED/FROZEN.**
+FU3B Semantic Execution Integration APPROVED/FROZEN;
+HUMAN-REVIEW Human Review for AI-Assisted Matches APPROVED/FROZEN.**
 
 Semantic qualification is APPROVED AND FROZEN:
 - Semantic qualification corpus, prompt v1.1, evaluator mathematics,
@@ -60,11 +61,19 @@ or safety-contract blocker; ChatGPT performed the final approval/freeze review):
 and is tested offline; it is called from the research pipeline through `evaluate_semantic_matches` — that
 wiring was FU3B, now implemented and approved.
 
-**AI_ASSISTED_MATCH remains entirely OUTSIDE existing 4A aggregation.** It is
-not "accepted but not VERIFIED" — an `AI_ASSISTED_MATCH` assessment does not
-enter a price bucket at all, regardless of how valid its price is. Only
-`EvidenceDecision.ACCEPTED` enters 4A aggregation. This exclusion is part of
-the frozen FU3A/FU3B contract.
+AI_ASSISTED_MATCH remains outside existing 4A aggregation.
+
+A semantic MATCH is represented by:
+    original ListingIdentityAssessment.decision == REJECTED
+    +
+    AiAssistedMatchResult.disposition == AI_ASSISTED_MATCH
+
+There is no AI_ASSISTED_MATCH ListingIdentityAssessment.
+
+Existing 4A sees the original deterministic REJECTED assessment and
+excludes it as IDENTITY_NOT_ACCEPTED.
+
+Only EvidenceDecision.ACCEPTED automatically enters 4A Machine Price.
 
 ## Project facts (already delivered outside repo)
 
@@ -99,7 +108,6 @@ FU3B wires the frozen FU3A semantic runtime into real research execution:
 - Migration 0005 is choices-only metadata
 - `AI_ASSISTED_MATCH` remains entirely outside 4A
 - `PriceIntelligenceSnapshot` remains deterministic-only
-- Human checkbox/UI selection for user-curated summary: deferred future work
 
 ## Phase ownership
 
@@ -112,10 +120,9 @@ FU3B wires the frozen FU3A semantic runtime into real research execution:
 | 5A | Structured external API | Not implemented |
 | 5B | FoxPro launcher | Server-side implemented; client integrated outside repo, UAT passed |
 | PILOT-UX | Pilot UX polish + semantic qualification | **FROZEN** |
+| HUMAN-REVIEW | Human review for AI-assisted semantic matches | Implemented (frozen)
 | SAP | SAP launcher integration | Future |
 
-**Deferred future work:**
-- Human checkbox/UI selection for user-curated summary
 
 ## Implementation snapshot
 
@@ -162,6 +169,11 @@ FU3B wires the frozen FU3A semantic runtime into real research execution:
 | Structured API | — | 5A (not implemented) |
 | FoxPro launcher | — | Server-side implemented; client integrated outside repo, UAT passed |
 | SAP launcher | — | Future |
+| Human review candidate model | `runs/` (AiAssistedReviewCandidate) | **Implemented (frozen, HUMAN-REVIEW)**
+| Human review service | `runs/ai_assisted_review.py` | **Implemented (frozen, HUMAN-REVIEW)**
+| Reviewed price aggregation | `research/aggregation.py` (aggregate_reviewed_listing_prices) | **Implemented (frozen, HUMAN-REVIEW)**
+| Human review web view + URLs | `web/views.py` + `web/urls.py` | **Implemented (frozen, HUMAN-REVIEW)**
+| Human review candidate presentation | `web/presentation.py` | **Implemented (frozen, HUMAN-REVIEW)**
 
 ## Research orchestration
 
@@ -175,11 +187,20 @@ Implementation snapshot:
 
 ## Web layer architecture
 
-The web layer may import only the public execution API:
+The web layer may import only the public execution API and the approved read-side research symbols:
 
 ```
 web  ->  product_intelligence.execution  (execute_research_run, ExecutionError)
-web  ->  product_intelligence.runs  (ClaimExecutionFailed, retry_run, ResearchRun)
+web  ->  product_intelligence.runs  (ClaimExecutionFailed, retry_run, ResearchRun,
+         confirm_candidate, reject_candidate, undo_review, review errors)
+web  ->  product_intelligence.research.price_result_codec
+         (PriceResultCodecError, decode_price_aggregation_result)
+web  ->  product_intelligence.research.aggregation
+         (PriceAggregationResult, aggregate_reviewed_listing_prices)
+web  ->  product_intelligence.research.matching
+         (ListingIdentityAssessment, is_human_review_eligible_assessment)
+web  ->  product_intelligence.runs.models
+         (ResearchRun, PriceIntelligenceSnapshot, AiAssistedReviewCandidate)
 ```
 
 The web layer MUST NOT import:
@@ -187,6 +208,14 @@ The web layer MUST NOT import:
 - `product_intelligence.execution` (bare module import)
 - `product_intelligence.providers` (or any provider submodule)
 - `product_intelligence.runs.execution_claims` (internal)
+- `product_intelligence.research.identity` (research decision primitive)
+- Any unapproved symbol from approved research modules
+
+Web writes review state through the runs-owned review service
+(`runs/ai_assisted_review.py`). Web may perform approved read-side
+composition and binding validation as enforced by boundary tests.
+Web must not bypass providers, must not own execution internals,
+and must not carry research semantics.
 
 ## FoxPro ownership
 
@@ -200,6 +229,86 @@ GET /research/new?mpn=<encoded>&description=<encoded>
 The project lead maintains the FoxPro client code manually in the existing
 Visual FoxPro sales-order application.
 
+## Human Review authority model
+
+HUMAN-REVIEW is IMPLEMENTED / APPROVED / FROZEN.
+
+Required authority layers:
+
+1. Deterministic identity
+   ListingIdentityAssessment.decision == ACCEPTED
+   remains the only automatic existing-4A identity authority.
+
+2. Semantic match
+   original ListingIdentityAssessment.decision == REJECTED
+   +
+   AiAssistedMatchResult.disposition == AI_ASSISTED_MATCH
+
+   Snapshot assessment itself is never AI_ASSISTED_MATCH.
+
+3. Human review overlay
+   run-scoped AiAssistedReviewCandidate
+   states:
+       UNREVIEWED
+       CONFIRMED
+       REJECTED
+   actions:
+       Confirm
+       Reject
+       Undo
+
+   Human confirmation never mutates snapshot assessment.
+
+4. Machine Price
+   deterministic ACCEPTED only.
+
+5. Reviewed Price
+   deterministic ACCEPTED
+   +
+   human-CONFIRMED semantic-eligible listings.
+
+   Preserve origin:
+       DETERMINISTIC
+       HUMAN_CONFIRMED
+
+6. Human confirmation changes identity authority only.
+   Existing deterministic non-identity price eligibility remains:
+       Decimal price
+       comparable currency
+       known condition
+
+7. Candidate binding fails closed:
+   exact run/snapshot assessment + provenance must match before mutation.
+
+8. Candidate creation is run-scoped and participates in final publication.
+
+9. No reviewer identity/authentication/audit identity was introduced.
+
+
+## Eligibility boundary
+
+Eligible original deterministic assessments ONLY:
+
+    REJECTED
+    + NO_EXPLICIT_MPN_EVIDENCE
+    + TITLE_TEXT
+
+    REJECTED
+    + NO_EXPLICIT_MPN_EVIDENCE
+    + SKU_FIELD
+
+    REJECTED
+    + PARTIAL_MPN_ONLY
+
+Not eligible:
+
+    ACCEPTED
+    UNDECIDED
+    MPN_MISMATCH
+    NO_EXPLICIT_MPN_EVIDENCE + NONE
+    any other non-semantic-eligible state
+
+
 ## Validation results
 
 ### HISTORICAL FU3A2F FREEZE SNAPSHOT
@@ -211,7 +320,7 @@ Visual FoxPro sales-order application.
 | Failed | 7 |
 | (+ 39 subtests) | — |
 
-### FU3B FINAL REVIEW SNAPSHOT
+### HISTORICAL FU3B FINAL REVIEW SNAPSHOT
 
 | Metric | Count |
 | --- | --- |
@@ -228,30 +337,58 @@ The six failures were exactly:
 - `tests/research/test_research_identity_boundaries.py::test_importing_the_research_core_pulls_in_no_third_party_dependency`
 - `tests/runs/test_research_run_boundaries.py::test_the_domain_still_imports_without_django_present`
 
-### Targeted final evidence
+### HUMAN-REVIEW FINAL APPROVAL SNAPSHOT (CURRENT)
 
-- `tests/execution/test_semantic_integration.py`: 50 passed
-- `tests/execution`: 115 passed
-- `tests/semantic`: 305 passed
-- `tests/research/test_price_aggregation_contract.py`: 46 passed
-- `tests/evaluation/semantic`: 217 passed
+| Metric | Count |
+| --- | --- |
+| Collected | 2373 |
+| Passed | 2366 |
+| Failed | 7 |
+| Unexpected failures | 0 |
 
-Note: this Windows / Python 3.14 workstation has a fixed seven-node
+The seven failures are the established environment-specific
+subprocess-boundary flake allowlist on this Windows / Python 3.14 workstation
+(all boundary/import-guard tests):
+
+1. `tests/domain/test_domain_boundaries.py::test_domain_imports_without_django_network_or_llm_dependencies`
+2. `tests/evaluation/test_evaluation_boundaries.py::test_loading_the_corpus_imports_no_framework_or_provider`
+3. `tests/providers/test_provider_boundaries.py::test_importing_the_provider_boundary_pulls_in_no_third_party_dependency`
+4. `tests/providers/test_provider_boundaries.py::test_importing_the_page_boundary_pulls_in_no_third_party_dependency`
+5. `tests/research/test_listing_normalization_boundaries.py::test_importing_the_research_core_still_pulls_in_no_third_party_dependency`
+6. `tests/research/test_research_identity_boundaries.py::test_importing_the_research_core_pulls_in_no_third_party_dependency`
+7. `tests/runs/test_research_run_boundaries.py::test_the_domain_still_imports_without_django_present`
+
+Observed failure signature:
+
+    subprocess.Popen
+    -> _winapi.DuplicateHandle
+    -> OSError: [WinError 6] The handle is invalid
+
+These are environment-specific subprocess-boundary limitations on this Windows /
+Python 3.14 workstation, not application defects. No node outside the fixed
+seven-node allowlist fails. No test is skipped, xfailed, or weakened.
+
+Note: The Windows / Python 3.14 workstation has a fixed seven-node
 subprocess-boundary flake allowlist. These nodes may fail independently
 between runs with OSError: [WinError 6/50] from
-subprocess.run(..., capture_output=True). In the FU3B authoritative final run,
-six of the seven allowed nodes failed and the remaining allowed node passed.
-No node outside the fixed seven-node allowlist failed.
+subprocess.run(..., capture_output=True). In the authoritative HUMAN-REVIEW final run,
+all seven allowed nodes failed. No node outside the fixed seven-node allowlist failed.
 
 ## Next delivery priority
 
-**PRODUCT-INTEL.PILOT-UX — FU3B Semantic Execution Integration: APPROVED / FROZEN.**
+**HUMAN-REVIEW**: IMPLEMENTED / APPROVED / FROZEN
 
-Deferred future work:
-- Human checkbox selection for user-curated summary
+**5A**: PLANNED / NOT IMPLEMENTED / non-blocking
 
-**PRODUCT-INTEL.5B — FoxPro Launcher**: server side implemented; the client is
-already integrated outside this repository and localhost UAT passed.
+**5B**: Server-side implemented; client integrated outside repo; localhost UAT passed
+
+**6A**: NEXT DELIVERY PRIORITY
+
+**6B**: follows 6A;
+         Enterprise SSD / storage is preferred first-category direction;
+         final choice during 6A/6B review
+
+**7A/7B/7C**: follow 6A/6B
 
 ## Semantic qualification harness
 
@@ -417,18 +554,16 @@ say, `PRIMARY_MODEL_NOT_FOUND` for an attempt that actually timed out.
 
 ### Relationship to 4A
 
-**AI_ASSISTED_MATCH is OUTSIDE existing 4A aggregation**, not merely "not
-VERIFIED". Only `EvidenceDecision.ACCEPTED` enters a price bucket; an
-`AI_ASSISTED_MATCH` assessment with a perfectly valid numeric price is excluded
-with `IDENTITY_NOT_ACCEPTED` and cannot contribute to any bucket statistic.
-`product_intelligence/research/aggregation.py` is unchanged.
+The original deterministic assessment remains REJECTED.
+The parallel AiAssistedMatchResult carries disposition AI_ASSISTED_MATCH.
+Existing 4A sees the REJECTED assessment and excludes it as
+IDENTITY_NOT_ACCEPTED.
+
 
 ## Known issues / debt
 
 - FU3A Production Semantic Runtime Contract: APPROVED / FROZEN
 - FU3B Semantic Execution Integration: APPROVED / FROZEN
-- Human checkbox/UI selection for user-curated summary: deferred future work
 - This Windows / Python 3.14 workstation has a fixed seven-node subprocess-boundary
-  flake allowlist. In the authoritative FU3B final run, six of the seven allowed
-  nodes failed and the remaining allowed node passed. No node outside the fixed
-  seven-node allowlist failed. Environment limitation, not a product defect.
+  flake allowlist. In the authoritative HUMAN-REVIEW final run, all seven allowed
+  nodes failed. No node outside the fixed seven-node allowlist failed. Environment limitation, not a product defect.

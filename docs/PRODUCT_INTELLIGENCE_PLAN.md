@@ -28,10 +28,14 @@ The value of the product is **defensible answers**, not fast answers. A price
 range the user cannot trace back to real listings is worse than no answer.
 
 Status: `PARTIALLY IMPLEMENTED` — isolated research primitives through 4A
-exist, the 4B price intelligence report is implemented, and 4C-B implements
-the backend execution orchestration pipeline. The web form still creates a
-`CREATED` run without triggering execution; 4C-C will wire the web UI to
-the existing backend executor.
+exist, the 4B price intelligence report is implemented, 4C-A/B/B-FU/C
+implement execution ownership, backend orchestration, deduplication, and
+web execution/retry integration, FU3A/FU3B implement semantic qualification
+and semantic execution integration, and HUMAN-REVIEW implements human review
+for AI-assisted semantic matches. The web form creates a run, triggers
+execution synchronously, and redirects to the report with the full result.
+Remaining future work: structured API (5A), product specification framework
+(6A), comparable-product research (7A-7C).
 
 ## 2. Problem statement
 
@@ -180,13 +184,9 @@ a Django model:
 
 | Layer | Owns | Must not know about |
 | --- | --- | --- |
-| `runs/` | The durable `ResearchRun` record, its lifecycle, its migration, the `PriceIntelligenceSnapshot` model (4B) | Callers, vendors, transports, research semantics |
+| `runs/` | The durable `ResearchRun` record, its lifecycle, its migration, `PriceIntelligenceSnapshot` (4B), `ExecutionEvidenceRecord` (4C-A), `AiAssistedReviewCandidate` (HUMAN-REVIEW) | Callers, vendors, transports, research semantics |
 
-`web/` became a Django application in 1B, holding the intake form, two views,
-the routes, and the templates. It contains no model: a run outlives the request
-that created it and belongs to no caller, so the lifecycle stays in `runs/`
-(AD-025, AD-032). The dependency arrow points one way — `web` imports `domain`
-and `runs`, and a guard test fails if any inner layer imports `web`.
+`web/` became a Django application in 1B, holding the intake form, report view, retry endpoint, review endpoints, routes, and templates. It contains no model: a run outlives the request that created it and belongs to no caller, so the lifecycle stays in `runs/` (AD-025, AD-032). `web` imports `domain` and `runs`, and a guard test fails if any inner layer imports `web`. 4C-C wired the web form to the execution layer, and HUMAN-REVIEW permits narrow read-side research imports through a symbol-level allowlist enforced by `tests/web/test_web_boundaries.py`.
 
 `execution/` is the research orchestration layer (4C-B implemented). Real research
 orchestration must coordinate provider I/O, the deterministic research primitives
@@ -195,9 +195,9 @@ pure and forbidden from depending on providers, persistence, or network. Neither
 `research/` nor `web/` can own orchestration: `research/` cannot import the
 dependencies it would need, and `web/` must not carry research semantics. The
 execution layer sits between them, allowed to import `domain`, `research`,
-`providers`, and `runs`, but forbidden from importing `web`. `web/` may later
-invoke an execution service, but execution must not know which transport or
-client requested the run. This preserves the caller-independence boundary
+`providers`, and `runs`, but forbidden from importing `web`. `web/` invokes
+execution via the public API (`execute_research_run`), and execution must not
+know which transport or client requested the run. This preserves the caller-independence boundary
 (AD-001) without weakening the pure-research boundary (AD-013). See AD-051.
 
 Status: `IMPLEMENTED` for the layout, the domain layer, the evaluation corpus
@@ -210,9 +210,11 @@ normalization (§16.2), deterministic MPN matching + rejection (§16.3),
 isolated deterministic price aggregation (§16.4), and the 4B persisted
 read-only price intelligence report. The listed isolated research primitives
 and the 4B report are implemented; and (4C-B) end-to-end execution/
-orchestration is implemented. Still-unimplemented: web-triggered execution
-(4C-C), structured API (5A), FoxPro launcher (5B). Full product resolution /
-comparable-product research remain future phases.
+orchestration is implemented; web execution/retry integration (4C-C) is
+implemented and frozen; semantic integration (FU3B) is implemented and frozen;
+human review (HUMAN-REVIEW) is implemented and frozen. Still-not-implemented:
+structured API (5A). Full product resolution / comparable-product research
+remain future phases (6A onward).
 
 ## 6. Multi-interface intake design
 
@@ -240,10 +242,7 @@ Caller metadata (which client, which user, which order line) is an
 purposes in a later phase, but it is never part of product identity and never
 reaches resolution, pricing, or comparison logic.
 
-Status: `IMPLEMENTED` for the standalone web form (1B), which normalizes its two
-submitted strings into a `ResearchRequest` and creates one run.
-`APPROVED / PLANNED` for every other mechanism. Downstream research primitives
-exist through 4A, but intake only creates a run and invokes none of them.
+Status: `IMPLEMENTED` for the standalone web form (1B) and the constrained FoxPro launcher GET contract (5B). `APPROVED / PLANNED` for the structured API (5A). Downstream research primitives exist through 4A, and 4C-C wired the web form so that submission triggers full execution rather than leaving the run as CREATED.
 
 ## 7. Legacy desktop client compatibility strategy
 
@@ -282,8 +281,7 @@ string construction
     + browser launch
 ```
 
-A future phase (5B) may ship a small compatibility helper conceptually similar
-to:
+A small compatibility helper was shipped in 5B, conceptually similar to:
 
 ```text
 UrlEncodeLegacy(value)
@@ -291,7 +289,9 @@ UrlEncodeLegacy(value)
 
 percent-encoding a query-parameter value sufficiently for a browser GET
 launcher. It is a few dozen lines of FoxPro string work over a character
-table — not an HTTP client. **It is not implemented in this phase.**
+table — not an HTTP client. 5B delivered the server-side GET prefill contract
+and the FoxPro client integration (outside this repository); localhost UAT
+passed.
 
 ### 7.2 Arbitrary unencoded text is not a lossless transport
 
@@ -339,7 +339,7 @@ contract for arbitrary text, and 5B must not be designed as though it were.
   render results. The browser does. A client that cannot parse JSON is never
   asked to.
 * **Long descriptions must degrade gracefully.** URL length limits are a real
-  constraint; truncation policy is `UNDECIDED` and must be decided in 5B.
+  constraint; description truncation / URL-length policy remains UNDECIDED; 5B did not establish a general truncation policy.
 * **TLS is a deployment question, not a core question.** If the legacy client
   cannot negotiate modern TLS for the initial launch, that is solved at
   deployment (for example, an internally reachable endpoint), not by weakening
@@ -348,9 +348,10 @@ contract for arbitrary text, and 5B must not be designed as though it were.
 None of this reaches the core. The core sees an MPN and a description.
 
 Status: `APPROVED / PLANNED` as a constraint. No launcher code, no encoding
-helper, and no FoxPro-side code of any kind exists in this repository. Phase 5B
-implements the server-side GET entry point and may ship the encoding helper
-described in §7.1.
+helper, and no FoxPro-side code of any kind exists in this repository — the
+FoxPro client is maintained in the existing Visual FoxPro sales-order
+application. 5B implemented the server-side GET prefill contract; the client
+integration was delivered outside this repository and localhost UAT passed.
 
 ## 8. Standalone web interface strategy
 
@@ -404,24 +405,23 @@ can drift (AD-032). No part-number normalization happens at the boundary —
 that is 2A/3C work, and inventing a version of it in a form would put a
 matching decision in the one layer forbidden to make one.
 
-**The shell executes no research, and says so (4C-C pending).** A submitted
-run is `CREATED` and stays there: the web layer does not yet call the
-backend executor. The report states that research execution is not connected
-yet rather than showing a spinner, a progress bar, or a poll — a fake progress
-indicator is fabricated certainty with an animation (AD-009, AD-034). It shows
-the identifier, state, MPN, description, and `created_at`, with `started_at` and
-`finished_at` displayed only if a run ever carries them. There is no placeholder
-price, median, seller table, or example comparable, and no evaluation-corpus
-case is displayed as though it were a result.
+**The shell executes research and presents the result (4C-C implemented).**
+A submitted run transitions from `CREATED` to `RUNNING` to `COMPLETED`
+(or `PARTIALLY_COMPLETED` / `FAILED`) through the backend executor. The report
+shows the full result: state, MPN, description, timestamps, and — if a
+`PriceIntelligenceSnapshot` exists — the complete price intelligence evidence.
+Human review candidates are presented for completed runs with semantic matches.
+Research retry is available for failed runs.
 
 A GET creates nothing whatever query parameters it carries. The launcher entry
-point that turns `?mpn=…&description=…` into a run belongs to 5B (AD-033); a GET
+point that turns `?mpn=…&description=…` into a prefilled form (no side effect) belongs to 5B; 1B reserved the launcher concern for 5B; 5B resolved it as prefill-only GET, preserving no-side-effect GET semantics (AD-033); a GET
 that created records would let a prefetch, a crawler, or a refresh start
 research.
 
 MPN and description are untrusted input from every intake, so they are rendered
 through ordinary Django auto-escaping and never marked safe. CSRF protection is
-enabled on the POST. The identifier in a report URL is still not access control
+enabled on all POST write endpoints (submission, retry, review). The identifier
+in a report URL is still not access control
 (§19): report visibility remains `UNDECIDED`, so this shell is for local
 development and trusted internal use, not public deployment.
 
@@ -434,9 +434,11 @@ listings. Corrupt payload or provenance mismatch fails closed with zero
 aggregate numbers. **As of 4C-B, backend research EXECUTION exists:** the
 `execution/` package implements the full orchestration pipeline from
 `claim_execution` through search, fetch, extraction, normalization, matching,
-and aggregation to snapshot persistence. **4C-C is pending** to wire the web UI
-to the existing backend executor; the current web form still creates a `CREATED`
-run without triggering execution automatically.
+and aggregation to snapshot persistence. **4C-C is implemented (frozen):** the
+web form creates a `CREATED` run, triggers execution via
+`execute_research_run()`, and redirects to the report with the full result.
+On execution failure, the run transitions to `FAILED` and the report shows
+the failure state. Research retry is available for failed runs.
 
 ## 9. Future ERP integration strategy
 
@@ -547,7 +549,7 @@ for:
 * timestamps
 * database persistence
 
-**An LLM may later assist with** semantic work only:
+**An LLM may assist with** semantic work only: existing FU3A/FU3B production semantic runtime assists with narrowly eligible semantic identity cases; future work includes:
 
 * interpreting ambiguous product descriptions
 * product-category classification
@@ -692,11 +694,9 @@ and matched, while `AB-C123` keys to `AB-C123` against `ABC-123` and did not.
 It is not persisted, is not a model, and no logging infrastructure was added
 for it.
 
-**Historical note:** At the end of phase 3C, the primitive was not yet wired into execution. As of 4C-B, the matching primitive is fully wired into the orchestration pipeline. The primitive supplies a comparison; it discovers
+**Historical note:** At the end of phase 3C, the primitive was not yet wired into execution. As of 4C-B, the matching primitive is fully wired into the orchestration pipeline; 4C-C wired web execution; and HUMAN-REVIEW later added narrow approved read-side research imports. The primitive supplies a comparison; it discovers
 no candidates itself. 3C consumes it with explicit listing MPN candidates
-extracted from pages, but the web shell and the run lifecycle still do not
-orchestrate research. A guard test asserts that `runs/`, `web/`, and
-`evaluation/` do not import the research core (AD-036).
+extracted from pages. A guard test asserts that `runs/` and `evaluation/` do not import the research core, while `web/` may import only the explicitly approved Human Review read-side research symbols (enforced by `tests/web/test_web_boundaries.py`) (AD-036).
 
 ### 12.2 Known limits of the profile
 
@@ -760,7 +760,7 @@ that survived.
 
 Status: `IMPLEMENTED` (2A, corrected in 2A-FU1) for the comparison primitive
 described in §12.1. `APPROVED / PLANNED` for the rest of the responsibility
-split. No LLM is integrated. No prompts exist.
+split. The 2A comparator itself uses no LLM and no prompt. FU3A/FU3B later introduced a separate frozen semantic runtime.
 
 ## 13. Search-provider boundary
 
@@ -1207,11 +1207,28 @@ Additional constraints specific to LLM use:
 * An LLM failure or timeout degrades the run to a partial result. It never
   fabricates one.
 
-Vendor selection is `UNDECIDED`. Model orchestration across several models is
-`DEFERRED`.
+Vendor selection for *generic* LLM provider integration is `UNDECIDED`. Model
+orchestration across several models is `DEFERRED`.
 
-Status: `APPROVED / PLANNED`. Not scheduled before the specification and
-comparable phases (6A onward). No LLM code exists.
+**A. Existing frozen semantic runtime (FU3A/FU3B).** A production semantic
+runtime already exists under `product_intelligence/semantic/`. FU3A defined
+the contract, transport, and runtime with a pinned qualified model route
+(amax/nemotron-3-super primary, vllm-262k/Qwen3.6-27B-262K fallback,
+temperature=0.0, max_tokens=32768). FU3B wired that runtime into the research
+execution pipeline for narrowly eligible identity candidates. This is not a
+generic `LLMProvider` abstraction — it is a specific, frozen, production
+semantic qualification runtime.
+
+**B. Future generic LLM provider abstraction.** The `LLMProvider` boundary
+abstraction described above — a generic, replaceable LLM provider interface
+analogous to `SearchProvider` — is not yet implemented. It is the planned
+boundary for future specification extraction (6A), comparable-product
+semantics (7A-7C), and any other LLM-assisted capability beyond the existing
+frozen semantic runtime.
+
+Status: `APPROVED / PLANNED` for the generic `LLMProvider` abstraction (B). Not
+scheduled before specification and comparable phases (6A onward). `IMPLEMENTED
+(FROZEN)` for the specific semantic runtime (A) under FU3A/FU3B.
 
 ## 15. Research-run lifecycle
 
@@ -1225,8 +1242,7 @@ attempt ended. It performs no research.
 `product_intelligence/runs/` — a small Django application whose 1A model was
 `ResearchRun` (AD-025). 4B added a second model, `PriceIntelligenceSnapshot`,
 which persists the price intelligence result as opaque versioned JSON
-(AD-050). Both models live in `runs/` — the persistence package — so that no
-other layer carries a Django model. The reasoning is the layer table in §5:
+(AD-050). Later phases added `ExecutionEvidenceRecord` (4C-A) and `AiAssistedReviewCandidate` (HUMAN-REVIEW). All four models live in `runs/` — the persistence package — so that no other layer carries a Django model. The reasoning is the layer table in §5:
 
 * `domain/` is stdlib-only contracts, and a model there would break both the
   rule and the guard test that enforces it;
@@ -1252,8 +1268,7 @@ The dependency runs one way: `runs` imports `domain`, never the reverse.
 Both text fields hold exactly what `ResearchRequest` produced — surrounding
 whitespace already stripped, interior untouched — and neither carries a length
 limit, because the canonical contract imposes none and persistence must not
-invent a rule the contract has not agreed to. A truncation policy remains a 5B
-question, where URL length limits actually bite.
+invent a rule the contract has not agreed to. The description truncation / URL-length policy remains UNDECIDED; 5B did not establish a general truncation policy, where URL length limits actually bite.
 
 A run is always first stored in `CREATED`; the state/timestamp shape of every
 stored row is a database constraint (§15.5, AD-030).
@@ -1421,11 +1436,14 @@ guard against a scenario the system cannot yet produce.
 
 Status: `IMPLEMENTED` (1A) for the record, its identity, its state machine, its
 timestamps, and its migration; (1B) for the report at `/research/<id>`, which
-reads a run and renders it; and (4C-B) for the execution orchestration layer
-that moves a run from CREATED through the full pipeline to COMPLETED or FAILED.
-The report is read-only: it starts nothing, transitions nothing, and writes no
-timestamp. The web form does not trigger execution — that is 4C-C's wiring
-responsibility.
+reads a run and renders it; (4C-B) for the execution orchestration layer
+that moves a run from CREATED through the full pipeline to COMPLETED or FAILED;
+and (4C-C) for web execution wiring so the web form triggers execution
+synchronously. The report view is read-only (GET only): it starts nothing,
+transitions nothing, and writes no timestamp. Review actions (confirm/reject/undo)
+are POST endpoints handled by the runs-owned review service. The web form
+creates a `CREATED` run, calls `execute_research_run()`, and redirects to the
+report.
 
 ## 16. Price-intelligence direction
 
@@ -1448,7 +1466,7 @@ Planned pipeline, all deterministic:
    generation, candidate selection, search invocation, page fetching,
    extraction, normalization, matching, aggregation, result persistence,
    lifecycle transitions, failure semantics, and duplicate paid-call
-   protection. `IMPLEMENTED` (4C-B). Web form wiring is 4C-C.
+   protection. `IMPLEMENTED` (4C-B). Web form wiring `IMPLEMENTED` (4C-C).
 6. **Report** (4B) — persist the `PriceAggregationResult` as a
    `PriceIntelligenceSnapshot` and present the numbers together with the
    listings and the rejections that produced them. `IMPLEMENTED`.
@@ -1694,9 +1712,10 @@ recording and a fake can never be confused (AD-041).
   accepted, or rejected, and no rejection reason is recorded.
 * **No aggregation (4A).** No count, low, median, high, or range. **No market
   price is computed anywhere.**
-* **No integration.** `runs/` and `web/` import no part of `providers/` or of
-  the extraction core. A submitted run is still `CREATED`, and the report page
-  still says research execution is not connected.
+* **No integration (at 3A).** `runs/` and `web/` imported no part of `providers/` or of
+  the extraction core. A submitted run was `CREATED` and the report page
+  stated research execution was not connected. *(4C-B later implemented backend
+  orchestration; 4C-C later connected the web form to the executor.)*
 * **No caching, no LLM, no Google Shopping, and no search call.**
 
 Status: `IMPLEMENTED` (3A) for safe static page fetching, deterministic raw
@@ -1879,9 +1898,11 @@ shows the evidence.
   imply a valid listing.
 * **No aggregation (4A).** No count, low, median, high, range, or estimate,
   and no cross-currency comparison of any kind.
-* **No integration.** `runs/` and `web/` import no part of `research`'s new
-  module — the existing guard that checks the whole `product_intelligence.
-  research` namespace already covers it. A submitted run is still `CREATED`.
+* **No integration (at the end of 3B).** `runs/` and `web/` imported no part of
+  `research`'s new module — the existing guard that checks the whole
+  `product_intelligence.research` namespace already covered it. At the end of
+  3B, a submitted run was still `CREATED`. *(4C-B later implemented backend
+  orchestration; 4C-C later connected the web form to the executor.)*
 * **No quantity, pack size, or unit price** — see above.
 * **No live call of any kind.** Every test runs against the same recorded 3A
   fixtures or inline synthetic text; the normal `pytest` run makes zero
@@ -2012,9 +2033,9 @@ or `UNRECOGNIZED_CONDITION` member.
 * **No persistence.** No model, no migration. The assessment is a pure function
   result.
 * **No orchestration (at the end of 3C).** No search, no fetch, no extraction,
-  no normalization, no run transition. It takes values it is handed. *As of 4C-B,
-  backend orchestration is implemented; the web form still does not trigger it
-  until 4C-C.*
+  no normalization, no run transition. It takes values it is handed. *(4C-B
+  later implemented backend orchestration wiring 3C into the pipeline;
+  4C-C later connected the web form to the executor.)*
 * **No aggregation (4A).** No count, low, median, high, or range.
 * **No integration (at the end of 3C).** `runs/` and `web/` import no part of
   `providers/` or of the matching core. A submitted run was still `CREATED`.
@@ -2031,9 +2052,9 @@ cases. `IMPLEMENTED` (4A) for isolated deterministic price aggregation.
 and the read-only web report that presents the full result: buckets, contributing
 evidence, and excluded listings. `IMPLEMENTED` (4C-B) for backend orchestration:
 the `execution/` package connects search through extraction, normalization,
-matching, and aggregation with atomic final publication. **4C-C is PLANNED**
-to wire the web UI to the existing backend executor; the web form still only
-creates a `CREATED` run without triggering execution.
+matching, and aggregation with atomic final publication. **4C-C is IMPLEMENTED
+(frozen):** the web form creates a `CREATED` run, triggers execution via
+`execute_research_run()`, and redirects to the report with the full result.
 
 ### 16.4 What 4A implemented
 
@@ -2181,8 +2202,8 @@ model, no prompt, no embedding.
 
 **No orchestration (at the end of 4A).** No search, no fetch, no extraction,
 no normalization, no matching, no run transition. It takes values it is
-handed. *As of 4C-B, backend orchestration is implemented; the web form
-still does not trigger it until 4C-C.*
+handed. *(4C-B later implemented backend orchestration; 4C-C later connected
+the web form to the executor.)*
 
 **No integration (at the end of 4A).** `runs/` and `web/` import no part
 of the aggregation module. A submitted run was still `CREATED`.
@@ -2255,8 +2276,8 @@ provenance and retrieval timestamps are part of 4C's evidence-persistence design
 
 **No orchestration (at the end of 4B).** A submitted run stayed `CREATED`.
 Nothing ran automatically. No pipeline connected search through extraction,
-normalization, matching, and aggregation. *As of 4C-B, backend orchestration
-is implemented; the web form still does not trigger it until 4C-C.*
+normalization, matching, and aggregation. *(4C-B later implemented backend
+orchestration; 4C-C later connected the web form to the executor.)*
 
 ## 17. Comparable-product direction
 
@@ -2360,14 +2381,14 @@ deployment time: **anyone who can reach the server can open any report whose
 identifier they hold, and can submit a request.** That is acceptable for local
 development and a trusted internal network, and it is not acceptable on a public
 address. The open question is access control, not the identifier scheme — a
-longer UUID would change nothing. 1B added CSRF protection on the form POST and
-ordinary output escaping of MPN and description, which are defences against
-different problems and are not a substitute.
+longer UUID would change nothing. CSRF protection is enabled on all POST write endpoints (submission, retry,
+human review confirm/reject/undo) and ordinary output escaping is applied to
+untrusted intake text.
 
 Status: `APPROVED / PLANNED`. `IMPLEMENTED` today as: no secrets in the
 repository, environment-sourced Django settings, an unguessable run identifier
-that is explicitly not a permission check, CSRF protection on the one POST, and
-untrusted intake text rendered escaped and never marked safe.
+that is explicitly not a permission check, CSRF protection on all POST write
+endpoints, and untrusted intake text rendered escaped and never marked safe.
 
 ## 20. Testing strategy
 
@@ -2383,10 +2404,15 @@ Principles:
   `tests/runs/test_research_run_boundaries.py` fails if a research run gains a
   caller-shaped or provider-shaped column, if the domain or research core gains
   a Django import, or if Django models appear outside `runs/` (the approved
-  models are `ResearchRun` and `PriceIntelligenceSnapshot`).
+  models are `ResearchRun`, `PriceIntelligenceSnapshot`, `ExecutionEvidenceRecord`,
+  and `AiAssistedReviewCandidate`).
   `tests/web/test_web_boundaries.py` fails if an inner layer imports the web
   layer, if the web layer gains a model, a vendor name, a provider import, a
-  network client, or a call to `transition_to`.
+  network client, or a call to `transition_to`. It enforces an explicit
+  symbol-level allowlist for research imports (price_result_codec, aggregation,
+  matching — specific symbols only) and rejects bare execution package imports,
+  execution submodules, and research/identity. `research/identity` is banned
+  (research decision logic, not display).
   `tests/research/test_research_identity_boundaries.py` fails if the research
   core gains a non-stdlib import, a persistence / provider / benchmark / web
   import, a network or filesystem module, or a vendor name; if the domain
@@ -2412,9 +2438,17 @@ Principles:
   to hold.
 * **The browser workflow is tested through the Django test client**, which
   exercises the real URLs, views, forms, templates, and database — no browser
-  automation dependency, and nothing mocked between the form and the row. The
-  honest-reporting rules are tested as behaviour: that a submitted run is
-  `CREATED` with no timestamps, that opening a report transitions nothing, and
+  automation dependency, and nothing mocked between the form and the row. Tests
+  cover: web execution (POST creates a run, triggers execution via
+  `execute_research_run()`, redirects to report); retry (POST on a failed run
+  creates a new run and executes it); Human Review GET/POST behaviour (review
+  candidates presented, confirm/reject/undo actions with binding validation);
+  Machine Price (deterministic-only buckets) vs Reviewed Price (deterministic
+  + human-confirmed); fail-closed snapshot binding (corrupt payload or
+  provenance mismatch shows snapshot as unavailable); CSRF protection on all
+  POST write endpoints; and the cross-layer authority regression of
+  REJECTED -> semantic MATCH -> human CONFIRM. The honest-reporting rules are
+  tested as behaviour: that opening a report via GET transitions nothing, and
   that script-like input arrives escaped rather than interpreted.
 * **The database is set up without a plugin.** `tests/conftest.py` configures
   Django and creates an in-memory SQLite test database for the session. The
@@ -2611,19 +2645,22 @@ PRODUCT-INTEL.4A   Price aggregation                            IMPLEMENTED
 PRODUCT-INTEL.4B   Price Intelligence result persistence +
                    read-only web report                         IMPLEMENTED
 PRODUCT-INTEL.4C   Research execution orchestration
+                   FU3A  Production semantic runtime contract  IMPLEMENTED
+                   FU3B  Semantic execution integration       IMPLEMENTED
 
------ PRICE MVP -----
+----- PRICE MVP + SEMANTIC + HUMAN REVIEW -----
 
-PRODUCT-INTEL.5A   Structured external intake API
-PRODUCT-INTEL.5B   Visual FoxPro 5 launcher integration
+PRODUCT-INTEL.5A   Structured external intake API             PLANNED
+PRODUCT-INTEL.5B   Visual FoxPro 5 launcher integration       IMPLEMENTED
+PRODUCT-INTEL.HUMAN-REVIEW  Human review for AI-assisted matches  IMPLEMENTED
 
------ FOXPRO MVP -----
+----- FOXPRO MVP + HUMAN REVIEW -----
 
-PRODUCT-INTEL.6A   Product specification framework
-PRODUCT-INTEL.6B   First category-specific schema
-PRODUCT-INTEL.7A   Comparable-product candidate discovery
-PRODUCT-INTEL.7B   Similarity scoring
-PRODUCT-INTEL.7C   Comparison web report
+PRODUCT-INTEL.6A   Product specification framework            PLANNED
+PRODUCT-INTEL.6B   First category-specific schema             PLANNED
+PRODUCT-INTEL.7A   Comparable-product candidate discovery     PLANNED
+PRODUCT-INTEL.7B   Similarity scoring                         PLANNED
+PRODUCT-INTEL.7C   Comparison web report                      PLANNED
 
 ----- COMPARABLE MVP -----
 
@@ -2639,29 +2676,50 @@ Future:
   additional LLM providers
 ```
 
-**Roadmap (as of 4C-B freeze):**
+**Roadmap (current state):**
 
 ```
-IMPLEMENTED:
+IMPLEMENTED (frozen):
   4C-A  Execution ownership/lifecycle/evidence primitives
   4C-B  Backend research execution (orchestration pipeline)
+  4C-B-FU  Exact duplicate observation deduplication
+  4C-C  Web execution/retry integration
+  FU3A  Production semantic runtime contract
+  FU3B  Semantic execution integration
+  HUMAN-REVIEW  Human review for AI-assisted semantic matches
 
 PLANNED:
-  4C-C  Web execution/retry integration (web UI wiring)
+  5A    Structured external API (not a blocker for current workflow)
 
-  5A    Structured external API
-  5B    Visual FoxPro 5 launcher (Customer Pilot priority)
+DELIVERED:
+  5B    Visual FoxPro 5 launcher (server-side + client integrated outside repo)
+
+NEXT DELIVERY PRIORITY:
+  6A    Product specification framework
+  6B    First category-specific schema (Enterprise SSD preferred direction)
+  7A    Comparable-product candidate discovery
+  7B    Similarity scoring
+  7C    Comparison web report
 
 FUTURE:
   SAP   SAP launcher integration
 ```
 
-**Next delivery priority: Customer Pilot v0.1**
+**Next delivery priority: PRODUCT-INTEL.6A**
 
-Combines: minimum 4C-C web wiring + 5B FoxPro launcher + frozen 4C-B backend.
+6A defines the product specification framework: specification definition,
+specification value, units / normalized representation, source evidence,
+unknown / unavailable, conflicting observations, category schema membership,
+provenance. Evidence/authority contracts must be defined BEFORE connecting
+an extractor or LLM. 6A does not implement extraction or select an LLM.
 
-Goal: From a FoxPro product/order context, launch browser with MPN + description
-prefilled, start market research, view result. NOT required: 5A API, SAP, comparables.
+6B follows 6A. Current planning recommendation: Enterprise SSD / storage
+is the preferred first category to evaluate. The REAL_VERIFIED corpus
+already contains Samsung PM9A3 and Micron 7450 PRO alongside CPU, RDIMM,
+and NIC cases. Category choice to be finalized during 6A/6B architecture
+review.
+
+7A-7C (comparable-product research) depends on 6A/6B.
 
 Do not
 execute a later phase while working on an earlier one.
@@ -2715,9 +2773,12 @@ infrastructure · dashboards · polished UI work · production deployment
 tooling.
 
 Deferred specifically around the run lifecycle (1A), so that later phases do
-not read their absence as an oversight: retry / reopen / resume semantics · a
-per-transition event or history table · persisted failure diagnostics ·
-distributed locking · a server database in place of development SQLite.
+not read their absence as an oversight: reopen / resume semantics on an
+existing run · a per-transition event or history table · persisted failure
+diagnostics · distributed locking · a server database in place of development
+SQLite. *(Note: 4C-C implements `retry_run` which creates a NEW run from a
+failed run's request and executes it. This is not the same as reopening the
+existing run — the old run remains in FAILED state.)*
 
 **4C-A implements atomic execution claim and terminal transition using a
 database-level compare-and-set pattern (conditional UPDATE) instead of
@@ -2726,17 +2787,20 @@ and MySQL. The decision to persist evidence relationally in `runs/` was
 recorded in 4C-A and is stable for the MVP.
 
 Also deferred as capability, per the roadmap rather than per this list: real
-product lookup, LLM calls, prompt engineering, global market-price selection
-and reporting, comparable discovery, similarity scoring, launcher code of any
-kind, and the research API. Real web search exists as of 2C, real page
+product lookup, generic LLM provider abstraction (the `LLMProvider` boundary
+interface — not the existing FU3A/FU3B semantic runtime), prompt engineering
+for future generic LLM phases, global market-price selection and reporting,
+comparable discovery, similarity scoring, and the research API. FoxPro launcher
+server-side GET contract is implemented (5B); FoxPro-side client is maintained
+outside this repository. Real web search exists as of 2C, real page
 fetching plus raw listing extraction as of 3A, deterministic listing
 normalization as of 3B, deterministic MPN matching and listing rejection as
 of 3C, and deterministic price aggregation (bucket-level statistics) as of 4A
 — all five can be called directly. *As of 4C-B, backend orchestration is
 implemented:* the `execution/` package calls `search()`, `fetch()`,
 `normalize_listing_observation()`, and `aggregate_listing_prices()` as part of
-the ordinary backend research pipeline. *As of 4C-B, nothing calls these from
-the web UI* — that connection is 4C-C. *No API calls these* — that is 5A.
+the ordinary backend research pipeline. *As of 4C-C (frozen), the web form
+calls these through the backend executor.* *No API calls these* — that is 5A.
 
 Deferred specifically around page fetching and extraction (3A), so that a later
 phase does not read their absence as an oversight: browser-rendered fetching of
@@ -2788,11 +2852,13 @@ results · a numeric price field on a search result.
 Deferred specifically around the Serper adapter (2C), so that a later phase
 does not read their absence as an oversight: Google Shopping · a second search
 provider · duplicate-paid-call protection (required before, not at, the phase
-that first calls it from ordinary execution — §18.1) · query generation from a
-`ResearchRequest` · automatic invocation from `runs/` or `web/` · page
-fetching or crawling of any kind · MPN inference from a title, snippet, or URL
-· price extraction from snippet text · a provider error taxonomy beyond the
-existing single `SearchProviderError`.
+that first calls it from ordinary execution — §18.1; *deferred at the end of
+2C, later resolved by 4C-A via atomic `claim_execution`*) · query generation
+from a `ResearchRequest` · automatic invocation from `runs/` or `web/` (*deferred
+at the end of 2C; later resolved by 4C-B/4C-C backend orchestration and web
+execution wiring*) · page fetching or crawling of any kind · MPN inference from
+a title, snippet, or URL · price extraction from snippet text · a provider
+error taxonomy beyond the existing single `SearchProviderError`.
 
 Open questions currently `UNDECIDED`: LLM vendor · report
 access control (the identifier scheme was settled in 1A as a random UUID, which
@@ -2858,7 +2924,7 @@ This canonical plan does not duplicate that operational snapshot.
 | AD-030 | One check constraint states the complete state/timestamp shape of a stored row, replacing the narrower "finished implies started" rule; and a run may only be *created* in `CREATED`. The database judges the row; the application judges the path. | 1A relied on application code for a rule the database was only half-checking, and the gap was not theoretical: an audit found ten invalid shapes that ordinary ORM calls persisted, including a `COMPLETED` run that never started. A guarantee that holds only when callers use the intended method is a convention, and this one is cheap to make real. One expression rather than several overlapping rules means a single place to read what a valid row is, no gap between rules to fall through, and — because every branch names a state — storage-level confinement of `state` to the vocabulary, which `choices` alone does not give. The creation rule closes the other half: without it, a run could be inserted directly into a terminal state, structurally valid and a complete fiction about what happened. What the constraint deliberately does **not** do is prove provenance: a check sees one row, never the sequence that produced it, so `QuerySet.update()` and raw SQL can still skip the transition path. That residue is documented (§15.6) rather than chased with triggers or a history table, both of which AD-028 rules out. | Accepted (1A-FU1) |
 | AD-031 | The Django floor is the supported 5.2 LTS line (`>=5.2,<6.0`), not the oldest release whose API happens to compile. | 1A set the floor at 5.1 because `CheckConstraint(condition=…)` arrived there. That is a statement about syntax availability, not about whether the release is safe to run: 5.1 is out of security support, so the declaration invited an installation receiving no fixes. A dependency floor is a support commitment. The upper bound stays below 6.0 — moving to a new major line is its own decision with its own testing, not a side effect of a correction. `requires-python = ">=3.12"` is unchanged; the development environment runs Python 3.14.7, which satisfies both. | Accepted (1A-FU1) |
 | AD-032 | The web layer is a Django application with no model, and its form validates by *constructing* `ResearchRequest` rather than by restating the rules. Both fields are individually optional and keep their submitted text (`strip=False`); no part-number normalization happens at the boundary. | Two policies for what valid intake is would drift, and nothing would fail when they did — a form that grew its own "at least one field" rule, or its own trimming, would silently decide what the canonical contract is supposed to decide. Constructing the contract and translating `DomainValidationError` into a visible error keeps one authority and makes the persisted values identical to what any other intake would produce. `strip=False` matters even though Django's stripping agrees with the contract today: leaving it on would mean the form quietly co-owns a normalization rule, and a later change on either side would be invisible until stored values disagreed. Normalizing a part number here would be worse still — it is a matching decision (2A/3C) taken in the one layer forbidden to make one, where one character can mean a different product. The application holds no model because a run outlives the request that created it and belongs to no caller (AD-025). | Accepted (1B) |
-| AD-033 | A GET creates nothing. The browser workflow is Post/Redirect/Get, and the launcher entry point that turns `?mpn=…&description=…` into a run stays in 5B. | The 1B route shape is deliberately the one 5B will adapt, which makes "it would be two lines to honour the parameters now" the obvious mistake to prevent. A GET that creates records is a side effect on a method defined not to have one: a prefetch, a crawler, a bookmark, or a refresh would each start research, and the run table would fill with requests nobody made. Post/Redirect/Get is the other half — without the redirect, the page a user lands on is the submission itself, and reloading a report would silently create duplicates of it. The launcher also needs decisions 1B has not made (URL length limits, truncation policy, encoding), so implementing it early would guess at them. | Accepted (1B) |
+| AD-033 | A GET creates nothing. The browser workflow is Post/Redirect/Get, and the launcher entry point that turns `?mpn=…&description=…` into a prefilled form (no side effect) stays in 5B; 1B reserved the launcher concern for 5B; 5B resolved it as prefill-only GET, preserving no-side-effect GET semantics. | The 1B route shape is deliberately the one 5B will adapt, which makes "it would be two lines to honour the parameters now" the obvious mistake to prevent. A GET that creates records is a side effect on a method defined not to have one: a prefetch, a crawler, a bookmark, or a refresh would each start research, and the run table would fill with requests nobody made. Post/Redirect/Get is the other half — without the redirect, the page a user lands on is the submission itself, and reloading a report would silently create duplicates of it. The launcher also needs decisions 1B has not made (URL length limits, truncation policy, encoding), so implementing it early would guess at them. | Accepted (1B) |
 | AD-034 | The report shell states that research execution is not connected. No spinner, no polling, no simulated delay, no placeholder price, median, seller table, or example comparable. | A progress indicator over nothing is fabricated certainty with an animation (AD-009): it tells the user work is under way, and the only honest fact is that no execution engine exists. The same reasoning rules out placeholder values — a `$0` or an `N/A median` on a page titled with a real part number is a claim the system has no evidence for, and the evidence-first rule (AD-007) means a number appears only with the listings behind it. A blank "no results exist" section is not a gap in the phase; it is the accurate report, and it is the durable place later phases fill. Displaying an evaluation-corpus case here would be worse again: benchmark truth is reference data, never a result (AD-020). | Accepted (1B) |
 | AD-035 | **Amended by AD-037.** Originally: part-number normalization removes one closed, explicitly enumerated formatting allowlist — ASCII whitespace plus `-`, `_`, `/`, `.` — with ASCII-only case folding, everything else being data. | The *exclusions* stand and are the durable half of this entry: "remove every non-alphanumeric character" is rejected because it erases characters that distinguish real products and widens itself every time an unfamiliar character appears; an enumerated set makes each addition an edit someone has to defend; and broad Unicode compatibility folding is excluded because it merges code points whose identity equivalence no phase has approved, which is also why case folding is an explicit ASCII table rather than `str.upper()`. What did not stand was *removal*: deleting the enumerated characters discarded where a boundary was, not merely how it was written. See AD-037. | Amended (2A-FU1) |
 | AD-036 | The 2A comparator returns only `EXACT`, `NORMALIZED_EXACT`, or `UNKNOWN`; it carries no confidence, invents no product facts, does no partial or fuzzy matching, and is wired into nothing. | Each exclusion closes a specific way a narrow primitive turns into a false conclusion. `CONFLICT` would be the comparator claiming evidence is incompatible when all it saw was two different strings. `PARTIAL` — or any containment, edit-distance, or similarity rule — would raise recall by weakening identity, which is the one trade this product cannot make: `MTFDKCC3T8TFR` is a family prefix, not an orderable part. A confidence band would equate mechanism with trustworthiness, and `EXACT` is not `HIGH`: the string matched, which says nothing about whether the source, the description, or the listing is sound. A catalog inside the comparator would take benchmark answers from the evaluation corpus and make them production resolution logic, which is test leakage with the corpus's own truth. And wiring it into the web shell or the run lifecycle would connect a comparator to a system that supplies no candidates, so anything displayed would be invented — integration belongs to the phase with real candidate evidence. A guard test asserts `runs` and `evaluation` do not import the research core. `web` has a narrow read-only research dependency (codec + display contracts, approved by AD-050); the guard test enforces an explicit symbol-level allowlist. | Accepted (2A) |
@@ -2878,3 +2944,4 @@ This canonical plan does not duplicate that operational snapshot.
 | AD-050 | One versioned `PriceIntelligenceSnapshot` per `ResearchRun`, persisted in `runs/`, using the `ResearchRun` UUID as the snapshot identity. The snapshot preserves a `PriceAggregationResult` as opaque versioned JSON (`schema_version` + `payload`) with a `created_at` timestamp. A separate codec module in `research/price_result_codec.py` encodes and decodes the result: pure, no Django, no I/O, Decimal preserved as strings, enums explicit, nested contracts reconstructed through normal constructors. 4B reads and presents the snapshot at `/research/<uuid>` as a read-only report. It does not execute research. Request-provenance mismatch or corrupt payload fails closed with no price numbers rendered. | `PriceAggregationResult` is the durable price intelligence answer for one run. The report URL `/research/<uuid>` must survive across requests and deployments, so the result it renders must be persisted. The `ResearchRun` UUID already identifies the result uniquely — a second identifier would add a consistency obligation for no capability. Naming it `PriceIntelligenceSnapshot` rather than `ResearchResult` is deliberate: it preserves the price pipeline evidence (listing observations through identity assessments through aggregation) but is not the complete execution evidence store (it cannot represent search candidates never fetched, page-fetch failures, or pages producing zero observations — that is 4C's question). Versioned opaque JSON with a decoder that fails closed on unknown versions means the report stays interpretable and never renders partially-corrupt data as verified. The codec lives in `research/` as a pure module because it transforms research-layer contracts to and from JSON — it is serialization discipline, not persistence logic, and must not touch Django. | Accepted (4B architecture checkpoint) · IMPLEMENTED (4B) |
 | AD-051 | Research orchestration is a separate application layer (`execution/`) and phase (4C), rather than living in `research/` or `web/`. `execution/` coordinates one `ResearchRun` through provider I/O and deterministic research primitives. Deterministic research and evidence decisions — identity resolution, listing acceptance/rejection, price eligibility, aggregation semantics — remain owned by `research/`. `execution/` invokes those decision primitives but must not reimplement or override them. `execution/` may import `domain`, `research`, `providers`, and `runs`, but must not import `web/`. `research/` remains pure and must not import `execution`, `providers`, `runs`, or Django. `web/` may invoke execution but must not carry research semantics. | The previous PLAN stated that `research/` owns orchestration. But `research/` is intentionally pure — its guard tests enforce stdlib-only imports and forbid persistence, provider, network, and Django dependencies. Real orchestration must coordinate all of those. Putting orchestration in `web/` would make research semantics a property of the transport layer, violating caller-independence (AD-001): the core would then be structured around how the browser submits a request rather than around the canonical `ResearchRequest`. The execution layer sits between them: it imports what it needs to run a pipeline, but stays independent of which client triggered the run. This preserves both boundaries — `research/` stays testable without a database or network, and `web/` stays a presentation and intake layer. Coordination is not authority: `execution/` orchestrates the pipeline steps but does not make evidence decisions — listing acceptance, price eligibility, and identity resolution remain `research/` primitives that `execution/` calls, not reimplements. *Note: `execution/` was created in 4C-B alongside the backend orchestration implementation.* | Accepted (4B architecture checkpoint) |
 | AD-052 | `PriceIntelligenceSnapshot` is not the complete research-execution evidence store. It preserves evidence reachable through `ListingObservation` → `NormalizedListingObservation` → `ListingIdentityAssessment` → `PriceAggregationResult`. It cannot represent search candidates never fetched, page-fetch failures, blocked pages, or fetched pages producing zero observations. 4C must decide how those execution attempts and outcomes are preserved before claiming end-to-end evidence completeness. | The snapshot is a price result, not an execution log. A search that returns 10 candidates, of which 3 were fetched, 2 were blocked, and 1 produced zero observations — the snapshot can only represent the three that yielded observations and their downstream assessments. The other seven execution events are silently lost. That is acceptable for 4B's read-only report: it renders what the aggregation produced, and says honestly when nothing exists. But 4C, which owns the full orchestration pipeline, must decide whether to preserve execution evidence beyond what the aggregation carries. That decision depends on whether a partial run's diagnostic value justifies additional persistence surface — a question 4C can answer with real failure data rather than speculation. | Accepted (4B architecture checkpoint) |
+| AD-053 | Human review for AI-assisted semantic matches uses a separate authority overlay. The deterministic `ListingIdentityAssessment` snapshot is never mutated. `AI_ASSISTED_MATCH` is a disposition on `AiAssistedMatchResult`, not a decision on the snapshot assessment. Human confirmation creates a run-scoped `AiAssistedReviewCandidate` with states UNREVIEWED/CONFIRMED/REJECTED. Machine Price (4A aggregation) remains deterministic-only. Reviewed Price is a distinct aggregation contract that includes deterministic ACCEPTED + human-CONFIRMED listings, with per-listing origin (`DETERMINISTIC`/`HUMAN_CONFIRMED`). Human confirmation changes identity authority only — price eligibility still follows deterministic non-identity rules (numeric Decimal, comparable currency, known condition). Candidate binding fails closed. No reviewer identity or authentication was introduced. | Semantic matching (FU3B) produces `AI_ASSISTED_MATCH` dispositions that are intentionally excluded from 4A aggregation. These matches have valid evidence but the system has no way to verify semantic correctness automatically. Human review lets a person confirm or reject these candidates on the report page. The authority model preserves the invariant that deterministic identity is the only automatic authority: the snapshot assessment stays REJECTED for human-confirmed listings. A separate aggregation contract (`aggregate_reviewed_listing_prices`) reads human confirmation state and produces `ReviewedPriceAggregationResult` with origin tracking. This avoids polluting the frozen 4A contract while providing a usable reviewed price view. The candidate model (`AiAssistedReviewCandidate`) is run-scoped with immutable semantic provenance fields, and the review service uses conditional database updates for concurrency safety. Web performs binding validation before any mutation. | Accepted (HUMAN-REVIEW) |

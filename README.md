@@ -13,30 +13,41 @@ module of one.
 For the exact current phase, implementation snapshot, and what is not yet
 connected, see **[docs/PRODUCT_INTELLIGENCE_STATUS.md](docs/PRODUCT_INTELLIGENCE_STATUS.md)**.
 
-Briefly: **PRODUCT-INTEL.4C-B (research execution orchestration) is complete**.
+Briefly: **PRODUCT-INTEL.4C-C (web execution integration), FU3B (semantic
+execution), and HUMAN-REVIEW (human review for AI-assisted matches) are all
+complete and frozen.**
+
 The repository contains the domain contracts, evaluation corpus, persistent
 run lifecycle, standalone web shell, deterministic part-number comparison,
 search-provider boundary, Serper adapter, page-fetch boundary, raw listing
 extraction, listing normalization, MPN matching and rejection, price
-aggregation, versioned codec, and the read-only price intelligence report —
-all with tests. **Backend orchestration is now implemented**: a submitted run
-undergoes the full pipeline from `claim_execution` through `search` → `fetch`
-→ `extract` → `normalize` → `match` → `aggregate` → `snapshot` → `COMPLETED`.  
-The report reads a persisted `PriceIntelligenceSnapshot` and presents the full
-result — buckets, contributing evidence, and excluded listings. A corrupt
-payload or request-provenance mismatch shows the snapshot as unavailable.
+aggregation, versioned codec, and the price intelligence report — all with
+tests. **Full execution pipeline is wired through the web UI**: a submitted
+form triggers the complete pipeline from `claim_execution` through `search`
+→ `fetch` → `extract` → `normalize` → `match` → `aggregate` → `snapshot`
+→ `COMPLETED`. The report reads a persisted `PriceIntelligenceSnapshot` and
+presents Machine Price (deterministic-only buckets) plus Reviewed Price
+(deterministic + human-confirmed semantic matches) when applicable.
 
-Next planned phase: **PRODUCT-INTEL.4C-C (web integration)** — minimum
-wiring to connect the backend executor to the web UI with execute button,
-loading UI, and polling for status. Phase ownership: 4C-C owns web execution
-wiring; 5B owns FoxPro launcher integration; 5A owns structured API.
+**Human Review** is implemented: semantic-eligible rejected listings can be
+confirmed, rejected, or undone on the report page. Human confirmation never
+mutates the deterministic snapshot. Machine Price remains deterministic-only;
+Reviewed Price is a distinct aggregation that includes human-confirmed listings.
+
+**FoxPro launcher** (5B) is delivered: server-side implemented, client integrated
+outside repo, localhost UAT passed. **Structured API** (5A) is planned but not
+implemented — not a blocker for current workflow.
+
+**Next delivery priority:** PRODUCT-INTEL.6A (Product Specification Framework).
 
 ## The browser workflow
 
 ```text
 GET  /research/new       the form: manufacturer part number, description
-POST /research/new       -> ResearchRequest -> ResearchRun (CREATED) -> redirect
-GET  /research/<uuid>    the durable report (with optional price snapshot)
+POST /research/new       -> ResearchRequest -> ResearchRun (CREATED) -> execute -> redirect
+GET  /research/<uuid>    the durable report (price snapshot, review candidates)
+POST /research/<uuid>/retry  retry a failed run
+POST /research/<uuid>/review/<candidate_id>  confirm/reject/undo a review candidate
 GET  /                   redirect to /research/new
 ```
 
@@ -47,17 +58,20 @@ form constructs the contract and shows what it says, rather than keeping a
 second copy of the policy. Nothing at this boundary normalizes a part number;
 case, punctuation, and interior spacing are stored exactly as typed.
 
-**The report is read-only.** It shows the identifier, the state, the part
-number, the description, the creation time, and — if a `PriceIntelligenceSnapshot`
-exists — the full price intelligence result: comparable price buckets,
-contributing evidence, and excluded listings. It starts nothing, transitions
-nothing, and writes no timestamp. A corrupt snapshot payload or a
-request-provenance mismatch shows the snapshot as unavailable. The snapshot
-never renders partially-decoded data as verified.
+**The report presents results and review actions.** GET of the report shows
+the identifier, state, part number, description, timestamps, Machine Price
+buckets, and — for completed runs with semantic matches — human review
+candidates. POST endpoints handle research retry (for failed runs) and human
+review actions (confirm/reject/undo for AI-assisted match candidates). A
+human-confirmed candidate contributes to Reviewed Price, which is presented
+alongside Machine Price. The Machine Price aggregation is deterministic-only
+(ACCEPTED listings); Reviewed Price adds human-confirmed semantic matches.
+A corrupt snapshot payload or request-provenance mismatch shows the snapshot
+as unavailable. The snapshot never renders partially-decoded data as verified.
 
 Post/Redirect/Get means reloading a report never creates a second run, and a GET
 of the form creates nothing at all — the launcher entry point that turns
-`?mpn=…&description=…` into a run is phase 5B, deliberately not built here.
+`?mpn=…&description=…` into a prefilled form (no side effect) is phase 5B; 1B reserved the launcher concern for 5B; 5B resolved it as prefill-only GET, preserving no-side-effect GET semantics (server-side GET contract implemented, FoxPro client integrated outside this repository).
 
 Submitted text is untrusted and is rendered through ordinary Django escaping;
 CSRF protection is enabled on the form. **The report URL is still not access
@@ -76,8 +90,8 @@ CREATED ──> RUNNING ──> COMPLETED
 ```
 
 Every run begins in `CREATED` — one cannot be created part-way through its own
-lifecycle. Terminal states are terminal: there is no retry, reopen, or resume,
-and a re-run is a new run. `transition_to()` is the one supported way to move;
+lifecycle. Terminal states are terminal: there is no reopen or resume on an
+existing run. `transition_to()` is the one supported way to move;
 an illegal move raises and changes nothing, and assigning the state field on a
 saved run is refused rather than silently allowed. `created_at`, `started_at`,
 and `finished_at` record the progression, and a run holds no caller data — no
@@ -96,11 +110,7 @@ That gap is documented rather than chased with triggers or a history table.
 The identifier is a random UUID, so a future report URL is durable and not
 enumerable. **That is not access control:** it authenticates nobody and
 authorizes nothing, and whether reports require authentication is an open
-question for a later phase. Transitions use atomic database compare-and-set
-(§15) to prevent concurrent modification; concurrent execution of the same
-run is impossible because `claim_execution` (§15.6) ensures only one process
-can claim a run for execution. No additional concurrency mechanism was
-introduced beyond what the atomic claim provides.
+question for a later phase. General ResearchRun.transition_to() is not globally cross-process atomic, but 4C execution ownership uses atomic compare-and-set services such as claim_execution and execution completion to prevent duplicate execution and protect execution-owned publication. Concurrent execution of the same run is impossible because claim_execution ensures only one process can claim a run for execution.
 
 ## Part-number identity
 
@@ -168,8 +178,8 @@ still reports `EXACT` and a later phase reports the conflict. It holds no
 catalog — no part number is mapped to a manufacturer or product anywhere in
 runtime code — reads no description. **As of 4C-B**, this primitive is wired
 into the backend execution pipeline, which supplies candidates from search
-results and page extraction. The web UI does not yet trigger execution (4C-C
-pending).
+results and page extraction. **As of 4C-C (frozen), the web form triggers
+execution and the report shows the full result.**
 
 ## The search-provider boundary
 
@@ -274,9 +284,8 @@ never the credential.
 `execution/` package imports the Serper adapter and uses it for search. A
 `ResearchRun` that is claimed for execution calls `SearchProvider.search()`
 exactly once — atomic `claim_execution` prevents duplicate paid calls, and a
-retry creates a new `ResearchRun`. **The web form still only creates a
-`CREATED` run** without triggering execution; 4C-C will wire the web UI to
-the existing backend executor.
+retry creates a new `ResearchRun`. **The web form triggers execution**
+synchronously via 4C-C (frozen).
 
 ## Requirements
 
@@ -369,8 +378,7 @@ evaluation/                        evaluation corpus + its README (implemented)
 product_intelligence/
   domain/                          contracts + vocabularies (implemented)
   evaluation/                      corpus validation + loader (implemented)
-  runs/                            persisted run lifecycle (implemented) +
-                                    price intelligence snapshot (implemented)
+  runs/                            lifecycle, execution evidence, price snapshot, human review candidate/state
   research/                        part-number comparison (implemented) +
                                     raw listing extraction (implemented) +
                                     listing normalization (implemented) +
@@ -380,7 +388,7 @@ product_intelligence/
   providers/                       search boundary + serper.py (implemented) +
                                     page-fetch boundary + http_page.py
                                     (implemented)
-  web/                             standalone form + price report (implemented)
+  web/                             intake, report, retry/review actions
 scripts/
   serper_live_smoke.py             manual, explicit live-call check (2C)
   page_extract_smoke.py            manual, explicit live-fetch check (3A)
@@ -396,10 +404,7 @@ recorded in it, and the discipline governing changes to an expected answer.
 `providers/` holds two boundaries and one adapter each: the search boundary
 with the Serper adapter behind it (see "The Serper adapter" above), and the
 page-fetch boundary with the standard-library `HttpPageFetcher` behind it (see
-"Fetching a page" below). The LLM boundary is still documentation only: the
-package carries the rules that apply to it, so the phase that implements it does
-so into a defined space rather than inventing one.
-
+"Fetching a page" below). The LLM boundary has an existing production semantic runtime (FU3A/FU3B) that is frozen and assists only with narrowly eligible semantic identity cases, where human confirmation remains separate authority. A future generic LLMProvider abstraction, specification extraction, and comparable-product semantic work are not implemented.
 ## Fetching a page, and reading one
 
 3A added the first vertical slice from a public URL to a raw observation, and
@@ -519,8 +524,7 @@ not extended to invent a field nothing produces.
 text is untouched, `research.identity` is never imported, and
 `NormalizedListingObservation` carries no accepted/rejected field, no match
 type, no confidence, and no min/max/median — a normalized price does not imply
-a valid listing. `runs/` and `web/` are unchanged, and a submitted run is
-still `CREATED`.
+a valid listing. At the end of 3B, `runs/` and `web/` were unchanged and a submitted run remained `CREATED`. As of 4C-C (frozen), the web form triggers full execution and the report shows the complete price intelligence result.
 
 Every `NormalizedListingObservation` holds the exact `ListingObservation` it
 was built from, so a reviewer can always trace a normalized value — or an
@@ -579,8 +583,8 @@ rejection reason back through the full chain to the raw page HTML.
 
 **As of 4C-B, matching IS wired into the backend execution pipeline.**
 `runs/` and `web/` do not directly call matching — the `execution/` package
-orchestrates the pipeline including identity assessment. A submitted web form
-run is still `CREATED` until 4C-C connects the UI to the executor. The normal
+orchestrates the pipeline including identity assessment. **As of 4C-C (frozen),**
+the web form triggers execution and the report shows the full result.
 test suite makes **zero** network requests: matching is regression-tested
 against the same five recorded 3A fixtures, proving real pages classify as
 expected, plus a wide set of synthetic edge cases.
@@ -591,8 +595,8 @@ Every way of starting research — a web form, a structured API, a legacy
 desktop launcher, a future ERP — is only an *intake mechanism*. All of them
 normalize into the same `ResearchRequest` of MPN plus description, and the
 research core cannot tell which one produced it. Conclusions must trace to
-preserved evidence. Deterministic code owns identity matching and all
-arithmetic; an LLM may later assist with semantics only. Unknown is a valid
+preserved evidence. Deterministic code owns exact identity and all
+arithmetic; the existing frozen FU3A/FU3B semantic runtime may advise on narrowly eligible semantic identity cases, while future LLM-assisted capabilities remain separate planned work. Unknown is a valid
 answer and is always preferred to a confident guess — and the evaluation corpus
 exists to measure exactly that, since a confidently wrong identity is the most
 expensive failure this system can produce.
