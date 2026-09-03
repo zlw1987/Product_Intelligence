@@ -612,3 +612,226 @@ class ExecutionEvidenceRecord(models.Model):
             f"ExecutionEvidence {self.run_id}:{self.attempt_number} "
             f"[{self.stage}/{self.outcome}]"
         )
+
+
+# ---------------------------------------------------------------------------
+# AiAssistedReviewCandidate — HUMAN-REVIEW
+# ---------------------------------------------------------------------------
+
+
+class AiAssistedReviewCandidate(models.Model):
+    """One AI-assisted semantic match candidate for human review.
+
+    PRODUCT-INTEL.HUMAN-REVIEW.
+
+    Each record represents one AI-assisted semantic MATCH that was produced
+    during a ResearchRun. The candidate is visible for human review on the
+    run detail page. The human can CONFIRM, REJECT, or UNDO the review
+    decision.
+
+    Authority model:
+    - UNREVIEWED: visible for human review; does not contribute to reviewed price.
+    - CONFIRMED: human-confirmed; may contribute to Reviewed Price.
+    - REJECTED: human-rejected; excluded from Reviewed Price.
+
+    Key invariants:
+    - One candidate per (run, assessment_index).
+    - The candidate UUID is the browser action identifier.
+    - Review decisions are RUN-SCOPED only. No global learning.
+    - Confirming a candidate NEVER changes EvidenceDecision to ACCEPTED.
+    - The semantic provenance is immutable after creation.
+    - The PriceIntelligenceSnapshot is never mutated by review actions.
+
+    Identity
+    --------
+
+    The primary key is a random (version 4) UUID. One identifier serves as
+    both the database pk and the browser POST action identifier.
+
+    assessment_index
+        The integer position of the corresponding ListingIdentityAssessment
+        in the ordered assessments tuple stored in PriceIntelligenceSnapshot.
+        This maps the review candidate back to the exact assessment in the
+        run's snapshot.
+
+    review_state
+        UNREVIEWED, CONFIRMED, or REJECTED. Transitions:
+        - UNREVIEWED -> CONFIRMED (confirm)
+        - UNREVIEWED -> REJECTED (reject)
+        - CONFIRMED -> UNREVIEWED (undo)
+        - REJECTED -> UNREVIEWED (undo)
+        - Same-state transitions are idempotent no-ops.
+
+    Semantic provenance fields
+    --------------------------
+
+    These fields are copied from the frozen AiAssistedMatchResult /
+    SemanticRuntimeResult contracts at creation time. They are immutable
+    after creation (editable=False on the DB, enforced in the service).
+    """
+
+    REVIEW_STATE_UNREVIEWED = 'UNREVIEWED'
+    REVIEW_STATE_CONFIRMED = 'CONFIRMED'
+    REVIEW_STATE_REJECTED = 'REJECTED'
+
+    REVIEW_STATE_CHOICES = (
+        (REVIEW_STATE_UNREVIEWED, 'UNREVIEWED'),
+        (REVIEW_STATE_CONFIRMED, 'CONFIRMED'),
+        (REVIEW_STATE_REJECTED, 'REJECTED'),
+    )
+
+    TERMINAL_REVIEW_STATES = frozenset({REVIEW_STATE_CONFIRMED, REVIEW_STATE_REJECTED})
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+        help_text='Candidate UUID. Used as the browser POST action identifier.',
+    )
+
+    run = models.ForeignKey(
+        ResearchRun,
+        on_delete=models.CASCADE,
+        related_name='ai_assisted_review_candidates',
+        help_text='The research run this candidate belongs to.',
+    )
+
+    assessment_index = models.PositiveSmallIntegerField(
+        help_text='Position of the corresponding ListingIdentityAssessment '
+        'in the ordered assessments tuple of PriceIntelligenceSnapshot.',
+    )
+
+    # --- Immutable semantic provenance (set at creation, never modified) ---
+
+    source_url = models.TextField(
+        help_text='The listing source URL. Stored exactly as observed.',
+    )
+
+    target_mpn = models.TextField(
+        editable=False,
+        help_text='The request MPN, from the semantic result.',
+    )
+
+    target_description = models.TextField(
+        editable=False,
+        blank=True,
+        help_text='The request description, from the semantic result.',
+    )
+
+    candidate_title = models.TextField(
+        editable=False,
+        help_text='The listing product title, from the semantic result.',
+    )
+
+    candidate_mpn_field = models.TextField(
+        editable=False,
+        blank=True,
+        help_text='The raw MPN field from the listing.',
+    )
+
+    candidate_sku = models.TextField(
+        editable=False,
+        blank=True,
+        help_text='The SKU field from the listing, if available.',
+    )
+
+    candidate_specs = models.TextField(
+        editable=False,
+        blank=True,
+        help_text='Concatenated listing specs (brand/MPN/SKU/condition).',
+    )
+
+    evidence_source = models.CharField(
+        max_length=32,
+        editable=False,
+        help_text='Evidence source vocabulary (TITLE_TEXT, SKU_FIELD, etc.).',
+    )
+
+    semantic_confidence = models.CharField(
+        max_length=16,
+        editable=False,
+        blank=True,
+        help_text='Semantic confidence level (LOW, MEDIUM, etc.).',
+    )
+
+    semantic_reason_code = models.TextField(
+        editable=False,
+        blank=True,
+        help_text='Semantic reason code explaining the MATCH.',
+    )
+
+    semantic_matched_attributes = models.JSONField(
+        editable=False,
+        default=list,
+        help_text='JSON array of matched attribute names.',
+    )
+
+    semantic_conflicting_attributes = models.JSONField(
+        editable=False,
+        default=list,
+        help_text='JSON array of conflicting attribute names.',
+    )
+
+    actual_provider = models.CharField(
+        max_length=64,
+        editable=False,
+        help_text='Provider that produced the semantic response.',
+    )
+
+    actual_model = models.CharField(
+        max_length=128,
+        editable=False,
+        help_text='Model that produced the semantic response.',
+    )
+
+    prompt_version = models.CharField(
+        max_length=16,
+        editable=False,
+        help_text='Semantic prompt version used.',
+    )
+
+    # --- Mutable review state ---
+
+    review_state = models.CharField(
+        max_length=16,
+        choices=REVIEW_STATE_CHOICES,
+        default=REVIEW_STATE_UNREVIEWED,
+        help_text='Current review state: UNREVIEWED, CONFIRMED, or REJECTED.',
+    )
+
+    created_at = models.DateTimeField(
+        default=timezone.now,
+        editable=False,
+        help_text='When this candidate record was persisted.',
+    )
+
+    reviewed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        editable=False,
+        help_text='When the review state was last changed. Null for UNREVIEWED.',
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['run', 'assessment_index'],
+                name='ai_assisted_review_unique_candidate_per_run_assessment',
+            ),
+            models.CheckConstraint(
+                check=models.Q(reviewed_at__isnull=True, review_state='UNREVIEWED')
+                | models.Q(reviewed_at__isnull=False, review_state__in=['CONFIRMED', 'REJECTED']),
+                name='ai_assisted_review_state_timestamp_consistency',
+                violation_error_message='UNREVIEWED requires reviewed_at NULL; CONFIRMED/REJECTED requires reviewed_at NOT NULL.',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['run', 'review_state']),
+        ]
+        ordering = ['run', 'assessment_index']
+
+    def __str__(self) -> str:
+        return (
+            f'AiAssistedReviewCandidate {self.id} '
+            f'[{self.run_id} idx={self.assessment_index} {self.review_state}]'
+        )

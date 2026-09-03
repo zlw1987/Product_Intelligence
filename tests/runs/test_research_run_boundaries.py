@@ -24,6 +24,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from django.db import models
 
 # Reused rather than restated, so the lists cannot drift apart.
 from tests.domain.test_domain_boundaries import (
@@ -52,6 +53,7 @@ EXPECTED_FIELDS = {
     "finished_at",
     "price_intelligence_snapshot",  # 4B: reverse OneToOne from snapshot
     "execution_evidence",  # 4C-A: reverse FK to execution evidence records
+    "ai_assisted_review_candidates",  # HUMAN-REVIEW: reverse FK to review candidates
 }
 
 # The exact fields on PriceIntelligenceSnapshot (4B).
@@ -61,6 +63,32 @@ EXPECTED_SNAPSHOT_FIELDS = {
     "payload",
     "created_at",
 }
+
+# The exact fields on AiAssistedReviewCandidate (HUMAN-REVIEW).
+EXPECTED_REVIEW_CANDIDATE_FIELDS = {
+    "id",
+    "run",
+    "assessment_index",
+    "source_url",
+    "target_mpn",
+    "target_description",
+    "candidate_title",
+    "candidate_mpn_field",
+    "candidate_sku",
+    "candidate_specs",
+    "evidence_source",
+    "semantic_confidence",
+    "semantic_reason_code",
+    "semantic_matched_attributes",
+    "semantic_conflicting_attributes",
+    "actual_provider",
+    "actual_model",
+    "prompt_version",
+    "review_state",
+    "created_at",
+    "reviewed_at",
+}
+
 
 
 def test_runs_package_has_source_files_to_check() -> None:
@@ -80,6 +108,53 @@ def test_a_price_snapshot_has_exactly_the_approved_fields() -> None:
         {field.name for field in PriceIntelligenceSnapshot._meta.get_fields()}
         == EXPECTED_SNAPSHOT_FIELDS
     )
+
+
+
+def test_ai_assisted_review_candidate_has_exactly_the_approved_fields() -> None:
+    """HUMAN-REVIEW: The new model has exactly the approved field set."""
+    from product_intelligence.runs.models import AiAssistedReviewCandidate
+
+    assert (
+        {field.name for field in AiAssistedReviewCandidate._meta.get_fields()}
+        == EXPECTED_REVIEW_CANDIDATE_FIELDS
+    )
+
+
+def test_ai_assisted_review_candidate_has_unique_constraint() -> None:
+    """HUMAN-REVIEW: One candidate per (run, assessment_index) is enforced."""
+    from product_intelligence.runs.models import AiAssistedReviewCandidate
+
+    constraints = {
+        c.name: c for c in
+        AiAssistedReviewCandidate._meta.constraints
+    }
+    assert "ai_assisted_review_unique_candidate_per_run_assessment" in constraints
+    uc = constraints["ai_assisted_review_unique_candidate_per_run_assessment"]
+    assert isinstance(uc, models.UniqueConstraint)
+    assert set(uc.fields) == {"run", "assessment_index"}
+
+
+def test_ai_assisted_review_candidate_has_review_state_choices() -> None:
+    """HUMAN-REVIEW: The review_state field uses the approved vocabulary."""
+    from product_intelligence.runs.models import AiAssistedReviewCandidate
+
+    field = AiAssistedReviewCandidate._meta.get_field("review_state")
+    choices = {code for code, label in field.choices}
+    assert choices == {"UNREVIEWED", "CONFIRMED", "REJECTED"}
+    assert field.default == "UNREVIEWED"
+
+
+def test_ai_assisted_review_candidate_uuid_primary_key() -> None:
+    """HUMAN-REVIEW: The primary key is a UUID with uuid4 default."""
+    from product_intelligence.runs.models import AiAssistedReviewCandidate
+
+    pk = AiAssistedReviewCandidate._meta.get_field("id")
+    assert pk.primary_key is True
+    assert isinstance(pk, models.UUIDField)
+    # Check default is uuid.uuid4
+    import uuid as uuid_mod
+    assert pk.default == uuid_mod.uuid4
 
 
 def test_a_price_snapshot_carries_no_caller_or_provider_data() -> None:
@@ -218,6 +293,7 @@ def test_the_evaluation_corpus_is_not_persisted() -> None:
         "runs.ResearchRun",
         "runs.PriceIntelligenceSnapshot",
         "runs.ExecutionEvidenceRecord",  # 4C-A
+        "runs.AiAssistedReviewCandidate",  # HUMAN-REVIEW
     }
     assert model_labels == expected
 

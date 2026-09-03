@@ -12,6 +12,10 @@ real migration — `create_test_db` migrates, so a broken migration fails here.
 
 Tests that never touch the database are unaffected: the domain and evaluation
 guards continue to run in clean subprocesses and remain framework-free.
+
+Per-test isolation is provided by Django's `TestCase` subclasses (transaction
+rollback) or by narrowly-scoped fixtures in individual test modules. There is
+no global post-test database cleanup: each test that needs isolation owns it.
 """
 
 from __future__ import annotations

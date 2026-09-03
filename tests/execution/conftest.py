@@ -1,12 +1,63 @@
-"""Tests for product_intelligence.execution.
+"""Dedicated DB isolation for execution/ tests that use human-review fixtures.
 
-PRODUCT-INTEL.4C-B — Complete PRICE MVP Backend Research Execution
+Tests that need DB isolation must explicitly request the
+`human_review_db_isolation` fixture.
 
-This test suite validates the orchestration layer that connects the
-deterministic research primitives into a complete end-to-end research pipeline.
+The fixture is identical in behaviour to the one in tests/runs/conftest.py.
+It is defined here separately so that pytest can discover it when running
+tests from the execution/ directory.
+
+The original execution test fixtures (clean_execution_runs, search_request,
+research_run, fake_search_provider, etc.) are preserved below.
 """
-
 from __future__ import annotations
+
+import pytest
+
+
+def _is_django_test_case(cls) -> bool:
+    """Return True if cls is a Django TestCase or SimpleTestCase."""
+    from django.test import SimpleTestCase
+    return issubclass(cls, SimpleTestCase)
+
+
+@pytest.fixture
+def human_review_db_isolation(request) -> None:
+    """Dedicated DB isolation for HUMAN-REVIEW execution tests.
+
+    Only applies to tests that explicitly request this fixture.
+    Cleans up runs/-model data after each test in FK-safe order.
+
+    Tests that inherit from django.test.TestCase or
+    django.test.SimpleTestCase are skipped because they provide
+    their own transaction rollback or do not allow DB access.
+    """
+    yield  # Run the test
+
+    test_class = getattr(request.node, "cls", None)
+    if test_class is not None and _is_django_test_case(test_class):
+        return
+
+    if "no_django_db" in request.fixturenames:
+        return
+
+    from django.db import transaction
+    from product_intelligence.runs.models import (
+        AiAssistedReviewCandidate,
+        ExecutionEvidenceRecord,
+        PriceIntelligenceSnapshot,
+        ResearchRun,
+    )
+    with transaction.atomic():
+        AiAssistedReviewCandidate.objects.all().delete()
+        ExecutionEvidenceRecord.objects.all().delete()
+        PriceIntelligenceSnapshot.objects.all().delete()
+        ResearchRun.objects.all().delete()
+
+
+# ---------------------------------------------------------------------------
+# ORIGINAL EXECUTION TEST FIXTURES
+# ---------------------------------------------------------------------------
 
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING

@@ -49,9 +49,11 @@ ALLOWED_RESEARCH_IMPORTS: dict[str, set[str]] = {
     },
     "product_intelligence.research.aggregation": {
         "PriceAggregationResult",
+        "aggregate_reviewed_listing_prices",  # HUMAN-REVIEW: read-side reviewed aggregation
     },
     "product_intelligence.research.matching": {
         "ListingIdentityAssessment",
+        "is_human_review_eligible_assessment",  # FU3B authority alignment: binding predicate
     },
 }
 
@@ -203,14 +205,14 @@ def test_the_web_layer_depends_on_the_domain_and_the_run_lifecycle() -> None:
 def test_the_web_layer_defines_no_model() -> None:
     """Persistence stays in `runs`: a run belongs to no caller (AD-025).
 
-    4B added PriceIntelligenceSnapshot to `runs/`, so two models now exist —
-    still both in the persistence package, not here.
+    4B added PriceIntelligenceSnapshot; HUMAN-REVIEW added AiAssistedReviewCandidate.
+    All models remain in the persistence package, not here.
     """
     from django.apps import apps
 
     assert not list(WEB_ROOT.rglob("models.py"))
     assert not list(WEB_ROOT.rglob("migrations"))
-    expected = {"runs.ResearchRun", "runs.PriceIntelligenceSnapshot", "runs.ExecutionEvidenceRecord"}
+    expected = {"runs.ResearchRun", "runs.PriceIntelligenceSnapshot", "runs.ExecutionEvidenceRecord", "runs.AiAssistedReviewCandidate"}
     assert {model._meta.label for model in apps.get_models()} == expected
     assert not apps.get_app_config("web").models
 
@@ -232,7 +234,7 @@ def test_web_uses_only_read_side_research_apis(path: Path) -> None:
 
     * ``price_result_codec`` — PriceResultCodecError, decode_price_aggregation_result
     * ``aggregation`` — PriceAggregationResult
-    * ``matching`` — ListingIdentityAssessment
+    * ``matching`` — ListingIdentityAssessment, is_human_review_eligible_assessment
 
     Package-level ``product_intelligence.research`` (via ``__init__``) is banned.
     ``research/identity`` is banned (research decision logic, not display).
@@ -398,14 +400,15 @@ def _runs_import_violation(source: str) -> str | None:
     symbols.
 
     Allowed direct imports from runs.models:
-      ResearchRun, PriceIntelligenceSnapshot (for exception catching via .DoesNotExist)
+      ResearchRun, PriceIntelligenceSnapshot (for exception catching via .DoesNotExist),
+      AiAssistedReviewCandidate (HUMAN-REVIEW)
 
     Forbidden: from product_intelligence.runs.execution_claims import ...
                from product_intelligence.runs.errors import ...
                any other runs.internal submodule
     """
     tree = ast.parse(source)
-    ALLOWED_MODELS_IMPORTS = frozenset({"ResearchRun", "PriceIntelligenceSnapshot"})
+    ALLOWED_MODELS_IMPORTS = frozenset({"ResearchRun", "PriceIntelligenceSnapshot", "AiAssistedReviewCandidate"})
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom):
             if not node.module or node.level:
@@ -452,7 +455,7 @@ def test_guard_rejects_runs_models_with_unapproved_symbols() -> None:
 
 def test_guard_allows_runs_models_approved_symbols() -> None:
     """Web layer may import ResearchRun and PriceIntelligenceSnapshot from runs.models."""
-    source = "from product_intelligence.runs.models import ResearchRun, PriceIntelligenceSnapshot"
+    source = "from product_intelligence.runs.models import ResearchRun, PriceIntelligenceSnapshot, AiAssistedReviewCandidate"
     assert _runs_import_violation(source) is None
 
 

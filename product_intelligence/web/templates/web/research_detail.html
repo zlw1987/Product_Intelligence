@@ -413,4 +413,216 @@
 {% endif %}
 
 <p><a href="{% url 'research-new' %}">Create another research request</a></p>
+
+{% if review_candidates %}
+  <h2>AI-assisted semantic matches</h2>
+  <p>
+    These listings were not deterministically matched but the semantic
+    model found evidence of a match. You can confirm or reject each one.
+    Confirmed listings may contribute to the reviewed price below.
+  </p>
+
+  {% for candidate in review_candidates %}
+    {% with candidate_binding_valid=candidate.binding_valid %}
+    <div class="evidence-entry review-candidate {% if not candidate_binding_valid %}unavailable{% endif %}">
+      {% if not candidate_binding_valid %}
+        {# --- Unavailable/stale candidate: neutral "evidence unavailable" display --- #}
+        <p class="notice">
+          <strong>Review evidence unavailable.</strong>
+          The snapshot evidence for this candidate could not be verified.
+          No review action is available.
+        </p>
+        <dl>
+          <dt>Source</dt>
+          <dd>{{ candidate.source_url }}</dd>
+          <dt>Review state</dt>
+          <dd>
+            {% if candidate.review_state == "CONFIRMED" %}
+              <strong style="color: green;">CONFIRMED</strong>
+            {% elif candidate.review_state == "REJECTED" %}
+              <strong style="color: red;">REJECTED</strong>
+            {% else %}
+              <span style="color: orange;">UNREVIEWED</span>
+            {% endif %}
+          </dd>
+          {% if candidate.reviewed_at %}
+            <dt>Reviewed at</dt>
+            <dd>{{ candidate.reviewed_at|date:"Y-m-d H:i:s T" }}</dd>
+          {% endif %}
+        </dl>
+      {% else %}
+        {# --- Valid binding: full snapshot-backed display --- #}
+        <dl>
+          <dt>Seller</dt>
+          <dd>{{ candidate.seller_name|default:"Not identified" }}</dd>
+
+          <dt>Price</dt>
+          <dd>
+            {% if candidate.normalized_price %}
+              {{ candidate.currency_code }} {{ candidate.normalized_price }}
+            {% else %}
+              <span class="absent">Not available</span>
+            {% endif %}
+          </dd>
+
+          <dt>Condition</dt>
+          <dd>{{ candidate.condition }}</dd>
+
+          <dt>Product title</dt>
+          <dd>{{ candidate.product_title }}</dd>
+
+          <dt>Source URL</dt>
+          <dd>
+            {% if candidate.source_url %}
+              {% if candidate.source_url_safe %}
+              <a href="{{ candidate.source_url }}" target="_blank" rel="noopener noreferrer">{{ candidate.source_url }}</a>
+              {% else %}
+              {{ candidate.source_url }}
+              {% endif %}
+            {% else %}
+              <span class="absent">No URL</span>
+            {% endif %}
+          </dd>
+
+          <dt>MPN evidence</dt>
+          <dd>
+            {% if candidate.candidate_mpn_field %}{{ candidate.candidate_mpn_field }}
+            {% else %}<span class="absent">None</span>{% endif %}
+          </dd>
+
+          <dt>SKU evidence</dt>
+          <dd>
+            {% if candidate.candidate_sku %}{{ candidate.candidate_sku }}
+            {% else %}<span class="absent">None</span>{% endif %}
+          </dd>
+
+          <dt>Semantic confidence</dt>
+          <dd>
+            {% if candidate.semantic_confidence %}{{ candidate.semantic_confidence }}
+            {% else %}<span class="absent">None</span>{% endif %}
+          </dd>
+
+          <dt>Semantic reason</dt>
+          <dd>
+            {% if candidate.semantic_reason_code %}{{ candidate.semantic_reason_code }}
+            {% else %}<span class="absent">None</span>{% endif %}
+          </dd>
+
+          <dt>Matched attributes</dt>
+          <dd>
+            {% if candidate.semantic_matched_attributes %}
+              {{ candidate.semantic_matched_attributes|join:", " }}
+            {% else %}<span class="absent">None</span>{% endif %}
+          </dd>
+
+          <dt>Conflicting attributes</dt>
+          <dd>
+            {% if candidate.semantic_conflicting_attributes %}
+              {{ candidate.semantic_conflicting_attributes|join:", " }}
+            {% else %}<span class="absent">None</span>{% endif %}
+          </dd>
+
+          <dt>Provider / Model</dt>
+          <dd>{{ candidate.actual_provider }} / {{ candidate.actual_model }}</dd>
+
+          <dt>Review state</dt>
+          <dd>
+            {% if candidate.review_state == "CONFIRMED" %}
+              <strong style="color: green;">CONFIRMED</strong>
+            {% elif candidate.review_state == "REJECTED" %}
+              <strong style="color: red;">REJECTED</strong>
+            {% else %}
+              <span style="color: orange;">UNREVIEWED</span>
+            {% endif %}
+          </dd>
+
+          {% if candidate.reviewed_at %}
+            <dt>Reviewed at</dt>
+            <dd>{{ candidate.reviewed_at|date:"Y-m-d H:i:s T" }}</dd>
+          {% endif %}
+        </dl>
+
+        <form method="post" action="{% url "research-review" run_id=run.id candidate_id=candidate.candidate_id %}" style="display: inline;">
+          {% csrf_token %}
+          {% if candidate.review_state == "CONFIRMED" %}
+            <button type="submit" name="action" value="undo">Undo confirmation</button>
+          {% elif candidate.review_state == "REJECTED" %}
+            <button type="submit" name="action" value="undo">Undo rejection</button>
+          {% else %}
+            <button type="submit" name="action" value="confirm">Confirm match</button>
+            <button type="submit" name="action" value="reject">Reject</button>
+          {% endif %}
+        </form>
+      {% endif %}
+    </div>
+    {% endwith %}
+  {% endfor %}
+{% endif %}
+
+{% if reviewed_result and confirmed_count > 0 %}
+  <h2>Reviewed price</h2>
+  <p>
+    This price includes {{ confirmed_count }} human-confirmed AI-assisted
+    listing{{ confirmed_count|pluralize }} in addition to deterministic matches.
+  </p>
+
+  {% for bucket in reviewed_result.buckets %}
+    <div class="bucket-entry">
+      <h3>Reviewed comparable price group</h3>
+      <dl>
+        <dt>Currency</dt>
+        <dd>{{ bucket.currency_code }}</dd>
+        <dt>Condition</dt>
+        <dd>{{ bucket.condition }}</dd>
+        <dt>Total observations</dt>
+        <dd>{{ bucket.count }}</dd>
+        <dt>Deterministic matches</dt>
+        <dd>{{ bucket.deterministic_count }}</dd>
+        <dt>Human-confirmed AI-assisted</dt>
+        <dd>{{ bucket.human_confirmed_count }}</dd>
+        <dt>Low</dt>
+        <dd>{{ bucket.currency_code }} {{ bucket.low }}</dd>
+        <dt>Median</dt>
+        <dd>{{ bucket.currency_code }} {{ bucket.median }}</dd>
+        <dt>High</dt>
+        <dd>{{ bucket.currency_code }} {{ bucket.high }}</dd>
+        <dt>Confidence</dt>
+        <dd>{{ bucket.confidence }}</dd>
+      </dl>
+
+      {% if bucket.has_market_range %}
+        <p>
+          <strong>Observed market range:</strong>
+          {{ bucket.currency_code }} {{ bucket.market_range_low }}
+          — {{ bucket.currency_code }} {{ bucket.market_range_high }}
+        </p>
+      {% endif %}
+
+      {% if bucket.assessments %}
+        <h4>Contributing evidence ({{ bucket.count }})</h4>
+        {% for assessment in bucket.assessments %}
+          <div class="evidence-entry">
+            <p><strong>Source:</strong>
+              {% if assessment.source_url_safe %}
+                <a href="{{ assessment.source_url }}">{{ assessment.source_url }}</a>
+              {% else %}
+                {{ assessment.source_url }}
+              {% endif %}
+            </p>
+            {% if assessment.product_title %}
+              <p><strong>Product title:</strong> {{ assessment.product_title }}</p>
+            {% endif %}
+            {% if assessment.seller_name %}
+              <p><strong>Seller:</strong> {{ assessment.seller_name }}</p>
+            {% endif %}
+            {% if assessment.normalized_price %}
+              <p><strong>Normalized price:</strong> {{ assessment.currency_code }} {{ assessment.normalized_price }}</p>
+            {% endif %}
+            <p><strong>Evidence source:</strong> {{ assessment.candidate_evidence_source }}</p>
+          </div>
+        {% endfor %}
+      {% endif %}
+    </div>
+  {% endfor %}
+{% endif %}
 {% endblock %}

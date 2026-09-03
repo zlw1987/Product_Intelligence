@@ -69,7 +69,10 @@ from product_intelligence.domain.enums import (
     VerificationStatus,
 )
 from product_intelligence.research.listings import ListingObservation
-from product_intelligence.research.matching import ListingIdentityAssessment
+from product_intelligence.research.matching import (
+    ListingIdentityAssessment,
+    is_human_review_eligible_assessment,
+)
 from product_intelligence.research.normalization import (
     NormalizedCondition,
     NormalizedListingObservation,
@@ -160,6 +163,7 @@ class PriceAggregationExclusion:
                     "NO_NUMERIC_PRICE requires a missing price, "
                     f"but price_amount is {normalized.price_amount}"
                 )
+
 
         if reason is PriceAggregationExclusionReason.NO_COMPARABLE_CURRENCY:
             # Must have ACCEPTED identity and a price, but no currency.
@@ -833,6 +837,707 @@ def aggregate_listing_prices(
         verification_status = VerificationStatus.AMBIGUOUS
 
     return PriceAggregationResult(
+        request=request,
+        assessments=assessments,
+        exclusions=tuple(exclusions),
+        buckets=tuple(buckets),
+        verification_status=verification_status,
+    )
+
+# ---------------------------------------------------------------------------
+# Reviewed aggregation — HUMAN-REVIEW
+# ---------------------------------------------------------------------------
+
+
+
+
+def _validate_confirmed_indices(
+    confirmed_assessment_indices: frozenset,
+    assessments: tuple[ListingIdentityAssessment, ...],
+) -> None:
+    """Validate that every confirmed index is authoritative.
+
+    A confirmed index must point to a real assessment that is eligible for
+    human review (i.e., the frozen FU3B original-assessment states).
+    Human confirmation only upgrades identity authority for a semantic-eligible
+    REJECTED assessment, never for ACCEPTED/REJECTED/UNDECIDED that are not
+    in the human-review-eligible set.
+    """
+    for idx in confirmed_assessment_indices:
+        # bool is a subclass of int; refuse it
+        if isinstance(idx, bool):
+            raise TypeError(
+                f"confirmed_assessment_indices must contain int values, "
+                f"got bool: {idx!r}"
+            )
+        if not isinstance(idx, int):
+            raise TypeError(
+                f"confirmed_assessment_indices must contain int values, "
+                f"got {type(idx).__name__}: {idx!r}"
+            )
+        if idx < 0:
+            raise ValueError(
+                f"confirmed_assessment_indices contains negative index: {idx}"
+            )
+        if idx >= len(assessments):
+            raise ValueError(
+                f"confirmed_assessment_indices contains out-of-range index {idx}; "
+                f"assessments has {len(assessments)} items"
+            )
+        actual = assessments[idx]
+        if not is_human_review_eligible_assessment(actual):
+            raise ValueError(
+                f"confirmed_assessment_indices contains index {idx} whose "
+                f"assessment is not human-review eligible "
+                f"(decision={actual.decision.value}, "
+                f"reason={actual.rejection_reason.value if actual.rejection_reason else 'None'}, "
+                f"source={actual.candidate_evidence_source.value}). "
+                "Human confirmation only authorizes semantic-eligible assessments."
+            )
+
+
+@dataclass(frozen=True)
+class ReviewedPriceAggregationExclusion:
+    """One listing excluded from reviewed price aggregation.
+
+    Unlike PriceAggregationExclusion, this tracks the identity authority
+    separately from the price-level exclusion reason. The underlying
+    assessment's EvidenceDecision is never changed by human confirmation.
+
+    ``origin`` represents the identity authority:
+
+    - ``None`` — IDENTITY_NOT_ACCEPTED. The listing is not identity-authorized.
+    - ``DETERMINISTIC`` — Price-level exclusion for a deterministic ACCEPTED
+      assessment (identity is authoritative, price is not).
+    - ``HUMAN_CONFIRMED`` — Price-level exclusion for a human-confirmed
+      semantic-eligible assessment (identity is authorized by human review,
+      price is not eligible).
+
+    For IDENTITY_NOT_ACCEPTED exclusions, the frozen 4A semantics apply:
+    the decision must be non-ACCEPTED.
+
+    For price-level exclusions (NO_NUMERIC_PRICE etc.), the assessment must
+    be identity-authorized either by deterministic ACCEPT or by human
+    confirmation of a semantic-eligible REJECTED assessment.
+    """
+
+    assessment: ListingIdentityAssessment
+    reason: PriceAggregationExclusionReason
+    origin: ReviewedListingOrigin | None = None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.assessment, ListingIdentityAssessment):
+            raise TypeError(
+                "assessment must be a ListingIdentityAssessment, got "
+                f"{type(self.assessment).__name__}"
+            )
+        if not isinstance(self.reason, PriceAggregationExclusionReason):
+            raise TypeError(
+                "reason must be a PriceAggregationExclusionReason, got "
+                f"{type(self.reason).__name__}"
+            )
+        # origin validation
+        if self.origin is not None:
+            if not isinstance(self.origin, ReviewedListingOrigin):
+                raise TypeError(
+                    f"origin must be ReviewedListingOrigin or None, got "
+                    f"{type(self.origin).__name__}"
+                )
+
+        normalized = self.assessment.normalized_listing
+        reason = self.reason
+        origin = self.origin
+
+        if reason is PriceAggregationExclusionReason.IDENTITY_NOT_ACCEPTED:
+            if self.assessment.decision is EvidenceDecision.ACCEPTED:
+                raise ValueError(
+                    "IDENTITY_NOT_ACCEPTED requires a non-ACCEPTED decision, "
+                    f"but the assessment is {self.assessment.decision.value}"
+                )
+            # IDENTITY_NOT_ACCEPTED must have origin=None
+            if origin is not None:
+                raise ValueError(
+                    f"IDENTITY_NOT_ACCEPTED requires origin=None, "
+                    f"got {origin.value}"
+                )
+
+        # Price-level exclusions require identity authorization.
+        # The assessment is either ACCEPTED (DETERMINISTIC) or
+        # human-confirmed semantic-eligible REJECTED (HUMAN_CONFIRMED).
+        if reason in (
+            PriceAggregationExclusionReason.NO_NUMERIC_PRICE,
+            PriceAggregationExclusionReason.NO_COMPARABLE_CURRENCY,
+            PriceAggregationExclusionReason.UNKNOWN_CONDITION,
+        ):
+            is_det_accepted = (
+                self.assessment.decision is EvidenceDecision.ACCEPTED
+            )
+            is_human_eligible = is_human_review_eligible_assessment(
+                self.assessment
+            )
+            if not is_det_accepted and not is_human_eligible:
+                raise ValueError(
+                    f"Price-level exclusion {reason.value} requires identity "
+                    f"authorization (ACCEPTED or human-review-eligible REJECTED), "
+                    f"but the assessment is {self.assessment.decision.value}"
+                )
+            if origin is None:
+                raise ValueError(
+                    f"Price-level exclusion {reason.value} requires origin "
+                    f"to be DETERMINISTIC or HUMAN_CONFIRMED, got None"
+                )
+            if origin is ReviewedListingOrigin.DETERMINISTIC and not is_det_accepted:
+                raise ValueError(
+                    f"origin=DETERMINISTIC requires ACCEPTED assessment, "
+                    f"but assessment is {self.assessment.decision.value}"
+                )
+            if origin is ReviewedListingOrigin.HUMAN_CONFIRMED and not is_human_eligible:
+                raise ValueError(
+                    "origin=HUMAN_CONFIRMED requires a human-review-eligible "
+                    "assessment"
+                )
+            # Standard price-level checks
+            if reason is PriceAggregationExclusionReason.NO_NUMERIC_PRICE:
+                if normalized.price_amount is not None:
+                    raise ValueError(
+                        "NO_NUMERIC_PRICE requires a missing price, "
+                        f"but price_amount is {normalized.price_amount}"
+                    )
+            if reason is PriceAggregationExclusionReason.NO_COMPARABLE_CURRENCY:
+                if normalized.price_amount is None:
+                    raise ValueError(
+                        "NO_COMPARABLE_CURRENCY requires a present price, "
+                        "but price_amount is None"
+                    )
+                if normalized.currency_code is not None:
+                    raise ValueError(
+                        "NO_COMPARABLE_CURRENCY requires a missing currency, "
+                        f"but currency_code is {normalized.currency_code!r}"
+                    )
+            if reason is PriceAggregationExclusionReason.UNKNOWN_CONDITION:
+                if normalized.price_amount is None:
+                    raise ValueError(
+                        "UNKNOWN_CONDITION requires a present price, "
+                        "but price_amount is None"
+                    )
+                if normalized.currency_code is None:
+                    raise ValueError(
+                        "UNKNOWN_CONDITION requires a present currency, "
+                        "but currency_code is None"
+                    )
+                if normalized.condition is not NormalizedCondition.UNKNOWN:
+                    raise ValueError(
+                        "UNKNOWN_CONDITION requires UNKNOWN condition, "
+                        f"but condition is {normalized.condition.value}"
+                    )
+
+
+
+
+@dataclass(frozen=True)
+class ReviewedPriceEntry:
+    """One assessment contributing to a reviewed bucket, with provenance.
+
+    Tracks whether the listing was accepted deterministically or confirmed
+    by human review. This is the per-listing provenance record.
+
+    The underlying assessment is NEVER modified. For HUMAN_CONFIRMED entries,
+    the assessment remains its original deterministic REJECTED decision — the
+    human authority is an overlay, not a mutation.
+    """
+
+    assessment: ListingIdentityAssessment
+    origin: ReviewedListingOrigin
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.assessment, ListingIdentityAssessment):
+            raise TypeError(
+                "assessment must be a ListingIdentityAssessment, got "
+                f"{type(self.assessment).__name__}"
+            )
+        if not isinstance(self.origin, ReviewedListingOrigin):
+            raise TypeError(
+                "origin must be a ReviewedListingOrigin, got "
+                f"{type(self.origin).__name__}"
+            )
+        # Origin-consistency validation:
+        # DETERMINISTIC origin requires ACCEPTED assessment
+        # HUMAN_CONFIRMED origin requires human-review-eligible assessment
+        if self.origin is ReviewedListingOrigin.DETERMINISTIC:
+            if self.assessment.decision is not EvidenceDecision.ACCEPTED:
+                raise ValueError(
+                    f"DETERMINISTIC origin requires ACCEPTED assessment, "
+                    f"but assessment is {self.assessment.decision.value}"
+                )
+        if self.origin is ReviewedListingOrigin.HUMAN_CONFIRMED:
+            if not is_human_review_eligible_assessment(self.assessment):
+                raise ValueError(
+                    "HUMAN_CONFIRMED origin requires a human-review-eligible "
+                    f"assessment, but assessment is decision={self.assessment.decision.value} "
+                    f"reason={self.assessment.rejection_reason.value if self.assessment.rejection_reason else 'None'} "
+                    f"source={self.assessment.candidate_evidence_source.value}"
+                )
+
+
+class ReviewedListingOrigin(str, Enum):
+    """Where a listing in the reviewed result came from."""
+
+    DETERMINISTIC = "DETERMINISTIC"
+    HUMAN_CONFIRMED = "HUMAN_CONFIRMED"
+
+
+@dataclass(frozen=True)
+class ReviewedPriceAggregateBucket:
+    """One comparable price group in a reviewed aggregation result.
+
+    Like PriceAggregateBucket but tracks deterministic vs human-confirmed.
+    """
+
+    currency_code: str
+    condition: NormalizedCondition
+    assessments: tuple[ListingIdentityAssessment, ...]
+    entries: tuple[ReviewedPriceEntry, ...]
+    count: int
+    deterministic_count: int
+    human_confirmed_count: int
+    low: Decimal
+    median: Decimal
+    high: Decimal
+    market_range_low: Decimal | None
+    market_range_high: Decimal | None
+    confidence: ConfidenceLevel
+
+    def __post_init__(self) -> None:
+        # -- Basic bucket contract type checks (mirrors PriceAggregateBucket) --
+        if not isinstance(self.currency_code, str) or not self.currency_code:
+            raise ValueError("currency_code must be a non-empty string")
+
+        if not isinstance(self.condition, NormalizedCondition):
+            raise TypeError(
+                "condition must be a NormalizedCondition, got "
+                f"{type(self.condition).__name__}"
+            )
+
+        if not isinstance(self.assessments, tuple):
+            raise TypeError(
+                "assessments must be a tuple, got "
+                f"{type(self.assessments).__name__}"
+            )
+
+        if not isinstance(self.entries, tuple):
+            raise TypeError("entries must be a tuple")
+
+        if not isinstance(self.count, int) or isinstance(self.count, bool):
+            raise TypeError("count must be int")
+
+        if not isinstance(self.deterministic_count, int) or isinstance(self.deterministic_count, bool):
+            raise TypeError("deterministic_count must be int")
+
+        if not isinstance(self.human_confirmed_count, int) or isinstance(self.human_confirmed_count, bool):
+            raise TypeError("human_confirmed_count must be int")
+
+        if not isinstance(self.confidence, ConfidenceLevel):
+            raise TypeError(
+                f"confidence must be ConfidenceLevel, got "
+                f"{type(self.confidence).__name__}"
+            )
+
+        # -- Monetary field type checks --
+        for name in ("low", "median", "high"):
+            val = getattr(self, name)
+            if not isinstance(val, Decimal):
+                raise TypeError(f"{name} must be Decimal, got {type(val).__name__}")
+
+        for name in ("market_range_low", "market_range_high"):
+            val = getattr(self, name)
+            if val is not None and not isinstance(val, Decimal):
+                raise TypeError(f"{name} must be Decimal or None")
+
+        if (self.market_range_low is None) != (self.market_range_high is None):
+            raise ValueError("market_range_low and market_range_high must be paired")
+
+        # -- Entry / assessment length alignment --
+        if len(self.entries) != len(self.assessments):
+            raise ValueError(
+                f"entries ({len(self.entries)}) and assessments "
+                f"({len(self.assessments)}) must have the same length; "
+                "each entry must correspond to exactly one assessment"
+            )
+
+        # -- Per-position entry/assessment provenance correspondence --
+        # entries[i].assessment must equal assessments[i] for every i.
+        # This prevents fabricated buckets where provenance entries describe
+        # different listings from the assessments whose prices are aggregated.
+        for i, (entry, assessment) in enumerate(zip(self.entries, self.assessments)):
+            if not isinstance(entry, ReviewedPriceEntry):
+                raise TypeError(
+                    f"entries[{i}] must be ReviewedPriceEntry, got "
+                    f"{type(entry).__name__}"
+                )
+            if not isinstance(assessment, ListingIdentityAssessment):
+                raise TypeError(
+                    f"assessments[{i}] must be ListingIdentityAssessment, got "
+                    f"{type(assessment).__name__}"
+                )
+            if entry.assessment != assessment:
+                raise ValueError(
+                    f"entries[{i}].assessment does not correspond to "
+                    f"assessments[{i}]; each entry must reference an "
+                    "equal-by-value assessment at the same position"
+                )
+
+        # -- Refuse duplicate assessment values (shared invariant with
+        #    PriceAggregateBucket / PriceAggregationResult)                --
+        _refuse_duplicate_assessments(self.assessments)
+
+        # -- Count invariants --
+        if self.count != self.deterministic_count + self.human_confirmed_count:
+            raise ValueError(
+                f"count ({self.count}) must equal deterministic_count "
+                f"({self.deterministic_count}) + human_confirmed_count "
+                f"({self.human_confirmed_count})"
+            )
+        if self.count != len(self.assessments):
+            raise ValueError(
+                f"count ({self.count}) must equal len(assessments) ({len(self.assessments)})"
+            )
+
+        # -- Bucket must have at least one member --
+        if not self.assessments:
+            raise ValueError(
+                "a reviewed bucket must contain at least one assessment; "
+                "zero-observation buckets are not comparable"
+            )
+
+        # -- Per-assessment non-identity member invariants --
+        # Same currency/condition/price invariants as PriceAggregateBucket,
+        # but WITHOUT requiring decision == ACCEPTED (HUMAN_CONFIRMED entries
+        # legitimately retain the original REJECTED assessment; identity
+        # authority is validated through ReviewedPriceEntry.origin instead).
+        prices: list[Decimal] = []
+        for i, assessment in enumerate(self.assessments):
+            norm = assessment.normalized_listing
+
+            # Must have a Decimal price.
+            if norm.price_amount is None:
+                raise ValueError(
+                    f"assessments[{i}] has no price_amount; "
+                    "every reviewed bucket member must have a numeric price"
+                )
+            if not isinstance(norm.price_amount, Decimal):
+                raise TypeError(
+                    f"assessments[{i}].price_amount is "
+                    f"{type(norm.price_amount).__name__}; "
+                    "money is never a float in a reviewed bucket"
+                )
+
+            # Must match bucket currency.
+            if norm.currency_code != self.currency_code:
+                raise ValueError(
+                    f"assessments[{i}] has currency {norm.currency_code!r} "
+                    f"but bucket currency is {self.currency_code!r}; "
+                    "all members must share the bucket's currency"
+                )
+
+            # Must match bucket condition.
+            if norm.condition != self.condition:
+                raise ValueError(
+                    f"assessments[{i}] has condition {norm.condition.value} "
+                    f"but bucket condition is {self.condition.value}; "
+                    "all members must share the bucket's condition"
+                )
+
+            # Condition must not be UNKNOWN.
+            if norm.condition is NormalizedCondition.UNKNOWN:
+                raise ValueError(
+                    f"assessments[{i}] has UNKNOWN condition; "
+                    "UNKNOWN condition is excluded from reviewed aggregation"
+                )
+
+            prices.append(norm.price_amount)
+
+        # -- Validate counts are derived from per-entry provenance --
+        derived_det = sum(
+            1 for e in self.entries
+            if e.origin is ReviewedListingOrigin.DETERMINISTIC
+        )
+        derived_hc = sum(
+            1 for e in self.entries
+            if e.origin is ReviewedListingOrigin.HUMAN_CONFIRMED
+        )
+        if self.deterministic_count != derived_det:
+            raise ValueError(
+                f"deterministic_count ({self.deterministic_count}) must match "
+                f"entries provenance ({derived_det})"
+            )
+        if self.human_confirmed_count != derived_hc:
+            raise ValueError(
+                f"human_confirmed_count ({self.human_confirmed_count}) must match "
+                f"entries provenance ({derived_hc})"
+            )
+
+        # -- Recompute and verify statistics from assessments --
+        sorted_prices = tuple(sorted(prices))
+        computed_low = sorted_prices[0]
+        computed_median = _compute_median(sorted_prices)
+        computed_high = sorted_prices[-1]
+
+        if self.low != computed_low:
+            raise ValueError(f"low mismatch: {self.low} != {computed_low}")
+        if self.median != computed_median:
+            raise ValueError(f"median mismatch: {self.median} != {computed_median}")
+        if self.high != computed_high:
+            raise ValueError(f"high mismatch: {self.high} != {computed_high}")
+
+        # -- Market range must match low/high when count >= 3, be None when < 3 --
+        if self.count >= 3:
+            if self.market_range_low != computed_low or self.market_range_high != computed_high:
+                raise ValueError("market_range must equal low/high when count >= 3")
+        else:
+            if self.market_range_low is not None or self.market_range_high is not None:
+                raise ValueError("market_range must be None when count < 3")
+
+        # -- Confidence must follow count policy --
+        expected_confidence = (
+            ConfidenceLevel.MEDIUM if self.count >= 3 else ConfidenceLevel.LOW
+        )
+        if self.confidence != expected_confidence:
+            raise ValueError(
+                f"confidence must be {expected_confidence.value}, got {self.confidence.value}"
+            )
+
+
+@dataclass(frozen=True)
+class ReviewedPriceAggregationResult:
+    """Price aggregation including human-confirmed AI-assisted listings.
+
+    DISTINCT from PriceAggregationResult. Preserves provenance.
+    """
+
+    request: ResearchRequest
+    assessments: tuple[ListingIdentityAssessment, ...]
+    buckets: tuple[ReviewedPriceAggregateBucket, ...]
+    exclusions: tuple[ReviewedPriceAggregationExclusion, ...]
+    verification_status: VerificationStatus
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.request, ResearchRequest):
+            raise TypeError(
+                f"request must be ResearchRequest, got {type(self.request).__name__}"
+            )
+        if not isinstance(self.assessments, tuple):
+            raise TypeError(
+                f"assessments must be a tuple, got {type(self.assessments).__name__}"
+            )
+        expected_mpn = self.request.manufacturer_part_number
+        for i, a in enumerate(self.assessments):
+            if not isinstance(a, ListingIdentityAssessment):
+                raise TypeError(
+                    f"assessments[{i}] must be ListingIdentityAssessment, got "
+                    f"{type(a).__name__}"
+                )
+            if a.requested_part_number != expected_mpn:
+                raise ValueError(
+                    f"assessments[{i}] was produced for a different request"
+                )
+        _refuse_duplicate_assessments(self.assessments)
+        all_in_output: list[ListingIdentityAssessment] = []
+        for b in self.buckets:
+            all_in_output.extend(b.assessments)
+        for e in self.exclusions:
+            all_in_output.append(e.assessment)
+        output_counter = Counter(all_in_output)
+        input_counter = Counter(self.assessments)
+        if output_counter != input_counter:
+            raise ValueError(
+                "every input assessment must appear in exactly one bucket or exclusion"
+            )
+        bucket_keys = [(b.currency_code, b.condition) for b in self.buckets]
+        if len(bucket_keys) != len(set(bucket_keys)):
+            raise ValueError("duplicate (currency_code, condition) bucket keys")
+        n = len(self.buckets)
+        expected_vs = (
+            VerificationStatus.UNKNOWN if n == 0
+            else VerificationStatus.VERIFIED if n == 1
+            else VerificationStatus.AMBIGUOUS
+        )
+        if self.verification_status != expected_vs:
+            raise ValueError(
+                f"verification_status must be {expected_vs.value}, "
+                f"got {self.verification_status.value}"
+            )
+
+
+def _determine_price_eligibility(
+    assessment: ListingIdentityAssessment,
+) -> PriceAggregationExclusionReason | None:
+    """Check non-identity price eligibility for an already-authorized assessment.
+
+    Returns None if eligible, or the first failing exclusion reason.
+    Shared by both deterministic and reviewed aggregation.
+    """
+    normalized = assessment.normalized_listing
+    if normalized.price_amount is None:
+        return PriceAggregationExclusionReason.NO_NUMERIC_PRICE
+    if normalized.currency_code is None:
+        return PriceAggregationExclusionReason.NO_COMPARABLE_CURRENCY
+    if normalized.condition is NormalizedCondition.UNKNOWN:
+        return PriceAggregationExclusionReason.UNKNOWN_CONDITION
+    return None
+
+
+def aggregate_reviewed_listing_prices(
+    request: ResearchRequest,
+    assessments: tuple[ListingIdentityAssessment, ...],
+    confirmed_assessment_indices: frozenset[int],
+) -> ReviewedPriceAggregationResult:
+    """Compute reviewed price aggregates including human-confirmed AI-assisted listings.
+
+    Human confirmation overrides ONLY the identity-authority gate.
+    All other 4A price rules remain authoritative.
+
+    Args:
+        request: The canonical research request.
+        assessments: Same assessments tuple used for deterministic aggregation.
+        confirmed_assessment_indices: frozenset of indices into assessments
+            representing CONFIRMED AI-assisted review candidates.
+
+    Returns:
+        A ``ReviewedPriceAggregationResult``.
+
+    Raises:
+        TypeError: Wrong argument types.
+        ValueError: Structural invalidity.
+    """
+    if not isinstance(request, ResearchRequest):
+        raise TypeError(
+            f"request must be a ResearchRequest, got {type(request).__name__}"
+        )
+    if not isinstance(assessments, tuple):
+        raise TypeError(
+            f"assessments must be a tuple, got {type(assessments).__name__}"
+        )
+    if not isinstance(confirmed_assessment_indices, frozenset):
+        raise TypeError(
+            f"confirmed_assessment_indices must be a frozenset, got "
+            f"{type(confirmed_assessment_indices).__name__}"
+        )
+
+    # Validate confirmed indices BEFORE using them
+    _validate_confirmed_indices(confirmed_assessment_indices, assessments)
+
+    expected_mpn = request.manufacturer_part_number
+    for i, assessment in enumerate(assessments):
+        if not isinstance(assessment, ListingIdentityAssessment):
+            raise TypeError(
+                f"assessments[{i}] must be ListingIdentityAssessment, got "
+                f"{type(assessment).__name__}"
+            )
+        if assessment.requested_part_number != expected_mpn:
+            raise ValueError(
+                f"assessments[{i}] was produced for request MPN "
+                f"{assessment.requested_part_number!r} but this request "
+                f"has MPN {expected_mpn!r}"
+            )
+
+    _refuse_duplicate_assessments(assessments)
+
+    exclusions: list[ReviewedPriceAggregationExclusion] = []
+    bucket_groups: dict[tuple[str, NormalizedCondition], list[ReviewedPriceEntry]] = {}
+
+    for idx, assessment in enumerate(assessments):
+        is_deterministic_accepted = (
+            assessment.decision is EvidenceDecision.ACCEPTED
+        )
+        is_human_confirmed = idx in confirmed_assessment_indices
+
+        if not is_deterministic_accepted and not is_human_confirmed:
+            exclusions.append(
+                ReviewedPriceAggregationExclusion(
+                    assessment=assessment,
+                    reason=PriceAggregationExclusionReason.IDENTITY_NOT_ACCEPTED,
+                    origin=None,
+                )
+            )
+            continue
+
+        price_reason = _determine_price_eligibility(assessment)
+        if price_reason is not None:
+            # Price-level exclusion: include origin for provenance
+            price_origin = (
+                ReviewedListingOrigin.HUMAN_CONFIRMED
+                if is_human_confirmed
+                else ReviewedListingOrigin.DETERMINISTIC
+            )
+            exclusions.append(
+                ReviewedPriceAggregationExclusion(
+                    assessment=assessment,
+                    reason=price_reason,
+                    origin=price_origin,
+                )
+            )
+            continue
+
+        norm = assessment.normalized_listing
+        assert norm.price_amount is not None
+        assert norm.currency_code is not None
+        assert norm.condition is not NormalizedCondition.UNKNOWN
+
+        origin = (
+            ReviewedListingOrigin.HUMAN_CONFIRMED
+            if is_human_confirmed
+            else ReviewedListingOrigin.DETERMINISTIC
+        )
+        key = (norm.currency_code, norm.condition)
+        bucket_groups.setdefault(key, []).append(ReviewedPriceEntry(assessment=assessment, origin=origin))
+
+    buckets: list[ReviewedPriceAggregateBucket] = []
+    for (currency_code, condition), entries in sorted(bucket_groups.items()):
+        group_assessments = tuple(entry.assessment for entry in entries)
+        deterministic_count = sum(
+            1 for e in entries if e.origin is ReviewedListingOrigin.DETERMINISTIC
+        )
+        human_confirmed_count = sum(
+            1 for e in entries if e.origin is ReviewedListingOrigin.HUMAN_CONFIRMED
+        )
+        prices = tuple(
+            sorted(a.normalized_listing.price_amount for a in group_assessments)
+        )
+        count = len(prices)
+        low = prices[0]
+        median = _compute_median(prices)
+        high = prices[-1]
+        market_range_low = low if count >= 3 else None
+        market_range_high = high if count >= 3 else None
+        confidence = ConfidenceLevel.MEDIUM if count >= 3 else ConfidenceLevel.LOW
+
+        buckets.append(
+            ReviewedPriceAggregateBucket(
+                currency_code=currency_code,
+                condition=condition,
+                assessments=group_assessments,
+                entries=tuple(entries),
+                count=count,
+                deterministic_count=deterministic_count,
+                human_confirmed_count=human_confirmed_count,
+                low=low,
+                median=median,
+                high=high,
+                market_range_low=market_range_low,
+                market_range_high=market_range_high,
+                confidence=confidence,
+            )
+        )
+
+    n_buckets = len(buckets)
+    if n_buckets == 0:
+        verification_status = VerificationStatus.UNKNOWN
+    elif n_buckets == 1:
+        verification_status = VerificationStatus.VERIFIED
+    else:
+        verification_status = VerificationStatus.AMBIGUOUS
+
+    return ReviewedPriceAggregationResult(
         request=request,
         assessments=assessments,
         exclusions=tuple(exclusions),

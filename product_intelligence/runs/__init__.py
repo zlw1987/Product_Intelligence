@@ -41,6 +41,13 @@ __all__ = [
     "ExecutionStage",
     "InvalidInitialResearchRunState",
     "InvalidResearchRunTransition",
+    "confirm_candidate",
+    "reject_candidate",
+    "undo_review",
+    "CrossRunReviewError",
+    "CandidateNotFoundError",
+    "RunNotReviewableError",
+    "ReviewConflictError",
     "retry_run",
     "ResearchRun",
     "ResearchRunLifecycleError",
@@ -48,10 +55,13 @@ __all__ = [
     "UnsupportedResearchRunStateChange",
 ]
 
-_MODEL_EXPORTS = frozenset({"ALLOWED_TRANSITIONS", "ResearchRun", "TERMINAL_STATES", "PriceIntelligenceSnapshot", "ExecutionEvidenceRecord"})
+_MODEL_EXPORTS = frozenset({"ALLOWED_TRANSITIONS", "ResearchRun", "TERMINAL_STATES", "PriceIntelligenceSnapshot", "ExecutionEvidenceRecord", "AiAssistedReviewCandidate"})
 
 # Evidence enums and primitives are pure Python (no Django import), so they can
 # be exposed directly from this package without lazy loading.
+_REVIEW_EXPORTS = frozenset({"confirm_candidate", "reject_candidate", "undo_review"})
+_REVIEW_ERROR_EXPORTS = frozenset({"CrossRunReviewError", "CandidateNotFoundError", "RunNotReviewableError", "ReviewError", "ReviewConflictError", "InvalidCandidateError"})
+
 _EVIDENCE_EXPORTS = frozenset({
     "ClaimExecutionFailed",
     "claim_execution",
@@ -96,6 +106,17 @@ def __getattr__(name: str) -> object:
             from product_intelligence.runs import execution_claims
             return getattr(execution_claims, name)
         raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+    # Review service exports (HUMAN-REVIEW)
+    if name in _REVIEW_EXPORTS:
+        from product_intelligence.runs import ai_assisted_review
+        return getattr(ai_assisted_review, name)
+
+    # Review error exports (HUMAN-REVIEW)
+    if name in _REVIEW_ERROR_EXPORTS:
+        from product_intelligence.runs import ai_assisted_review
+        return getattr(ai_assisted_review, name)
+
     if name in _MODEL_EXPORTS:
         # Import from runs.models (the main models.py file)
         from product_intelligence.runs import models

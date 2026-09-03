@@ -721,3 +721,50 @@ def assess_listing_identities(
         assess_listing_identity(request, listing)
         for listing in normalized_listings
     )
+
+
+# ---------------------------------------------------------------------------
+# Human-review eligibility predicate
+# ---------------------------------------------------------------------------
+
+
+def is_human_review_eligible_assessment(
+    assessment: ListingIdentityAssessment,
+) -> bool:
+    """Return True if this assessment is eligible for human review.
+
+    This mirrors the frozen FU3B semantic-eligible assessment states — the
+    ONLY assessments that can appear as ``AiAssistedMatchResult.original_assessment``
+    in a real execution snapshot.
+
+    Eligible (returns True):
+
+    - REJECTED + NO_EXPLICIT_MPN_EVIDENCE + TITLE_TEXT
+    - REJECTED + NO_EXPLICIT_MPN_EVIDENCE + SKU_FIELD
+    - REJECTED + PARTIAL_MPN_ONLY
+
+    NOT eligible (returns False):
+
+    - ACCEPTED
+    - UNDECIDED
+    - REJECTED + MPN_MISMATCH
+    - REJECTED + NO_EXPLICIT_MPN_EVIDENCE + NONE
+    - any other unsupported state
+
+    This is a pure predicate. It does not import any execution, semantic,
+    or persistence module.
+    """
+    if assessment.decision is not EvidenceDecision.REJECTED:
+        return False
+
+    if assessment.rejection_reason is IdentityRejectionReason.PARTIAL_MPN_ONLY:
+        return True
+
+    if assessment.rejection_reason is IdentityRejectionReason.NO_EXPLICIT_MPN_EVIDENCE:
+        if assessment.candidate_evidence_source in (
+            EvidenceSource.TITLE_TEXT,
+            EvidenceSource.SKU_FIELD,
+        ):
+            return True
+
+    return False

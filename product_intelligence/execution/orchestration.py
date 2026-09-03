@@ -51,7 +51,11 @@ from product_intelligence.providers.serper import SerperSearchProvider
 from product_intelligence.research.aggregation import PriceAggregationResult
 from product_intelligence.runs import complete_execution, execution_claims
 from product_intelligence.runs.execution_claims import ClaimExecutionFailed
-from product_intelligence.runs.models import PriceIntelligenceSnapshot, ResearchRun
+from product_intelligence.runs.models import (
+    AiAssistedReviewCandidate,
+    PriceIntelligenceSnapshot,
+    ResearchRun,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -474,6 +478,13 @@ def execute_research_run(
                 payload=encoded_payload,
             )
 
+            # Create review candidates for AI-assisted matches (HUMAN-REVIEW)
+            _create_review_candidates(
+                run=claimed_run,
+                assessments=aggregation_result.assessments,
+                ai_assisted_matches=exec_result.ai_assisted_matches,
+            )
+
             # Transition to COMPLETED
             completed_run = complete_execution(
                 run=claimed_run,
@@ -508,6 +519,75 @@ def execute_research_run(
         )
         _terminalize_run(claimed_run)
         raise ExecutionError(f"Execution failed unexpectedly: {exc}") from exc
+
+
+def _create_review_candidates(
+    run: ResearchRun,
+    assessments: tuple,
+    ai_assisted_matches: tuple,
+) -> None:
+    """Create AiAssistedReviewCandidate records for each AI-assisted MATCH.
+
+    Each AiAssistedMatchResult.original_assessment is located by value in the
+    assessments tuple. The resulting candidate record preserves the semantic
+    provenance from the AiAssistedMatchResult for later human review.
+
+    This function is called inside the atomic final publication block,
+    so it participates in the same transaction as snapshot creation and
+    run terminalization.
+
+    Args:
+        run: The ResearchRun being finalized.
+        assessments: The ordered tuple of ListingIdentityAssessment objects
+            from the aggregation result.
+        ai_assisted_matches: Tuple of AiAssistedMatchResult objects produced
+            by semantic evaluation during this run.
+    """
+    if not ai_assisted_matches:
+        return
+
+    # Build a lookup: assessment object -> index in the ordered tuple
+    assessment_index: dict = {}
+    for idx, assessment in enumerate(assessments):
+        assessment_index[assessment] = idx
+
+    for match_result in ai_assisted_matches:
+        original = match_result.original_assessment
+        semantic = match_result.semantic_result
+
+        # Find the assessment index (fail-closed)
+        idx = assessment_index.get(original)
+        if idx is None:
+            raise ValueError(
+                f"AiAssistedMatchResult original_assessment not found in "
+                f"assessments tuple for run {run.id}. "
+                f"This indicates a data integrity failure."
+            )
+
+        AiAssistedReviewCandidate.objects.create(
+            run=run,
+            assessment_index=idx,
+            source_url=original.normalized_listing.observation.source_url,
+            target_mpn=semantic.target_mpn,
+            target_description=semantic.target_description or "",
+            candidate_title=semantic.candidate_title,
+            candidate_mpn_field=semantic.candidate_mpn_field or "",
+            candidate_sku=semantic.candidate_sku or "",
+            candidate_specs=semantic.candidate_specs or "",
+            evidence_source=semantic.evidence_source,
+            semantic_confidence=(
+                semantic.confidence.value
+                if semantic.confidence is not None
+                else ""
+            ),
+            semantic_reason_code=semantic.reason_code or "",
+            semantic_matched_attributes=list(semantic.matched_attributes),
+            semantic_conflicting_attributes=list(semantic.conflicting_attributes),
+            actual_provider=semantic.actual_provider or "",
+            actual_model=semantic.actual_model or "",
+            prompt_version=semantic.prompt_version,
+        )
+
 
 
 def _encode_aggregation_result(result: PriceAggregationResult) -> dict:
