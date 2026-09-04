@@ -64,6 +64,11 @@ SpecificationDefinition, SpecificationValue, SpecificationObservation,
 NormalizedSpecificationObservation, SpecificationResolution, CategorySchema,
 ProductSpecificationSet, and resolve_specification(). No extraction, no LLM call,
 no persistence, no network, no category-specific fields.
+
+PRODUCT-INTEL.6B added `enterprise_ssd`: the first category-specific schema
+using the frozen 6A framework. 12-field Enterprise SSD schema v1 with
+strict deterministic normalization. No extraction, no resolution, no
+authority inference, no manufacturer-specific rules.
 """
 
 from product_intelligence.research.aggregation import (
@@ -110,6 +115,13 @@ from product_intelligence.research.price_result_codec import (
     decode_price_aggregation_result,
     encode_price_aggregation_result,
 )
+from product_intelligence.research.enterprise_ssd import (
+    ENTERPRISE_SSD_SCHEMA,
+    ENTERPRISE_SSD_SCHEMA_ID,
+    ENTERPRISE_SSD_SCHEMA_VERSION,
+    normalize_enterprise_ssd_observation,
+    normalize_enterprise_ssd_observations,
+)
 from product_intelligence.research.specifications import (
     CategorySchema,
     NormalizedSpecificationObservation,
@@ -127,6 +139,9 @@ from product_intelligence.research.specifications import (
 __all__ = [
     "ASCII_WHITESPACE",
     "CANONICAL_SEPARATOR",
+    "ENTERPRISE_SSD_SCHEMA",
+    "ENTERPRISE_SSD_SCHEMA_ID",
+    "ENTERPRISE_SSD_SCHEMA_VERSION",
     "PRESERVED_SEPARATORS",
     "PRICE_RESULT_SCHEMA_VERSION",
     "STRUCTURAL_CHARACTERS",
@@ -164,6 +179,8 @@ __all__ = [
     "decode_price_aggregation_result",
     "encode_price_aggregation_result",
     "extract_listing_observations",
+    "normalize_enterprise_ssd_observation",
+    "normalize_enterprise_ssd_observations",
     "normalize_listing_observation",
     "normalize_listing_observations",
     "normalize_part_number",

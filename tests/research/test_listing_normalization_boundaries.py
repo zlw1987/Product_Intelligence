@@ -35,9 +35,10 @@ def test_normalization_and_aggregation_may_use_decimal() -> None:
     """`decimal` is legitimate in `normalization.py` (3B, where raw text
     becomes Decimal), `aggregation.py` (4A, where Decimal values are
     aggregated), `price_result_codec.py` (4B, where Decimal strings in
-    a codec payload are decoded back to Decimal), and `specifications.py`
-    (6A, where DECIMAL specification values use Decimal). No other
-    research-core module may import it.
+    a codec payload are decoded back to Decimal), `specifications.py`
+    (6A, where DECIMAL specification values use Decimal), and
+    `enterprise_ssd.py` (6B, where category-specific numeric normalization
+    uses Decimal). No other research-core module may import it.
 
     `extraction.py` (3A) and `identity.py` (2A) already forbid it explicitly;
     this asserts the positive claim so the guard cannot pass vacuously.
@@ -66,7 +67,20 @@ def test_normalization_and_aggregation_may_use_decimal() -> None:
             "specifications.py must import decimal for DECIMAL specification values"
         )
 
-    allowed_decimal = {NORMALIZATION_MODULE, aggregation_module, codec_module, specs_module}
+    enterprise_ssd_module = RESEARCH_ROOT / "enterprise_ssd.py"
+    if enterprise_ssd_module.exists():
+        essd_modules = _top_level_imports(enterprise_ssd_module.read_text(encoding="utf-8"))
+        assert "decimal" in essd_modules, (
+            "enterprise_ssd.py must import decimal for category-specific numeric normalization"
+        )
+
+    allowed_decimal = {
+        NORMALIZATION_MODULE,
+        aggregation_module,
+        codec_module,
+        specs_module,
+        enterprise_ssd_module,
+    }
 
     for path in _python_files(RESEARCH_ROOT):
         if path in allowed_decimal:
@@ -74,7 +88,8 @@ def test_normalization_and_aggregation_may_use_decimal() -> None:
         other_modules = _top_level_imports(path.read_text(encoding="utf-8"))
         assert "decimal" not in other_modules, (
             f"{path.name} imports decimal; only normalization.py, "
-            "aggregation.py, price_result_codec.py, and specifications.py may use Decimal"
+            "aggregation.py, price_result_codec.py, specifications.py, "
+            "and enterprise_ssd.py may use Decimal"
         )
 
 

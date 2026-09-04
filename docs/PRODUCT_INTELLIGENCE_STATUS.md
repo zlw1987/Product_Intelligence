@@ -5,7 +5,8 @@
 **PRODUCT-INTEL.PILOT-UX — Semantic qualification APPROVED/FROZEN;
 FU3A Production Semantic Runtime Contract APPROVED/FROZEN;
 FU3B Semantic Execution Integration APPROVED/FROZEN;
-HUMAN-REVIEW Human Review for AI-Assisted Matches APPROVED/FROZEN.**
+HUMAN-REVIEW Human Review for AI-Assisted Matches APPROVED/FROZEN;
+6B Enterprise SSD Category Schema APPROVED/FROZEN.**
 
 Semantic qualification is APPROVED AND FROZEN:
 - Semantic qualification corpus, prompt v1.1, evaluator mathematics,
@@ -121,7 +122,8 @@ FU3B wires the frozen FU3A semantic runtime into real research execution:
 | 5B | FoxPro launcher | Server-side implemented; client integrated outside repo, UAT passed |
 | PILOT-UX | Pilot UX polish + semantic qualification | **FROZEN** |
 | HUMAN-REVIEW | Human review for AI-assisted semantic matches | Implemented (frozen)
-| 6A | Product Specification Framework | Implemented (review pending)
+| 6A | Product Specification Framework | Implemented (frozen)
+| 6B | Enterprise SSD Category Schema | Implemented (approved / frozen)
 | SAP | SAP launcher integration | Future |
 
 
@@ -175,7 +177,8 @@ FU3B wires the frozen FU3A semantic runtime into real research execution:
 | Reviewed price aggregation | `research/aggregation.py` (aggregate_reviewed_listing_prices) | **Implemented (frozen, HUMAN-REVIEW)**
 | Human review web view + URLs | `web/views.py` + `web/urls.py` | **Implemented (frozen, HUMAN-REVIEW)**
 | Human review candidate presentation | `web/presentation.py` | **Implemented (frozen, HUMAN-REVIEW)**
-| Product Specification Framework (6A) | `research/specifications.py` | **Implemented (6A)**
+| Product Specification Framework (6A) | `research/specifications.py` | **Implemented (frozen)**
+| Enterprise SSD Category Schema (6B) | `research/enterprise_ssd.py` | **Implemented (approved / frozen)**
 
 ## Research orchestration
 
@@ -339,37 +342,44 @@ The six failures were exactly:
 - `tests/research/test_research_identity_boundaries.py::test_importing_the_research_core_pulls_in_no_third_party_dependency`
 - `tests/runs/test_research_run_boundaries.py::test_the_domain_still_imports_without_django_present`
 
-### 6A IMPLEMENTATION SNAPSHOT (CURRENT)
+### 6B IMPLEMENTATION SNAPSHOT (CURRENT — 6B corrective closure / APPROVED / FROZEN)
 
 | Metric | Count |
 | --- | --- |
-| Collected | 2539 |
-| Passed | 2531 |
-| Failed | 8 |
+| Collected | 2782 |
+| Passed | 2772 |
+| Failed | 10 |
 | Unexpected failures | 0 |
 
-The eight failures are the established environment-specific
-subprocess-boundary flake allowlist on this Windows / Python 3.14 workstation
-(all boundary/import-guard tests):
+The ten failures are the fixed approved Windows / Python 3.14
+subprocess-boundary flake allowlist (all boundary/import-guard tests):
 
 1. `tests/domain/test_domain_boundaries.py::test_domain_imports_without_django_network_or_llm_dependencies`
 2. `tests/evaluation/test_evaluation_boundaries.py::test_loading_the_corpus_imports_no_framework_or_provider`
 3. `tests/providers/test_provider_boundaries.py::test_importing_the_provider_boundary_pulls_in_no_third_party_dependency`
 4. `tests/providers/test_provider_boundaries.py::test_importing_the_page_boundary_pulls_in_no_third_party_dependency`
-5. `tests/research/test_listing_normalization_boundaries.py::test_importing_the_research_core_still_pulls_in_no_third_party_dependency`
-6. `tests/research/test_research_identity_boundaries.py::test_importing_the_research_core_pulls_in_no_third_party_dependency`
-7. `tests/research/test_specification_boundaries.py::test_importing_specifications_pulls_in_no_third_party_dependency`
-8. `tests/runs/test_research_run_boundaries.py::test_the_domain_still_imports_without_django_present`
+5. `tests/research/test_enterprise_ssd_boundaries.py::test_importing_enterprise_ssd_pulls_in_no_third_party`
+6. `tests/research/test_enterprise_ssd_boundaries.py::test_importing_enterprise_ssd_does_not_load_django`
+7. `tests/research/test_listing_normalization_boundaries.py::test_importing_the_research_core_still_pulls_in_no_third_party_dependency`
+8. `tests/research/test_research_identity_boundaries.py::test_importing_the_research_core_pulls_in_no_third_party_dependency`
+9. `tests/research/test_specification_boundaries.py::test_importing_specifications_pulls_in_no_third_party_dependency`
+10. `tests/runs/test_research_run_boundaries.py::test_the_domain_still_imports_without_django_present`
 
-Observed failure signature:
+Observed failure signature (all 10 nodes):
 
     subprocess.Popen
     -> _winapi.DuplicateHandle
-    -> OSError: [WinError 6/50] The handle is invalid / The request is not supported
+    -> OSError: [WinError 6] The handle is invalid
+
+    or
+
+    subprocess.Popen
+    -> _winapi.CreateProcess
+    -> OSError: [WinError 50] The request is not supported
 
 These are environment-specific subprocess-boundary limitations on this Windows /
 Python 3.14 workstation, not application defects. No node outside the fixed
-eight-node allowlist fails. No test is skipped, xfailed, or weakened.
+ten-node allowlist fails. No test is skipped, xfailed, or weakened.
 
 ## Next delivery priority
 
@@ -379,18 +389,20 @@ eight-node allowlist fails. No test is skipped, xfailed, or weakened.
 
 **5B**: Server-side implemented; client integrated outside repo; localhost UAT passed
 
-**6A**: IMPLEMENTED / REVIEW PENDING —
+**6A**: IMPLEMENTED / APPROVED / FROZEN —
          Product Specification Framework (framework only, no extraction)
          Corrective pass: evidence-derived constructor enforcement,
          deep immutability (MappingProxyType), schema/definition key
-         consistency. Awaiting project-lead approval before freeze.
+         consistency.
 
-**6B**: NEXT DELIVERY PRIORITY —
+**6B**: IMPLEMENTED / APPROVED / FROZEN —
          First Category-Specific Specification Schema;
-         Enterprise SSD / storage is preferred first-category direction;
-         final choice during 6A/6B review
+         Enterprise SSD finalized; 12-field schema v1;
+         strict deterministic normalization with exact-definition identity
+         enforcement, strict thousands-grouping grammar, explicit IOPS unit;
+         no extraction; no resolution; no authority inference
 
-**6C**: follows 6B;
+**6C**: NEXT DELIVERY PRIORITY —
          Specification Evidence Extraction & Resolution;
          acquires evidence, extracts raw observations, preserves provenance,
          normalizes via 6B schema, invokes 6A resolution;
@@ -572,8 +584,8 @@ IDENTITY_NOT_ACCEPTED.
 
 - FU3A Production Semantic Runtime Contract: APPROVED / FROZEN
 - FU3B Semantic Execution Integration: APPROVED / FROZEN
-- This Windows / Python 3.14 workstation has a fixed eight-node subprocess-boundary
+- This Windows / Python 3.14 workstation has a fixed ten-node subprocess-boundary
   flake allowlist. These nodes may fail independently between runs with
   OSError: [WinError 6/50] from subprocess.run(..., capture_output=True).
-  No node outside the fixed eight-node allowlist fails.
+  No node outside the fixed ten-node allowlist fails.
   Environment limitation, not a product defect.

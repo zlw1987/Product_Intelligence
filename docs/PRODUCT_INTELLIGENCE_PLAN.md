@@ -34,7 +34,7 @@ web execution/retry integration, FU3A/FU3B implement semantic qualification
 and semantic execution integration, and HUMAN-REVIEW implements human review
 for AI-assisted semantic matches. The web form creates a run, triggers
 execution synchronously, and redirects to the report with the full result.
-Remaining future work: structured API (5A), first category-specific specification schema (6B), specification evidence
+Remaining future work: structured API (5A), specification evidence
 extraction and resolution (6C), comparable-product research (7A-7C).
 
 ## 2. Problem statement
@@ -2306,9 +2306,8 @@ Rules:
 
 The product specification framework (6A), the first category-specific
 schema (6B), and specification evidence extraction and resolution (6C)
-precede this work. Enterprise SSD / storage is the preferred first-category
-direction; the REAL_VERIFIED corpus already contains Samsung PM9A3 and
-Micron 7450 PRO. Final category choice is deferred to 6A/6B review.
+precede this work. Enterprise SSD is finalized and implemented as the
+first 6B category.
 
 Status: `APPROVED / PLANNED`. Nothing implemented.
 
@@ -2668,7 +2667,7 @@ PRODUCT-INTEL.HUMAN-REVIEW  Human review for AI-assisted matches  IMPLEMENTED
 ----- FOXPRO MVP + HUMAN REVIEW -----
 
 PRODUCT-INTEL.6A   Product specification framework            IMPLEMENTED
-PRODUCT-INTEL.6B   First category-specific schema             PLANNED
+PRODUCT-INTEL.6B   First category-specific schema (Enterprise SSD v1)  IMPLEMENTED
 PRODUCT-INTEL.6C   Specification evidence extraction and
                    resolution                                 PLANNED
 PRODUCT-INTEL.7A   Comparable-product candidate discovery     PLANNED
@@ -2706,10 +2705,10 @@ PLANNED:
 
 DELIVERED:
   5B    Visual FoxPro 5 launcher (server-side + client integrated outside repo)
-  6A    Product specification framework (implemented / review pending)
+  6A    Product specification framework (implemented / approved / frozen)
+  6B    Enterprise SSD category schema (12-field v1 / approved / frozen)
 
 NEXT DELIVERY PRIORITY:
-  6B    First category-specific schema (Enterprise SSD preferred direction)
   6C    Specification evidence extraction and resolution
   7A    Comparable-product candidate discovery
   7B    Similarity scoring
@@ -2719,9 +2718,9 @@ FUTURE:
   SAP   SAP launcher integration
 ```
 
-**Next delivery priority: PRODUCT-INTEL.6B**
+**Next delivery priority: PRODUCT-INTEL.6C**
 
-6A is IMPLEMENTED. 6B follows with the first category-specific specification schema.
+6A is IMPLEMENTED. 6B is IMPLEMENTED AND FROZEN.
 
 6A defines the product specification framework: specification definition,
 specification value, specification observation (raw evidence), normalized
@@ -2747,12 +2746,7 @@ An authoritative source does not make an LLM interpretation authoritative.
 No majority voting: evidence multiplicity does not vote truth into
 existence.
 
-6B follows 6A with the first category-specific specification schema.
-Current planning recommendation: Enterprise SSD / storage is the preferred
-first category. The REAL_VERIFIED corpus already contains Samsung PM9A3 and
-Micron 7450 PRO alongside CPU, RDIMM, and NIC cases. Category choice to be
-finalized during 6A/6B architecture review.
-
+Enterprise SSD is finalized and implemented as the first 6B category.
 6C follows 6A/6B with specification evidence extraction and resolution.
 6C acquires specification evidence from approved sources, extracts raw
 specification observations, preserves source provenance, normalizes using
@@ -3163,7 +3157,155 @@ and aggregation, then persisting the result — is what connects the isolated
 primitives into an end-to-end research run. 4B does not execute research: it
 renders what already exists and says honestly when nothing is there.
 
-### 22.1 Corrective follow-up phases
+### 22.1 Enterprise SSD Category Schema — 6B Phase Contract
+
+The following is the binding canonical contract for 6B implementation.
+Implementation lives in:
+
+    product_intelligence/research/enterprise_ssd.py
+
+6B is:
+
+- **pure** — no side effects, no state beyond its inputs
+- **deterministic** — same inputs always produce the same outputs
+- **caller-independent** — no knowledge of which client or transport produced the data
+- **Django-independent** — no model, no migration, no ORM, no framework
+- **persistence-free** — no database, no file I/O, no storage
+- **provider-free** — no provider interface, no vendor adapter
+- **network-free** — no HTTP, no DNS, no socket, no external call
+- **representation-only** — normalizes raw values to canonical form;
+  does not extract, resolve, or infer authority
+- **category-generic** — Enterprise SSD generic rules, no manufacturer-specific
+  normalizers (SamsungNormalizer, MicronNormalizer, etc. forbidden)
+
+6B imports only:
+
+    standard library
+    product_intelligence.research.specifications (frozen 6A contracts)
+
+It does not import any other research submodule, domain, or framework module.
+
+#### 22.1.1 Enterprise SSD Schema V1
+
+Schema identifiers:
+
+| Attribute | Value |
+| --- | --- |
+| `schema_id` | `enterprise-ssd` |
+| `schema_version` | `1.0` |
+| `label` | `Enterprise SSD` |
+| `definitions` | exactly 12 SpecificationDefinitions |
+
+The 12-field set (ordered by definition):
+
+| # | Key | Label | Kind | Canonical Unit |
+| --- | --- | --- | --- | --- |
+| 1 | `capacity` | Capacity | DECIMAL | TB |
+| 2 | `storage_protocol` | Storage Protocol | ENUM | — |
+| 3 | `pcie_generation` | PCIe Generation | ENUM | — |
+| 4 | `pcie_lane_count` | PCIe Lane Count | DECIMAL | — |
+| 5 | `physical_form_factor` | Physical Form Factor | ENUM | — |
+| 6 | `interface_connector` | Interface / Connector | TEXT | — |
+| 7 | `sequential_read` | Sequential Read | DECIMAL | MB/s |
+| 8 | `sequential_write` | Sequential Write | DECIMAL | MB/s |
+| 9 | `random_read_iops` | Random Read IOPS | DECIMAL | IOPS |
+| 10 | `random_write_iops` | Random Write IOPS | DECIMAL | IOPS |
+| 11 | `endurance_dwpd` | Endurance | DECIMAL | DWPD |
+| 12 | `power_loss_protection` | Power Loss Protection | BOOLEAN | — |
+
+#### 22.1.2 Enum Vocabularies
+
+**storage_protocol**: NVMe, SATA, SAS
+
+**pcie_generation**: PCIe 3.0, PCIe 4.0, PCIe 5.0
+
+**physical_form_factor**: 2.5-inch, M.2, E1.S, E3.S
+
+U.2 and U.3 are NOT valid physical_form_factor values (they are connectors).
+
+#### 22.1.3 Normalization Contract
+
+6B normalization is representation-only:
+
+- Input: SpecificationObservation already bound to an established
+  ProductIdentity and one SpecificationDefinition from this schema.
+- Output: NormalizedSpecificationObservation with exactly one of:
+    canonical SpecificationValue, or normalization issue.
+- The original observation is preserved with full provenance.
+- Source authority is never changed or inferred.
+- No resolution (VERIFIED/UNVERIFIED/CONFLICT/UNKNOWN) is performed.
+- No ProductIdentity is created or modified.
+- No resolve_specification() is called.
+
+Normalization issue vocabulary:
+
+| Issue code | Meaning |
+| --- | --- |
+| MISSING_OR_EMPTY_VALUE | No parseable content |
+| UNRECOGNIZED_FORMAT | Value does not match expected pattern |
+| UNSUPPORTED_UNIT | Unit is explicitly unsupported (e.g. TiB for capacity) |
+| OUT_OF_RANGE_OR_NON_POSITIVE | Value is zero, negative, or non-finite |
+| AMBIGUOUS_VALUE | Multiple possible readings (ranges, "up to", etc.) |
+
+#### 22.1.4 Key Normalization Rules
+
+**capacity**: decimal-SI only (TB, GB). 1000 GB = 1 TB. TiB/GiB rejected.
+Unitless rejected.
+
+**storage_protocol**: case-insensitive exact match. Composite values
+rejected (e.g. "PCIe 4.0 x4 NVMe").
+
+**pcie_generation**: narrow exact equivalents (PCIe 4.0, Gen4, PCI Express
+4.0, etc.). Bare "PCIe" rejected.
+
+**pcie_lane_count**: positive whole number. "x4", "4", "4 lanes". Fractions
+and zero rejected.
+
+**physical_form_factor**: narrow spellings only. U.2/U.3 explicitly
+rejected (connector types, not form factors).
+
+**interface_connector**: TEXT — narrow canonical spellings for U.2/U.3/M.2.
+Other non-empty values abstain rather than invent a taxonomy.
+
+**sequential_read/write**: decimal-SI throughput (MB/s, GB/s × 1000).
+MiB/s/GiB/s rejected.
+
+**random_read/write_iops**: explicit IOPS token required; optional K
+(×1000) or M (×1,000,000) SI multipliers; unitless numeric/K/M forms
+abstain.
+
+**endurance_dwpd**: plain numeric or explicit DWPD. TBW/PBW not derived.
+
+**power_loss_protection**: explicit boolean tokens only. Prose rejected.
+
+**Numeric values with comma grouping**: strict thousands-grouping semantics
+enforced. Comma-separated integer portions must use exact three-digit groups
+after the first group (e.g. 1,000 accepted; 1,000,00 rejected; 3,84 rejected).
+Malformed comma grouping abstains. Punctuation is never blindly stripped.
+
+#### 22.1.5 Schema Versioning Rule
+
+Incompatible field meaning changes or enum semantic changes require a
+schema version bump. Adding a field is a version bump. Removing a field
+is a version bump. Renaming a field is a version bump.
+
+#### 22.1.6 Relationship to 6A and 6C
+
+6A (frozen) defines the specification framework: definitions, values,
+observations, normalized observations, resolutions, category schemas,
+and the resolver. 6B uses only CategorySchema and the normalization
+primitive — it does not call resolve_specification().
+
+6C (next delivery priority) owns evidence acquisition and extraction:
+it acquires specification evidence from approved sources, extracts raw
+specification observations, preserves source provenance, normalizes
+using the 6B category schema, and feeds normalized evidence into the
+6A deterministic resolver. 6B does not do any of this.
+
+No LLM model or provider is selected in 6B.
+
+
+### 22.2 Corrective follow-up phases
 
 Three follow-ups (0A-FU1, 1A-FU1, 2A-FU1) each corrected a real contract- or
 data-integrity defect before its phase was frozen, and each was worth its cost.
@@ -3370,3 +3512,4 @@ This canonical plan does not duplicate that operational snapshot.
 | AD-052 | `PriceIntelligenceSnapshot` is not the complete research-execution evidence store. It preserves evidence reachable through `ListingObservation` → `NormalizedListingObservation` → `ListingIdentityAssessment` → `PriceAggregationResult`. It cannot represent search candidates never fetched, page-fetch failures, blocked pages, or fetched pages producing zero observations. 4C must decide how those execution attempts and outcomes are preserved before claiming end-to-end evidence completeness. | The snapshot is a price result, not an execution log. A search that returns 10 candidates, of which 3 were fetched, 2 were blocked, and 1 produced zero observations — the snapshot can only represent the three that yielded observations and their downstream assessments. The other seven execution events are silently lost. That is acceptable for 4B's read-only report: it renders what the aggregation produced, and says honestly when nothing exists. But 4C, which owns the full orchestration pipeline, must decide whether to preserve execution evidence beyond what the aggregation carries. That decision depends on whether a partial run's diagnostic value justifies additional persistence surface — a question 4C can answer with real failure data rather than speculation. | Accepted (4B architecture checkpoint) |
 | AD-053 | Human review for AI-assisted semantic matches uses a separate authority overlay. The deterministic `ListingIdentityAssessment` snapshot is never mutated. `AI_ASSISTED_MATCH` is a disposition on `AiAssistedMatchResult`, not a decision on the snapshot assessment. Human confirmation creates a run-scoped `AiAssistedReviewCandidate` with states UNREVIEWED/CONFIRMED/REJECTED. Machine Price (4A aggregation) remains deterministic-only. Reviewed Price is a distinct aggregation contract that includes deterministic ACCEPTED + human-CONFIRMED listings, with per-listing origin (`DETERMINISTIC`/`HUMAN_CONFIRMED`). Human confirmation changes identity authority only — price eligibility still follows deterministic non-identity rules (numeric Decimal, comparable currency, known condition). Candidate binding fails closed. No reviewer identity or authentication was introduced. | Semantic matching (FU3B) produces `AI_ASSISTED_MATCH` dispositions that are intentionally excluded from 4A aggregation. These matches have valid evidence but the system has no way to verify semantic correctness automatically. Human review lets a person confirm or reject these candidates on the report page. The authority model preserves the invariant that deterministic identity is the only automatic authority: the snapshot assessment stays REJECTED for human-confirmed listings. A separate aggregation contract (`aggregate_reviewed_listing_prices`) reads human confirmation state and produces `ReviewedPriceAggregationResult` with origin tracking. This avoids polluting the frozen 4A contract while providing a usable reviewed price view. The candidate model (`AiAssistedReviewCandidate`) is run-scoped with immutable semantic provenance fields, and the review service uses conditional database updates for concurrency safety. Web performs binding validation before any mutation. | Accepted (HUMAN-REVIEW) |
 | AD-054 | 6A/6B/6C responsibility split: 6A is a pure specification framework; 6B supplies the first category-specific schema; 6C acquires, extracts, and normalizes real specification evidence and invokes 6A resolution. | Evidence/authority contracts must precede extraction. Full 6A semantic contract: §22.0. §22.0 also defines the identity/specification provenance-binding chain: every observation binds to an established ProductIdentity and SpecificationDefinition, every resolution is self-auditing over a single identity/spec pair, and ProductSpecificationSet completeness invariants make cross-product evidence mechanically rejectable. 6A defines SpecificationDefinition, SpecificationValue, SpecificationObservation, NormalizedSpecificationObservation, SpecificationResolution, CategorySchema, and ProductSpecificationSet as a deterministic, caller-independent, Django-free, persistence-free, network-free framework. 6A performs no extraction, no LLM call, and no reuse of the frozen FU3A/FU3B semantic runtime. Source authority (AUTHORITATIVE/SECONDARY) is distinguished from extraction authority: an authoritative source does not make an LLM interpretation authoritative. 6B supplies the first category-specific specification schema (Enterprise SSD preferred). 6C acquires specification evidence from approved sources, extracts raw specification observations, preserves source provenance, normalizes using the 6B category schema, and feeds normalized evidence into the 6A deterministic resolver to produce ProductSpecificationSet results. Resolution states: UNKNOWN (zero usable canonical values), VERIFIED (one canonical value with AUTHORITATIVE support), UNVERIFIED (one canonical value with SECONDARY-only support), CONFLICT (more than one canonical value). No majority voting — evidence multiplicity does not vote truth into existence. 7A-7C depend on 6A/6B/6C (framework + category schema + real specification evidence), not merely on schema definitions. | Accepted (architecture documentation) |
+| AD-055 | Enterprise SSD finalized as first 6B category; 12-field schema v1; strict abstaining deterministic normalization; no extraction, no resolution, no authority inference; 6C remains evidence acquisition/extraction boundary. | 6A framework provides the generic contracts; 6B instantiates the first real category using them. The 12-field v1 schema is narrow enough that each field has a clear deterministic normalization meaning, yet broad enough to support later comparable-product research across enterprise SSD products. Normalization is representation-only: it changes how a raw value is represented, not whether it is true or authoritative. Composite/ambiguous values abstain with explicit issue codes rather than guessing. 6C is responsible for turning real source material into specification observations that this schema can normalize. | Accepted (6B implementation) |
