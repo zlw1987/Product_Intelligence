@@ -34,9 +34,10 @@ def test_the_normalization_module_exists() -> None:
 def test_normalization_and_aggregation_may_use_decimal() -> None:
     """`decimal` is legitimate in `normalization.py` (3B, where raw text
     becomes Decimal), `aggregation.py` (4A, where Decimal values are
-    aggregated), and `price_result_codec.py` (4B, where Decimal strings in
-    a codec payload are decoded back to Decimal). No other research-core
-    module may import it.
+    aggregated), `price_result_codec.py` (4B, where Decimal strings in
+    a codec payload are decoded back to Decimal), and `specifications.py`
+    (6A, where DECIMAL specification values use Decimal). No other
+    research-core module may import it.
 
     `extraction.py` (3A) and `identity.py` (2A) already forbid it explicitly;
     this asserts the positive claim so the guard cannot pass vacuously.
@@ -58,7 +59,14 @@ def test_normalization_and_aggregation_may_use_decimal() -> None:
             "price_result_codec.py must import decimal for codec decoding"
         )
 
-    allowed_decimal = {NORMALIZATION_MODULE, aggregation_module, codec_module}
+    specs_module = RESEARCH_ROOT / "specifications.py"
+    if specs_module.exists():
+        specs_modules = _top_level_imports(specs_module.read_text(encoding="utf-8"))
+        assert "decimal" in specs_modules, (
+            "specifications.py must import decimal for DECIMAL specification values"
+        )
+
+    allowed_decimal = {NORMALIZATION_MODULE, aggregation_module, codec_module, specs_module}
 
     for path in _python_files(RESEARCH_ROOT):
         if path in allowed_decimal:
@@ -66,7 +74,7 @@ def test_normalization_and_aggregation_may_use_decimal() -> None:
         other_modules = _top_level_imports(path.read_text(encoding="utf-8"))
         assert "decimal" not in other_modules, (
             f"{path.name} imports decimal; only normalization.py, "
-            "aggregation.py, and price_result_codec.py may use Decimal"
+            "aggregation.py, price_result_codec.py, and specifications.py may use Decimal"
         )
 
 

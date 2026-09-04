@@ -53,7 +53,17 @@ no outlier removal, no availability policy, no unit price. UNKNOWN
 condition is excluded. Multiple non-comparable buckets produce
 AMBIGUOUS. The result retains every input assessment.
 
-Pricing is 4A-4B, and comparables are 7A-7C — 4A exists, 4B and 7A-7C do not.
+PRODUCT-INTEL.4B added `price_result_codec`: versioned encode/decode of
+``PriceAggregationResult`` as opaque JSON for persistence in
+``PriceIntelligenceSnapshot``. Strict schema, Decimal preserved as strings,
+fail-closed decode wrapping constructor failures as ``PriceResultCodecError``.
+
+PRODUCT-INTEL.6A added `specifications`: the Product Specification Framework —
+deterministic, caller-independent, Django-free specification resolution. Defines
+SpecificationDefinition, SpecificationValue, SpecificationObservation,
+NormalizedSpecificationObservation, SpecificationResolution, CategorySchema,
+ProductSpecificationSet, and resolve_specification(). No extraction, no LLM call,
+no persistence, no network, no category-specific fields.
 """
 
 from product_intelligence.research.aggregation import (
@@ -100,6 +110,19 @@ from product_intelligence.research.price_result_codec import (
     decode_price_aggregation_result,
     encode_price_aggregation_result,
 )
+from product_intelligence.research.specifications import (
+    CategorySchema,
+    NormalizedSpecificationObservation,
+    ProductSpecificationSet,
+    ResolutionState,
+    SourceAuthority,
+    SpecificationDefinition,
+    SpecificationObservation,
+    SpecificationResolution,
+    SpecificationValue,
+    SpecificationValueKind,
+    resolve_specification,
+)
 
 __all__ = [
     "ASCII_WHITESPACE",
@@ -107,6 +130,7 @@ __all__ = [
     "PRESERVED_SEPARATORS",
     "PRICE_RESULT_SCHEMA_VERSION",
     "STRUCTURAL_CHARACTERS",
+    "CategorySchema",
     "EvidenceSource",
     "ExtractionMethod",
     "IdentityRejectionReason",
@@ -117,12 +141,21 @@ __all__ = [
     "NormalizedAvailability",
     "NormalizedCondition",
     "NormalizedListingObservation",
+    "NormalizedSpecificationObservation",
     "PartNumberMatchAssessment",
     "PriceAggregateBucket",
     "PriceAggregationExclusion",
     "PriceAggregationExclusionReason",
     "PriceAggregationResult",
     "PriceResultCodecError",
+    "ProductSpecificationSet",
+    "ResolutionState",
+    "SourceAuthority",
+    "SpecificationDefinition",
+    "SpecificationObservation",
+    "SpecificationResolution",
+    "SpecificationValue",
+    "SpecificationValueKind",
     "aggregate_listing_prices",
     "assess_listing_identity",
     "assess_listing_identities",
@@ -134,4 +167,5 @@ __all__ = [
     "normalize_listing_observation",
     "normalize_listing_observations",
     "normalize_part_number",
+    "resolve_specification",
 ]

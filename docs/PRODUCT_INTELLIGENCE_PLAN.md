@@ -34,8 +34,7 @@ web execution/retry integration, FU3A/FU3B implement semantic qualification
 and semantic execution integration, and HUMAN-REVIEW implements human review
 for AI-assisted semantic matches. The web form creates a run, triggers
 execution synchronously, and redirects to the report with the full result.
-Remaining future work: structured API (5A), product specification framework
-(6A), first category-specific specification schema (6B), specification evidence
+Remaining future work: structured API (5A), first category-specific specification schema (6B), specification evidence
 extraction and resolution (6C), comparable-product research (7A-7C).
 
 ## 2. Problem statement
@@ -2668,7 +2667,7 @@ PRODUCT-INTEL.HUMAN-REVIEW  Human review for AI-assisted matches  IMPLEMENTED
 
 ----- FOXPRO MVP + HUMAN REVIEW -----
 
-PRODUCT-INTEL.6A   Product specification framework            PLANNED
+PRODUCT-INTEL.6A   Product specification framework            IMPLEMENTED
 PRODUCT-INTEL.6B   First category-specific schema             PLANNED
 PRODUCT-INTEL.6C   Specification evidence extraction and
                    resolution                                 PLANNED
@@ -2707,9 +2706,9 @@ PLANNED:
 
 DELIVERED:
   5B    Visual FoxPro 5 launcher (server-side + client integrated outside repo)
+  6A    Product specification framework (implemented / review pending)
 
 NEXT DELIVERY PRIORITY:
-  6A    Product specification framework
   6B    First category-specific schema (Enterprise SSD preferred direction)
   6C    Specification evidence extraction and resolution
   7A    Comparable-product candidate discovery
@@ -2720,7 +2719,9 @@ FUTURE:
   SAP   SAP launcher integration
 ```
 
-**Next delivery priority: PRODUCT-INTEL.6A**
+**Next delivery priority: PRODUCT-INTEL.6B**
+
+6A is IMPLEMENTED. 6B follows with the first category-specific specification schema.
 
 6A defines the product specification framework: specification definition,
 specification value, specification observation (raw evidence), normalized

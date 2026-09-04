@@ -121,6 +121,7 @@ FU3B wires the frozen FU3A semantic runtime into real research execution:
 | 5B | FoxPro launcher | Server-side implemented; client integrated outside repo, UAT passed |
 | PILOT-UX | Pilot UX polish + semantic qualification | **FROZEN** |
 | HUMAN-REVIEW | Human review for AI-assisted semantic matches | Implemented (frozen)
+| 6A | Product Specification Framework | Implemented (review pending)
 | SAP | SAP launcher integration | Future |
 
 
@@ -174,6 +175,7 @@ FU3B wires the frozen FU3A semantic runtime into real research execution:
 | Reviewed price aggregation | `research/aggregation.py` (aggregate_reviewed_listing_prices) | **Implemented (frozen, HUMAN-REVIEW)**
 | Human review web view + URLs | `web/views.py` + `web/urls.py` | **Implemented (frozen, HUMAN-REVIEW)**
 | Human review candidate presentation | `web/presentation.py` | **Implemented (frozen, HUMAN-REVIEW)**
+| Product Specification Framework (6A) | `research/specifications.py` | **Implemented (6A)**
 
 ## Research orchestration
 
@@ -337,16 +339,16 @@ The six failures were exactly:
 - `tests/research/test_research_identity_boundaries.py::test_importing_the_research_core_pulls_in_no_third_party_dependency`
 - `tests/runs/test_research_run_boundaries.py::test_the_domain_still_imports_without_django_present`
 
-### HUMAN-REVIEW FINAL APPROVAL SNAPSHOT (CURRENT)
+### 6A IMPLEMENTATION SNAPSHOT (CURRENT)
 
 | Metric | Count |
 | --- | --- |
-| Collected | 2373 |
-| Passed | 2366 |
-| Failed | 7 |
+| Collected | 2539 |
+| Passed | 2531 |
+| Failed | 8 |
 | Unexpected failures | 0 |
 
-The seven failures are the established environment-specific
+The eight failures are the established environment-specific
 subprocess-boundary flake allowlist on this Windows / Python 3.14 workstation
 (all boundary/import-guard tests):
 
@@ -356,23 +358,18 @@ subprocess-boundary flake allowlist on this Windows / Python 3.14 workstation
 4. `tests/providers/test_provider_boundaries.py::test_importing_the_page_boundary_pulls_in_no_third_party_dependency`
 5. `tests/research/test_listing_normalization_boundaries.py::test_importing_the_research_core_still_pulls_in_no_third_party_dependency`
 6. `tests/research/test_research_identity_boundaries.py::test_importing_the_research_core_pulls_in_no_third_party_dependency`
-7. `tests/runs/test_research_run_boundaries.py::test_the_domain_still_imports_without_django_present`
+7. `tests/research/test_specification_boundaries.py::test_importing_specifications_pulls_in_no_third_party_dependency`
+8. `tests/runs/test_research_run_boundaries.py::test_the_domain_still_imports_without_django_present`
 
 Observed failure signature:
 
     subprocess.Popen
     -> _winapi.DuplicateHandle
-    -> OSError: [WinError 6] The handle is invalid
+    -> OSError: [WinError 6/50] The handle is invalid / The request is not supported
 
 These are environment-specific subprocess-boundary limitations on this Windows /
 Python 3.14 workstation, not application defects. No node outside the fixed
-seven-node allowlist fails. No test is skipped, xfailed, or weakened.
-
-Note: The Windows / Python 3.14 workstation has a fixed seven-node
-subprocess-boundary flake allowlist. These nodes may fail independently
-between runs with OSError: [WinError 6/50] from
-subprocess.run(..., capture_output=True). In the authoritative HUMAN-REVIEW final run,
-all seven allowed nodes failed. No node outside the fixed seven-node allowlist failed.
+eight-node allowlist fails. No test is skipped, xfailed, or weakened.
 
 ## Next delivery priority
 
@@ -382,14 +379,18 @@ all seven allowed nodes failed. No node outside the fixed seven-node allowlist f
 
 **5B**: Server-side implemented; client integrated outside repo; localhost UAT passed
 
-**6A**: NEXT DELIVERY PRIORITY — Product Specification Framework (framework only, no extraction)
+**6A**: IMPLEMENTED / REVIEW PENDING —
+         Product Specification Framework (framework only, no extraction)
+         Corrective pass: evidence-derived constructor enforcement,
+         deep immutability (MappingProxyType), schema/definition key
+         consistency. Awaiting project-lead approval before freeze.
 
-**6B**: follows 6A;
+**6B**: NEXT DELIVERY PRIORITY —
          First Category-Specific Specification Schema;
          Enterprise SSD / storage is preferred first-category direction;
          final choice during 6A/6B review
 
-**6C**: follows 6A/6B;
+**6C**: follows 6B;
          Specification Evidence Extraction & Resolution;
          acquires evidence, extracts raw observations, preserves provenance,
          normalizes via 6B schema, invokes 6A resolution;
@@ -571,6 +572,8 @@ IDENTITY_NOT_ACCEPTED.
 
 - FU3A Production Semantic Runtime Contract: APPROVED / FROZEN
 - FU3B Semantic Execution Integration: APPROVED / FROZEN
-- This Windows / Python 3.14 workstation has a fixed seven-node subprocess-boundary
-  flake allowlist. In the authoritative HUMAN-REVIEW final run, all seven allowed
-  nodes failed. No node outside the fixed seven-node allowlist failed. Environment limitation, not a product defect.
+- This Windows / Python 3.14 workstation has a fixed eight-node subprocess-boundary
+  flake allowlist. These nodes may fail independently between runs with
+  OSError: [WinError 6/50] from subprocess.run(..., capture_output=True).
+  No node outside the fixed eight-node allowlist fails.
+  Environment limitation, not a product defect.
