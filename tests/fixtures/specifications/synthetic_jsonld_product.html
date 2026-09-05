@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Synthetic JSON-LD Specification Evidence</title>
+<!--
+SYNTHETIC FIXTURE. Not derived from any real page.
+Created for 6C test coverage of JSON-LD additionalProperty extraction.
+
+Uses ONLY canonical schema keys (snake_case) because no real manufacturer
+fixture has demonstrated human-readable label aliases.
+
+Demonstrates:
+- JSON-LD Product with additionalProperty name/value pairs
+- Multiple recognized spec fields (canonical keys only)
+- A BreadcrumbList sibling (should be ignored)
+- Malformed JSON-LD block (should not poison good blocks)
+
+All specification values are invented for testing purposes.
+-->
+<script type="application/ld+json">
+{"@context":"https://schema.org/","@type":"Product","name":"Test SSD","sku":"TEST-123","additionalProperty":[
+  {"@type":"PropertyValue","name":"capacity","value":"3.84 TB"},
+  {"@type":"PropertyValue","name":"storage_protocol","value":"NVMe"},
+  {"@type":"PropertyValue","name":"pcie_generation","value":"PCIe 4.0"},
+  {"@type":"PropertyValue","name":"interface_connector","value":"U.3"},
+  {"@type":"PropertyValue","name":"endurance_dwpd","value":"1.0 DWPD"},
+  {"@type":"PropertyValue","name":"sequential_read","value":"5,600 MB/s"},
+  {"@type":"PropertyValue","name":"random_read_iops","value":"500K IOPS"},
+  {"@type":"PropertyValue","name":"power_loss_protection","value":"true"},
+  {"@type":"PropertyValue","name":"unknown_field","value":"ignored"},
+  {"@type":"PropertyValue","name":"pcie_lane_count","value":"4"}
+]}
+</script>
+
+<script type="application/ld+json">
+{"@context":"https://schema.org/","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://example.com"}]}
+</script>
+</head>
+<body>
+<div>This is a synthetic page for testing JSON-LD extraction.</div>
+</body>
+</html>

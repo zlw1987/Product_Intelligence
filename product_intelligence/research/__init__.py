@@ -69,6 +69,14 @@ PRODUCT-INTEL.6B added `enterprise_ssd`: the first category-specific schema
 using the frozen 6A framework. 12-field Enterprise SSD schema v1 with
 strict deterministic normalization. No extraction, no resolution, no
 authority inference, no manufacturer-specific rules.
+
+PRODUCT-INTEL.6C added `enterprise_ssd_extraction`: deterministic structured
+extraction of Enterprise SSD specification observations from document text.
+Supports embedded JavaScript JSON product data arrays (JSON.parse patterns).
+No arbitrary text mining, no LLM, no JavaScript execution. Composite values
+preserved. Only labels demonstrated by real manufacturer fixtures are mapped.
+6C execution (`execution/specification_evidence.py`) composes extraction
+with PageFetcher acquisition, 6B normalization, and 6A resolution.
 """
 
 from product_intelligence.research.aggregation import (
@@ -121,6 +129,9 @@ from product_intelligence.research.enterprise_ssd import (
     ENTERPRISE_SSD_SCHEMA_VERSION,
     normalize_enterprise_ssd_observation,
     normalize_enterprise_ssd_observations,
+)
+from product_intelligence.research.enterprise_ssd_extraction import (
+    extract_enterprise_ssd_specification_observations,
 )
 from product_intelligence.research.specifications import (
     CategorySchema,
@@ -179,6 +190,7 @@ __all__ = [
     "decode_price_aggregation_result",
     "encode_price_aggregation_result",
     "extract_listing_observations",
+    "extract_enterprise_ssd_specification_observations",
     "normalize_enterprise_ssd_observation",
     "normalize_enterprise_ssd_observations",
     "normalize_listing_observation",

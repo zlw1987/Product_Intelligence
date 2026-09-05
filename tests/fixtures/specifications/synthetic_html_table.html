@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Synthetic HTML Table Specification Evidence</title>
+<!--
+SYNTHETIC FIXTURE. Not derived from any real page.
+Created for 6C test coverage of HTML table extraction.
+
+Uses ONLY canonical schema keys (snake_case) because no real manufacturer
+fixture has demonstrated human-readable label aliases.
+
+Demonstrates:
+- HTML table with label/value rows (td cells)
+- Multiple recognized spec fields (canonical keys only)
+- Rows with more than 2 cells (should be ignored)
+- Rows with 1 cell (should be ignored)
+- Non-specification rows (should be ignored)
+
+All specification values are invented for testing purposes.
+-->
+</head>
+<body>
+<table class="spec-table">
+  <tr>
+    <td>capacity</td>
+    <td>3.84 TB</td>
+  </tr>
+  <tr>
+    <td>storage_protocol</td>
+    <td>NVMe</td>
+  </tr>
+  <tr>
+    <td>pcie_generation</td>
+    <td>PCIe 4.0</td>
+  </tr>
+  <tr>
+    <td>pcie_lane_count</td>
+    <td>x4</td>
+  </tr>
+  <tr>
+    <td>physical_form_factor</td>
+    <td>2.5-inch</td>
+  </tr>
+  <tr>
+    <td>interface_connector</td>
+    <td>U.3</td>
+  </tr>
+  <tr>
+    <td>sequential_read</td>
+    <td>5,600 MB/s</td>
+  </tr>
+  <tr>
+    <td>sequential_write</td>
+    <td>4,100 MB/s</td>
+  </tr>
+  <tr>
+    <td>random_read_iops</td>
+    <td>500K IOPS</td>
+  </tr>
+  <tr>
+    <td>random_write_iops</td>
+    <td>400K IOPS</td>
+  </tr>
+  <tr>
+    <td>endurance_dwpd</td>
+    <td>1.0 DWPD</td>
+  </tr>
+  <tr>
+    <td>power_loss_protection</td>
+    <td>yes</td>
+  </tr>
+  <!-- Row with more than 2 cells — should be ignored -->
+  <tr>
+    <td>Model</td>
+    <td>TEST-123</td>
+    <td>SKU-456</td>
+  </tr>
+  <!-- Row with 1 cell — should be ignored -->
+  <tr>
+    <td>Header Only</td>
+  </tr>
+</table>
+</body>
+</html>

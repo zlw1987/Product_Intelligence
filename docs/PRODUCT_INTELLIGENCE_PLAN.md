@@ -34,8 +34,7 @@ web execution/retry integration, FU3A/FU3B implement semantic qualification
 and semantic execution integration, and HUMAN-REVIEW implements human review
 for AI-assisted semantic matches. The web form creates a run, triggers
 execution synchronously, and redirects to the report with the full result.
-Remaining future work: structured API (5A), specification evidence
-extraction and resolution (6C), comparable-product research (7A-7C).
+Remaining future work: structured API (5A), comparable-product research (7A-7C).
 
 ## 2. Problem statement
 
@@ -2718,9 +2717,12 @@ FUTURE:
   SAP   SAP launcher integration
 ```
 
-**Next delivery priority: PRODUCT-INTEL.6C**
+**6C IMPLEMENTED AND FROZEN.**
+**Next delivery priority: PRODUCT-INTEL.7A (Comparable-Product Research).**
 
-6A is IMPLEMENTED. 6B is IMPLEMENTED AND FROZEN.
+6A is IMPLEMENTED AND FROZEN. 6B is IMPLEMENTED AND FROZEN (with
+approved evidence-backed corrective addition: "2.5in" -> "2.5-inch").
+6C is IMPLEMENTED AND FROZEN.
 
 6A defines the product specification framework: specification definition,
 specification value, specification observation (raw evidence), normalized
@@ -2747,15 +2749,17 @@ No majority voting: evidence multiplicity does not vote truth into
 existence.
 
 Enterprise SSD is finalized and implemented as the first 6B category.
-6C follows 6A/6B with specification evidence extraction and resolution.
+6C is implemented with specification evidence extraction and resolution.
 6C acquires specification evidence from approved sources, extracts raw
 specification observations, preserves source provenance, normalizes using
 the 6B category schema, and feeds normalized evidence into the 6A
-deterministic resolver to produce ProductSpecificationSet results. 6C
-starts with manufacturer-controlled evidence where practical. 6C is where
-the project may evaluate whether deterministic extraction is sufficient or
-whether a separately qualified LLM-assisted extractor is needed. No
-LLM model or provider is selected in 6A or planned in advance of 6C.
+deterministic resolver to produce ProductSpecificationSet results.
+6C uses only the demonstrated structural mechanism:
+`var supportSpecsData = JSON.parse('...')` embedded in `<script>` tags.
+Samsung PM9A3 remains a source-specific static-HTML evidence gap.
+Seagate Nytro 5050 demonstrates that deterministic static structured
+extraction is sufficient for the minimum real 6C vertical slice.
+Current evidence therefore does not justify an LLM extractor.
 
 7A-7C (comparable-product research) depends on 6A/6B/6C: the 6A framework,
 the 6B category schema, and real specification evidence from 6C.
@@ -3304,8 +3308,190 @@ using the 6B category schema, and feeds normalized evidence into the
 
 No LLM model or provider is selected in 6B.
 
+#### 22.1.7 Evidence-Backed Corrective Addition (APPROVED / FROZEN)
 
-### 22.2 Corrective follow-up phases
+Real Seagate Nytro 5050 manufacturer evidence demonstrated "2.5in" (no space
+between number and unit) as an exact formatting equivalent of the existing
+2.5-inch canonical form for `physical_form_factor`.
+
+Correction applied to `_FORM_FACTOR_MAP`:
+    "2.5in" -> "2.5-inch"
+
+No schema version bump because:
+- field meaning unchanged
+- canonical value unchanged ("2.5-inch")
+- enum allowed_values unchanged
+- only accepted lexical representation expanded by real evidence
+
+This is a narrow, evidence-backed, corrective modification of frozen 6B.
+Approved by project lead and re-frozen.
+
+
+### 22.2 Specification Evidence Extraction & Resolution — 6C Phase Contract
+
+**IMPLEMENTED / APPROVED / FROZEN**
+
+Implementation lives in:
+
+    product_intelligence/research/enterprise_ssd_extraction.py
+    product_intelligence/execution/specification_evidence.py
+
+6C is:
+
+- **explicit approved sources** — no source discovery or search
+- **deterministic structured extraction** — embedded JavaScript JSON product data arrays
+- **no arbitrary text mining** — TB, NVMe, GB/s in prose is not extracted
+- **pure research extraction** — receives document text, produces observations
+- **provenance preservation** — raw values, locators, source URLs, timestamps
+- **frozen 6B normalization** — reuse of normalize_enterprise_ssd_observation()
+- **frozen 6A resolution** — reuse of resolve_specification()
+- **complete ProductSpecificationSet** — all 12 definitions present, UNKNOWN explicit
+- **source outcomes auditable** — EXTRACTED, NO_OBSERVATIONS, FETCH_FAILED, SOURCE_REFUSED
+- **requested_url removed** — always source.source_url (one source of truth)
+- **provenance trace** — every normalized obs traces to an EXTRACTED outcome
+- **evidence consistency** — resolution.evidence equals normalized obs per definition
+- **no LLM** — deterministic-first; LLM extraction may be evaluated later
+- **no persistence/web** — in-memory auditable result only
+- **no identity leakage** — extraction module imports no evaluation module
+
+#### 22.2.1 Source Acquisition Model
+
+6C does NOT discover sources. It receives EXPLICITLY APPROVED source descriptors
+via the `SpecificationEvidenceSource` contract:
+
+- `product_identity` — must be established (existing `is_established` semantics)
+- `source_name` — human-readable source name
+- `source_url` — absolute http(s) URL (validated by `require_fetchable_url`)
+- `source_authority` — `SourceAuthority.AUTHORITATIVE` or `SourceAuthority.SECONDARY`
+
+Authority is SUPPLIED EXPLICITLY. It is NEVER inferred from hostname, URL,
+manufacturer name, or document content.
+
+Cross-product source input (source's product_identity ≠ target identity)
+fails closed BEFORE acquisition. The page is never fetched.
+
+#### 22.2.2 Existing PageFetcher Reuse
+
+6C reuses the existing PageFetcher protocol, PageFetchRequest, FetchedPage,
+PageFetchError, and UnsafeFetchTargetError. No new HTTP client is created.
+
+Observation source_url is set to `FetchedPage.final_url` (where evidence
+came from). Observation `retrieved_at` comes from `FetchedPage.retrieved_at`.
+Source outcomes preserve the source descriptor; the requested URL is always
+`outcome.source.source_url` (no duplicate field).
+
+#### 22.2.3 Deterministic Structured Extraction
+
+`extract_enterprise_ssd_specification_observations()` is a PURE function:
+receives document text + provenance parameters, produces raw
+`SpecificationObservation` values only.
+
+It searches for specification data in one structured format:
+
+1. **Embedded JavaScript JSON product data arrays** — The demonstrated
+   structural marker is `var supportSpecsData = JSON.parse('...')` in
+   `<script>` tags. Only this exact variable name is accepted (real
+   manufacturer evidence: Seagate Nytro 5050). Contains arrays of product
+   records with `skuNumber` and `features[]`. Exact `skuNumber` match to
+   target MPN. Each feature's `title` is resolved to an ENTERPRISE_SSD_SCHEMA
+   definition key via the `_RAW_LABEL_TO_SCHEMA_KEY` mapping.
+   Unrelated JSON.parse targets (e.g. `var unrelatedData = JSON.parse(...)`)
+   produce zero observations.
+
+REMOVED mechanisms (no real manufacturer evidence ever demonstrated):
+- JSON-LD Product additionalProperty/PropertyValue pairs
+- HTML specification tables (label + value rows)
+- HTML definition lists (dt + dd pairs)
+
+Arbitrary visible text is NOT mined. Composite values are NOT split.
+Unknown field labels are ignored, not guessed. A malformed JSON block
+does not poison sibling blocks.
+
+Only labels demonstrated by real manufacturer fixtures are mapped:
+- "Form Factor" -> physical_form_factor (Seagate Nytro 5050)
+
+#### 22.2.4 Real Manufacturer Evidence
+
+Seagate Nytro 5050 NVMe SSD (XP15360SE70005):
+- **Source**: https://www.seagate.com/support/enterprise-storage/solid-state-drives/nytro-5050/
+- **Accessible via static HTTP**: YES (200 OK, 796 KB)
+- **Structure**: Embedded JavaScript JSON variable (`var supportSpecsData = JSON.parse('...')`)
+  in a `<script>` tag. Contains an array of 81 product records.
+  Each record has `skuNumber`, `title`, `features[]`.
+  Features are title/value/order triples.
+- **Target record (XP15360SE70005)**:
+  - Form Factor: "2.5in"
+  - Interface: "PCIe<sup>®</sup> Gen4 x4 NVMe "
+  - Encryption: "Standard Model"
+- **Extraction result**: 1 observation (Form Factor -> physical_form_factor)
+- **Normalization**: "2.5in" (no space) normalizes to "2.5-inch" via
+  evidence-backed 6B correction. Resolution state: VERIFIED.
+- **Composite Interface value**: "PCIe Gen4 x4 NVMe" is preserved as-is.
+  It is NOT split into storage_protocol, pcie_generation, pcie_lane_count
+  per 6B rules.
+
+Samsung PM9A3 (MZ-QL23T800) product page:
+- **Source**: https://www.samsung.com/us/business/memory-storage/nvme-ssd/pm9a3-nvme-u-2-ssd-3-8tb-sku-mz-ql23t800/
+- **Accessible via static HTTP**: YES (200 OK, retrieved 2026-09-04)
+- **JSON-LD Product data**: YES (name, sku, brand, offers, color)
+- **Specification data in structured format**: NO
+  - No embedded JSON product data arrays
+  - No JSON-LD additionalProperty
+  - No HTML specification tables (0 tables in body)
+  - No definition lists (0 dl in body)
+  - `__NEXT_DATA__` payload inspected (2026-09-04): valid JSON but contains
+    only product variant metadata (model codes, titles, images) and UI
+    rendering configuration. NO specification label/value records exist.
+  - Spec table is rendered by Next.js React components — not accessible via
+    static HTTP extraction
+- **Extraction result**: NO_OBSERVATIONS
+
+**EVIDENCE STATUS**: The real Seagate Nytro 5050 page produces one raw
+specification observation (Form Factor = "2.5in") through embedded JSON
+extraction. After the evidence-backed 6B correction ("2.5in" -> "2.5-inch"),
+the full pipeline produces VERIFIED resolution for physical_form_factor.
+
+Samsung PM9A3 remains a source-specific static-HTML evidence gap.
+Seagate Nytro 5050 demonstrates that deterministic static structured
+extraction is sufficient for the minimum real 6C vertical slice.
+Current evidence therefore does not justify an LLM extractor.
+
+#### 22.2.5 Resolution Completeness
+
+Every ENTERPRISE_SSD_SCHEMA definition receives a `SpecificationResolution`:
+- UNKNOWN when no usable evidence
+- VERIFIED when one value with AUTHORITATIVE support
+- UNVERIFIED when one value with SECONDARY-only support
+- CONFLICT when >1 distinct usable values
+
+No majority voting. No authoritative-wins-conflict. All 12 resolutions
+always exist in the `ProductSpecificationSet`.
+
+#### 22.2.6 Source Outcome Vocabulary
+
+| State | Meaning |
+| --- | --- |
+| EXTRACTED | Fetch succeeded, ≥1 observation extracted |
+| NO_OBSERVATIONS | Fetch succeeded, no structured spec data found |
+| FETCH_FAILED | PageFetchError prevented acquisition |
+| SOURCE_REFUSED | UnsafeFetchTargetError refused acquisition |
+
+Normal PageFetchError: bounded external failure — preserve outcome,
+continue with other approved sources.
+
+#### 22.2.7 Architecture Boundaries
+
+**Research extraction module** (`enterprise_ssd_extraction.py`):
+- MAY import: stdlib, `product_intelligence.domain`, `product_intelligence.research.*`
+- MUST NOT import: providers, execution, web, django, semantic, evaluation, network
+
+**Execution module** (`specification_evidence.py`):
+- MAY import: domain, providers.page, research.*
+- MUST NOT import: web, django, semantic/FU3 runtime, evaluation, provider concrete adapters
+- Depends on PageFetcher protocol, NOT HttpPageFetcher concrete implementation
+
+
+### 22.3 Corrective follow-up phases
 
 Three follow-ups (0A-FU1, 1A-FU1, 2A-FU1) each corrected a real contract- or
 data-integrity defect before its phase was frozen, and each was worth its cost.
@@ -3513,3 +3699,4 @@ This canonical plan does not duplicate that operational snapshot.
 | AD-053 | Human review for AI-assisted semantic matches uses a separate authority overlay. The deterministic `ListingIdentityAssessment` snapshot is never mutated. `AI_ASSISTED_MATCH` is a disposition on `AiAssistedMatchResult`, not a decision on the snapshot assessment. Human confirmation creates a run-scoped `AiAssistedReviewCandidate` with states UNREVIEWED/CONFIRMED/REJECTED. Machine Price (4A aggregation) remains deterministic-only. Reviewed Price is a distinct aggregation contract that includes deterministic ACCEPTED + human-CONFIRMED listings, with per-listing origin (`DETERMINISTIC`/`HUMAN_CONFIRMED`). Human confirmation changes identity authority only — price eligibility still follows deterministic non-identity rules (numeric Decimal, comparable currency, known condition). Candidate binding fails closed. No reviewer identity or authentication was introduced. | Semantic matching (FU3B) produces `AI_ASSISTED_MATCH` dispositions that are intentionally excluded from 4A aggregation. These matches have valid evidence but the system has no way to verify semantic correctness automatically. Human review lets a person confirm or reject these candidates on the report page. The authority model preserves the invariant that deterministic identity is the only automatic authority: the snapshot assessment stays REJECTED for human-confirmed listings. A separate aggregation contract (`aggregate_reviewed_listing_prices`) reads human confirmation state and produces `ReviewedPriceAggregationResult` with origin tracking. This avoids polluting the frozen 4A contract while providing a usable reviewed price view. The candidate model (`AiAssistedReviewCandidate`) is run-scoped with immutable semantic provenance fields, and the review service uses conditional database updates for concurrency safety. Web performs binding validation before any mutation. | Accepted (HUMAN-REVIEW) |
 | AD-054 | 6A/6B/6C responsibility split: 6A is a pure specification framework; 6B supplies the first category-specific schema; 6C acquires, extracts, and normalizes real specification evidence and invokes 6A resolution. | Evidence/authority contracts must precede extraction. Full 6A semantic contract: §22.0. §22.0 also defines the identity/specification provenance-binding chain: every observation binds to an established ProductIdentity and SpecificationDefinition, every resolution is self-auditing over a single identity/spec pair, and ProductSpecificationSet completeness invariants make cross-product evidence mechanically rejectable. 6A defines SpecificationDefinition, SpecificationValue, SpecificationObservation, NormalizedSpecificationObservation, SpecificationResolution, CategorySchema, and ProductSpecificationSet as a deterministic, caller-independent, Django-free, persistence-free, network-free framework. 6A performs no extraction, no LLM call, and no reuse of the frozen FU3A/FU3B semantic runtime. Source authority (AUTHORITATIVE/SECONDARY) is distinguished from extraction authority: an authoritative source does not make an LLM interpretation authoritative. 6B supplies the first category-specific specification schema (Enterprise SSD preferred). 6C acquires specification evidence from approved sources, extracts raw specification observations, preserves source provenance, normalizes using the 6B category schema, and feeds normalized evidence into the 6A deterministic resolver to produce ProductSpecificationSet results. Resolution states: UNKNOWN (zero usable canonical values), VERIFIED (one canonical value with AUTHORITATIVE support), UNVERIFIED (one canonical value with SECONDARY-only support), CONFLICT (more than one canonical value). No majority voting — evidence multiplicity does not vote truth into existence. 7A-7C depend on 6A/6B/6C (framework + category schema + real specification evidence), not merely on schema definitions. | Accepted (architecture documentation) |
 | AD-055 | Enterprise SSD finalized as first 6B category; 12-field schema v1; strict abstaining deterministic normalization; no extraction, no resolution, no authority inference; 6C remains evidence acquisition/extraction boundary. | 6A framework provides the generic contracts; 6B instantiates the first real category using them. The 12-field v1 schema is narrow enough that each field has a clear deterministic normalization meaning, yet broad enough to support later comparable-product research across enterprise SSD products. Normalization is representation-only: it changes how a raw value is represented, not whether it is true or authoritative. Composite/ambiguous values abstain with explicit issue codes rather than guessing. 6C is responsible for turning real source material into specification observations that this schema can normalize. | Accepted (6B implementation) |
+| AD-056 | 6C uses explicit approved sources and existing PageFetcher; deterministic structured extraction via supportSpecsData embedded JSON (var supportSpecsData = JSON.parse('...')); source authority remains explicit (never hostname-inferred); normalization uses frozen 6B (with evidence-backed corrective addition: "2.5in" -> "2.5-inch"); resolution uses frozen 6A; fetch/no-evidence outcomes remain auditable; no LLM implemented; Samsung PM9A3 page accessible but NO_OBSERVATIONS (spec table JS-rendered); exact MPN record selection; only "Form Factor" label mapping currently evidenced; provenance/source-outcome audits (multiplicity-aware); final_url validation; raw value exact preservation. | 6C owns the complete evidence acquisition pipeline: explicit approved-source descriptors (source_url validated through require_fetchable_url at construction), existing PageFetcher acquisition (PageFetcher protocol imported from providers.page, not HttpPageFetcher concrete), deterministic structured extraction (var supportSpecsData = JSON.parse('...') demonstrated by Seagate Nytro 5050), exact MPN record selection (skuNumber match), raw provenance preservation (exact source value), frozen 6B normalization (with evidence-backed "2.5in" correction), frozen 6A resolution, complete ProductSpecificationSet with explicit UNKNOWN, and auditable source outcomes (EXTRACTED/NO_OBSERVATIONS/FETCH_FAILED/SOURCE_REFUSED) with self-consistency validation and final_url validation. Source outcomes preserve complete source descriptor including authority. Result audit enforces sum(EXTRACTED observation_count) == len(normalized_observations). Provenance trace is multiplicity-aware: each EXTRACTED outcome contributes capacity equal to observation_count. No source discovery or search. No LLM extractor — deterministic-first. Research extraction module is pure (receives text, produces observations). No persistence/web. The Samsung PM9A3 manufacturer page is accessible via static HTTP but produces NO_OBSERVATIONS (spec table rendered by Next.js React components). No real manufacturer fixture has demonstrated JSON-LD, HTML tables, or definition lists as extraction mechanisms. Only the supportSpecsData embedded JSON structure is accepted. | Accepted (6C implementation) |

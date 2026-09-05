@@ -6,7 +6,8 @@
 FU3A Production Semantic Runtime Contract APPROVED/FROZEN;
 FU3B Semantic Execution Integration APPROVED/FROZEN;
 HUMAN-REVIEW Human Review for AI-Assisted Matches APPROVED/FROZEN;
-6B Enterprise SSD Category Schema APPROVED/FROZEN.**
+6B Enterprise SSD Category Schema APPROVED / RE-FROZEN;
+6C Specification Evidence Extraction & Resolution IMPLEMENTED/APPROVED/FROZEN.**
 
 Semantic qualification is APPROVED AND FROZEN:
 - Semantic qualification corpus, prompt v1.1, evaluator mathematics,
@@ -123,7 +124,8 @@ FU3B wires the frozen FU3A semantic runtime into real research execution:
 | PILOT-UX | Pilot UX polish + semantic qualification | **FROZEN** |
 | HUMAN-REVIEW | Human review for AI-assisted semantic matches | Implemented (frozen)
 | 6A | Product Specification Framework | Implemented (frozen)
-| 6B | Enterprise SSD Category Schema | Implemented (approved / frozen)
+| 6B | Enterprise SSD Category Schema | Implemented (approved / re-frozen)
+| 6C | Specification Evidence Extraction & Resolution | Implemented (frozen)
 | SAP | SAP launcher integration | Future |
 
 
@@ -178,7 +180,9 @@ FU3B wires the frozen FU3A semantic runtime into real research execution:
 | Human review web view + URLs | `web/views.py` + `web/urls.py` | **Implemented (frozen, HUMAN-REVIEW)**
 | Human review candidate presentation | `web/presentation.py` | **Implemented (frozen, HUMAN-REVIEW)**
 | Product Specification Framework (6A) | `research/specifications.py` | **Implemented (frozen)**
-| Enterprise SSD Category Schema (6B) | `research/enterprise_ssd.py` | **Implemented (approved / frozen)**
+| Enterprise SSD Category Schema (6B) | `research/enterprise_ssd.py` | **Implemented (approved / re-frozen)**
+| Enterprise SSD Specification Extraction (6C) | `research/enterprise_ssd_extraction.py` | **Implemented (frozen)**
+| Specification Evidence Execution (6C) | `execution/specification_evidence.py` | **Implemented (frozen)**
 
 ## Research orchestration
 
@@ -342,7 +346,7 @@ The six failures were exactly:
 - `tests/research/test_research_identity_boundaries.py::test_importing_the_research_core_pulls_in_no_third_party_dependency`
 - `tests/runs/test_research_run_boundaries.py::test_the_domain_still_imports_without_django_present`
 
-### 6B IMPLEMENTATION SNAPSHOT (CURRENT — 6B corrective closure / APPROVED / FROZEN)
+### 6B IMPLEMENTATION SNAPSHOT (APPROVED / RE-FROZEN)
 
 | Metric | Count |
 | --- | --- |
@@ -350,6 +354,13 @@ The six failures were exactly:
 | Passed | 2772 |
 | Failed | 10 |
 | Unexpected failures | 0 |
+
+Evidence-backed corrective change (project-lead approved, re-frozen):
+- Real Seagate Nytro 5050 manufacturer evidence demonstrated "2.5in"
+  as an exact formatting equivalent of the existing 2.5-inch canonical form.
+- Added: "2.5in" -> "2.5-inch" to _FORM_FACTOR_MAP.
+- No schema version bump (field meaning, canonical value, enum unchanged).
+- Regression test added: test_2_5_in_no_space.
 
 The ten failures are the fixed approved Windows / Python 3.14
 subprocess-boundary flake allowlist (all boundary/import-guard tests):
@@ -381,6 +392,41 @@ These are environment-specific subprocess-boundary limitations on this Windows /
 Python 3.14 workstation, not application defects. No node outside the fixed
 ten-node allowlist fails. No test is skipped, xfailed, or weakened.
 
+### 6C IMPLEMENTATION SNAPSHOT (APPROVED / FROZEN)
+
+| Metric | Count |
+| --- | --- |
+| Collected | 2904 |
+| Passed | 2894 |
+| Failed | 10 (fixed approved allowlist only, non-deterministic) |
+| Unexpected failures | 0 |
+
+The ten failures are the fixed approved Windows / Python 3.14
+subprocess-boundary flake allowlist (identical to 6B baseline).
+
+Corrective pass (final evidence-backed closure):
+- Speculative extraction mechanisms removed:
+  - JSON-LD Product additionalProperty/PropertyValue pairs (no real evidence)
+  - HTML specification tables (no real evidence)
+  - HTML definition lists (dt/dd pairs) (no real evidence)
+- Embedded JavaScript JSON product data extraction implemented:
+  - Structural anchor: var supportSpecsData = JSON.parse('...') (exact variable name)
+  - Real evidence: Seagate Nytro 5050 support page (XP15360SE70005)
+  - Array of 81 product records with skuNumber + features[]
+  - Exact MPN match selection, no cross-record leak
+  - Label mapping: "Form Factor" -> physical_form_factor (only proven label)
+- Provenance trace: multiplicity-aware (each EXTRACTED outcome contributes
+  capacity equal to observation_count)
+- Raw value exact preservation (extractor does not strip/clean)
+- final_url validated through require_fetchable_url contract
+- Duplicate requested_url removed from SpecificationSourceOutcome
+  (requested URL is always source.source_url)
+- Real Seagate fixture: VERIFIED (raw "2.5in" -> canonical "2.5-inch" -> VERIFIED)
+- Samsung PM9A3: still NO_OBSERVATIONS (spec table JS-rendered)
+- No LLM implemented
+- No persistence/web
+AD-056 remains review pending until project lead approves
+
 ## Next delivery priority
 
 **HUMAN-REVIEW**: IMPLEMENTED / APPROVED / FROZEN
@@ -395,20 +441,40 @@ ten-node allowlist fails. No test is skipped, xfailed, or weakened.
          deep immutability (MappingProxyType), schema/definition key
          consistency.
 
-**6B**: IMPLEMENTED / APPROVED / FROZEN —
+**6B**: IMPLEMENTED / APPROVED / RE-FROZEN —
          First Category-Specific Specification Schema;
          Enterprise SSD finalized; 12-field schema v1;
          strict deterministic normalization with exact-definition identity
          enforcement, strict thousands-grouping grammar, explicit IOPS unit;
+         evidence-backed correction: "2.5in" -> "2.5-inch" (re-frozen);
          no extraction; no resolution; no authority inference
 
-**6C**: NEXT DELIVERY PRIORITY —
+**6C**: IMPLEMENTED / APPROVED / FROZEN —
          Specification Evidence Extraction & Resolution;
-         acquires evidence, extracts raw observations, preserves provenance,
-         normalizes via 6B schema, invokes 6A resolution;
-         no LLM preselected
+         explicit approved-source descriptors (source_url validated at construction);
+         existing PageFetcher acquisition (protocol imported, not duplicated);
+         deterministic structured extraction (var supportSpecsData = JSON.parse('...'));
+         structural assignment binding (only the JSON.parse directly assigned
+         to supportSpecsData is extracted);
+         source authority supplied explicitly, never hostname-inferred;
+         frozen 6B normalization (with evidence-backed "2.5in" correction);
+         frozen 6A resolution;
+         complete ProductSpecificationSet with explicit UNKNOWN;
+         source outcomes preserve complete source descriptor + self-consistency;
+         requested_url removed (always source.source_url);
+         provenance trace enforcement (multiplicity-aware);
+         final_url validation through require_fetchable_url;
+         raw value exact preservation (no stripping by extractor);
+         no LLM implemented;
+         no persistence/web;
+         real manufacturer fixture: Seagate Nytro 5050 (XP15360SE70005)
+         - embedded JSON data extraction works (1 observation);
+         - Form Factor raw value "2.5in" extracted correctly;
+         - frozen 6B normalization: "2.5in" -> "2.5-inch" -> VERIFIED;
+         Samsung PM9A3: still NO_OBSERVATIONS (JS-rendered spec table);
+         7A follows 6C
 
-**7A/7B/7C**: follow 6A/6B/6C
+**7A/7B/7C**: NOT STARTED — **NEXT DELIVERY PRIORITY**
 
 ## Semantic qualification harness
 

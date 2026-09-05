@@ -45,9 +45,22 @@ from product_intelligence.execution.semantic_integration import (
     AiAssistedMatchResult,
 )
 
+from product_intelligence.execution.specification_evidence import (
+    SpecificationEvidenceResult,
+    SpecificationEvidenceSource,
+    SpecificationSourceOutcome,
+    SourceOutcomeState,
+    research_enterprise_ssd_specifications,
+)
+
 __all__ = [
     "execute_research_run",
     "ExecutionResult",
     "ExecutionError",
     "AiAssistedMatchResult",
+    "SpecificationEvidenceResult",
+    "SpecificationEvidenceSource",
+    "SpecificationSourceOutcome",
+    "SourceOutcomeState",
+    "research_enterprise_ssd_specifications",
 ]

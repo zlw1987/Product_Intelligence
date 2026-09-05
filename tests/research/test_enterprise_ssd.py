@@ -401,6 +401,12 @@ class TestFormFactorNormalization:
     def test_2_5_in(self) -> None:
         assert _canonical("2.5 in", "physical_form_factor") == "2.5-inch"
 
+    def test_2_5_in_no_space(self) -> None:
+        """Real Seagate Nytro 5050 manufacturer evidence: '2.5in' (no space).
+        Authorized evidence-backed corrective addition to frozen 6B.
+        """
+        assert _canonical("2.5in", "physical_form_factor") == "2.5-inch"
+
     def test_m2_lower(self) -> None:
         assert _canonical("m.2", "physical_form_factor") == "M.2"
 

@@ -481,6 +481,7 @@ _FORM_FACTOR_MAP: dict[str, str] = {
     '2.5"': "2.5-inch",
     "2.5 in": "2.5-inch",
     "2.5 inch": "2.5-inch",
+    "2.5in": "2.5-inch",  # evidence-backed: real Seagate Nytro 5050 source
     "m.2": "M.2",
     "e1.s": "E1.S",
     "e3.s": "E3.S",

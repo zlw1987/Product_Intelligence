@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Synthetic Definition List Specification Evidence</title>
+<!--
+SYNTHETIC FIXTURE. Not derived from any real page.
+Created for 6C test coverage of HTML definition list (dl/dt/dd) extraction.
+
+Uses ONLY canonical schema keys (snake_case) because no real manufacturer
+fixture has demonstrated human-readable label aliases.
+
+Demonstrates:
+- Definition list with label (dt) / value (dd) pairs
+- Multiple recognized spec fields (canonical keys only)
+- Unknown labels (ignored)
+
+All specification values are invented for testing purposes.
+-->
+</head>
+<body>
+<dl class="product-specs">
+  <dt>capacity</dt>
+  <dd>3.84 TB</dd>
+
+  <dt>storage_protocol</dt>
+  <dd>NVMe</dd>
+
+  <dt>pcie_generation</dt>
+  <dd>Gen4</dd>
+
+  <dt>pcie_lane_count</dt>
+  <dd>4 lanes</dd>
+
+  <dt>physical_form_factor</dt>
+  <dd>2.5-inch</dd>
+
+  <dt>interface_connector</dt>
+  <dd>U.2</dd>
+
+  <dt>sequential_read</dt>
+  <dd>7 GB/s</dd>
+
+  <dt>sequential_write</dt>
+  <dd>4.1 GB/s</dd>
+
+  <dt>random_read_iops</dt>
+  <dd>1M IOPS</dd>
+
+  <dt>random_write_iops</dt>
+  <dd>800K IOPS</dd>
+
+  <dt>endurance_dwpd</dt>
+  <dd>3 DWPD</dd>
+
+  <dt>power_loss_protection</dt>
+  <dd>supported</dd>
+
+  <!-- Unknown label — should be ignored -->
+  <dt>warranty_period</dt>
+  <dd>5 years</dd>
+
+  <dt>operating_temperature</dt>
+  <dd>0 to 70 °C</dd>
+</dl>
+</body>
+</html>
