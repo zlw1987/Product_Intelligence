@@ -53,14 +53,25 @@ from product_intelligence.execution.specification_evidence import (
     research_enterprise_ssd_specifications,
 )
 
+from product_intelligence.execution.comparable_discovery import (
+    ComparableCandidateDiscoveryResult,
+    ComparableCandidateSourceOutcome,
+    ComparableCandidateSourceOutcomeState,
+    discover_enterprise_ssd_comparable_candidates,
+)
+
 __all__ = [
-    "execute_research_run",
-    "ExecutionResult",
+    "ComparableCandidateDiscoveryResult",
+    "ComparableCandidateSourceOutcome",
+    "ComparableCandidateSourceOutcomeState",
     "ExecutionError",
-    "AiAssistedMatchResult",
+    "ExecutionResult",
     "SpecificationEvidenceResult",
     "SpecificationEvidenceSource",
     "SpecificationSourceOutcome",
     "SourceOutcomeState",
+    "AiAssistedMatchResult",
+    "discover_enterprise_ssd_comparable_candidates",
+    "execute_research_run",
     "research_enterprise_ssd_specifications",
 ]

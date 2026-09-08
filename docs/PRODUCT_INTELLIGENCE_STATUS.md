@@ -7,7 +7,8 @@ FU3A Production Semantic Runtime Contract APPROVED/FROZEN;
 FU3B Semantic Execution Integration APPROVED/FROZEN;
 HUMAN-REVIEW Human Review for AI-Assisted Matches APPROVED/FROZEN;
 6B Enterprise SSD Category Schema APPROVED / RE-FROZEN;
-6C Specification Evidence Extraction & Resolution IMPLEMENTED/APPROVED/FROZEN.**
+6C Specification Evidence Extraction & Resolution IMPLEMENTED/APPROVED/FROZEN;
+7A Comparable-Product Candidate Discovery IMPLEMENTED / REVIEW PENDING.**
 
 Semantic qualification is APPROVED AND FROZEN:
 - Semantic qualification corpus, prompt v1.1, evaluator mathematics,
@@ -126,6 +127,7 @@ FU3B wires the frozen FU3A semantic runtime into real research execution:
 | 6A | Product Specification Framework | Implemented (frozen)
 | 6B | Enterprise SSD Category Schema | Implemented (approved / re-frozen)
 | 6C | Specification Evidence Extraction & Resolution | Implemented (frozen)
+| 7A | Comparable-Product Candidate Discovery | Implemented (review pending)
 | SAP | SAP launcher integration | Future |
 
 
@@ -183,6 +185,9 @@ FU3B wires the frozen FU3A semantic runtime into real research execution:
 | Enterprise SSD Category Schema (6B) | `research/enterprise_ssd.py` | **Implemented (approved / re-frozen)**
 | Enterprise SSD Specification Extraction (6C) | `research/enterprise_ssd_extraction.py` | **Implemented (frozen)**
 | Specification Evidence Execution (6C) | `execution/specification_evidence.py` | **Implemented (frozen)**
+| Comparable-Candidate Contracts (7A) | `research/comparable_candidates.py` | **Implemented (review pending)**
+| Enterprise SSD Candidate Extraction (7A) | `research/enterprise_ssd_candidate_extraction.py` | **Implemented (review pending)**
+| Comparable Discovery Execution (7A) | `execution/comparable_discovery.py` | **Implemented (review pending)**
 
 ## Research orchestration
 
@@ -392,6 +397,50 @@ These are environment-specific subprocess-boundary limitations on this Windows /
 Python 3.14 workstation, not application defects. No node outside the fixed
 ten-node allowlist fails. No test is skipped, xfailed, or weakened.
 
+### 7A IMPLEMENTATION SNAPSHOT (IMPLEMENTED / REVIEW PENDING)
+
+| Metric | Count |
+| --- | --- |
+| Collected | 3006 |
+| Passed | 2996 |
+| Failed | 10 (fixed approved allowlist only, non-deterministic) |
+| Unexpected failures | 0 |
+
+The ten failures are the fixed approved Windows / Python 3.14
+subprocess-boundary flake allowlist (identical to 6C baseline).
+
+7A implementation (contract-corrected pass):
+- New production modules:
+  - `research/comparable_candidates.py` (candidate contracts)
+  - `research/enterprise_ssd_candidate_extraction.py` (pure extraction)
+  - `execution/comparable_discovery.py` (execution + result audit)
+- New test modules:
+  - `tests/research/test_enterprise_ssd_candidate_extraction.py` (21 tests)
+  - `tests/research/test_comparable_candidates.py` (38 tests)
+  - `tests/execution/test_comparable_discovery.py` (27 tests)
+- Total new tests: 86 (+ 16 boundary test nodes for new production files)
+- Collection delta: 2904 -> 3006 (+102)
+- Real Seagate fixture: 81 observations, 1 TARGET_SELF, 80 candidates
+- No frozen file modifications
+- No pre-7A test deletions
+- Research boundary clean (no provider imports in research/)
+
+Contract corrections applied in review-closure pass:
+- Raw MPN (`manufacturer_part_number_raw`) preserved verbatim (not stripped)
+- Raw title (`product_name_raw`) preserved verbatim (not stripped/blank-to-None)
+- Bounded JS string decoder (no `.encode().decode("unicode_escape")` corruption)
+- `ComparableCandidateAssessment` stores `target_identity: ProductIdentity` by exact type (`type(x) is ProductIdentity` — subclasses rejected)
+- `__post_init__` re-derives disposition from target + observation
+- `ComparableCandidate` requires all evidence to bind to the exact same `target_identity` object (cross-target evidence rejected)
+- `deduplicate_candidate_assessments` rejects same-key assessments from different target identities
+- `ComparableCandidateDiscoveryResult` enforces exact `assessment.observation is obs`
+- `ComparableCandidateDiscoveryResult` enforces exact `assessment.target_identity is result.target_identity`
+- `ComparableCandidateDiscoveryResult` enforces AUTHORITATIVE-only result invariant
+- `ComparableCandidateDiscoveryResult` rejects foreign assessments in candidate evidence
+- Real E2E crosses frozen 6C -> 7A (not synthetic all-UNKNOWN spec set)
+- All bare-pass tests replaced with real adversarial coverage
+- No skip/xfail/deselect/bare-pass in any 7A test
+
 ### 6C IMPLEMENTATION SNAPSHOT (APPROVED / FROZEN)
 
 | Metric | Count |
@@ -473,7 +522,22 @@ Corrective pass (final evidence-backed closure):
          Samsung PM9A3: still NO_OBSERVATIONS (JS-rendered spec table);
          7A follows 6C
 
-**7A/7B/7C**: NOT STARTED — **NEXT DELIVERY PRIORITY**
+**7A**: IMPLEMENTED / REVIEW PENDING —
+        Comparable-Product Candidate Discovery;
+        evidence-backed candidate discovery from approved manufacturer catalog sources;
+        explicit AUTHORITATIVE source required (SECONDARY rejected);
+        no SearchProvider, no LLM, no spec filtering, no scoring/ranking;
+        var supportSpecsData = JSON.parse('...') is first real mechanism;
+        raw candidate evidence preserved (ComparableCandidateObservation);
+        target-self exclusion uses frozen 2A compare_part_numbers();
+        normalized-exact candidate dedup uses frozen 2A normalize_part_number();
+        ProductIdentity NOT reused for discovered candidates;
+        self-auditing ComparableCandidateDiscoveryResult;
+        real Seagate vertical slice: 81 records -> 81 observations -> 1 TARGET_SELF -> 80 candidates;
+        no persistence/web;
+        7B next
+
+**7B/7C**: NOT STARTED — **NEXT DELIVERY PRIORITY**
 
 ## Semantic qualification harness
 

@@ -77,6 +77,14 @@ No arbitrary text mining, no LLM, no JavaScript execution. Composite values
 preserved. Only labels demonstrated by real manufacturer fixtures are mapped.
 6C execution (`execution/specification_evidence.py`) composes extraction
 with PageFetcher acquisition, 6B normalization, and 6A resolution.
+
+PRODUCT-INTEL.7A added `comparable_candidates`: candidate discovery contracts
+(ComparableCandidateObservation, ComparableCandidateSource,
+ComparableCandidateAssessment, ComparableCandidate, deduplication). Added
+`enterprise_ssd_candidate_extraction`: pure extraction of candidate product
+records from embedded JSON product data. 7A execution
+(`execution/comparable_discovery.py`) composes source acquisition, extraction,
+target-self exclusion, and identity deduplication.
 """
 
 from product_intelligence.research.aggregation import (
@@ -133,6 +141,17 @@ from product_intelligence.research.enterprise_ssd import (
 from product_intelligence.research.enterprise_ssd_extraction import (
     extract_enterprise_ssd_specification_observations,
 )
+from product_intelligence.research.comparable_candidates import (
+    ComparableCandidate,
+    ComparableCandidateAssessment,
+    ComparableCandidateObservation,
+    ComparableCandidateSource,
+    CandidateDisposition,
+    deduplicate_candidate_assessments,
+)
+from product_intelligence.research.enterprise_ssd_candidate_extraction import (
+    extract_enterprise_ssd_candidate_observations,
+)
 from product_intelligence.research.specifications import (
     CategorySchema,
     NormalizedSpecificationObservation,
@@ -156,7 +175,12 @@ __all__ = [
     "PRESERVED_SEPARATORS",
     "PRICE_RESULT_SCHEMA_VERSION",
     "STRUCTURAL_CHARACTERS",
+    "CandidateDisposition",
     "CategorySchema",
+    "ComparableCandidate",
+    "ComparableCandidateAssessment",
+    "ComparableCandidateObservation",
+    "ComparableCandidateSource",
     "EvidenceSource",
     "ExtractionMethod",
     "IdentityRejectionReason",
@@ -188,9 +212,11 @@ __all__ = [
     "compare_part_numbers",
     "compare_request_to_candidate",
     "decode_price_aggregation_result",
+    "deduplicate_candidate_assessments",
     "encode_price_aggregation_result",
-    "extract_listing_observations",
+    "extract_enterprise_ssd_candidate_observations",
     "extract_enterprise_ssd_specification_observations",
+    "extract_listing_observations",
     "normalize_enterprise_ssd_observation",
     "normalize_enterprise_ssd_observations",
     "normalize_listing_observation",
