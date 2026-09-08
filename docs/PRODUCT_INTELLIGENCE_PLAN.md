@@ -2706,9 +2706,9 @@ DELIVERED:
   5B    Visual FoxPro 5 launcher (server-side + client integrated outside repo)
   6A    Product specification framework (implemented / approved / frozen)
   6B    Enterprise SSD category schema (12-field v1 / approved / frozen)
+  6C    Specification evidence extraction and resolution (implemented / approved / frozen)
 
 NEXT DELIVERY PRIORITY:
-  6C    Specification evidence extraction and resolution
   7A    Comparable-product candidate discovery
   7B    Similarity scoring
   7C    Comparison web report

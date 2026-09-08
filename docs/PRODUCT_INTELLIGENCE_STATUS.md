@@ -425,7 +425,6 @@ Corrective pass (final evidence-backed closure):
 - Samsung PM9A3: still NO_OBSERVATIONS (spec table JS-rendered)
 - No LLM implemented
 - No persistence/web
-AD-056 remains review pending until project lead approves
 
 ## Next delivery priority
 
