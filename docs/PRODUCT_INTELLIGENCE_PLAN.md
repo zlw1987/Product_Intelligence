@@ -34,7 +34,7 @@ web execution/retry integration, FU3A/FU3B implement semantic qualification
 and semantic execution integration, and HUMAN-REVIEW implements human review
 for AI-assisted semantic matches. The web form creates a run, triggers
 execution synchronously, and redirects to the report with the full result.
-Remaining future work: structured API (5A), comparable-product research (7A-7C).
+Remaining future work: structured API (5A), comparable-product research (7B-7C — 7A implemented and frozen).
 
 ## 2. Problem statement
 
@@ -2669,7 +2669,7 @@ PRODUCT-INTEL.6A   Product specification framework            IMPLEMENTED
 PRODUCT-INTEL.6B   First category-specific schema (Enterprise SSD v1)  IMPLEMENTED
 PRODUCT-INTEL.6C   Specification evidence extraction and
                    resolution                                 IMPLEMENTED
-PRODUCT-INTEL.7A   Comparable-product candidate discovery     IMPLEMENTED
+PRODUCT-INTEL.7A   Comparable-product candidate discovery     IMPLEMENTED / APPROVED / FROZEN
 PRODUCT-INTEL.7B   Similarity scoring                         PLANNED
 PRODUCT-INTEL.7C   Comparison web report                      PLANNED
 
@@ -2708,8 +2708,10 @@ DELIVERED:
   6B    Enterprise SSD category schema (12-field v1 / approved / frozen)
   6C    Specification evidence extraction and resolution (implemented / approved / frozen)
 
+DELIVERED (frozen):
+  7A    Comparable-product candidate discovery (implemented / approved / frozen)
+
 NEXT DELIVERY PRIORITY:
-  7A    Comparable-product candidate discovery (IMPLEMENTED / REVIEW PENDING)
   7B    Similarity scoring
   7C    Comparison web report
 
@@ -2718,7 +2720,8 @@ FUTURE:
 ```
 
 **6C IMPLEMENTED AND FROZEN.**
-**Next delivery priority: PRODUCT-INTEL.7A (Comparable-Product Research).**
+**7A IMPLEMENTED AND FROZEN.**
+**Next delivery priority: PRODUCT-INTEL.7B (Similarity Scoring).**
 
 6A is IMPLEMENTED AND FROZEN. 6B is IMPLEMENTED AND FROZEN (with
 approved evidence-backed corrective addition: "2.5in" -> "2.5-inch").
@@ -2761,8 +2764,8 @@ Seagate Nytro 5050 demonstrates that deterministic static structured
 extraction is sufficient for the minimum real 6C vertical slice.
 Current evidence therefore does not justify an LLM extractor.
 
-7A-7C (comparable-product research) depends on 6A/6B/6C: the 6A framework,
-the 6B category schema, and real specification evidence from 6C.
+7B-7C (comparable-product research) depends on 6A/6B/6C and on frozen 7A: the 6A framework,
+the 6B category schema, real specification evidence from 6C, and candidate discovery from 7A.
 
 ### 22.0 Product Specification Framework — 6A Phase Contract
 
@@ -3747,4 +3750,4 @@ This canonical plan does not duplicate that operational snapshot.
 | AD-054 | 6A/6B/6C responsibility split: 6A is a pure specification framework; 6B supplies the first category-specific schema; 6C acquires, extracts, and normalizes real specification evidence and invokes 6A resolution. | Evidence/authority contracts must precede extraction. Full 6A semantic contract: §22.0. §22.0 also defines the identity/specification provenance-binding chain: every observation binds to an established ProductIdentity and SpecificationDefinition, every resolution is self-auditing over a single identity/spec pair, and ProductSpecificationSet completeness invariants make cross-product evidence mechanically rejectable. 6A defines SpecificationDefinition, SpecificationValue, SpecificationObservation, NormalizedSpecificationObservation, SpecificationResolution, CategorySchema, and ProductSpecificationSet as a deterministic, caller-independent, Django-free, persistence-free, network-free framework. 6A performs no extraction, no LLM call, and no reuse of the frozen FU3A/FU3B semantic runtime. Source authority (AUTHORITATIVE/SECONDARY) is distinguished from extraction authority: an authoritative source does not make an LLM interpretation authoritative. 6B supplies the first category-specific specification schema (Enterprise SSD preferred). 6C acquires specification evidence from approved sources, extracts raw specification observations, preserves source provenance, normalizes using the 6B category schema, and feeds normalized evidence into the 6A deterministic resolver to produce ProductSpecificationSet results. Resolution states: UNKNOWN (zero usable canonical values), VERIFIED (one canonical value with AUTHORITATIVE support), UNVERIFIED (one canonical value with SECONDARY-only support), CONFLICT (more than one canonical value). No majority voting — evidence multiplicity does not vote truth into existence. 7A-7C depend on 6A/6B/6C (framework + category schema + real specification evidence), not merely on schema definitions. | Accepted (architecture documentation) |
 | AD-055 | Enterprise SSD finalized as first 6B category; 12-field schema v1; strict abstaining deterministic normalization; no extraction, no resolution, no authority inference; 6C remains evidence acquisition/extraction boundary. | 6A framework provides the generic contracts; 6B instantiates the first real category using them. The 12-field v1 schema is narrow enough that each field has a clear deterministic normalization meaning, yet broad enough to support later comparable-product research across enterprise SSD products. Normalization is representation-only: it changes how a raw value is represented, not whether it is true or authoritative. Composite/ambiguous values abstain with explicit issue codes rather than guessing. 6C is responsible for turning real source material into specification observations that this schema can normalize. | Accepted (6B implementation) |
 | AD-056 | 6C uses explicit approved sources and existing PageFetcher; deterministic structured extraction via supportSpecsData embedded JSON (var supportSpecsData = JSON.parse('...')); source authority remains explicit (never hostname-inferred); normalization uses frozen 6B (with evidence-backed corrective addition: "2.5in" -> "2.5-inch"); resolution uses frozen 6A; fetch/no-evidence outcomes remain auditable; no LLM implemented; Samsung PM9A3 page accessible but NO_OBSERVATIONS (spec table JS-rendered); exact MPN record selection; only "Form Factor" label mapping currently evidenced; provenance/source-outcome audits (multiplicity-aware); final_url validation; raw value exact preservation. | 6C owns the complete evidence acquisition pipeline: explicit approved-source descriptors (source_url validated through require_fetchable_url at construction), existing PageFetcher acquisition (PageFetcher protocol imported from providers.page, not HttpPageFetcher concrete), deterministic structured extraction (var supportSpecsData = JSON.parse('...') demonstrated by Seagate Nytro 5050), exact MPN record selection (skuNumber match), raw provenance preservation (exact source value), frozen 6B normalization (with evidence-backed "2.5in" correction), frozen 6A resolution, complete ProductSpecificationSet with explicit UNKNOWN, and auditable source outcomes (EXTRACTED/NO_OBSERVATIONS/FETCH_FAILED/SOURCE_REFUSED) with self-consistency validation and final_url validation. Source outcomes preserve complete source descriptor including authority. Result audit enforces sum(EXTRACTED observation_count) == len(normalized_observations). Provenance trace is multiplicity-aware: each EXTRACTED outcome contributes capacity equal to observation_count. No source discovery or search. No LLM extractor — deterministic-first. Research extraction module is pure (receives text, produces observations). No persistence/web. The Samsung PM9A3 manufacturer page is accessible via static HTTP but produces NO_OBSERVATIONS (spec table rendered by Next.js React components). No real manufacturer fixture has demonstrated JSON-LD, HTML tables, or definition lists as extraction mechanisms. Only the supportSpecsData embedded JSON structure is accepted. | Accepted (6C implementation) |
-| AD-057 | 7A candidate discovery is evidence-first and distinct from similarity: explicit AUTHORITATIVE manufacturer catalog sources produce raw candidate observations; frozen 2A excludes the target and groups only exact/normalized-exact candidate identities; no SearchProvider, LLM, spec filtering, scoring, ranking, or persistence is introduced. | Candidate != comparable. 7A discovers product identities from approved catalog sources; 7B scores similarity. ProductIdentity is NOT reused for discovered candidates (it represents the requested product, not catalog rows). supportSpecsData is the first mechanism. Target-self exclusion uses frozen 2A compare_part_numbers(). Deduplication uses frozen 2A normalize_part_number() semantics. No spec-based pre-filtering (that is 7B). No score/rank fields on candidates. Result is self-auditing. | Proposed / 7A review pending |
+| AD-057 | 7A candidate discovery is evidence-first and distinct from similarity: explicit AUTHORITATIVE manufacturer catalog sources produce raw candidate observations; frozen 2A excludes the target and groups only exact/normalized-exact candidate identities; no SearchProvider, LLM, spec filtering, scoring, ranking, or persistence is introduced. | Candidate != comparable. 7A discovers product identities from approved catalog sources; 7B scores similarity. ProductIdentity is NOT reused for discovered candidates (it represents the requested product, not catalog rows). supportSpecsData is the first mechanism. Target-self exclusion uses frozen 2A compare_part_numbers(). Deduplication uses frozen 2A normalize_part_number() semantics. No spec-based pre-filtering (that is 7B). No score/rank fields on candidates. Result is self-auditing. | Accepted (7A implementation) |

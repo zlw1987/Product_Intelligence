@@ -8,7 +8,7 @@ FU3B Semantic Execution Integration APPROVED/FROZEN;
 HUMAN-REVIEW Human Review for AI-Assisted Matches APPROVED/FROZEN;
 6B Enterprise SSD Category Schema APPROVED / RE-FROZEN;
 6C Specification Evidence Extraction & Resolution IMPLEMENTED/APPROVED/FROZEN;
-7A Comparable-Product Candidate Discovery IMPLEMENTED / REVIEW PENDING.**
+7A Comparable-Product Candidate Discovery IMPLEMENTED / APPROVED / FROZEN.**
 
 Semantic qualification is APPROVED AND FROZEN:
 - Semantic qualification corpus, prompt v1.1, evaluator mathematics,
@@ -127,7 +127,7 @@ FU3B wires the frozen FU3A semantic runtime into real research execution:
 | 6A | Product Specification Framework | Implemented (frozen)
 | 6B | Enterprise SSD Category Schema | Implemented (approved / re-frozen)
 | 6C | Specification Evidence Extraction & Resolution | Implemented (frozen)
-| 7A | Comparable-Product Candidate Discovery | Implemented (review pending)
+| 7A | Comparable-Product Candidate Discovery | Implemented (frozen)
 | SAP | SAP launcher integration | Future |
 
 
@@ -185,9 +185,9 @@ FU3B wires the frozen FU3A semantic runtime into real research execution:
 | Enterprise SSD Category Schema (6B) | `research/enterprise_ssd.py` | **Implemented (approved / re-frozen)**
 | Enterprise SSD Specification Extraction (6C) | `research/enterprise_ssd_extraction.py` | **Implemented (frozen)**
 | Specification Evidence Execution (6C) | `execution/specification_evidence.py` | **Implemented (frozen)**
-| Comparable-Candidate Contracts (7A) | `research/comparable_candidates.py` | **Implemented (review pending)**
-| Enterprise SSD Candidate Extraction (7A) | `research/enterprise_ssd_candidate_extraction.py` | **Implemented (review pending)**
-| Comparable Discovery Execution (7A) | `execution/comparable_discovery.py` | **Implemented (review pending)**
+| Comparable-Candidate Contracts (7A) | `research/comparable_candidates.py` | **Implemented (frozen)**
+| Enterprise SSD Candidate Extraction (7A) | `research/enterprise_ssd_candidate_extraction.py` | **Implemented (frozen)**
+| Comparable Discovery Execution (7A) | `execution/comparable_discovery.py` | **Implemented (frozen)**
 
 ## Research orchestration
 
@@ -397,7 +397,7 @@ These are environment-specific subprocess-boundary limitations on this Windows /
 Python 3.14 workstation, not application defects. No node outside the fixed
 ten-node allowlist fails. No test is skipped, xfailed, or weakened.
 
-### 7A IMPLEMENTATION SNAPSHOT (IMPLEMENTED / REVIEW PENDING)
+### 7A IMPLEMENTATION SNAPSHOT (APPROVED / FROZEN)
 
 | Metric | Count |
 | --- | --- |
@@ -522,7 +522,7 @@ Corrective pass (final evidence-backed closure):
          Samsung PM9A3: still NO_OBSERVATIONS (JS-rendered spec table);
          7A follows 6C
 
-**7A**: IMPLEMENTED / REVIEW PENDING —
+**7A**: IMPLEMENTED / APPROVED / FROZEN —
         Comparable-Product Candidate Discovery;
         evidence-backed candidate discovery from approved manufacturer catalog sources;
         explicit AUTHORITATIVE source required (SECONDARY rejected);
@@ -537,7 +537,9 @@ Corrective pass (final evidence-backed closure):
         no persistence/web;
         7B next
 
-**7B/7C**: NOT STARTED — **NEXT DELIVERY PRIORITY**
+**7B**: NOT STARTED — **NEXT DELIVERY PRIORITY**
+
+**7C**: NOT STARTED
 
 ## Semantic qualification harness
 
