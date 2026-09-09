@@ -8,7 +8,8 @@ FU3B Semantic Execution Integration APPROVED/FROZEN;
 HUMAN-REVIEW Human Review for AI-Assisted Matches APPROVED/FROZEN;
 6B Enterprise SSD Category Schema APPROVED / RE-FROZEN;
 6C Specification Evidence Extraction & Resolution IMPLEMENTED/APPROVED/FROZEN;
-7A Comparable-Product Candidate Discovery IMPLEMENTED / APPROVED / FROZEN.**
+7A Comparable-Product Candidate Discovery IMPLEMENTED / APPROVED / FROZEN;
+7B Enterprise SSD Similarity Scoring IMPLEMENTED / APPROVED / FROZEN.**
 
 Semantic qualification is APPROVED AND FROZEN:
 - Semantic qualification corpus, prompt v1.1, evaluator mathematics,
@@ -128,6 +129,7 @@ FU3B wires the frozen FU3A semantic runtime into real research execution:
 | 6B | Enterprise SSD Category Schema | Implemented (approved / re-frozen)
 | 6C | Specification Evidence Extraction & Resolution | Implemented (frozen)
 | 7A | Comparable-Product Candidate Discovery | Implemented (frozen)
+| 7B | Enterprise SSD Similarity Scoring | Implemented (approved / frozen)
 | SAP | SAP launcher integration | Future |
 
 
@@ -188,6 +190,8 @@ FU3B wires the frozen FU3A semantic runtime into real research execution:
 | Comparable-Candidate Contracts (7A) | `research/comparable_candidates.py` | **Implemented (frozen)**
 | Enterprise SSD Candidate Extraction (7A) | `research/enterprise_ssd_candidate_extraction.py` | **Implemented (frozen)**
 | Comparable Discovery Execution (7A) | `execution/comparable_discovery.py` | **Implemented (frozen)**
+| Enterprise SSD Similarity Scoring (7B) | `research/enterprise_ssd_similarity.py` | **Implemented (approved / frozen)**
+| Comparable Similarity Execution (7B) | `execution/comparable_similarity.py` | **Implemented (approved / frozen)**
 
 ## Research orchestration
 
@@ -441,6 +445,114 @@ Contract corrections applied in review-closure pass:
 - All bare-pass tests replaced with real adversarial coverage
 - No skip/xfail/deselect/bare-pass in any 7A test
 
+### 7B IMPLEMENTATION SNAPSHOT (IMPLEMENTED / APPROVED / FROZEN)
+
+**Frozen 7A baseline:** 3006 collected.
+
+| Metric | Count |
+| --- | --- |
+| Total collected | 3102 |
+| Passed | 3092 |
+| Failed | 10 (fixed approved allowlist only, non-deterministic) |
+| Unexpected failures | 0 |
+| Skipped | 0 |
+| Xfailed | 0 |
+| Deselected | 0 |
+
+The ten failures are the fixed approved Windows / Python 3.14
+subprocess-boundary flake allowlist (all boundary/import-guard tests).
+
+**Collection accounting:**
+
+| Component | Nodes |
+| --- | --- |
+| Frozen 7A baseline | 3006 |
+| 7B research tests (`test_enterprise_ssd_similarity.py`) | 54 |
+| 7B execution tests (`test_comparable_similarity.py`) | 34 |
+| Boundary guard nodes | 8 |
+| **Total** | **3102** |
+
+7B implementation:
+- New production modules:
+  - `research/enterprise_ssd_similarity.py` (pure similarity scoring)
+  - `execution/comparable_similarity.py` (execution + batch result)
+- New test modules:
+  - `tests/research/test_enterprise_ssd_similarity.py` (54 tests)
+  - `tests/execution/test_comparable_similarity.py` (34 tests)
+- Total new 7B tests: 88
+- Collection delta: 3006 -> 3102 (+96)
+- One modified test: `tests/research/test_listing_normalization_boundaries.py`
+  (Decimal allowlist addition for new module)
+- Real Seagate fixture: 81 observations -> 80 candidates -> 80 similarities
+- Real Seagate vertical slice: frozen 6C -> frozen 7A -> 7B
+- Known sibling XP15360SE70015 scored: 1 scoreable field (Form Factor)
+- All 80 candidates have evidence_coverage = 1/12
+- Real Form Factor exact match: field_similarity = 1
+- Fetch count: 1 (one fetch per source, not 80)
+- No frozen file modifications
+- No pre-7B test deletions
+- Research boundary clean (no provider imports in research/)
+- 7B boundary: no SearchProvider, no LLM, no title parsing, no Interface splitting
+
+Contract corrections (7B corrective implementation):
+- SpecificationSimilarityFieldAssessment recomputes actual field similarity
+  from raw resolutions; rejects wrong-but-in-range supplied score
+- EnterpriseSsdSimilarityResult moved from research to execution layer
+- Exact ComparableCandidateDiscoveryResult type enforced (no duck typing,
+  TypeError BEFORE any fetch)
+- Source outcomes retained in result (not discarded)
+- 7B ComparableSimilaritySourceOutcome uses exact 7A ComparableCandidateSource
+  descriptor object (not flattened source_name/source_url/source_authority)
+- final_url structurally validated by require_fetchable_url()
+- Candidate spec provenance audit: every observation traced to a FETCHED
+  7B source outcome (product_identity, source_name, source_authority,
+  source_url==final_url, retrieved_at all verified)
+- ComparableCandidateSpecificationProfile enforces exact bridge output
+  (rejects enriched identity with injected metadata)
+- Exact scalar types enforced (bool/int/float substitutes rejected)
+- Non-authoritative bridge test uses TEST-ONLY object.__setattr__ tampering
+- 7A source binding: EnterpriseSsdSimilarityResult.__post_init__ derives
+  canonical EXTRACTED source descriptors from the frozen 7A result and
+  enforces exact object identity for every 7B source outcome. Copied/
+  value-equal substitutes are rejected. Missing or extra outcomes rejected.
+
+Key design decisions:
+- VERIFIED-only scoring (UNKNOWN/UNVERIFIED/CONFLICT are NOT mismatches)
+- 12-field equal weight (no domain-business weights in 7B v1)
+- DECIMAL: min(target, candidate) / max(target, candidate)
+- TEXT/ENUM/BOOLEAN: exact canonical equality (1 or 0)
+- evidence_coverage = scored_field_count / 12
+- observed_similarity = mean of scored field similarities
+- evidence_weighted_similarity = sum of scored similarities / 12
+- Self-validating EnterpriseSsdCandidateSimilarity (re-derives all fields,
+  exact scalar types)
+- Self-validating EnterpriseSsdSimilarityResult (execution-owned, exact
+  discovery_result type, retained source outcomes, 7A source binding,
+  provenance audit)
+- Field score self-validation (SpecificationSimilarityFieldAssessment
+  recomputes and rejects wrong supplied score)
+- Candidate ProductIdentity bridge: EXACT, no manufacturer guessed,
+  rejects non-AUTHORITATIVE evidence
+- One-fetch-per-source execution (document held, extraction per identity)
+- 7B source descriptor identity binding (exact 7A ComparableCandidateSource
+  object reused in 7B outcome, enforced at result construction)
+- No duck typing for ComparableCandidateDiscoveryResult
+- No provenance string mutation (no .strip() on source_name/source_url)
+- PageFetcher remains a structural protocol check (hasattr(page_fetcher, "fetch"));
+  this is a protocol verification, not discovery-result authority
+
+Evidence sparsity conclusion:
+- Current candidate specification evidence is too sparse for useful
+  differentiation (only 1 of 12 fields scoreable per candidate)
+- This is a limitation of frozen 6C extraction capability (only
+  "Form Factor" label mapped), not a 7B failure
+- Candidate specification enrichment required before useful 7C presentation
+
+No skip/xfail/deselect/bare-pass in any 7B test
+
+Next delivery decision after 7B freeze:
+candidate-specification enrichment vs 7C presentation.
+
 ### 6C IMPLEMENTATION SNAPSHOT (APPROVED / FROZEN)
 
 | Metric | Count |
@@ -535,9 +647,21 @@ Corrective pass (final evidence-backed closure):
         self-auditing ComparableCandidateDiscoveryResult;
         real Seagate vertical slice: 81 records -> 81 observations -> 1 TARGET_SELF -> 80 candidates;
         no persistence/web;
-        7B next
 
-**7B**: NOT STARTED — **NEXT DELIVERY PRIORITY**
+**7B**: IMPLEMENTED / APPROVED / FROZEN —
+        Enterprise SSD Similarity Scoring;
+        deterministic field-level similarity evidence;
+        VERIFIED-only scoring (UNKNOWN/UNVERIFIED/CONFLICT never mismatch);
+        candidate ProductIdentity bridge (EXACT, no manufacturer guess);
+        12-field equal-weight (no business weights);
+        DECIMAL min/max ratio, TEXT/ENUM/BOOLEAN exact equality;
+        evidence_coverage = scored/12, evidence_weighted = sum/12;
+        one-fetch-per-source execution (not one-fetch-per-candidate);
+        frozen 6C extraction reuse per candidate identity;
+        real Seagate fixture: 80 candidates, 1 scoreable field each (Form Factor);
+        evidence too sparse for useful differentiation (candidate spec enrichment needed);
+        next delivery decision after 7B freeze:
+        candidate-specification enrichment vs 7C presentation
 
 **7C**: NOT STARTED
 

@@ -82,6 +82,11 @@ def test_normalization_and_aggregation_may_use_decimal() -> None:
         enterprise_ssd_module,
     }
 
+    # 7B similarity scoring uses Decimal for min/max ratio computation
+    similarity_module = RESEARCH_ROOT / "enterprise_ssd_similarity.py"
+    if similarity_module.exists():
+        allowed_decimal.add(similarity_module)
+
     for path in _python_files(RESEARCH_ROOT):
         if path in allowed_decimal:
             continue
@@ -89,7 +94,7 @@ def test_normalization_and_aggregation_may_use_decimal() -> None:
         assert "decimal" not in other_modules, (
             f"{path.name} imports decimal; only normalization.py, "
             "aggregation.py, price_result_codec.py, specifications.py, "
-            "and enterprise_ssd.py may use Decimal"
+            "enterprise_ssd.py, and enterprise_ssd_similarity.py may use Decimal"
         )
 
 

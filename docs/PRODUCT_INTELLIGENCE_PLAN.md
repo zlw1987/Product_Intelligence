@@ -34,7 +34,7 @@ web execution/retry integration, FU3A/FU3B implement semantic qualification
 and semantic execution integration, and HUMAN-REVIEW implements human review
 for AI-assisted semantic matches. The web form creates a run, triggers
 execution synchronously, and redirects to the report with the full result.
-Remaining future work: structured API (5A), comparable-product research (7B-7C — 7A implemented and frozen).
+Remaining future work: structured API (5A), comparable-product research (7C — 7A implemented and frozen, 7B implemented and frozen).
 
 ## 2. Problem statement
 
@@ -2308,7 +2308,10 @@ schema (6B), and specification evidence extraction and resolution (6C)
 precede this work. Enterprise SSD is finalized and implemented as the
 first 6B category.
 
-Status: `APPROVED / PLANNED`. Nothing implemented.
+Status:
+    7A — IMPLEMENTED / APPROVED / FROZEN
+    7B — IMPLEMENTED / APPROVED / FROZEN
+    7C — NOT STARTED
 
 ## 18. Caching / freshness direction
 
@@ -2670,7 +2673,7 @@ PRODUCT-INTEL.6B   First category-specific schema (Enterprise SSD v1)  IMPLEMENT
 PRODUCT-INTEL.6C   Specification evidence extraction and
                    resolution                                 IMPLEMENTED
 PRODUCT-INTEL.7A   Comparable-product candidate discovery     IMPLEMENTED / APPROVED / FROZEN
-PRODUCT-INTEL.7B   Similarity scoring                         PLANNED
+PRODUCT-INTEL.7B   Similarity scoring                         IMPLEMENTED / APPROVED / FROZEN
 PRODUCT-INTEL.7C   Comparison web report                      PLANNED
 
 ----- COMPARABLE MVP -----
@@ -2711,17 +2714,21 @@ DELIVERED:
 DELIVERED (frozen):
   7A    Comparable-product candidate discovery (implemented / approved / frozen)
 
-NEXT DELIVERY PRIORITY:
-  7B    Similarity scoring
-  7C    Comparison web report
+DELIVERED (approved / frozen):
+  7B    Enterprise SSD similarity scoring (implemented / approved / frozen)
+
+NEXT DELIVERY DECISION (after 7B freeze):
+  candidate-specification enrichment vs 7C presentation
 
 FUTURE:
+  7C    Comparison web report (not started)
   SAP   SAP launcher integration
 ```
 
 **6C IMPLEMENTED AND FROZEN.**
 **7A IMPLEMENTED AND FROZEN.**
-**Next delivery priority: PRODUCT-INTEL.7B (Similarity Scoring).**
+**7B IMPLEMENTED / APPROVED / FROZEN.**
+**7C NOT STARTED.**
 
 6A is IMPLEMENTED AND FROZEN. 6B is IMPLEMENTED AND FROZEN (with
 approved evidence-backed corrective addition: "2.5in" -> "2.5-inch").
@@ -2764,8 +2771,19 @@ Seagate Nytro 5050 demonstrates that deterministic static structured
 extraction is sufficient for the minimum real 6C vertical slice.
 Current evidence therefore does not justify an LLM extractor.
 
-7B-7C (comparable-product research) depends on 6A/6B/6C and on frozen 7A: the 6A framework,
-the 6B category schema, real specification evidence from 6C, and candidate discovery from 7A.
+7B is IMPLEMENTED / APPROVED / FROZEN. 7C is NOT STARTED. Next delivery decision
+after 7B freeze: candidate-specification enrichment vs 7C presentation.
+
+7B (similarity scoring) computes deterministic field-level similarity evidence
+between target and candidate specifications. VERIFIED-only scoring, 12-field
+equal weight, DECIMAL min/max ratio, TEXT/ENUM/BOOLEAN exact equality.
+Execution-owned EnterpriseSsdSimilarityResult with 7A source binding,
+retained source outcomes, and provenance audit. Evidence sparsity (1/12
+coverage per candidate under current 6C extraction) means candidate
+specification enrichment is needed before useful 7C presentation.
+
+7C (comparison web report) depends on 7B freeze and candidate specification
+enrichment.
 
 ### 22.0 Product Specification Framework — 6A Phase Contract
 
@@ -3538,7 +3556,275 @@ Frozen ProductIdentity represents the requested product's identity.
 
 **Real vertical slice:** Seagate 81 records -> 81 observations -> 1 TARGET_SELF -> 80 candidates.
 
-### 22.4 Corrective follow-up phases
+### 22.4 Enterprise SSD Similarity Scoring — 7B Phase Contract
+
+**Status: IMPLEMENTED / APPROVED / FROZEN**
+
+7B answers:
+    "Given verified specification evidence for the target and candidate,
+     how similar are their observable specifications?"
+
+7B does NOT answer:
+    "Is this drive guaranteed compatible?"
+    "Can this drive replace the target?"
+    "Which one should the user buy?"
+    "Which candidate is best?"
+
+Similarity != compatibility certification.
+
+No score, rank, recommendation, or compatibility label is produced.
+Only auditable field-level similarity evidence.
+
+#### 22.4.1 Input Authority
+
+Uses ONLY frozen contracts:
+    ProductSpecificationSet
+    ENTERPRISE_SSD_SCHEMA
+    ComparableCandidate
+    ComparableCandidateDiscoveryResult
+
+A field may contribute to similarity ONLY when:
+    target resolution.state == VERIFIED
+    AND
+    candidate resolution.state == VERIFIED
+
+Do NOT score:
+    UNKNOWN
+    UNVERIFIED
+    CONFLICT
+
+These mean evidence is unavailable/non-authoritative/conflicting.
+They are NOT mismatches.
+
+#### 22.4.2 Candidate ProductIdentity Bridge
+
+7A deliberately did NOT reuse ProductIdentity for discovered candidates.
+7B requires candidate ProductIdentity because frozen 6C specification
+extraction/resolution requires ProductIdentity.
+
+`establish_candidate_product_identity(candidate: ComparableCandidate) -> ProductIdentity`:
+    - manufacturer_part_number = candidate.manufacturer_part_number
+    - normalized_part_number = candidate.normalized_part_number
+    - match_type = IdentityMatchType.EXACT
+    - manufacturer = None (NOT guessed)
+    - product_name = None (NOT inferred from titles)
+
+The EXACT match_type means "the candidate's own MPN is established by
+authoritative evidence." It does NOT mean the candidate equals the target.
+
+The bridge requires EXACT ComparableCandidate type (not isinstance).
+Subclasses of ComparableCandidate are rejected. This is an exact-type
+contract: `type(candidate) is not ComparableCandidate` raises TypeError.
+
+The bridge rejects non-AUTHORITATIVE evidence. ComparableCandidate itself
+enforces AUTHORITATIVE-only, and the bridge re-checks explicitly.
+
+#### 22.4.3 ComparableCandidateSpecificationProfile
+
+Immutable contract binding:
+    - candidate (ComparableCandidate, exact type)
+    - candidate_identity (ProductIdentity, exact type, from bridge)
+    - specification_set (ProductSpecificationSet)
+
+Self-validating:
+    - candidate_identity must be the EXACT output of
+      establish_candidate_product_identity(candidate)
+    - caller may not enrich the identity with manufacturer/product_name/
+      category metadata
+    - spec set must use the candidate identity (object identity)
+    - schema must be ENTERPRISE_SSD_SCHEMA
+
+#### 22.4.4 Field Comparison Contract
+
+`SpecificationSimilarityFieldAssessment` binds:
+    definition
+    target_resolution
+    candidate_resolution
+    comparison_state
+    field_similarity (Decimal in [0, 1], only when SCORED)
+
+`comparison_state` vocabulary:
+    SCORED — both sides VERIFIED, similarity computed
+    TARGET_NOT_VERIFIED — target not VERIFIED
+    CANDIDATE_NOT_VERIFIED — candidate not VERIFIED
+    BOTH_NOT_VERIFIED — neither side VERIFIED
+
+No "mismatch" state for missing evidence.
+
+**Field score self-validation:** When SCORED, the constructor recomputes
+the actual field similarity from the raw target and candidate resolutions
+using `_compute_field_similarity()`. The supplied `field_similarity` value
+is never trusted — it must equal the re-derived score. A caller cannot
+supply a wrong-but-in-range value (e.g. 0.73 instead of 0.5 for
+3.84 vs 7.68) because the constructor detects the mismatch.
+
+#### 22.4.5 Field Similarity Rules
+
+Uses frozen `SpecificationDefinition.value_kind`:
+
+TEXT:
+    canonical exact equality -> 1 if equal, 0 if not
+
+ENUM:
+    exact canonical enum equality -> 1 if equal, 0 if not
+
+BOOLEAN:
+    exact equality -> 1 if equal, 0 if not
+
+DECIMAL:
+    For positive values: min(target, candidate) / max(target, candidate)
+    Examples: 3.84 vs 3.84 -> 1, 3.84 vs 7.68 -> 0.5, 7000 vs 6300 -> 0.9
+
+No arbitrary tolerance, no rounding into match buckets, no field-specific
+weighting. Invalid/non-positive DECIMAL values propagate as contract errors.
+
+#### 22.4.6 Equal Field Weights
+
+7B v1 has NO domain-business weights.
+Every definition in ENTERPRISE_SSD_SCHEMA contributes one possible unit.
+No field may be omitted merely because it is currently UNKNOWN in real data.
+
+#### 22.4.7 Aggregate Contract
+
+`EnterpriseSsdCandidateSimilarity`:
+    candidate_profile
+    target_specification_set
+    field_assessments (exactly 12)
+    scored_field_count (int, exact type — bool/float rejected)
+    evidence_coverage (Decimal, exact type — int rejected)
+    observed_similarity (Decimal or None, exact type — float rejected)
+    evidence_weighted_similarity (Decimal or None, exact type — bool rejected)
+
+evidence_coverage = scored_field_count / 12
+observed_similarity = sum(scored similarities) / scored_field_count (None if 0)
+evidence_weighted_similarity = sum(scored similarities) / 12 (None if 0)
+
+Mechanically: evidence_weighted_similarity == observed_similarity * evidence_coverage
+(subject only to exact Decimal arithmetic).
+
+No quantization/rounding in the research layer.
+No ranking field. No ordinal bucket. No recommendation.
+
+Self-validating: constructor re-derives all computed fields from raw resolutions.
+Exact scalar types enforced (bool/int/float substitutes rejected even when
+numerically equal). A caller cannot fabricate a higher score, fake coverage,
+drop a mismatch field, or substitute resolutions.
+
+#### 22.4.8 Batch Result
+
+`EnterpriseSsdSimilarityResult` is OWNED BY THE EXECUTION LAYER
+(`execution/comparable_similarity.py`). It is NOT in the research layer.
+
+Fields:
+    discovery_result (frozen ComparableCandidateDiscoveryResult, exact type)
+    source_outcomes (tuple of ComparableSimilaritySourceOutcome)
+    candidate_profiles (one per candidate)
+    similarities (one per profile)
+
+Self-validating:
+    - discovery_result must be EXACTLY a ComparableCandidateDiscoveryResult
+      (no duck typing, no subclasses)
+    - source_outcomes retained in result (not discarded)
+    - **7A source binding:** canonical EXTRACTED source descriptors are
+      derived from the frozen 7A result (same dedup semantics as the
+      pipeline: ComparableCandidateSource value equality, first-seen wins).
+      Each 7B source outcome.source must be the exact same object
+      (object identity: `outcome.source is canonical_7a_source`).
+      Copied/value-equal substitutes are rejected.
+      Count and order must match exactly.
+    - final_url is structurally validated by `require_fetchable_url()`
+    - Exact candidate object identity binding
+    - Order exactly matches discovery_result.candidates order
+    - Every similarity targets discovery_result.target_specification_set
+    - No missing candidate, no foreign candidate, no duplicate candidate
+    - No ranking/top-N field
+
+**Candidate spec provenance audit:** For every candidate profile,
+for every SpecificationResolution, for every observation in resolution.evidence,
+the provenance audit verifies:
+    - observation.product_identity is profile.candidate_identity
+    - A FETCHED 7B source outcome exists where:
+        observation.source_name == outcome.source.source_name
+        observation.source_authority is outcome.source.source_authority
+        observation.source_url == outcome.final_url
+        observation.retrieved_at == outcome.retrieved_at
+    - Evidence from FETCH_FAILED, SOURCE_REFUSED, foreign URL, wrong timestamp,
+      wrong source, wrong authority, another candidate, or unaccounted source
+      fails closed.
+    - Zero evidence is legal (UNKNOWN resolution with empty evidence).
+
+#### 22.4.9 Execution
+
+`research_and_score_enterprise_ssd_candidates(discovery_result, page_fetcher)`:
+    1. Validate discovery_result is EXACTLY ComparableCandidateDiscoveryResult
+       (TypeError BEFORE any fetch)
+    2. Identify EXTRACTED source outcomes from frozen 7A result
+    3. Fetch each unique EXTRACTED source exactly ONCE
+       (deduplicated by source descriptor, not by outcome identity)
+    4. For each candidate:
+       a. establish_candidate_product_identity (7B bridge)
+       b. extract_enterprise_ssd_specification_observations (frozen 6C)
+          from each fetched document (reuse in memory, no refetch per candidate)
+       c. normalize_enterprise_ssd_observation (frozen 6B)
+       d. resolve_specification (frozen 6A)
+       e. Build ComparableCandidateSpecificationProfile
+    5. Score each candidate via score_enterprise_ssd_candidate_similarity
+    6. Return self-validating EnterpriseSsdSimilarityResult with:
+       - retained source_outcomes
+       - one FETCHED/FAILED outcome per unique source
+       - provenance-audited candidate profiles
+
+Does NOT rediscover candidates. Does NOT use SearchProvider.
+One fetch per unique source (not one fetch per candidate).
+
+7B source outcome states:
+    FETCHED — page fetched, final_url + retrieved_at present
+    FETCH_FAILED — PageFetchError caught, final_url=None, retrieved_at=None
+    SOURCE_REFUSED — UnsafeFetchTargetError caught, final_url=None, retrieved_at=None
+
+7B source outcomes are RETAINED in the result, not discarded.
+
+#### 22.4.10 Architecture Boundaries
+
+`research/enterprise_ssd_similarity.py` may import:
+    stdlib, domain, research specifications, research enterprise_ssd,
+    research comparable_candidates, Decimal
+
+Must NOT import:
+    providers, execution, runs, web, django, SearchProvider, semantic,
+    evaluation, filesystem, environment
+
+`execution/comparable_similarity.py` may import:
+    domain, providers.page (including require_fetchable_url), frozen research
+    contracts, frozen 6C extractor/normalizer/resolver, frozen 7A contracts,
+    7B similarity research contracts
+
+Must NOT import:
+    providers.search, providers.serper, HttpPageFetcher concrete,
+    semantic, evaluation, web, Django, persistence/runs
+
+**EnterpriseSsdSimilarityResult is execution-owned.** The research layer
+contains only the pure scoring logic and candidate identity bridge.
+
+#### 22.4.11 Real Seagate Coverage Result
+
+Under current frozen 6C extraction capability (only "Form Factor" label
+mapped), real Seagate Nytro 5050 fixture produces:
+    - 81 observations -> 1 TARGET_SELF -> 80 candidates
+    - Each candidate: 1 scoreable field (physical_form_factor)
+    - evidence_coverage = 1/12 for all candidates
+    - observed_similarity = 1 (same form factor across siblings)
+    - evidence_weighted_similarity = 1/12 for all candidates
+    - 1 fetch per source (not 80)
+    - source_outcomes retained with exact 7A source descriptor binding
+    - candidate spec evidence provenance traced to FETCHED 7B outcomes
+
+Current candidate specification evidence is too sparse for useful
+differentiation. This is a limitation of frozen 6C extraction capability,
+not a 7B failure. Candidate specification enrichment is required before
+useful 7C presentation.
+
+### 22.5 Corrective follow-up phases
 
 Three follow-ups (0A-FU1, 1A-FU1, 2A-FU1) each corrected a real contract- or
 data-integrity defect before its phase was frozen, and each was worth its cost.
@@ -3751,3 +4037,4 @@ This canonical plan does not duplicate that operational snapshot.
 | AD-055 | Enterprise SSD finalized as first 6B category; 12-field schema v1; strict abstaining deterministic normalization; no extraction, no resolution, no authority inference; 6C remains evidence acquisition/extraction boundary. | 6A framework provides the generic contracts; 6B instantiates the first real category using them. The 12-field v1 schema is narrow enough that each field has a clear deterministic normalization meaning, yet broad enough to support later comparable-product research across enterprise SSD products. Normalization is representation-only: it changes how a raw value is represented, not whether it is true or authoritative. Composite/ambiguous values abstain with explicit issue codes rather than guessing. 6C is responsible for turning real source material into specification observations that this schema can normalize. | Accepted (6B implementation) |
 | AD-056 | 6C uses explicit approved sources and existing PageFetcher; deterministic structured extraction via supportSpecsData embedded JSON (var supportSpecsData = JSON.parse('...')); source authority remains explicit (never hostname-inferred); normalization uses frozen 6B (with evidence-backed corrective addition: "2.5in" -> "2.5-inch"); resolution uses frozen 6A; fetch/no-evidence outcomes remain auditable; no LLM implemented; Samsung PM9A3 page accessible but NO_OBSERVATIONS (spec table JS-rendered); exact MPN record selection; only "Form Factor" label mapping currently evidenced; provenance/source-outcome audits (multiplicity-aware); final_url validation; raw value exact preservation. | 6C owns the complete evidence acquisition pipeline: explicit approved-source descriptors (source_url validated through require_fetchable_url at construction), existing PageFetcher acquisition (PageFetcher protocol imported from providers.page, not HttpPageFetcher concrete), deterministic structured extraction (var supportSpecsData = JSON.parse('...') demonstrated by Seagate Nytro 5050), exact MPN record selection (skuNumber match), raw provenance preservation (exact source value), frozen 6B normalization (with evidence-backed "2.5in" correction), frozen 6A resolution, complete ProductSpecificationSet with explicit UNKNOWN, and auditable source outcomes (EXTRACTED/NO_OBSERVATIONS/FETCH_FAILED/SOURCE_REFUSED) with self-consistency validation and final_url validation. Source outcomes preserve complete source descriptor including authority. Result audit enforces sum(EXTRACTED observation_count) == len(normalized_observations). Provenance trace is multiplicity-aware: each EXTRACTED outcome contributes capacity equal to observation_count. No source discovery or search. No LLM extractor — deterministic-first. Research extraction module is pure (receives text, produces observations). No persistence/web. The Samsung PM9A3 manufacturer page is accessible via static HTTP but produces NO_OBSERVATIONS (spec table rendered by Next.js React components). No real manufacturer fixture has demonstrated JSON-LD, HTML tables, or definition lists as extraction mechanisms. Only the supportSpecsData embedded JSON structure is accepted. | Accepted (6C implementation) |
 | AD-057 | 7A candidate discovery is evidence-first and distinct from similarity: explicit AUTHORITATIVE manufacturer catalog sources produce raw candidate observations; frozen 2A excludes the target and groups only exact/normalized-exact candidate identities; no SearchProvider, LLM, spec filtering, scoring, ranking, or persistence is introduced. | Candidate != comparable. 7A discovers product identities from approved catalog sources; 7B scores similarity. ProductIdentity is NOT reused for discovered candidates (it represents the requested product, not catalog rows). supportSpecsData is the first mechanism. Target-self exclusion uses frozen 2A compare_part_numbers(). Deduplication uses frozen 2A normalize_part_number() semantics. No spec-based pre-filtering (that is 7B). No score/rank fields on candidates. Result is self-auditing. | Accepted (7A implementation) |
+| AD-058 | 7B deterministic similarity scoring: VERIFIED-only field comparison, 12-field equal weight, Decimal min/max ratio for numeric fields, candidate ProductIdentity bridge (EXACT, no manufacturer guessed), evidence_coverage and evidence_weighted_similarity, one-fetch-per-source execution reusing frozen 6C extraction per candidate identity, self-validating contracts, field score self-validation, exact scalar types, execution-owned EnterpriseSsdSimilarityResult with 7A source binding, retained source outcomes and provenance audit. | 7B computes auditable similarity evidence between target and candidate specifications. Similarity != compatibility certification. VERIFIED-only scoring: UNKNOWN/UNVERIFIED/CONFLICT states are not mismatches. 12 fields have equal weight (no domain-business weights). DECIMAL fields use min/max ratio (positive values), TEXT/ENUM/BOOLEAN use exact canonical equality. Field score self-validation: SpecificationSimilarityFieldAssessment recomputes actual score from raw resolutions, rejecting wrong-but-in-range supplied values. Exact scalar types: scored_field_count must be int (not bool/float), evidence_coverage/observed_similarity/evidence_weighted_similarity must be Decimal (not int/float/bool). evidence_coverage = scored/12, evidence_weighted_similarity = sum/12. Candidate ProductIdentity bridge uses EXACT match type, rejects non-AUTHORITATIVE evidence, and ComparableCandidateSpecificationProfile enforces exact bridge output identity (no enriched metadata). Execution fetches each unique source ONCE, calls frozen 6C extraction per candidate identity. EnterpriseSsdSimilarityResult is execution-owned: exact ComparableCandidateDiscoveryResult type (no duck typing, TypeError BEFORE fetch), 7A source binding (canonical EXTRACTED source descriptors derived from frozen 7A result, exact object identity enforced — copied/value-equal substitutes rejected, count and order audited), retained source outcomes, final_url structurally validated, candidate spec evidence traced to FETCHED 7B outcomes (provenance audit). Real Seagate fixture: 80 candidates, each with 1 scoreable field (Form Factor), coverage = 1/12. Evidence too sparse for useful differentiation. | Accepted (7B implementation) |
