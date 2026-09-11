@@ -55,16 +55,16 @@ GENERIC_BOUNDARY_MODULES = [
     PROVIDERS_ROOT / "__init__.py",
     PROVIDERS_ROOT / "search.py",
     PROVIDERS_ROOT / "page.py",
+    PROVIDERS_ROOT / "document.py",  # 6D: provider-neutral document boundary
 ]
 
 # Concrete adapters: the modules that are allowed to name a vendor and to open a
 # connection. `serper.py` talks to one search vendor; `http_page.py` talks to
-# whatever public page it is handed, which is why its own safety rules — not a
-# guard in this file — are what constrain it (see
-# tests/providers/test_http_page_fetcher.py).
+# whatever public page it is handed; `http_pdf.py` fetches PDF documents.
 ADAPTER_MODULES = [
     PROVIDERS_ROOT / "serper.py",
     PROVIDERS_ROOT / "http_page.py",
+    PROVIDERS_ROOT / "http_pdf.py",  # 6D: concrete PDF fetcher
 ]
 
 # Modules that perform or configure I/O. `urllib.parse` is deliberately absent:
@@ -290,12 +290,16 @@ def test_only_the_expected_adapter_modules_exist() -> None:
 
     The generic boundary (`__init__.py`, `search.py`) stays as 2B left it;
     `serper.py` is the one vendor-specific module 2C is permitted to add.
+    3A added the page-fetch boundary (`page.py`, `http_page.py`).
+    6D adds the document/PDF boundary (`document.py`, `http_pdf.py`).
     Recorded fixtures live under `tests/fixtures/providers/serper/`, not here
     — the provider package itself stores no test data.
     """
     assert sorted(path.name for path in _python_files(PROVIDERS_ROOT)) == [
         "__init__.py",
+        "document.py",
         "http_page.py",
+        "http_pdf.py",
         "page.py",
         "search.py",
         "serper.py",
@@ -481,3 +485,83 @@ def test_the_live_fetch_script_is_not_reachable_from_the_test_suite() -> None:
     ]
 
     assert not offenders, f"{offenders} reference the manual live-fetch script"
+
+
+# --------------------------------------------------------------------------
+# PRODUCT-INTEL.6D additions: document/PDF boundary and HTTP PDF fetcher.
+# --------------------------------------------------------------------------
+
+# document.py is a GENERIC boundary: stdlib only, no vendor, no caller concepts,
+# no network, no config/credentials, no framework. It defines provider-neutral
+# contracts for binary document acquisition.
+
+# http_pdf.py is an ADAPTER: it opens connections to fetch PDFs via stdlib
+# urllib. It must not import research decisions, persistence, web, or evaluation.
+# Network access is expected (it fetches PDFs). It must not read configuration
+# or credentials unless explicitly required.
+
+
+def test_the_pdf_fetcher_may_open_a_connection_and_the_document_boundary_may_not() -> None:
+    """http_pdf.py is expected to reach the network; document.py must not."""
+    pdf_imports = _imported_modules(PROVIDERS_ROOT / "http_pdf.py")
+    doc_imports = _imported_modules(PROVIDERS_ROOT / "document.py")
+
+    assert _imports_any(pdf_imports, NETWORK_MODULES), (
+        "http_pdf.py must open a connection to fetch PDFs"
+    )
+    assert not _imports_any(doc_imports, NETWORK_MODULES), (
+        "document.py imports network modules; the generic document boundary "
+        "opens no connection itself."
+    )
+
+
+def test_the_pdf_fetcher_reads_no_configuration_or_credential() -> None:
+    """http_pdf.py is anonymous: no API key, no environment variable."""
+    offending = _imports_any(
+        _imported_modules(PROVIDERS_ROOT / "http_pdf.py"), CONFIGURATION_MODULES
+    )
+    assert not offending, f"http_pdf.py imports {sorted(offending)}"
+
+
+def test_the_document_boundary_makes_no_research_decision() -> None:
+    """document.py is a generic boundary — no research, persistence, or web."""
+    offending = _imports_any(
+        _imported_modules(PROVIDERS_ROOT / "document.py"),
+        [
+            "django",
+            "product_intelligence.runs",
+            "product_intelligence.research",
+            "product_intelligence.web",
+            "product_intelligence.evaluation",
+        ],
+    )
+    assert not offending, f"document.py imports {sorted(offending)}"
+
+
+def test_http_pdf_imports_no_third_party_dependency() -> None:
+    """http_pdf.py uses stdlib urllib — no third-party client."""
+    script = (
+        "import sys, json\n"
+        "before = set(sys.modules)\n"
+        "import product_intelligence.providers.http_pdf\n"
+        "loaded = {name.split('.')[0] for name in set(sys.modules) - before}\n"
+        "third_party = sorted(\n"
+        "    name for name in loaded\n"
+        "    if not name.startswith('_')\n"
+        "    and name != 'product_intelligence'\n"
+        "    and name not in sys.stdlib_module_names\n"
+        ")\n"
+        "print(json.dumps(third_party))\n"
+    )
+    env = dict(os.environ, PYTHONPATH=str(REPO_ROOT))
+
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=REPO_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    assert json.loads(result.stdout.strip().splitlines()[-1]) == []

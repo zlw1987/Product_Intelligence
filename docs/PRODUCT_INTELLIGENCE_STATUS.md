@@ -10,6 +10,7 @@ HUMAN-REVIEW Human Review for AI-Assisted Matches APPROVED/FROZEN;
 6C Specification Evidence Extraction & Resolution IMPLEMENTED/APPROVED/FROZEN;
 7A Comparable-Product Candidate Discovery IMPLEMENTED / APPROVED / FROZEN;
 7B Enterprise SSD Similarity Scoring IMPLEMENTED / APPROVED / FROZEN.**
+6D Authoritative Datasheet Specification Enrichment IMPLEMENTED / APPROVED / FROZEN
 
 Semantic qualification is APPROVED AND FROZEN:
 - Semantic qualification corpus, prompt v1.1, evaluator mathematics,
@@ -128,8 +129,10 @@ FU3B wires the frozen FU3A semantic runtime into real research execution:
 | 6A | Product Specification Framework | Implemented (frozen)
 | 6B | Enterprise SSD Category Schema | Implemented (approved / re-frozen)
 | 6C | Specification Evidence Extraction & Resolution | Implemented (frozen)
+| 6D | Authoritative Datasheet Specification Enrichment | Implemented (approved / frozen)
 | 7A | Comparable-Product Candidate Discovery | Implemented (frozen)
 | 7B | Enterprise SSD Similarity Scoring | Implemented (approved / frozen)
+| 7C | Comparable-Product Presentation | Not started
 | SAP | SAP launcher integration | Future |
 
 
@@ -192,6 +195,10 @@ FU3B wires the frozen FU3A semantic runtime into real research execution:
 | Comparable Discovery Execution (7A) | `execution/comparable_discovery.py` | **Implemented (frozen)**
 | Enterprise SSD Similarity Scoring (7B) | `research/enterprise_ssd_similarity.py` | **Implemented (approved / frozen)**
 | Comparable Similarity Execution (7B) | `execution/comparable_similarity.py` | **Implemented (approved / frozen)**
+| Document Provider Boundary (6D) | `providers/document.py` | **Implemented (approved / frozen)**
+| HTTP PDF Fetcher (6D) | `providers/http_pdf.py` | **Implemented (approved / frozen)**
+| Datasheet Table Interpretation (6D) | `research/enterprise_ssd_datasheet.py` | **Implemented (approved / frozen)**
+| Specification Enrichment Execution (6D) | `execution/specification_enrichment.py` | **Implemented (approved / frozen)**
 
 ## Research orchestration
 
@@ -550,8 +557,6 @@ Evidence sparsity conclusion:
 
 No skip/xfail/deselect/bare-pass in any 7B test
 
-Next delivery decision after 7B freeze:
-candidate-specification enrichment vs 7C presentation.
 
 ### 6C IMPLEMENTATION SNAPSHOT (APPROVED / FROZEN)
 
@@ -660,10 +665,232 @@ Corrective pass (final evidence-backed closure):
         frozen 6C extraction reuse per candidate identity;
         real Seagate fixture: 80 candidates, 1 scoreable field each (Form Factor);
         evidence too sparse for useful differentiation (candidate spec enrichment needed);
-        next delivery decision after 7B freeze:
-        candidate-specification enrichment vs 7C presentation
+        6D completed the candidate-specification enrichment identified after the
+7B freeze. 7C Comparable-Product Presentation is the next comparable-product
+delivery.
 
 **7C**: NOT STARTED
+
+**6D**: IMPLEMENTED / APPROVED / FROZEN —
+        Authoritative Datasheet Specification Enrichment;
+        added AFTER 7B freeze because frozen 7B revealed only 1/12
+        candidate evidence coverage;
+        provider-neutral document/PDF boundary;
+        concrete HttpPdfFetcher (stdlib urllib, bounded, no browser);
+        pure research table interpretation (no PDF parser dependency);
+        MPN -> table -> column -> row binding;
+        six-field allowlist: capacity, sequential_read, sequential_write,
+        random_read_iops, random_write_iops, endurance_dwpd;
+        unit incorporation from structural row header when cell lacks unit;
+        frozen 6B normalization (no modification required);
+        frozen 6A resolution (VERIFIED for AUTHORITATIVE evidence);
+        complete ProductSpecificationSet with explicit UNKNOWN;
+        self-auditing SpecificationEnrichmentResult;
+        one-fetch-per-datasheet deduplication;
+        compose_6c_6d_specifications: merges 6C + 6D normalized evidence,
+        re-resolves via frozen 6A (does NOT copy resolved values);
+        physical_form_factor preserved VERIFIED from frozen 6C;
+        candidate composition: scored_field_count=7, evidence_coverage=7/12;
+        runtime dependency: pdfplumber>=0.11.0 (execution layer only);
+        pdfplumber for PDF table extraction (execution layer only);
+        real Seagate PDF fixture: Nytro 5550/5350 datasheet (8 pages);
+        no LLM, no semantic model, no title parsing, no Interface splitting
+
+### 6D IMPLEMENTATION SNAPSHOT (IMPLEMENTED / APPROVED / FROZEN)
+
+**Frozen 7B baseline:** 3102 collected.
+
+Total collected | 3353
+Passed          | 3352
+Failed          | 1
+Unexpected failures | 0
+Skipped         | 0
+Xfailed         | 0
+Deselected      | 0
+Subtests passed | 39
+Warnings        | 2
+
+The single observed failure was:
+tests/evaluation/test_evaluation_boundaries.py::test_loading_the_corpus_imports_no_framework_or_provider
+
+It is a member of the fixed approved 11-node Windows/Python 3.14
+subprocess-boundary flake allowlist. No node outside that allowlist failed.
+
+**Allowlist expansion evidence (node 11):**
+- `tests/providers/test_provider_boundaries.py::test_http_pdf_imports_no_third_party_dependency`
+- Exact pytest failure: `subprocess.Popen -> _winapi.DuplicateHandle -> OSError: [WinError 6] The handle is invalid`
+- Direct CMD semantic check: `[]` (stdlib urllib only, no third-party dependency)
+- Project-lead approval: accepted as the 11th fixed environment-flake node
+
+**Collection accounting (6D corrective closure):**
+
+| Component | Nodes |
+| --- | --- |
+| Frozen 7B baseline | 3102 |
+| 6D datasheet link extractor tests (`test_datasheet_link_extractor.py`) | 19 |
+| 6D provider document tests (`test_document_provider.py`) | 29 |
+| 6D HTTP PDF tests (`test_http_pdf.py`) | 20 |
+| 6D research datasheet tests (`test_enterprise_ssd_datasheet.py`) | 70 |
+| 6D execution enrichment tests (`test_specification_enrichment.py`) | 68 |
+| 6D boundary guard tests (`test_specification_enrichment_boundaries.py`) | 17 |
+| 6D provider boundary additions (`test_provider_boundaries.py`) | 4 |
+| Boundary guard nodes from existing tests (parameterization expansion) | 24 |
+| **Total** | **3353** |
+
+Collection delta: 3102 -> 3353 (+251)
+
+**Parameterization expansion derivation (24 nodes from existing tests):**
+
+All 24 boundary guard nodes from existing tests are derived from actual parameterized
+test expansion when new 6D production modules are added to directory-scanned sets:
+
+- `test_provider_boundaries.py`:
+  - 5 parametrize × GENERIC_BOUNDARY_MODULES: +1 each (document.py added) = +5
+  - 1 parametrize × _python_files(PROVIDERS_ROOT): +2 (document.py, http_pdf.py) = +2
+  - 1 parametrize × INNER_ROOTS: +2 (enterprise_ssd_datasheet.py, datasheet_link_extractor.py in research/) = +2
+  - 1 parametrize × ADAPTER_MODULES: +1 (http_pdf.py) = +1
+  Subtotal: +10
+
+- `test_research_identity_boundaries.py`:
+  - 4 parametrize × _python_files(RESEARCH_ROOT): +2 each = +8
+  Subtotal: +8
+
+- `test_research_run_boundaries.py`:
+  - 1 parametrize × (_python_files(DOMAIN_ROOT) + _python_files(RESEARCH_ROOT)): +2 = +2
+  Subtotal: +2
+
+- `test_web_boundaries.py`:
+  - 1 parametrize × INNER_ROOTS: +2 = +2
+  Subtotal: +2
+
+- `test_domain_boundaries.py`:
+  - 1 parametrize × (_python_files(DOMAIN_ROOT) + _python_files(RESEARCH_ROOT)): +2 = +2
+  Subtotal: +2
+
+Grand total parameterization expansion: 10 + 8 + 2 + 2 + 2 = 24
+
+6D production modules:
+- `product_intelligence/providers/document.py` (provider-neutral boundary)
+- `product_intelligence/providers/http_pdf.py` (concrete PDF fetcher)
+- `product_intelligence/research/datasheet_link_extractor.py` (support-record datasheet-link extraction)
+- `product_intelligence/research/enterprise_ssd_datasheet.py` (pure table interpretation)
+- `product_intelligence/execution/specification_enrichment.py` (execution + result + composition + authority chain + batch)
+
+6D test modules:
+- `tests/research/test_datasheet_link_extractor.py` (19 tests) — real fixture
+- `tests/providers/test_document_provider.py` (29 tests)
+- `tests/providers/test_http_pdf.py` (20 tests)
+- `tests/research/test_enterprise_ssd_datasheet.py` (70 tests)
+- `tests/execution/test_specification_enrichment.py` (68 tests)
+- `tests/research/test_specification_enrichment_boundaries.py` (17 tests)
+
+**Corrective changes applied (6D review-closure pass):**
+- Authority chain: `derive_datasheet_source()` derives datasheet URLs from
+  frozen 7A EXTRACTED AUTHORITATIVE source via supportSpecsData extraction
+- Real fixture: test_datasheet_link_extractor uses actual frozen Seagate HTML
+  fixture (not synthetic replica)
+- Batch execution: `enrich_enterprise_ssd_specifications_batch()` provides
+  shared PDF fetch across product identities (1 fetch for 3 identities)
+- Parser error taxonomy: only explicit verified exception classes caught
+  (pdfplumber.utils.exceptions.PdfminerException, pdfminer.pdfparser.PDFSyntaxError);
+  no module-name substring matching; RuntimeError propagates
+- Result self-audit: empty-evidence hole closed (ENRICHED + positive count
+  + zero raw observations rejected); ambiguous duplicate provenance rejected
+- FetchedDocument URL contract: embedded credentials rejected for both
+  requested_url and final_url
+- Provider boundary guards: document.py (generic) and http_pdf.py (adapter)
+  added to test_provider_boundaries.py guard sets
+- Real frozen 6C composition: actual frozen 6C extraction from real HTML
+  fixture + 6D enrichment from real PDF fixture
+- Real frozen 7B vertical slice: full chain 6C + 6D -> 7A -> 7B with
+  real Seagate fixtures (XP15360SE70015, XP3840SE70005 candidates)
+- Real one-fetch proof: batch primitive proves 1 support page + 1 PDF for
+  3 identities sharing one datasheet
+- Type correction: `_find_mpn_column_global` return annotation corrected to
+  `tuple[int, int, int, int, int] | None` (was missing row_idx)
+- Adversarial result tests: 10 real constructor rejection tests using
+  tampered frozen objects
+- Parser exception monkeypatch tests: 5 tests proving pdfminer exceptions
+  -> PARSE_FAILED, RuntimeError -> propagates, MPN ambiguity -> propagates
+
+Real evidence:
+- PDF source: Seagate Nytro 5550/5350 Datasheet
+- PDF URL: /content/dam/seagate/en/content-fragments/products/datasheets/enterprise-rebranding/nytro-5550-5350-ssd/nytro-5550-5350-ssd-DS2099-4-2410US-en_US.pdf
+- PDF SHA256: b449dc488c0a3aa6d28b6e0ac2373a7fc42d7780cc1a437439c823b39833010c
+- PDF byte size: 201,997
+- Parser: pdfplumber (via pdfminer.six)
+- 8 pages, 15 tables across product families
+- XP15360SE70005: 6 ENRICHED observations (all VERIFIED)
+- XP15360SE70015: 6 ENRICHED observations (same column)
+- XP3840SE70005: 6 ENRICHED observations (different column)
+- Support-record extraction: exact skuNumber -> exact datasheet path
+- All three SKUs share identical datasheet path (real fixture proven)
+
+7B vertical slice evidence:
+- Frozen 7A discovery: 81 records -> 80 candidates
+- Required candidates found: XP15360SE70015, XP3840SE70005
+- 7B bridge establish_candidate_product_identity: EXACT match
+- Frozen 6C candidate evidence: physical_form_factor VERIFIED (from supportSpecsData)
+- 6D candidate enrichment: 6 VERIFIED observations per candidate (capacity, sequential_read,
+  sequential_write, random_read_iops, random_write_iops, endurance_dwpd)
+- compose_6c_6d_specifications: merges 6C normalized evidence + 6D normalized evidence,
+  re-resolves via frozen 6A (does NOT copy resolved values directly)
+- Required candidates post-composition: scored_field_count=7, evidence_coverage=7/12
+- XP15360SE70015:
+  - scored_field_count = 7
+  - evidence_coverage = Decimal(7)/Decimal(12)
+  - observed_similarity = Decimal(1)
+  - evidence_weighted_similarity = Decimal(7)/Decimal(12)
+  - All 7 scored fields: field_similarity = 1 (exact match on all)
+  - 5 non-scored fields: BOTH_NOT_VERIFIED
+- XP3840SE70005:
+  - scored_field_count = 7
+  - evidence_coverage = Decimal(7)/Decimal(12)
+  - observed_similarity = (Decimal('3.84')/Decimal('15.36') + 5 + Decimal('6900')/Decimal('7200')) / 7
+    = Decimal('6.208333333333333333333333333333333333333') / 7
+    = Decimal('0.8869047619047619047619047619047619047619')
+  - evidence_weighted_similarity = Decimal('6.208333333333333333333333333333333333333') / 12
+    = Decimal('0.5173611111111111111111111111111111111111')
+  - capacity: SCORED, field_similarity = Decimal('0.25') (3.84 vs 15.36)
+  - sequential_write: SCORED, field_similarity = Decimal('0.9583333333333333333333333333') (6900 vs 7200)
+  - sequential_read, random_read_iops, random_write_iops, endurance_dwpd: SCORED, field_similarity = 1
+  - physical_form_factor: SCORED, field_similarity = 1
+  - 5 non-scored fields: BOTH_NOT_VERIFIED
+- physical_form_factor remains SCORED for both candidates (preserved from frozen 6C)
+- Batch one-fetch: 1 support page + 1 PDF for 3 identities (batch proof)
+- Vertical slice test strengthened: asserts exact observed_similarity,
+  evidence_weighted_similarity, and per-field field_similarity for both candidates
+
+Strengthened vertical slice test (`test_real_7b_vertical_slice_with_enrichment`):
+- Asserts exact scored_field_count = 7 (not >= 1)
+- Asserts exact evidence_coverage = Decimal(7)/Decimal(12) (not > 0)
+- Asserts exact observed_similarity per candidate
+- Asserts exact evidence_weighted_similarity per candidate
+- Asserts exact field_similarity for all 12 fields per candidate
+- Asserts physical_form_factor SCORED (preserved from 6C)
+- Asserts all 6 6D fields SCORED
+- Asserts all 5 remaining fields BOTH_NOT_VERIFIED
+- All assertions pass against real Seagate fixtures
+
+New runtime dependency (declared in requirements.txt):
+- pdfplumber>=0.11.0 (transitively pulls pdfminer.six): pure Python PDF table extraction
+- Used in execution layer only; research layer remains parser-free
+- Installed versions: pdfplumber 0.11.10, pdfminer.six 20260107
+- Import boundary proof:
+  - `import product_intelligence.research.enterprise_ssd_datasheet` loads zero third-party packages
+  - `import product_intelligence.execution.specification_enrichment` loads pdfplumber + pdfminer.six
+    (transitive through Django model imports in execution/__init__.py)
+- Both packages explicitly imported in specification_enrichment.py:
+  - `import pdfplumber` (open PDFs, extract tables)
+  - `from pdfminer.pdfparser import PDFSyntaxError` and `from pdfplumber.utils.exceptions import PdfminerException` (bounded parser exception taxonomy)
+- Both pdfplumber and pdfminer.six are explicitly declared runtime
+  dependencies. pdfminer.six is also a dependency of pdfplumber, but is
+  directly declared because 6D directly relies on its parser exception
+  taxonomy.
+
+No frozen file modifications.
+No pre-6D test deletions.
+No skip/xfail/deselect/bare-pass in any 6D test.
 
 ## Semantic qualification harness
 
@@ -839,8 +1066,94 @@ IDENTITY_NOT_ACCEPTED.
 
 - FU3A Production Semantic Runtime Contract: APPROVED / FROZEN
 - FU3B Semantic Execution Integration: APPROVED / FROZEN
-- This Windows / Python 3.14 workstation has a fixed ten-node subprocess-boundary
+- This Windows / Python 3.14 workstation has a fixed eleven-node subprocess-boundary
   flake allowlist. These nodes may fail independently between runs with
   OSError: [WinError 6/50] from subprocess.run(..., capture_output=True).
-  No node outside the fixed ten-node allowlist fails.
+  No node outside the fixed eleven-node allowlist fails.
   Environment limitation, not a product defect.
+
+**Current fixed Windows/Python 3.14 subprocess-boundary allowlist:**
+11 exact nodes.
+
+Node 11 (`tests/providers/test_provider_boundaries.py::test_http_pdf_imports_no_third_party_dependency`)
+was qualified and approved during 6D. Historical snapshots retain the failure
+counts actually observed at the time they were frozen (10 for 6B/6C/7A/7B).
+
+## AD-059 — Authoritative Datasheet Specification Enrichment (6D)
+
+**Status**: Accepted (6D implementation)
+
+**Why added AFTER 7B**: Frozen 7B revealed that candidate specification
+evidence from frozen 6C extraction is too sparse for useful differentiation.
+All 80 Seagate candidates had evidence_coverage = 1/12 (only Form Factor).
+6D extends specification evidence capability by adding manufacturer PDF
+datasheet extraction without reopening frozen 6C extraction semantics.
+
+**Architecture**:
+- Provider-neutral document boundary (`providers/document.py`)
+- Concrete HTTP PDF fetcher (`providers/http_pdf.py`, stdlib urllib)
+- Pure research table interpretation (`research/enterprise_ssd_datasheet.py`)
+- Execution enrichment composition (`execution/specification_enrichment.py`)
+- pdfplumber for PDF table extraction (execution layer only)
+- MPN -> table -> column -> row binding (exact raw equality)
+- Unit incorporation from row header when cell lacks unit
+- Six-field allowlist: capacity, sequential_read, sequential_write,
+  random_read_iops, random_write_iops, endurance_dwpd
+- Support-record datasheet-link extraction (`research/datasheet_link_extractor.py`)
+- AUTHORITATIVE-only enforcement (SECONDARY rejected)
+- Bounded model-row grammar (3 exact forms)
+- Bounded spec-row grammar (6 exact regex patterns)
+- Whole-PDF MPN uniqueness (global across all tables)
+- Raw MPN exactness (no strip before comparison)
+- Bounded parser exception handling (pdfminer/pdfplumber only)
+- Fully self-auditing result (raw->outcome->normalized->resolution)
+- 6C + 6D evidence composition primitive
+
+**Constraints**:
+- No LLM, no semantic model
+- No title parsing
+- No Interface splitting
+- No frozen 6B modification
+- No frozen 6C modification
+- No frozen 7B modification
+- Research layer is pure (no PDF parser, no I/O, no network)
+- No frozen file modifications (verified)
+- No pre-6D test deletions (verified)
+- No skip/xfail/deselect/bare-pass in any 6D test (verified)
+
+**Evidence**:
+- Real Seagate Nytro 5550/5350 datasheet PDF fixture
+- SHA256: b449dc488c0a3aa6d28b6e0ac2373a7fc42d7780cc1a437439c823b39833010c
+- 201,997 bytes, 8 pages, 15 tables
+- XP15360SE70005: 6 VERIFIED observations
+- XP15360SE70015: 6 VERIFIED observations (same column)
+- XP3840SE70005: 6 VERIFIED observations (different column)
+- Support-record extraction: exact skuNumber -> exact datasheet path
+- 6C + 6D composition: physical_form_factor preserved VERIFIED from 6C
+- Candidate composition results (both candidates):
+  - scored_field_count: 7 (1 from 6C + 6 from 6D)
+  - evidence_coverage: 7/12
+  - XP15360SE70015: observed_similarity=1 (all 7 fields match target)
+  - XP3840SE70005: observed_similarity≈0.887 (capacity, sequential_write differ)
+
+**Runtime dependency**:
+- BOTH pdfplumber and pdfminer.six are explicitly declared runtime dependencies.
+- pdfplumber for PDF table extraction (execution layer only)
+- pdfminer.six for bounded parser exception taxonomy (execution layer only)
+- pdfminer.six is also a transitive dependency of pdfplumber, but is directly
+  declared for explicit import boundary control
+- Research layer remains parser-free
+
+**Test counts (actual collected)**:
+| Module | Nodes |
+| --- | --- |
+| `test_datasheet_link_extractor.py` | 19 |
+| `test_document_provider.py` | 29 |
+| `test_http_pdf.py` | 20 |
+| `test_enterprise_ssd_datasheet.py` | 70 |
+| `test_specification_enrichment.py` | 68 |
+| `test_specification_enrichment_boundaries.py` | 17 |
+| `test_provider_boundaries.py` (6D additions) | 4 |
+| **6D total** | **227** |
+
+**Frozen**: PRODUCT-INTEL.6D approved by project lead.

@@ -10,5 +10,13 @@
 # effect of a dependency correction.
 Django>=5.2,<6.0
 
+# PDF table extraction for specification enrichment (6D execution layer only).
+# pdfplumber depends on pdfminer.six (transitive). Production imports both:
+#   - pdfplumber (open PDFs, extract tables)
+#   - pdfminer.six exception classes (bounded parser exception taxonomy)
+# Neither may appear in research/ layer imports.
+pdfplumber>=0.11.0
+pdfminer.six>=20260107
+
 # Development / test
 pytest>=8.0
