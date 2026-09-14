@@ -33,7 +33,16 @@ from product_intelligence.runs.errors import (
 __all__ = [
     "ALLOWED_TRANSITIONS",
     "ClaimExecutionFailed",
+    "ComparableResearchClaimError",
+    "ComparableResearchCompletionError",
+    "ComparableResearchExecution",
+    "ComparableResearchFailureError",
+    "ComparableResearchFailureReason",
+    "ComparableResearchState",
+    "ComparableResearchTriggerError",
+    "claim_comparable_research",
     "claim_execution",
+    "complete_comparable_research",
     "complete_execution",
     "ExecutionDetailCode",
     "ExecutionEvidenceRecord",
@@ -41,6 +50,7 @@ __all__ = [
     "ExecutionStage",
     "InvalidInitialResearchRunState",
     "InvalidResearchRunTransition",
+    "fail_comparable_research",
     "confirm_candidate",
     "reject_candidate",
     "undo_review",
@@ -52,10 +62,11 @@ __all__ = [
     "ResearchRun",
     "ResearchRunLifecycleError",
     "TERMINAL_STATES",
+    "trigger_comparable_research",
     "UnsupportedResearchRunStateChange",
 ]
 
-_MODEL_EXPORTS = frozenset({"ALLOWED_TRANSITIONS", "ResearchRun", "TERMINAL_STATES", "PriceIntelligenceSnapshot", "ExecutionEvidenceRecord", "AiAssistedReviewCandidate"})
+_MODEL_EXPORTS = frozenset({"ALLOWED_TRANSITIONS", "ResearchRun", "TERMINAL_STATES", "PriceIntelligenceSnapshot", "ExecutionEvidenceRecord", "AiAssistedReviewCandidate", "ComparableResearchExecution", "ComparableResearchState", "ComparableResearchFailureReason"})
 
 # Evidence enums and primitives are pure Python (no Django import), so they can
 # be exposed directly from this package without lazy loading.
@@ -70,6 +81,18 @@ _EVIDENCE_EXPORTS = frozenset({
     "ExecutionOutcome",
     "ExecutionStage",
     "retry_run",
+})
+
+# 7C-A comparable research lifecycle exports
+_COMPARABLE_EXPORTS = frozenset({
+    "ComparableResearchClaimError",
+    "ComparableResearchCompletionError",
+    "ComparableResearchFailureError",
+    "ComparableResearchTriggerError",
+    "claim_comparable_research",
+    "complete_comparable_research",
+    "fail_comparable_research",
+    "trigger_comparable_research",
 })
 
 
@@ -116,6 +139,11 @@ def __getattr__(name: str) -> object:
     if name in _REVIEW_ERROR_EXPORTS:
         from product_intelligence.runs import ai_assisted_review
         return getattr(ai_assisted_review, name)
+
+    # Comparable research lifecycle exports (7C-A)
+    if name in _COMPARABLE_EXPORTS:
+        from product_intelligence.runs import comparable_execution_claims
+        return getattr(comparable_execution_claims, name)
 
     if name in _MODEL_EXPORTS:
         # Import from runs.models (the main models.py file)

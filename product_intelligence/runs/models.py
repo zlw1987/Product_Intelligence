@@ -835,3 +835,291 @@ class AiAssistedReviewCandidate(models.Model):
             f'AiAssistedReviewCandidate {self.id} '
             f'[{self.run_id} idx={self.assessment_index} {self.review_state}]'
         )
+
+
+# ---------------------------------------------------------------------------
+# ComparableResearchState — 7C-A lifecycle vocabulary
+# ---------------------------------------------------------------------------
+
+
+class ComparableResearchState:
+    """Lifecycle vocabulary for a comparable-research execution attempt.
+
+    This is a runs-layer enum, not a domain enum. The domain owns
+    ResearchRunState; ComparableResearchExecution is a runs-layer
+    persistence concept with its own bounded vocabulary.
+
+    PENDING — created but not yet claimed by a worker.
+    RUNNING — claimed; a worker is executing the comparable research.
+    COMPLETED — finished successfully; result_payload is populated.
+    FAILED — finished with error; failure_reason explains why.
+    """
+
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+
+    CHOICES: tuple[tuple[str, str], ...] = (
+        (PENDING, "PENDING"),
+        (RUNNING, "RUNNING"),
+        (COMPLETED, "COMPLETED"),
+        (FAILED, "FAILED"),
+    )
+
+    TERMINAL_STATES: frozenset[str] = frozenset({COMPLETED, FAILED})
+
+
+# ---------------------------------------------------------------------------
+# ComparableResearchFailureReason — 7C-A bounded vocabulary
+# ---------------------------------------------------------------------------
+
+
+class ComparableResearchFailureReason:
+    """Bounded failure-reason vocabulary for ComparableResearchExecution.
+
+    These are the only reasons a whole comparable-research child attempt
+    can FAIL. They represent propagated execution/invariant errors, not
+    bounded 6D outcomes (which remain in the COMPLETED semantic result).
+
+    AUTHORITY_FETCH_FAILED — could not reach the authority support page.
+    AUTHORITY_SOURCE_REFUSED — authority server refused the connection.
+    AUTHORITY_HOST_ESCAPED — authority resolution escaped to non-authoritative host.
+    AUTHORITY_NO_STRUCTURAL_OBSERVATIONS — authority page had no extractable product data.
+    SPECIFICATION_EXTRACTION_FAILED — specification evidence extraction failed.
+    DISCOVERY_FAILED — comparable candidate discovery failed.
+    COMPOSITION_FAILED — specification composition (6C+6D) failed.
+    SCORING_FAILED — similarity scoring failed.
+    RESULT_ENCODING_FAILED — final result could not be encoded for persistence.
+    INTERNAL_ERROR — unclassifiable internal error.
+    """
+
+    AUTHORITY_FETCH_FAILED = "AUTHORITY_FETCH_FAILED"
+    AUTHORITY_SOURCE_REFUSED = "AUTHORITY_SOURCE_REFUSED"
+    AUTHORITY_HOST_ESCAPED = "AUTHORITY_HOST_ESCAPED"
+    AUTHORITY_NO_STRUCTURAL_OBSERVATIONS = "AUTHORITY_NO_STRUCTURAL_OBSERVATIONS"
+    SPECIFICATION_EXTRACTION_FAILED = "SPECIFICATION_EXTRACTION_FAILED"
+    DISCOVERY_FAILED = "DISCOVERY_FAILED"
+    COMPOSITION_FAILED = "COMPOSITION_FAILED"
+    SCORING_FAILED = "SCORING_FAILED"
+    RESULT_ENCODING_FAILED = "RESULT_ENCODING_FAILED"
+    INTERNAL_ERROR = "INTERNAL_ERROR"
+
+    ALL: frozenset[str] = frozenset({
+        AUTHORITY_FETCH_FAILED,
+        AUTHORITY_SOURCE_REFUSED,
+        AUTHORITY_HOST_ESCAPED,
+        AUTHORITY_NO_STRUCTURAL_OBSERVATIONS,
+        SPECIFICATION_EXTRACTION_FAILED,
+        DISCOVERY_FAILED,
+        COMPOSITION_FAILED,
+        SCORING_FAILED,
+        RESULT_ENCODING_FAILED,
+        INTERNAL_ERROR,
+    })
+
+
+# ---------------------------------------------------------------------------
+# ComparableResearchExecution — 7C-A
+# ---------------------------------------------------------------------------
+
+
+class ComparableResearchExecution(models.Model):
+    """One comparable-research execution attempt for a ResearchRun.
+
+    PRODUCT-INTEL.7C-A.
+
+    This is a runs-layer lifecycle record. One parent ResearchRun can have
+    multiple ComparableResearchExecution children (retry after failure).
+    At most one child may be active (PENDING or RUNNING) at a time.
+
+    The active-child invariant uses a UNIQUE constraint on
+    (parent_run, active_slot) where active_slot is 1 for PENDING/RUNNING
+    and NULL for terminal states. The CHECK constraint guarantees
+    active_slot is only 1 or NULL.
+
+    Fields
+    ------
+
+    id
+        UUID primary key.
+
+    parent_run
+        ForeignKey to ResearchRun, CASCADE delete, no reverse accessor.
+
+    state
+        PENDING / RUNNING / COMPLETED / FAILED.
+
+    active_slot
+        PositiveSmallIntegerField, nullable. 1 when active (PENDING/RUNNING),
+        NULL when terminal (COMPLETED/FAILED). This is the lifecycle sentinel.
+
+    created_at / started_at / finished_at
+        Lifecycle timestamps.
+
+    result_schema_version
+        Nullable until COMPLETED. The codec version of result_payload.
+
+    result_payload
+        Nullable until COMPLETED. Versioned JSON of ComparableResearchResult.
+
+    failure_reason
+        Nullable except when FAILED. One of ComparableResearchFailureReason.
+
+    Lifecycle shapes
+    ----------------
+
+    PENDING:   active_slot=1, started_at=NULL, finished_at=NULL,
+               result_schema_version=NULL, result_payload=NULL, failure_reason=NULL
+
+    RUNNING:   active_slot=1, started_at!=NULL, finished_at=NULL,
+               result_schema_version=NULL, result_payload=NULL, failure_reason=NULL
+
+    COMPLETED: active_slot=NULL, started_at!=NULL, finished_at!=NULL,
+               result_schema_version>=1, result_payload!=NULL, failure_reason=NULL
+
+    FAILED:    active_slot=NULL, started_at!=NULL, finished_at!=NULL,
+               result_schema_version=NULL, result_payload=NULL, failure_reason!=NULL
+    """
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+    )
+
+    parent_run = models.ForeignKey(
+        "ResearchRun",
+        on_delete=models.CASCADE,
+        related_name="+",  # No reverse accessor on ResearchRun
+    )
+
+    state = models.CharField(
+        max_length=16,
+        choices=ComparableResearchState.CHOICES,
+        default=ComparableResearchState.PENDING,
+        editable=False,
+    )
+
+    active_slot = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        editable=False,
+        help_text="Lifecycle sentinel. 1 when PENDING/RUNNING, NULL when terminal.",
+    )
+
+    created_at = models.DateTimeField(
+        default=timezone.now,
+        editable=False,
+    )
+    started_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        editable=False,
+    )
+    finished_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        editable=False,
+    )
+
+    # Result fields — populated only in COMPLETED state.
+    result_schema_version = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        editable=False,
+        help_text="Codec version of result_payload. NULL until COMPLETED.",
+    )
+    result_payload = models.JSONField(
+        null=True,
+        blank=True,
+        editable=False,
+        help_text="Versioned codec-encoded ComparableResearchResult. NULL until COMPLETED.",
+    )
+
+    # Failure reason — populated only in FAILED state.
+    failure_reason = models.CharField(
+        max_length=64,
+        null=True,
+        blank=True,
+        editable=False,
+        help_text="Failure reason when state is FAILED. NULL otherwise.",
+    )
+
+    class Meta:
+        constraints = [
+            # Active-slot value restriction: only 1 or NULL.
+            models.CheckConstraint(
+                condition=models.Q(active_slot=1) | models.Q(active_slot__isnull=True),
+                name="comparable_research_active_slot_is_one_or_null",
+            ),
+            # One active child per parent: UNIQUE(parent_run, active_slot).
+            # active_slot=1 -> only one row per parent can have it.
+            # active_slot=NULL -> many rows per parent are allowed.
+            models.UniqueConstraint(
+                fields=["parent_run", "active_slot"],
+                name="comparable_research_one_active_per_parent",
+            ),
+            # Lifecycle shape: state + active_slot + timestamps must match.
+            models.CheckConstraint(
+                condition=models.Q(
+                    state=ComparableResearchState.PENDING,
+                    active_slot=1,
+                    started_at__isnull=True,
+                    finished_at__isnull=True,
+                    result_schema_version__isnull=True,
+                    result_payload__isnull=True,
+                    failure_reason__isnull=True,
+                )
+                | models.Q(
+                    state=ComparableResearchState.RUNNING,
+                    active_slot=1,
+                    started_at__isnull=False,
+                    finished_at__isnull=True,
+                    result_schema_version__isnull=True,
+                    result_payload__isnull=True,
+                    failure_reason__isnull=True,
+                )
+                | models.Q(
+                    state=ComparableResearchState.COMPLETED,
+                    active_slot__isnull=True,
+                    started_at__isnull=False,
+                    finished_at__isnull=False,
+                    result_schema_version__isnull=False,
+                    result_schema_version__gte=1,
+                    result_payload__isnull=False,
+                    failure_reason__isnull=True,
+                )
+                | models.Q(
+                    state=ComparableResearchState.FAILED,
+                    active_slot__isnull=True,
+                    started_at__isnull=False,
+                    finished_at__isnull=False,
+                    result_schema_version__isnull=True,
+                    result_payload__isnull=True,
+                    failure_reason__isnull=False,
+                ),
+                name="comparable_research_lifecycle_shape",
+            ),
+            # failure_reason must be a known vocabulary value when set.
+            models.CheckConstraint(
+                condition=models.Q(failure_reason__isnull=True)
+                | models.Q(failure_reason__in=sorted(list(ComparableResearchFailureReason.ALL))),
+                name="comparable_research_valid_failure_reason",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["parent_run", "state"],
+                         name="runs_compar_parent__64567d_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return (
+            f"ComparableResearchExecution {self.id} "
+            f"[{self.parent_run_id} {self.state}]"
+        )
+
+    @property
+    def current_state(self) -> str:
+        """The state as a string constant."""
+        return self.state

@@ -87,6 +87,11 @@ def test_normalization_and_aggregation_may_use_decimal() -> None:
     if similarity_module.exists():
         allowed_decimal.add(similarity_module)
 
+    # 7C-A comparable result codec uses Decimal for SpecificationValue encoding
+    comparable_codec_module = RESEARCH_ROOT / "comparable_result_codec.py"
+    if comparable_codec_module.exists():
+        allowed_decimal.add(comparable_codec_module)
+
     for path in _python_files(RESEARCH_ROOT):
         if path in allowed_decimal:
             continue

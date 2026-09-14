@@ -68,3 +68,66 @@ class UnsupportedResearchRunStateChange(ResearchRunLifecycleError):
             f"{attempted} outside transition_to(); lifecycle state is not a "
             "freely assignable field"
         )
+
+
+# ---------------------------------------------------------------------------
+# 7C-A comparable-research lifecycle errors
+# ---------------------------------------------------------------------------
+
+
+class ComparableResearchError(ResearchRunLifecycleError):
+    """Base class for comparable-research lifecycle failures."""
+
+
+class ComparableResearchTriggerError(ComparableResearchError):
+    """Raised when trigger_comparable_research cannot create a child attempt."""
+
+    REASON_PARENT_NOT_FOUND: str = "parent_not_found"
+    REASON_PARENT_NOT_COMPLETED: str = "parent_not_completed"
+    REASON_NO_SNAPSHOT: str = "no_snapshot"
+    REASON_ACTIVE_CHILD_EXISTS: str = "active_child_exists"
+
+    def __init__(self, run_id: object, reason: str, detail: str | None = None) -> None:
+        self.run_id = run_id
+        self.reason = reason
+        self.detail = detail
+        msg = f"comparable research trigger failed for run {run_id}: {reason}"
+        if detail:
+            msg += f" ({detail})"
+        super().__init__(msg)
+
+
+class ComparableResearchClaimError(ComparableResearchError):
+    """Raised when claim_comparable_research cannot transition PENDING -> RUNNING."""
+
+    def __init__(self, child_id: object, detail: str | None = None) -> None:
+        self.child_id = child_id
+        self.detail = detail
+        msg = f"comparable research claim failed for {child_id}"
+        if detail:
+            msg += f" ({detail})"
+        super().__init__(msg)
+
+
+class ComparableResearchCompletionError(ComparableResearchError):
+    """Raised when complete_comparable_research cannot transition RUNNING -> COMPLETED."""
+
+    def __init__(self, child_id: object, detail: str | None = None) -> None:
+        self.child_id = child_id
+        self.detail = detail
+        msg = f"comparable research completion failed for {child_id}"
+        if detail:
+            msg += f" ({detail})"
+        super().__init__(msg)
+
+
+class ComparableResearchFailureError(ComparableResearchError):
+    """Raised when fail_comparable_research cannot transition RUNNING -> FAILED."""
+
+    def __init__(self, child_id: object, detail: str | None = None) -> None:
+        self.child_id = child_id
+        self.detail = detail
+        msg = f"comparable research failure recording failed for {child_id}"
+        if detail:
+            msg += f" ({detail})"
+        super().__init__(msg)

@@ -294,6 +294,7 @@ def test_the_evaluation_corpus_is_not_persisted() -> None:
         "runs.PriceIntelligenceSnapshot",
         "runs.ExecutionEvidenceRecord",  # 4C-A
         "runs.AiAssistedReviewCandidate",  # HUMAN-REVIEW
+        "runs.ComparableResearchExecution",  # 7C-A
     }
     assert model_labels == expected
 

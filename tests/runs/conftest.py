@@ -53,6 +53,7 @@ def human_review_db_isolation(request) -> None:
     from django.db import transaction
     from product_intelligence.runs.models import (
         AiAssistedReviewCandidate,
+        ComparableResearchExecution,  # 7C-A
         ExecutionEvidenceRecord,
         PriceIntelligenceSnapshot,
         ResearchRun,
@@ -60,6 +61,7 @@ def human_review_db_isolation(request) -> None:
     with transaction.atomic():
         # FK-safe order: child tables before parent table
         AiAssistedReviewCandidate.objects.all().delete()
+        ComparableResearchExecution.objects.all().delete()  # 7C-A
         ExecutionEvidenceRecord.objects.all().delete()
         PriceIntelligenceSnapshot.objects.all().delete()
         ResearchRun.objects.all().delete()
