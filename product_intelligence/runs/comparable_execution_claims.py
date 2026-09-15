@@ -133,11 +133,13 @@ def trigger_comparable_research(run_id: uuid.UUID | str) -> ComparableResearchEx
         return existing_completed
 
     # 4. Create a new PENDING child.
-    # Use a savepoint so IntegrityError recovery can query safely.
+    # Retain the exact object produced by create() so that no post-commit
+    # lookup window allows another caller to observe and claim it first.
+    created_child: ComparableResearchExecution | None = None
     saved_integrity_error: IntegrityError | None = None
     try:
         with transaction.atomic():
-            ComparableResearchExecution.objects.create(
+            created_child = ComparableResearchExecution.objects.create(
                 parent_run=parent,
                 state=ComparableResearchState.PENDING,
                 active_slot=1,
@@ -171,12 +173,10 @@ def trigger_comparable_research(run_id: uuid.UUID | str) -> ComparableResearchEx
         # Propagate the ORIGINAL IntegrityError, do not convert it.
         raise saved_integrity_error
 
-    # No collision — the create succeeded. Fetch the created child.
-    return ComparableResearchExecution.objects.get(
-        parent_run_id=target_id,
-        state=ComparableResearchState.PENDING,
-        active_slot=1,
-    )
+    # No collision — the create succeeded. Return the exact object
+    # produced by objects.create(), not a post-commit re-query.
+    assert created_child is not None
+    return created_child
 
 
 # ---------------------------------------------------------------------------

@@ -192,11 +192,12 @@ def _enc_authority_attempt_result(
     obj: AuthorityAttemptResult,
 ) -> dict[str, object]:
     return {
+        "policy_id": obj.policy_id,
         "outcome": _enc_enum(obj.outcome),
-        "source_name": obj.source_name,
-        "source_url": obj.source_url,
-        "matched_mpn": obj.matched_mpn,
-        "raw_reference": obj.raw_reference,
+        "requested_source_url": obj.requested_source_url,
+        "fetched_final_url": obj.fetched_final_url,
+        "retrieved_at": obj.retrieved_at,
+        "matching_mpn": obj.matching_mpn,
     }
 
 
@@ -205,26 +206,33 @@ def _dec_authority_attempt_result(
 ) -> AuthorityAttemptResult:
     _check_no_extra_keys(
         data,
-        {"outcome", "source_name", "source_url", "matched_mpn", "raw_reference"},
+        {"policy_id", "outcome", "requested_source_url",
+         "fetched_final_url", "retrieved_at", "matching_mpn"},
         path,
     )
     return AuthorityAttemptResult(
+        policy_id=_dec_str(
+            _dec_required_key(data, "policy_id", path), f"{path}.policy_id"
+        ),
         outcome=_dec_enum(
             AuthorityAuditOutcomeKind,
             _dec_required_key(data, "outcome", path),
             f"{path}.outcome",
         ),
-        source_name=_dec_optional_str(
-            _dec_required_key(data, "source_name", path), f"{path}.source_name"
+        requested_source_url=_dec_optional_str(
+            _dec_required_key(data, "requested_source_url", path),
+            f"{path}.requested_source_url",
         ),
-        source_url=_dec_optional_str(
-            _dec_required_key(data, "source_url", path), f"{path}.source_url"
+        fetched_final_url=_dec_optional_str(
+            _dec_required_key(data, "fetched_final_url", path),
+            f"{path}.fetched_final_url",
         ),
-        matched_mpn=_dec_optional_str(
-            _dec_required_key(data, "matched_mpn", path), f"{path}.matched_mpn"
+        retrieved_at=_dec_optional_str(
+            _dec_required_key(data, "retrieved_at", path),
+            f"{path}.retrieved_at",
         ),
-        raw_reference=_dec_optional_str(
-            _dec_required_key(data, "raw_reference", path), f"{path}.raw_reference"
+        matching_mpn=_dec_optional_str(
+            _dec_required_key(data, "matching_mpn", path), f"{path}.matching_mpn"
         ),
     )
 

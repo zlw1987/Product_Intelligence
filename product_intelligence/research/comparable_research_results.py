@@ -29,6 +29,9 @@ from dataclasses import dataclass
 from decimal import Decimal
 from enum import Enum
 
+from product_intelligence.research.enterprise_ssd import (
+    ENTERPRISE_SSD_SCHEMA,
+)
 from product_intelligence.research.enterprise_ssd_similarity import (
     ComparisonState,
 )
@@ -145,31 +148,48 @@ class EvidenceLayer(str, Enum):
 class AuthorityAttemptResult:
     """The audited outcome of one authority-support-page attempt.
 
+    Mirrors the serializable audit subset of the frozen PRE1
+    _AuthoritySourceOutcome that can be mapped directly without reaching
+    into private policy configuration.
+
+    policy_id : str
+        The authority policy that was attempted. Always non-empty.
+
     outcome : AuthorityAuditOutcomeKind
         The result of this attempt.
 
-    source_name : str | None
-        The source name that was attempted. Always set for source-backed
-        outcomes. None only for NO_REQUESTED_MPN (no source attempted).
+    requested_source_url : str | None
+        The URL that was attempted. Set for all source-backed outcomes.
+        None only for NO_REQUESTED_MPN (no source attempted).
 
-    source_url : str | None
-        The URL that was attempted. Set for source-backed outcomes.
+    fetched_final_url : str | None
+        The final URL after redirects. Set when a fetch occurred.
 
-    matched_mpn : str | None
+    retrieved_at : str | None
+        ISO-8601 retrieval timestamp. Set when a fetch occurred.
+
+    matching_mpn : str | None
         The MPN that was matched. REQUIRED for MATCHED, MUST be None
         for every non-MATCHED outcome.
-
-    raw_reference : str | None
-        Bounded provenance reference, if available.
     """
 
+    policy_id: str
     outcome: AuthorityAuditOutcomeKind
-    source_name: str | None = None
-    source_url: str | None = None
-    matched_mpn: str | None = None
-    raw_reference: str | None = None
+    requested_source_url: str | None = None
+    fetched_final_url: str | None = None
+    retrieved_at: str | None = None
+    matching_mpn: str | None = None
 
     def __post_init__(self) -> None:
+        # policy_id — always required and non-empty
+        if not isinstance(self.policy_id, str):
+            raise TypeError(
+                f"policy_id must be a string, got "
+                f"{type(self.policy_id).__name__}"
+            )
+        if not self.policy_id.strip():
+            raise ValueError("policy_id must be a non-empty string")
+
         # outcome must be exact enum type
         if not isinstance(self.outcome, AuthorityAuditOutcomeKind):
             raise TypeError(
@@ -177,48 +197,125 @@ class AuthorityAttemptResult:
                 f"{type(self.outcome).__name__}"
             )
 
-        # State-dependent field shape
-        if self.outcome is AuthorityAuditOutcomeKind.NO_REQUESTED_MPN:
-            # No source attempted — source_name and source_url may be None
-            if self.matched_mpn is not None:
+        # State-dependent field shape (mirrors frozen PRE1 truth)
+        if self.outcome is AuthorityAuditOutcomeKind.MATCHED:
+            # MATCHED requires complete provenance
+            if self.requested_source_url is None or not self.requested_source_url.strip():
                 raise ValueError(
-                    "NO_REQUESTED_MPN cannot have a matched_mpn; "
-                    "no MPN was requested"
+                    "MATCHED outcome requires a non-empty requested_source_url"
                 )
-        else:
-            # Source-backed outcome — source_name and source_url must be set
-            if self.source_name is None or not self.source_name.strip():
+            if self.fetched_final_url is None or not self.fetched_final_url.strip():
                 raise ValueError(
-                    f"source-backed outcome {self.outcome.value} requires "
-                    "a non-empty source_name"
+                    "MATCHED outcome requires a non-empty fetched_final_url"
                 )
-            if self.source_url is None or not self.source_url.strip():
+            if self.retrieved_at is None or not self.retrieved_at.strip():
                 raise ValueError(
-                    f"source-backed outcome {self.outcome.value} requires "
-                    "a non-empty source_url"
+                    "MATCHED outcome requires a non-empty retrieved_at"
+                )
+            if self.matching_mpn is None or not self.matching_mpn.strip():
+                raise ValueError(
+                    "MATCHED outcome requires a non-empty matching_mpn"
                 )
 
-            if self.outcome is AuthorityAuditOutcomeKind.MATCHED:
-                if self.matched_mpn is None or not self.matched_mpn.strip():
-                    raise ValueError(
-                        "MATCHED outcome requires a non-empty matched_mpn"
-                    )
-            else:
-                # Non-MATCHED, source-backed outcomes:
-                # matched_mpn MUST be None — never fabricate a match
-                if self.matched_mpn is not None:
-                    raise ValueError(
-                        f"non-MATCHED outcome {self.outcome.value} must not "
-                        f"have matched_mpn; got {self.matched_mpn!r}. "
-                        "Only MATCHED outcomes may carry a matched_mpn."
-                    )
+        elif self.outcome is AuthorityAuditOutcomeKind.NO_REQUESTED_MPN:
+            # No source attempted — source URL set but no fetch evidence
+            if self.requested_source_url is None or not self.requested_source_url.strip():
+                raise ValueError(
+                    "NO_REQUESTED_MPN requires a non-empty requested_source_url"
+                )
+            if self.fetched_final_url is not None:
+                raise ValueError(
+                    "NO_REQUESTED_MPN must not have fetched_final_url"
+                )
+            if self.retrieved_at is not None:
+                raise ValueError(
+                    "NO_REQUESTED_MPN must not have retrieved_at"
+                )
+            if self.matching_mpn is not None:
+                raise ValueError(
+                    "NO_REQUESTED_MPN must not have matching_mpn"
+                )
 
-        # raw_reference — optional, bounded
-        if self.raw_reference is not None:
-            if not isinstance(self.raw_reference, str):
-                raise TypeError(
-                    f"raw_reference must be a string or None, got "
-                    f"{type(self.raw_reference).__name__}"
+        elif self.outcome in (
+            AuthorityAuditOutcomeKind.AUTHORITY_FETCH_FAILED,
+            AuthorityAuditOutcomeKind.AUTHORITY_SOURCE_REFUSED,
+        ):
+            # Fetch failed/refused — URL known but no response
+            if self.requested_source_url is None or not self.requested_source_url.strip():
+                raise ValueError(
+                    f"{self.outcome.value} requires a non-empty "
+                    "requested_source_url"
+                )
+            if self.fetched_final_url is not None:
+                raise ValueError(
+                    f"{self.outcome.value} must not have fetched_final_url"
+                )
+            if self.retrieved_at is not None:
+                raise ValueError(
+                    f"{self.outcome.value} must not have retrieved_at"
+                )
+            if self.matching_mpn is not None:
+                raise ValueError(
+                    f"{self.outcome.value} must not have matching_mpn"
+                )
+
+        elif self.outcome is AuthorityAuditOutcomeKind.AUTHORITY_HOST_ESCAPED:
+            # Escaped — we know where it escaped to
+            if self.requested_source_url is None or not self.requested_source_url.strip():
+                raise ValueError(
+                    "AUTHORITY_HOST_ESCAPED requires a non-empty "
+                    "requested_source_url"
+                )
+            if self.fetched_final_url is None or not self.fetched_final_url.strip():
+                raise ValueError(
+                    "AUTHORITY_HOST_ESCAPED requires a non-empty fetched_final_url"
+                )
+            if self.matching_mpn is not None:
+                raise ValueError(
+                    "AUTHORITY_HOST_ESCAPED must not have matching_mpn"
+                )
+
+        elif self.outcome is AuthorityAuditOutcomeKind.AMBIGUOUS_MPN_MATCH:
+            # Ambiguity: source was fetched, multiple records matched
+            if self.requested_source_url is None or not self.requested_source_url.strip():
+                raise ValueError(
+                    "AMBIGUOUS_MPN_MATCH requires a non-empty "
+                    "requested_source_url"
+                )
+            if self.fetched_final_url is None or not self.fetched_final_url.strip():
+                raise ValueError(
+                    "AMBIGUOUS_MPN_MATCH requires a non-empty fetched_final_url"
+                )
+            if self.retrieved_at is None or not self.retrieved_at.strip():
+                raise ValueError(
+                    "AMBIGUOUS_MPN_MATCH requires a non-empty retrieved_at"
+                )
+            if self.matching_mpn is not None:
+                raise ValueError(
+                    "AMBIGUOUS_MPN_MATCH must not have matching_mpn"
+                )
+
+        elif self.outcome in (
+            AuthorityAuditOutcomeKind.NO_MPN_IN_SOURCE,
+            AuthorityAuditOutcomeKind.NO_STRUCTURAL_OBSERVATIONS,
+        ):
+            # Fetched but no match / no observations
+            if self.requested_source_url is None or not self.requested_source_url.strip():
+                raise ValueError(
+                    f"{self.outcome.value} requires a non-empty "
+                    "requested_source_url"
+                )
+            if self.fetched_final_url is None or not self.fetched_final_url.strip():
+                raise ValueError(
+                    f"{self.outcome.value} requires a non-empty fetched_final_url"
+                )
+            if self.retrieved_at is None or not self.retrieved_at.strip():
+                raise ValueError(
+                    f"{self.outcome.value} requires a non-empty retrieved_at"
+                )
+            if self.matching_mpn is not None:
+                raise ValueError(
+                    f"{self.outcome.value} must not have matching_mpn"
                 )
 
 
@@ -365,11 +462,18 @@ class ProductEnrichmentAudit:
         if not self.product_mpn.strip():
             raise ValueError("product_mpn must be a non-empty string")
 
-        # attempts
+        # attempts — must be non-empty (7C-B will always create at least
+        # one NO_DATASHEET_SOURCE attempt when no enrichment was available)
         if not isinstance(self.attempts, tuple):
             raise TypeError(
                 f"attempts must be a tuple, got "
                 f"{type(self.attempts).__name__}"
+            )
+        if not self.attempts:
+            raise ValueError(
+                "attempts must be non-empty; "
+                "every product must have at least one enrichment attempt "
+                "recorded (including NO_DATASHEET_SOURCE)"
             )
         for i, attempt in enumerate(self.attempts):
             if not isinstance(attempt, DatasheetAttemptResult):
@@ -517,6 +621,31 @@ class FieldAssessmentResult:
             raise TypeError(
                 f"candidate_resolution_state must be ResolutionState, got "
                 f"{type(self.candidate_resolution_state).__name__}"
+            )
+
+        # --- BLOCKER 3: Re-derive comparison_state from resolution states ---
+        target_verified = (
+            self.target_resolution_state is ResolutionState.VERIFIED
+        )
+        candidate_verified = (
+            self.candidate_resolution_state is ResolutionState.VERIFIED
+        )
+
+        if target_verified and candidate_verified:
+            expected_comparison = ComparisonState.SCORED
+        elif target_verified:
+            expected_comparison = ComparisonState.CANDIDATE_NOT_VERIFIED
+        elif candidate_verified:
+            expected_comparison = ComparisonState.TARGET_NOT_VERIFIED
+        else:
+            expected_comparison = ComparisonState.BOTH_NOT_VERIFIED
+
+        if self.comparison_state is not expected_comparison:
+            raise ValueError(
+                f"comparison_state {self.comparison_state.value} does not match "
+                f"the re-derived state {expected_comparison.value} for "
+                f"target state {self.target_resolution_state.value} and "
+                f"candidate state {self.candidate_resolution_state.value}"
             )
 
         # SCORED -> field_similarity must be Decimal in [0, 1]
@@ -739,6 +868,111 @@ class ComparableCandidateResult:
                 f"{type(self.enrichment_audit).__name__}"
             )
 
+        # --- ENRICHMENT BINDING: candidate audit MPN must match candidate MPN ---
+        if self.enrichment_audit.product_mpn != self.candidate_mpn:
+            raise ValueError(
+                f"enrichment_audit.product_mpn {self.enrichment_audit.product_mpn!r} "
+                f"does not match candidate_mpn {self.candidate_mpn!r}. "
+                "Enrichment audit must belong to this candidate."
+            )
+
+        # --- BLOCKER 2: Field set validation against ENTERPRISE_SSD_SCHEMA ---
+        schema_keys = set(ENTERPRISE_SSD_SCHEMA.definitions.keys())
+        total_field_count = len(schema_keys)
+
+        if len(self.field_assessments) != total_field_count:
+            raise ValueError(
+                f"field_assessments has {len(self.field_assessments)} items, "
+                f"but ENTERPRISE_SSD_SCHEMA has {total_field_count} definitions. "
+                "Every definition must have exactly one assessment."
+            )
+
+        assessment_keys = [fa.definition_key for fa in self.field_assessments]
+
+        # Check for duplicate definition_keys
+        if len(set(assessment_keys)) != len(assessment_keys):
+            duplicates = [
+                k for k in assessment_keys
+                if assessment_keys.count(k) > 1
+            ]
+            raise ValueError(
+                f"Duplicate definition_keys in field_assessments: "
+                f"{sorted(set(duplicates))}"
+            )
+
+        # Check that assessment keys exactly match schema definitions
+        if set(assessment_keys) != schema_keys:
+            missing = schema_keys - set(assessment_keys)
+            extra = set(assessment_keys) - schema_keys
+            raise ValueError(
+                f"field_assessments definition_keys do not match "
+                f"ENTERPRISE_SSD_SCHEMA.definitions. "
+                f"Missing: {sorted(missing) if missing else 'none'}, "
+                f"Extra: {sorted(extra) if extra else 'none'}"
+            )
+
+        # --- BLOCKER 2: Re-derive aggregate scalars from field_assessments ---
+        scored_similarities: list[Decimal] = [
+            fa.field_similarity
+            for fa in self.field_assessments
+            if fa.comparison_state is ComparisonState.SCORED
+        ]
+        expected_scored_count = len(scored_similarities)
+
+        if self.scored_field_count != expected_scored_count:
+            raise ValueError(
+                f"scored_field_count {self.scored_field_count} does not match "
+                f"re-derived count {expected_scored_count} from field_assessments"
+            )
+
+        # Re-derive evidence_coverage
+        expected_coverage = Decimal(expected_scored_count) / Decimal(total_field_count)
+        if self.evidence_coverage != expected_coverage:
+            raise ValueError(
+                f"evidence_coverage {self.evidence_coverage} does not match "
+                f"re-derived coverage {expected_coverage} "
+                f"({expected_scored_count}/{total_field_count})"
+            )
+
+        # Re-derive observed_similarity and evidence_weighted_similarity
+        if expected_scored_count == 0:
+            if self.observed_similarity is not None:
+                raise ValueError(
+                    "scored_field_count == 0 requires observed_similarity=None"
+                )
+            if self.evidence_weighted_similarity is not None:
+                raise ValueError(
+                    "scored_field_count == 0 requires "
+                    "evidence_weighted_similarity=None"
+                )
+        else:
+            if self.observed_similarity is None:
+                raise ValueError(
+                    "scored_field_count > 0 requires observed_similarity to be set"
+                )
+            if self.evidence_weighted_similarity is None:
+                raise ValueError(
+                    "scored_field_count > 0 requires "
+                    "evidence_weighted_similarity to be set"
+                )
+
+            sum_scored = sum(scored_similarities, Decimal("0"))
+            expected_observed = sum_scored / Decimal(expected_scored_count)
+            if self.observed_similarity != expected_observed:
+                raise ValueError(
+                    f"observed_similarity {self.observed_similarity} does not match "
+                    f"re-derived value {expected_observed} (mean of {expected_scored_count} "
+                    f"scored field similarities)"
+                )
+
+            expected_weighted = sum_scored / Decimal(total_field_count)
+            if self.evidence_weighted_similarity != expected_weighted:
+                raise ValueError(
+                    f"evidence_weighted_similarity {self.evidence_weighted_similarity} "
+                    f"does not match re-derived value {expected_weighted} "
+                    f"(sum of scored similarities / {total_field_count})"
+                )
+
 
 # ---------------------------------------------------------------------------
 # ComparableResearchResult
@@ -891,6 +1125,15 @@ class ComparableResearchResult:
 
         if self.target_enrichment_audit is None:
             raise ValueError("FULL kind requires target_enrichment_audit to be set")
+
+        # --- ENRICHMENT BINDING: target audit MPN must match target MPN ---
+        if self.target_enrichment_audit.product_mpn != self.target_mpn:
+            raise ValueError(
+                f"target_enrichment_audit.product_mpn "
+                f"{self.target_enrichment_audit.product_mpn!r} does not match "
+                f"target_mpn {self.target_mpn!r}. "
+                "Target enrichment audit must belong to this target."
+            )
 
     def _validate_no_authority_match(self) -> None:
         """NO_AUTHORITY_MATCH requires:
