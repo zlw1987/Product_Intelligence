@@ -16,20 +16,23 @@ This module owns the semantic result types:
     FieldAssessmentResult
     ComparableCandidateResult
     ComparableResearchResult
+
+The read-model projection is pure: scalar fields and tuples only.
+No ProductIdentity, no ComparableCandidate, no ProductSpecificationSet,
+no SpecificationResolution — those are raw graph objects not required
+by the durable field-level projection.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from decimal import Decimal
 from enum import Enum
-from typing import Any
 
-from product_intelligence.domain.models import ProductIdentity
-from product_intelligence.research.comparable_candidates import (
-    ComparableCandidate,
+from product_intelligence.research.enterprise_ssd_similarity import (
+    ComparisonState,
 )
 from product_intelligence.research.specifications import (
-    ProductSpecificationSet,
     ResolutionState,
     SourceAuthority,
 )
@@ -153,7 +156,8 @@ class AuthorityAttemptResult:
         The URL that was attempted. Set for source-backed outcomes.
 
     matched_mpn : str | None
-        The MPN that was matched, when outcome is MATCHED.
+        The MPN that was matched. REQUIRED for MATCHED, MUST be None
+        for every non-MATCHED outcome.
 
     raw_reference : str | None
         Bounded provenance reference, if available.
@@ -200,12 +204,14 @@ class AuthorityAttemptResult:
                         "MATCHED outcome requires a non-empty matched_mpn"
                     )
             else:
-                # Non-MATCHED, non-NO_REQUESTED_MPN outcomes
-                # matched_mpn should be None (or empty)
-                if self.matched_mpn is not None and self.matched_mpn.strip():
-                    # Allow empty-ish matched_mpn for non-MATCHED but not
-                    # fabricating one
-                    pass
+                # Non-MATCHED, source-backed outcomes:
+                # matched_mpn MUST be None — never fabricate a match
+                if self.matched_mpn is not None:
+                    raise ValueError(
+                        f"non-MATCHED outcome {self.outcome.value} must not "
+                        f"have matched_mpn; got {self.matched_mpn!r}. "
+                        "Only MATCHED outcomes may carry a matched_mpn."
+                    )
 
         # raw_reference — optional, bounded
         if self.raw_reference is not None:
@@ -290,8 +296,6 @@ class DatasheetAttemptResult:
         else:
             # Source-backed outcome — validate the fields that frozen 6D
             # actually guarantees for source-backed attempts.
-            # The 6D contract guarantees source_name and source_url for
-            # any source-backed attempt.
             if self.source_name is None or not self.source_name.strip():
                 raise ValueError(
                     f"source-backed outcome {self.outcome.value} requires "
@@ -320,82 +324,58 @@ class DatasheetAttemptResult:
 
 
 # ---------------------------------------------------------------------------
-# ProductEnrichmentAudit
+# ProductEnrichmentAudit — per-product 6D enrichment audit only
 # ---------------------------------------------------------------------------
+#
+# This represents ONLY the datasheet enrichment audit for one product.
+# Authority establishment is a TARGET-level concern owned by
+# ComparableResearchResult.authority_audit.
+#
+# Candidates do NOT independently run PRE1 authority establishment,
+# so ProductEnrichmentAudit must NOT carry authority_audit, ProductIdentity,
+# or ProductSpecificationSet.
 
 
 @dataclass(frozen=True)
 class ProductEnrichmentAudit:
     """Specification enrichment audit for one product identity.
 
-    Combines authority (6C) and datasheet (6D) enrichment attempts into
-    a single audited record for one product.
+    Represents only the per-product 6D (datasheet) enrichment audit.
+    Authority establishment is TARGET-only and lives at the
+    ComparableResearchResult level.
 
-    target_identity : ProductIdentity
-        The product this enrichment audit belongs to.
+    product_mpn : str
+        The product MPN this enrichment audit belongs to.
 
-    authority_audit : tuple[AuthorityAttemptResult, ...]
-        The authority-support-page attempt results for this product.
-        Non-empty (at least one attempt was made or attempted).
-
-    datasheet_audit : tuple[DatasheetAttemptResult, ...]
+    attempts : tuple[DatasheetAttemptResult, ...]
         The datasheet-PDF enrichment attempt results for this product.
         May be empty if no datasheet enrichment was attempted.
-
-    specification_set : ProductSpecificationSet | None
-        The composed specification set after enrichment. Set when available.
     """
 
-    target_identity: ProductIdentity
-    authority_audit: tuple[AuthorityAttemptResult, ...]
-    datasheet_audit: tuple[DatasheetAttemptResult, ...] = ()
-    specification_set: ProductSpecificationSet | None = None
+    product_mpn: str
+    attempts: tuple[DatasheetAttemptResult, ...] = ()
 
     def __post_init__(self) -> None:
-        # target_identity
-        if not isinstance(self.target_identity, ProductIdentity):
+        # product_mpn
+        if not isinstance(self.product_mpn, str):
             raise TypeError(
-                f"target_identity must be ProductIdentity, got "
-                f"{type(self.target_identity).__name__}"
+                f"product_mpn must be a string, got "
+                f"{type(self.product_mpn).__name__}"
             )
+        if not self.product_mpn.strip():
+            raise ValueError("product_mpn must be a non-empty string")
 
-        # authority_audit
-        if not isinstance(self.authority_audit, tuple):
+        # attempts
+        if not isinstance(self.attempts, tuple):
             raise TypeError(
-                f"authority_audit must be a tuple, got "
-                f"{type(self.authority_audit).__name__}"
+                f"attempts must be a tuple, got "
+                f"{type(self.attempts).__name__}"
             )
-        if not self.authority_audit:
-            raise ValueError(
-                "authority_audit must be non-empty; "
-                "at least one authority attempt must be recorded"
-            )
-        for i, attempt in enumerate(self.authority_audit):
-            if not isinstance(attempt, AuthorityAttemptResult):
-                raise TypeError(
-                    f"authority_audit[{i}] must be AuthorityAttemptResult, got "
-                    f"{type(attempt).__name__}"
-                )
-
-        # datasheet_audit
-        if not isinstance(self.datasheet_audit, tuple):
-            raise TypeError(
-                f"datasheet_audit must be a tuple, got "
-                f"{type(self.datasheet_audit).__name__}"
-            )
-        for i, attempt in enumerate(self.datasheet_audit):
+        for i, attempt in enumerate(self.attempts):
             if not isinstance(attempt, DatasheetAttemptResult):
                 raise TypeError(
-                    f"datasheet_audit[{i}] must be DatasheetAttemptResult, got "
+                    f"attempts[{i}] must be DatasheetAttemptResult, got "
                     f"{type(attempt).__name__}"
-                )
-
-        # specification_set
-        if self.specification_set is not None:
-            if not isinstance(self.specification_set, ProductSpecificationSet):
-                raise TypeError(
-                    f"specification_set must be ProductSpecificationSet or None, got "
-                    f"{type(self.specification_set).__name__}"
                 )
 
 
@@ -408,19 +388,29 @@ class ProductEnrichmentAudit:
 class EvidenceSourceReference:
     """Represents actual evidence that supported a resolved field.
 
+    Preserves the frozen PRE2 provenance contract.
+
     source_name : str
         The evidence source name.
 
     source_url : str
         The evidence source URL.
 
-    layer : EvidenceLayer
+    evidence_layer : EvidenceLayer
         SUPPORT_PAGE or DATASHEET_PDF.
+
+    source_authority : SourceAuthority
+        The authority tier of the evidence source.
+
+    retrieved_at : str
+        ISO-8601 retrieval timestamp. Serializable/read-model representation.
     """
 
     source_name: str
     source_url: str
-    layer: EvidenceLayer
+    evidence_layer: EvidenceLayer
+    source_authority: SourceAuthority
+    retrieved_at: str
 
     def __post_init__(self) -> None:
         if not isinstance(self.source_name, str) or not self.source_name.strip():
@@ -429,23 +419,54 @@ class EvidenceSourceReference:
         if not isinstance(self.source_url, str) or not self.source_url.strip():
             raise ValueError("source_url must be a non-empty string")
 
-        if not isinstance(self.layer, EvidenceLayer):
+        if not isinstance(self.evidence_layer, EvidenceLayer):
             raise TypeError(
-                f"layer must be EvidenceLayer, got {type(self.layer).__name__}"
+                f"evidence_layer must be EvidenceLayer, got "
+                f"{type(self.evidence_layer).__name__}"
             )
+
+        if not isinstance(self.source_authority, SourceAuthority):
+            raise TypeError(
+                f"source_authority must be SourceAuthority, got "
+                f"{type(self.source_authority).__name__}"
+            )
+
+        if not isinstance(self.retrieved_at, str) or not self.retrieved_at.strip():
+            raise ValueError("retrieved_at must be a non-empty ISO-8601 string")
 
 
 # ---------------------------------------------------------------------------
 # FieldAssessmentResult
 # ---------------------------------------------------------------------------
+#
+# Pure field-level projection sufficient to map directly from frozen:
+#     SpecificationSimilarityFieldAssessment
+# without dropping semantic fields.
+#
+# Does NOT recompute the 7B scoring formula. Frozen 7B already owns scoring.
+# Uses frozen pure enums: ComparisonState, ResolutionState.
+# Decimal similarity values stored as strings in the codec.
 
 
 @dataclass(frozen=True)
 class FieldAssessmentResult:
     """Assessment of one specification field for comparison.
 
-    field_name : str
-        The schema field name (e.g. "capacity").
+    definition_key : str
+        The schema definition key (e.g. "capacity").
+
+    comparison_state : ComparisonState
+        SCORED, TARGET_NOT_VERIFIED, CANDIDATE_NOT_VERIFIED, or BOTH_NOT_VERIFIED.
+
+    target_resolution_state : ResolutionState
+        The target's resolution state for this field.
+
+    candidate_resolution_state : ResolutionState
+        The candidate's resolution state for this field.
+
+    field_similarity : Decimal | None
+        Similarity score in [0, 1] when comparison_state is SCORED.
+        None for all non-SCORED states.
 
     target_value : str | None
         The target's resolved value for this field.
@@ -458,18 +479,73 @@ class FieldAssessmentResult:
 
     candidate_evidence : tuple[EvidenceSourceReference, ...]
         Evidence sources supporting the candidate value.
+
+    Invariants:
+        - comparison_state == SCORED  -> field_similarity is Decimal in [0, 1]
+        - non-SCORED                  -> field_similarity is None
     """
 
-    field_name: str
+    definition_key: str
+    comparison_state: ComparisonState
+    target_resolution_state: ResolutionState
+    candidate_resolution_state: ResolutionState
+    field_similarity: Decimal | None
     target_value: str | None
     candidate_value: str | None
     target_evidence: tuple[EvidenceSourceReference, ...] = ()
     candidate_evidence: tuple[EvidenceSourceReference, ...] = ()
 
     def __post_init__(self) -> None:
-        if not isinstance(self.field_name, str) or not self.field_name.strip():
-            raise ValueError("field_name must be a non-empty string")
+        # definition_key
+        if not isinstance(self.definition_key, str) or not self.definition_key.strip():
+            raise ValueError("definition_key must be a non-empty string")
 
+        # comparison_state must be exact enum
+        if not isinstance(self.comparison_state, ComparisonState):
+            raise TypeError(
+                f"comparison_state must be ComparisonState, got "
+                f"{type(self.comparison_state).__name__}"
+            )
+
+        # resolution states must be exact enums
+        if not isinstance(self.target_resolution_state, ResolutionState):
+            raise TypeError(
+                f"target_resolution_state must be ResolutionState, got "
+                f"{type(self.target_resolution_state).__name__}"
+            )
+        if not isinstance(self.candidate_resolution_state, ResolutionState):
+            raise TypeError(
+                f"candidate_resolution_state must be ResolutionState, got "
+                f"{type(self.candidate_resolution_state).__name__}"
+            )
+
+        # SCORED -> field_similarity must be Decimal in [0, 1]
+        # non-SCORED -> field_similarity must be None
+        if self.comparison_state is ComparisonState.SCORED:
+            if self.field_similarity is None:
+                raise ValueError(
+                    "SCORED comparison requires a field_similarity value"
+                )
+            if type(self.field_similarity) is not Decimal:
+                raise TypeError(
+                    f"field_similarity must be Decimal, got "
+                    f"{type(self.field_similarity).__name__}"
+                )
+            if not (Decimal("0") <= self.field_similarity <= Decimal("1")):
+                raise ValueError(
+                    f"field_similarity {self.field_similarity} is not in "
+                    "range [0, 1]"
+                )
+        else:
+            if self.field_similarity is not None:
+                raise ValueError(
+                    f"Non-SCORED comparison state "
+                    f"{self.comparison_state.value} must have "
+                    "field_similarity=None, got "
+                    f"{self.field_similarity!r}"
+                )
+
+        # target_value
         if self.target_value is not None:
             if not isinstance(self.target_value, str):
                 raise TypeError(
@@ -477,6 +553,7 @@ class FieldAssessmentResult:
                     f"{type(self.target_value).__name__}"
                 )
 
+        # candidate_value
         if self.candidate_value is not None:
             if not isinstance(self.candidate_value, str):
                 raise TypeError(
@@ -484,6 +561,7 @@ class FieldAssessmentResult:
                     f"{type(self.candidate_value).__name__}"
                 )
 
+        # evidence tuples
         if not isinstance(self.target_evidence, tuple):
             raise TypeError(
                 f"target_evidence must be a tuple, got "
@@ -512,39 +590,136 @@ class FieldAssessmentResult:
 # ---------------------------------------------------------------------------
 # ComparableCandidateResult
 # ---------------------------------------------------------------------------
+#
+# Pure scalar projection sufficient to map directly from frozen:
+#     EnterpriseSsdCandidateSimilarity
+# without dropping semantic fields.
+#
+# Does NOT carry ComparableCandidate, ProductIdentity, or
+# ProductSpecificationSet graphs. The field-level durable projection
+# is already provided by FieldAssessmentResult + EvidenceSourceReference.
 
 
 @dataclass(frozen=True)
 class ComparableCandidateResult:
     """The research result for one discovered comparable candidate.
 
-    candidate : ComparableCandidate
-        The discovered candidate (from frozen 7A).
+    candidate_mpn : str
+        The candidate's manufacturer part number.
 
-    enrichment_audit : ProductEnrichmentAudit
-        Specification enrichment audit for this candidate.
+    candidate_normalized_mpn : str
+        The candidate's normalized part number.
+
+    scored_field_count : int
+        Number of fields that were scored (both sides VERIFIED).
+
+    evidence_coverage : Decimal
+        scored_field_count / total_fields (e.g. 7/12).
+
+    observed_similarity : Decimal | None
+        Mean of scored field similarities. None if zero scored fields.
+
+    evidence_weighted_similarity : Decimal | None
+        Sum of scored similarities / total_fields. None if zero scored fields.
 
     field_assessments : tuple[FieldAssessmentResult, ...]
         Per-field comparison assessments between target and this candidate.
+
+    enrichment_audit : ProductEnrichmentAudit
+        Specification enrichment audit for this candidate.
     """
 
-    candidate: ComparableCandidate
+    candidate_mpn: str
+    candidate_normalized_mpn: str
+    scored_field_count: int
+    evidence_coverage: Decimal
+    observed_similarity: Decimal | None
+    evidence_weighted_similarity: Decimal | None
+    field_assessments: tuple[FieldAssessmentResult, ...]
     enrichment_audit: ProductEnrichmentAudit
-    field_assessments: tuple[FieldAssessmentResult, ...] = ()
 
     def __post_init__(self) -> None:
-        if not isinstance(self.candidate, ComparableCandidate):
+        # candidate_mpn
+        if not isinstance(self.candidate_mpn, str):
             raise TypeError(
-                f"candidate must be ComparableCandidate, got "
-                f"{type(self.candidate).__name__}"
+                f"candidate_mpn must be a string, got "
+                f"{type(self.candidate_mpn).__name__}"
+            )
+        if not self.candidate_mpn.strip():
+            raise ValueError("candidate_mpn must be a non-empty string")
+
+        # candidate_normalized_mpn
+        if not isinstance(self.candidate_normalized_mpn, str):
+            raise TypeError(
+                f"candidate_normalized_mpn must be a string, got "
+                f"{type(self.candidate_normalized_mpn).__name__}"
+            )
+        if not self.candidate_normalized_mpn.strip():
+            raise ValueError("candidate_normalized_mpn must be a non-empty string")
+
+        # scored_field_count — exact int type
+        if type(self.scored_field_count) is not int:
+            raise TypeError(
+                f"scored_field_count must be int, got "
+                f"{type(self.scored_field_count).__name__}"
+            )
+        if self.scored_field_count < 0:
+            raise ValueError(
+                f"scored_field_count must be >= 0, got {self.scored_field_count}"
             )
 
-        if not isinstance(self.enrichment_audit, ProductEnrichmentAudit):
+        # evidence_coverage — exact Decimal type
+        if type(self.evidence_coverage) is not Decimal:
             raise TypeError(
-                f"enrichment_audit must be ProductEnrichmentAudit, got "
-                f"{type(self.enrichment_audit).__name__}"
+                f"evidence_coverage must be Decimal, got "
+                f"{type(self.evidence_coverage).__name__}"
+            )
+        if not (Decimal("0") <= self.evidence_coverage <= Decimal("1")):
+            raise ValueError(
+                f"evidence_coverage {self.evidence_coverage} is not in "
+                "range [0, 1]"
             )
 
+        # observed_similarity
+        if self.observed_similarity is not None:
+            if type(self.observed_similarity) is not Decimal:
+                raise TypeError(
+                    f"observed_similarity must be Decimal or None, got "
+                    f"{type(self.observed_similarity).__name__}"
+                )
+            if not (Decimal("0") <= self.observed_similarity <= Decimal("1")):
+                raise ValueError(
+                    f"observed_similarity {self.observed_similarity} is not in "
+                    "range [0, 1]"
+                )
+
+        # evidence_weighted_similarity
+        if self.evidence_weighted_similarity is not None:
+            if type(self.evidence_weighted_similarity) is not Decimal:
+                raise TypeError(
+                    f"evidence_weighted_similarity must be Decimal or None, got "
+                    f"{type(self.evidence_weighted_similarity).__name__}"
+                )
+            if not (Decimal("0") <= self.evidence_weighted_similarity <= Decimal("1")):
+                raise ValueError(
+                    f"evidence_weighted_similarity "
+                    f"{self.evidence_weighted_similarity} is not in range [0, 1]"
+                )
+
+        # scored_field_count == 0 -> observed_similarity and
+        # evidence_weighted_similarity must be None
+        if self.scored_field_count == 0:
+            if self.observed_similarity is not None:
+                raise ValueError(
+                    "scored_field_count == 0 requires observed_similarity=None"
+                )
+            if self.evidence_weighted_similarity is not None:
+                raise ValueError(
+                    "scored_field_count == 0 requires "
+                    "evidence_weighted_similarity=None"
+                )
+
+        # field_assessments
         if not isinstance(self.field_assessments, tuple):
             raise TypeError(
                 f"field_assessments must be a tuple, got "
@@ -557,10 +732,21 @@ class ComparableCandidateResult:
                     f"{type(fa).__name__}"
                 )
 
+        # enrichment_audit
+        if not isinstance(self.enrichment_audit, ProductEnrichmentAudit):
+            raise TypeError(
+                f"enrichment_audit must be ProductEnrichmentAudit, got "
+                f"{type(self.enrichment_audit).__name__}"
+            )
+
 
 # ---------------------------------------------------------------------------
 # ComparableResearchResult
 # ---------------------------------------------------------------------------
+#
+# Top-level result. Authority_audit is TARGET authority establishment only.
+# Each ComparableCandidateResult carries its own enrichment_audit.
+# No redundant candidate_enrichment_audits tuple.
 
 
 @dataclass(frozen=True)
@@ -577,20 +763,18 @@ class ComparableResearchResult:
         The target product's manufacturer name (may be None for some kinds).
 
     target_enrichment_audit : ProductEnrichmentAudit | None
-        Enrichment audit for the target product. Set for FULL kind.
+        Datasheet enrichment audit for the target product. Set for FULL kind.
         None for NO_AUTHORITY_MATCH, AMBIGUOUS_AUTHORITY, NO_REQUESTED_MPN.
 
     authority_audit : tuple[AuthorityAttemptResult, ...]
-        The authority-support-page attempt results for the target.
+        The authority-support-page attempt results for the TARGET.
         Non-empty. This is the single source of authority truth.
+        TARGET authority establishment only.
 
     candidates : tuple[ComparableCandidateResult, ...]
         The research results for each discovered comparable candidate.
+        Each candidate carries its own enrichment_audit.
         Empty for non-FULL kinds.
-
-    candidate_enrichment_audits : tuple[ProductEnrichmentAudit, ...]
-        Enrichment audits for each candidate.
-        Must match candidates length. May be empty if no candidates.
     """
 
     kind: ComparableResultKind
@@ -599,7 +783,6 @@ class ComparableResearchResult:
     target_enrichment_audit: ProductEnrichmentAudit | None
     authority_audit: tuple[AuthorityAttemptResult, ...]
     candidates: tuple[ComparableCandidateResult, ...]
-    candidate_enrichment_audits: tuple[ProductEnrichmentAudit, ...] = ()
 
     def __post_init__(self) -> None:
         # kind
@@ -628,7 +811,6 @@ class ComparableResearchResult:
                 )
 
         # Check that authority audit does not contain fatal outcomes
-        # (which would mean this should have been a FAILED execution)
         for i, attempt in enumerate(self.authority_audit):
             if attempt.outcome in AUTHORITY_FATAL_OUTCOMES:
                 raise ValueError(
@@ -649,25 +831,6 @@ class ComparableResearchResult:
                 raise TypeError(
                     f"candidates[{i}] must be ComparableCandidateResult, got "
                     f"{type(candidate).__name__}"
-                )
-
-        # candidate_enrichment_audits
-        if not isinstance(self.candidate_enrichment_audits, tuple):
-            raise TypeError(
-                f"candidate_enrichment_audits must be a tuple, got "
-                f"{type(self.candidate_enrichment_audits).__name__}"
-            )
-        if len(self.candidate_enrichment_audits) != len(self.candidates):
-            raise ValueError(
-                f"candidate_enrichment_audits length "
-                f"({len(self.candidate_enrichment_audits)}) must match "
-                f"candidates length ({len(self.candidates)})"
-            )
-        for i, audit in enumerate(self.candidate_enrichment_audits):
-            if not isinstance(audit, ProductEnrichmentAudit):
-                raise TypeError(
-                    f"candidate_enrichment_audits[{i}] must be "
-                    f"ProductEnrichmentAudit, got {type(audit).__name__}"
                 )
 
         # --- Kind-specific invariants ---
@@ -748,8 +911,6 @@ class ComparableResearchResult:
                     f"to be NO_MPN_IN_SOURCE, got {attempt.outcome.value} at [{i}]"
                 )
 
-        # No fabricated target manufacturer: if we have no authority match,
-        # target_manufacturer should not be asserted.
         if self.target_manufacturer is not None and self.target_manufacturer.strip():
             raise ValueError(
                 "NO_AUTHORITY_MATCH kind must not have a fabricated "
@@ -776,7 +937,6 @@ class ComparableResearchResult:
                     f"to be NO_REQUESTED_MPN, got {attempt.outcome.value} at [{i}]"
                 )
 
-        # No fabricated target manufacturer
         if self.target_manufacturer is not None and self.target_manufacturer.strip():
             raise ValueError(
                 "NO_REQUESTED_MPN kind must not have a fabricated "
@@ -795,7 +955,6 @@ class ComparableResearchResult:
                 "AMBIGUOUS_AUTHORITY kind must have empty candidates"
             )
 
-        # Check for incomplete/failure states
         for i, attempt in enumerate(self.authority_audit):
             if attempt.outcome in AUTHORITY_FATAL_OUTCOMES:
                 raise ValueError(

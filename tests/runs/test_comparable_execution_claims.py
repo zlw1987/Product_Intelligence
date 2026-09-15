@@ -389,6 +389,119 @@ class TestTriggerWithStringUUID(TestCase):
 
 
 # ---------------------------------------------------------------------------
+# BLOCKER 1: IntegrityError recovery
+# ---------------------------------------------------------------------------
+
+
+class TestIntegrityErrorRecovery(TestCase):
+    """trigger_comparable_research correctly handles IntegrityError collisions.
+
+    BLOCKER 1 regression tests:
+    1. expected active-slot conflict -> winning child returned
+    2. unrelated IntegrityError -> exact IntegrityError propagates
+    """
+
+    def test_expected_collision_returns_winning_active_child(self) -> None:
+        """When the UNIQUE constraint fires, the winning active child is
+        returned. We force the collision-recovery branch by mocking create."""
+        from unittest.mock import patch
+
+        run = _make_completed_run()
+
+        # Pre-create the winning child directly (simulates another caller)
+        winner = ComparableResearchExecution.objects.create(
+            parent_run=run,
+            state=ComparableResearchState.PENDING,
+            active_slot=1,
+        )
+
+        # Force the collision-recovery branch by mocking create to raise
+        # IntegrityError, so the optimistic pre-check does not short-circuit.
+        def mock_create(*args, **kwargs):
+            raise IntegrityError('unique constraint violation')
+
+        with patch.object(
+            type(ComparableResearchExecution.objects),
+            'create',
+            mock_create,
+        ):
+            result = trigger_comparable_research(run.id)
+
+        assert result.id == winner.id
+        assert result.state == ComparableResearchState.PENDING
+
+    def test_expected_collision_returns_running_winner(self) -> None:
+        """Collision recovery returns a RUNNING winner."""
+        from unittest.mock import patch
+
+        run = _make_completed_run()
+        winner = ComparableResearchExecution.objects.create(
+            parent_run=run,
+            state=ComparableResearchState.PENDING,
+            active_slot=1,
+        )
+        # Simulate claim
+        ComparableResearchExecution.objects.filter(id=winner.id).update(
+            state=ComparableResearchState.RUNNING,
+            started_at=timezone.now(),
+        )
+        winner.refresh_from_db()
+
+        def mock_create(*args, **kwargs):
+            raise IntegrityError('unique constraint violation')
+
+        with patch.object(
+            type(ComparableResearchExecution.objects),
+            'create',
+            mock_create,
+        ):
+            result = trigger_comparable_research(run.id)
+
+        assert result.id == winner.id
+        assert result.state == ComparableResearchState.RUNNING
+
+    def test_unrelated_integrityerror_propagates_original(self) -> None:
+        """If no winner is found after IntegrityError, the ORIGINAL
+        IntegrityError propagates (not ComparableResearchTriggerError)."""
+        from unittest.mock import patch
+
+        run = _make_completed_run()
+
+        # Mock the ORM create at the manager class level to simulate an unrelated
+        # IntegrityError that is NOT the expected UNIQUE collision.
+        def mock_create(*args, **kwargs):
+            raise IntegrityError("simulated unrelated integrity error")
+
+        with patch.object(
+            type(ComparableResearchExecution.objects),
+            "create",
+            mock_create,
+        ):
+            with pytest.raises(IntegrityError, match="simulated unrelated"):
+                trigger_comparable_research(run.id)
+
+    def test_unrelated_integrityerror_not_wrapped(self) -> None:
+        """An unrelated IntegrityError is NOT wrapped as
+        ComparableResearchTriggerError."""
+        from unittest.mock import patch
+
+        run = _make_completed_run()
+
+        def mock_create(*args, **kwargs):
+            raise IntegrityError("database constraint violation")
+
+        with patch.object(
+            type(ComparableResearchExecution.objects),
+            "create",
+            mock_create,
+        ):
+            with pytest.raises(IntegrityError):
+                trigger_comparable_research(run.id)
+            # If we get here without ComparableResearchTriggerError, pass
+
+
+
+# ---------------------------------------------------------------------------
 # Lifecycle state property
 # ---------------------------------------------------------------------------
 

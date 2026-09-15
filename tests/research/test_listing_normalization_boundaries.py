@@ -92,6 +92,12 @@ def test_normalization_and_aggregation_may_use_decimal() -> None:
     if comparable_codec_module.exists():
         allowed_decimal.add(comparable_codec_module)
 
+    # 7C-A comparable research results uses Decimal for field_similarity and
+    # evidence_coverage / observed_similarity / evidence_weighted_similarity
+    comparable_results_module = RESEARCH_ROOT / "comparable_research_results.py"
+    if comparable_results_module.exists():
+        allowed_decimal.add(comparable_results_module)
+
     for path in _python_files(RESEARCH_ROOT):
         if path in allowed_decimal:
             continue
@@ -99,7 +105,9 @@ def test_normalization_and_aggregation_may_use_decimal() -> None:
         assert "decimal" not in other_modules, (
             f"{path.name} imports decimal; only normalization.py, "
             "aggregation.py, price_result_codec.py, specifications.py, "
-            "enterprise_ssd.py, and enterprise_ssd_similarity.py may use Decimal"
+            "enterprise_ssd.py, enterprise_ssd_similarity.py, "
+            "comparable_result_codec.py, and comparable_research_results.py "
+            "may use Decimal"
         )
 
 

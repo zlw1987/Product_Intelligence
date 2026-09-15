@@ -166,6 +166,9 @@ from product_intelligence.research.comparable_research_results import (
     FieldAssessmentResult,
     ProductEnrichmentAudit,
 )
+from product_intelligence.research.enterprise_ssd_similarity import (
+    ComparisonState,
+)
 from product_intelligence.research.comparable_result_codec import (
     COMPARABLE_RESULT_SCHEMA_VERSION,
     ComparableResultCodecError,
@@ -209,6 +212,7 @@ __all__ = [
     "ComparableResearchResult",
     "ComparableResultCodecError",
     "ComparableResultKind",
+    "ComparisonState",
     "DatasheetAttemptResult",
     "DatasheetAuditOutcomeKind",
     "EvidenceLayer",

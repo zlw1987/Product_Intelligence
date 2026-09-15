@@ -134,49 +134,48 @@ def trigger_comparable_research(run_id: uuid.UUID | str) -> ComparableResearchEx
 
     # 4. Create a new PENDING child.
     # Use a savepoint so IntegrityError recovery can query safely.
+    saved_integrity_error: IntegrityError | None = None
     try:
         with transaction.atomic():
-            try:
-                child = ComparableResearchExecution.objects.create(
-                    parent_run=parent,
-                    state=ComparableResearchState.PENDING,
-                    active_slot=1,
-                )
-                return child
-            except IntegrityError as exc:
-                # The UNIQUE(parent_run, active_slot) constraint may have fired.
-                # We must NOT query inside this atomic scope after the error
-                # because the transaction may be in an aborted state.
-                # Instead, raise and catch outside.
-                raise ComparableResearchTriggerError(
-                    run_id=target_id,
-                    reason=ComparableResearchTriggerError.REASON_ACTIVE_CHILD_EXISTS,
-                    detail=str(exc),
-                ) from exc
-    except ComparableResearchTriggerError:
-        # Re-raise after checking for the winning child.
-        # At this point the failing insert has already been rolled back
-        # by the atomic block's exception handling.
-        # Query for an active child that another caller created.
+            ComparableResearchExecution.objects.create(
+                parent_run=parent,
+                state=ComparableResearchState.PENDING,
+                active_slot=1,
+            )
+    except IntegrityError as exc:
+        # The UNIQUE(parent_run, active_slot) constraint may have fired.
+        # The failing transaction/savepoint has already rolled back here.
+        # We must NOT query inside the atomic scope.
+        saved_integrity_error = exc
+
+    if saved_integrity_error is not None:
+        # Query for an active or completed child that another caller created.
         winner = ComparableResearchExecution.objects.filter(
             parent_run_id=target_id,
             state__in=[
                 ComparableResearchState.PENDING,
                 ComparableResearchState.RUNNING,
-                ComparableResearchState.COMPLETED,
             ],
         ).first()
-        if winner:
+        if winner is not None:
             return winner
-        # No winner found — the IntegrityError was unrelated.
-        # Re-raise the original error.
-        raise
 
-    # Unreachable, but satisfy type checkers.
-    raise ComparableResearchTriggerError(
-        run_id=target_id,
-        reason=ComparableResearchTriggerError.REASON_ACTIVE_CHILD_EXISTS,
-        detail="unexpected state in trigger path",
+        completed = ComparableResearchExecution.objects.filter(
+            parent_run_id=target_id,
+            state=ComparableResearchState.COMPLETED,
+        ).first()
+        if completed is not None:
+            return completed
+
+        # No winner found — the IntegrityError was unrelated.
+        # Propagate the ORIGINAL IntegrityError, do not convert it.
+        raise saved_integrity_error
+
+    # No collision — the create succeeded. Fetch the created child.
+    return ComparableResearchExecution.objects.get(
+        parent_run_id=target_id,
+        state=ComparableResearchState.PENDING,
+        active_slot=1,
     )
 
 
