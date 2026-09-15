@@ -98,6 +98,7 @@ def _make_all_12_assessments(
     All other fields get BOTH_NOT_VERIFIED.
     """
     assessments: list[FieldAssessmentResult] = []
+    ref = _make_evidence_ref()
     for key in ENTERPRISE_SSD_SCHEMA.definitions.keys():
         if key in scored_keys:
             assessments.append(FieldAssessmentResult(
@@ -108,6 +109,8 @@ def _make_all_12_assessments(
                 field_similarity=scored_similarity,
                 target_value="test",
                 candidate_value="test",
+                target_evidence=(ref,),
+                candidate_evidence=(ref,),
             ))
         else:
             assessments.append(FieldAssessmentResult(
@@ -470,7 +473,7 @@ class TestDatasheetAttemptResult:
         with pytest.raises(ValueError, match="retrieved_at"):
             DatasheetAttemptResult(
                 outcome=DatasheetAuditOutcomeKind.NO_DATASHEET_SOURCE,
-                retrieved_at="2025-01-01",
+                retrieved_at="2025-01-01T00:00:00+00:00",
             )
 
     def test_no_datasheet_source_clean(self) -> None:
@@ -486,6 +489,8 @@ class TestDatasheetAttemptResult:
                 outcome=DatasheetAuditOutcomeKind.ENRICHED,
                 source_name="Source",
                 source_url="https://example.com/",
+                final_url="https://example.com/ds.pdf",
+                retrieved_at="2025-01-01T00:00:00+00:00",
                 observation_count=None,
             )
 
@@ -494,6 +499,8 @@ class TestDatasheetAttemptResult:
             outcome=DatasheetAuditOutcomeKind.ENRICHED,
             source_name="Seagate Datasheet",
             source_url="https://example.com/ds.pdf",
+            final_url="https://example.com/ds.pdf",
+            retrieved_at="2025-01-01T00:00:00+00:00",
             observation_count=6,
         )
         assert result.observation_count == 6
@@ -615,7 +622,7 @@ class TestEvidenceSourceReference:
                 source_url="https://example.com/",
                 evidence_layer=EvidenceLayer.SUPPORT_PAGE,
                 source_authority=SourceAuthority.AUTHORITATIVE,
-                retrieved_at="2025-01-01",
+                retrieved_at="2025-01-01T00:00:00+00:00",
             )
 
     def test_requires_source_authority(self) -> None:
@@ -625,7 +632,7 @@ class TestEvidenceSourceReference:
             source_url="https://example.com/",
             evidence_layer=EvidenceLayer.DATASHEET_PDF,
             source_authority=SourceAuthority.AUTHORITATIVE,
-            retrieved_at="2025-01-01",
+            retrieved_at="2025-01-01T00:00:00+00:00",
         )
 
     def test_requires_retrieved_at(self) -> None:
@@ -659,6 +666,8 @@ class TestFieldAssessmentResult:
             field_similarity=Decimal("1"),
             target_value="15.36 TB",
             candidate_value="15.36 TB",
+            target_evidence=(_make_evidence_ref(),),
+            candidate_evidence=(_make_evidence_ref(),),
         )
         assert fa.comparison_state is ComparisonState.SCORED
         assert fa.field_similarity == Decimal("1")
@@ -684,6 +693,7 @@ class TestFieldAssessmentResult:
             field_similarity=None,
             target_value=None,
             candidate_value="15.36 TB",
+            candidate_evidence=(_make_evidence_ref(),),
         )
         assert fa.field_similarity is None
 
@@ -696,6 +706,7 @@ class TestFieldAssessmentResult:
             field_similarity=None,
             target_value="15.36 TB",
             candidate_value=None,
+            target_evidence=(_make_evidence_ref(),),
         )
         assert fa.field_similarity is None
 
@@ -711,6 +722,8 @@ class TestFieldAssessmentResult:
                 field_similarity=None,
                 target_value="x",
                 candidate_value="y",
+                target_evidence=(_make_evidence_ref(),),
+                candidate_evidence=(_make_evidence_ref(),),
             )
 
     def test_scored_rejects_non_decimal_similarity(self) -> None:
@@ -723,6 +736,8 @@ class TestFieldAssessmentResult:
                 field_similarity=1.0,
                 target_value="x",
                 candidate_value="y",
+                target_evidence=(_make_evidence_ref(),),
+                candidate_evidence=(_make_evidence_ref(),),
             )
 
     def test_scored_rejects_out_of_range(self) -> None:
@@ -735,6 +750,8 @@ class TestFieldAssessmentResult:
                 field_similarity=Decimal("2"),
                 target_value="x",
                 candidate_value="y",
+                target_evidence=(_make_evidence_ref(),),
+                candidate_evidence=(_make_evidence_ref(),),
             )
 
     # --- BLOCKER 3: Non-SCORED requires None similarity ---
@@ -764,6 +781,7 @@ class TestFieldAssessmentResult:
                 field_similarity=Decimal("1"),
                 target_value=None,
                 candidate_value="x",
+                candidate_evidence=(_make_evidence_ref(),),
             )
 
     def test_rejects_scored_with_unverified_candidate(self) -> None:
@@ -776,6 +794,7 @@ class TestFieldAssessmentResult:
                 field_similarity=Decimal("1"),
                 target_value="x",
                 candidate_value=None,
+                target_evidence=(_make_evidence_ref(),),
             )
 
     def test_rejects_scored_with_both_unverified(self) -> None:
@@ -800,6 +819,7 @@ class TestFieldAssessmentResult:
                 field_similarity=None,
                 target_value="x",
                 candidate_value=None,
+                target_evidence=(_make_evidence_ref(),),
             )
 
     def test_rejects_both_not_verified_with_both_verified(self) -> None:
@@ -812,6 +832,8 @@ class TestFieldAssessmentResult:
                 field_similarity=None,
                 target_value="x",
                 candidate_value="y",
+                target_evidence=(_make_evidence_ref(),),
+                candidate_evidence=(_make_evidence_ref(),),
             )
 
     def test_rejects_candidate_not_verified_with_target_not_verified(self) -> None:
@@ -852,6 +874,7 @@ class TestFieldAssessmentResult:
                 field_similarity=Decimal("1"),
                 target_value=None,
                 candidate_value="x",
+                candidate_evidence=(_make_evidence_ref(),),
             )
 
     def test_rejects_scored_with_unverified_candidate(self) -> None:
@@ -864,6 +887,8 @@ class TestFieldAssessmentResult:
                 field_similarity=Decimal("1"),
                 target_value="x",
                 candidate_value="y",
+                target_evidence=(_make_evidence_ref(),),
+                candidate_evidence=(_make_evidence_ref(),),
             )
 
     def test_valid_with_evidence(self) -> None:
@@ -1288,7 +1313,7 @@ class TestComparableResearchResultFull:
                 authority_audit=(
                     _make_matched_authority(),
                     AuthorityAttemptResult(
-                        policy_id=POLICY_ID,
+                        policy_id="other-policy",
                         outcome=AuthorityAuditOutcomeKind.AMBIGUOUS_MPN_MATCH,
                         requested_source_url=SOURCE_URL,
                         fetched_final_url=FINAL_URL,
@@ -1308,7 +1333,7 @@ class TestComparableResearchResultFull:
                 authority_audit=(
                     _make_matched_authority(),
                     AuthorityAttemptResult(
-                        policy_id=POLICY_ID,
+                        policy_id="other-policy",
                         outcome=AuthorityAuditOutcomeKind.NO_REQUESTED_MPN,
                         requested_source_url=SOURCE_URL,
                     ),
@@ -1443,7 +1468,7 @@ class TestComparableResearchResultNoAuthorityMatch:
         assert result.kind is ComparableResultKind.NO_AUTHORITY_MATCH
 
     def test_no_authority_match_rejects_fabricated_manufacturer(self) -> None:
-        with pytest.raises(ValueError, match="fabricated"):
+        with pytest.raises(ValueError, match="target_manufacturer=None"):
             ComparableResearchResult(
                 kind=ComparableResultKind.NO_AUTHORITY_MATCH,
                 target_mpn="UNKNOWN",
@@ -1484,7 +1509,7 @@ class TestComparableResearchResultNoRequestedMpn:
         assert result.kind is ComparableResultKind.NO_REQUESTED_MPN
 
     def test_no_requested_mpn_rejects_fabricated_manufacturer(self) -> None:
-        with pytest.raises(ValueError, match="fabricated"):
+        with pytest.raises(ValueError, match="target_manufacturer=None"):
             ComparableResearchResult(
                 kind=ComparableResultKind.NO_REQUESTED_MPN,
                 target_mpn="",
@@ -1542,7 +1567,7 @@ class TestComparableResearchResultAmbiguousAuthority:
                     matching_mpn="AMBIGUOUS",
                 ),
                 AuthorityAttemptResult(
-                    policy_id=POLICY_ID,
+                    policy_id="other-policy",
                     outcome=AuthorityAuditOutcomeKind.MATCHED,
                     requested_source_url=SOURCE_URL,
                     fetched_final_url=FINAL_URL,
@@ -1603,4 +1628,706 @@ class TestContradictoryAuthorityMix:
                     ),
                 ),
                 candidates=(),
+            )
+
+
+# ---------------------------------------------------------------------------
+# BLOCKER 1: DatasheetAttemptResult adversarial matrix
+# ---------------------------------------------------------------------------
+
+
+class TestDatasheetAttemptResultAdversarial:
+    """BLOCKER 1: Every DatasheetAttemptResult outcome shape enforced."""
+
+    def test_enriched_rejects_zero_observation_count(self) -> None:
+        with pytest.raises(ValueError, match="observation_count > 0"):
+            DatasheetAttemptResult(
+                outcome=DatasheetAuditOutcomeKind.ENRICHED,
+                source_name="S",
+                source_url="https://example.com/",
+                final_url="https://example.com/",
+                retrieved_at=RETRIEVED_AT,
+                observation_count=0,
+            )
+
+    def test_enriched_rejects_bool_observation_count(self) -> None:
+        with pytest.raises(TypeError, match="observation_count must be int"):
+            DatasheetAttemptResult(
+                outcome=DatasheetAuditOutcomeKind.ENRICHED,
+                source_name="S",
+                source_url="https://example.com/",
+                final_url="https://example.com/",
+                retrieved_at=RETRIEVED_AT,
+                observation_count=True,
+            )
+
+    def test_enriched_rejects_missing_final_url(self) -> None:
+        with pytest.raises(ValueError, match="final_url"):
+            DatasheetAttemptResult(
+                outcome=DatasheetAuditOutcomeKind.ENRICHED,
+                source_name="S",
+                source_url="https://example.com/",
+                final_url=None,
+                retrieved_at=RETRIEVED_AT,
+                observation_count=5,
+            )
+
+    def test_enriched_rejects_missing_retrieved_at(self) -> None:
+        with pytest.raises(ValueError, match="retrieved_at"):
+            DatasheetAttemptResult(
+                outcome=DatasheetAuditOutcomeKind.ENRICHED,
+                source_name="S",
+                source_url="https://example.com/",
+                final_url="https://example.com/",
+                retrieved_at=None,
+                observation_count=5,
+            )
+
+    def test_enriched_valid_full_shape(self) -> None:
+        result = DatasheetAttemptResult(
+            outcome=DatasheetAuditOutcomeKind.ENRICHED,
+            source_name="Seagate Datasheet",
+            source_url="https://example.com/ds.pdf",
+            final_url="https://example.com/ds.pdf",
+            retrieved_at=RETRIEVED_AT,
+            observation_count=6,
+        )
+        assert result.observation_count == 6
+
+    def test_no_observations_requires_zero_count(self) -> None:
+        result = DatasheetAttemptResult(
+            outcome=DatasheetAuditOutcomeKind.NO_OBSERVATIONS,
+            source_name="S",
+            source_url="https://example.com/",
+            final_url="https://example.com/",
+            retrieved_at=RETRIEVED_AT,
+            observation_count=0,
+        )
+        assert result.observation_count == 0
+
+    def test_no_observations_rejects_nonzero_count(self) -> None:
+        with pytest.raises(ValueError, match="observation_count == 0"):
+            DatasheetAttemptResult(
+                outcome=DatasheetAuditOutcomeKind.NO_OBSERVATIONS,
+                source_name="S",
+                source_url="https://example.com/",
+                final_url="https://example.com/",
+                retrieved_at=RETRIEVED_AT,
+                observation_count=5,
+            )
+
+    def test_no_observations_requires_final_url(self) -> None:
+        with pytest.raises(ValueError, match="final_url"):
+            DatasheetAttemptResult(
+                outcome=DatasheetAuditOutcomeKind.NO_OBSERVATIONS,
+                source_name="S",
+                source_url="https://example.com/",
+                final_url=None,
+                retrieved_at=RETRIEVED_AT,
+                observation_count=0,
+            )
+
+    def test_parse_failed_requires_zero_count(self) -> None:
+        with pytest.raises(ValueError, match="observation_count"):
+            DatasheetAttemptResult(
+                outcome=DatasheetAuditOutcomeKind.PARSE_FAILED,
+                source_name="S",
+                source_url="https://example.com/",
+                final_url="https://example.com/",
+                retrieved_at=RETRIEVED_AT,
+                observation_count=None,
+            )
+
+    def test_parse_failed_valid_shape(self) -> None:
+        result = DatasheetAttemptResult(
+            outcome=DatasheetAuditOutcomeKind.PARSE_FAILED,
+            source_name="S",
+            source_url="https://example.com/",
+            final_url="https://example.com/",
+            retrieved_at=RETRIEVED_AT,
+            observation_count=0,
+        )
+        assert result.observation_count == 0
+
+    def test_fetch_failed_rejects_final_url(self) -> None:
+        with pytest.raises(ValueError, match="must not have final_url"):
+            DatasheetAttemptResult(
+                outcome=DatasheetAuditOutcomeKind.FETCH_FAILED,
+                source_name="S",
+                source_url="https://example.com/",
+                final_url="https://example.com/",
+                retrieved_at=None,
+                observation_count=0,
+            )
+
+    def test_fetch_failed_rejects_retrieved_at(self) -> None:
+        with pytest.raises(ValueError, match="must not have retrieved_at"):
+            DatasheetAttemptResult(
+                outcome=DatasheetAuditOutcomeKind.FETCH_FAILED,
+                source_name="S",
+                source_url="https://example.com/",
+                final_url=None,
+                retrieved_at=RETRIEVED_AT,
+                observation_count=0,
+            )
+
+    def test_fetch_failed_valid_shape(self) -> None:
+        result = DatasheetAttemptResult(
+            outcome=DatasheetAuditOutcomeKind.FETCH_FAILED,
+            source_name="S",
+            source_url="https://example.com/",
+            final_url=None,
+            retrieved_at=None,
+            observation_count=0,
+        )
+        assert result.observation_count == 0
+
+    def test_source_refused_valid_shape(self) -> None:
+        result = DatasheetAttemptResult(
+            outcome=DatasheetAuditOutcomeKind.SOURCE_REFUSED,
+            source_name="S",
+            source_url="https://example.com/",
+            final_url=None,
+            retrieved_at=None,
+            observation_count=0,
+        )
+        assert result.observation_count == 0
+
+    def test_source_refused_rejects_nonzero_observation_count(self) -> None:
+        with pytest.raises(ValueError, match="observation_count == 0"):
+            DatasheetAttemptResult(
+                outcome=DatasheetAuditOutcomeKind.SOURCE_REFUSED,
+                source_name="S",
+                source_url="https://example.com/",
+                final_url=None,
+                retrieved_at=None,
+                observation_count=5,
+            )
+
+    def test_no_datasheet_source_all_none(self) -> None:
+        result = DatasheetAttemptResult(
+            outcome=DatasheetAuditOutcomeKind.NO_DATASHEET_SOURCE,
+        )
+        assert result.source_name is None
+        assert result.source_url is None
+        assert result.final_url is None
+        assert result.retrieved_at is None
+        assert result.observation_count is None
+
+    def test_enriched_rejects_non_tz_timestamp(self) -> None:
+        with pytest.raises(ValueError, match="timezone-aware"):
+            DatasheetAttemptResult(
+                outcome=DatasheetAuditOutcomeKind.ENRICHED,
+                source_name="S",
+                source_url="https://example.com/",
+                final_url="https://example.com/",
+                retrieved_at="2025-01-01T00:00:00",
+                observation_count=5,
+            )
+
+
+# ---------------------------------------------------------------------------
+# BLOCKER 1: ProductEnrichmentAudit NO_DATASHEET_SOURCE must be sole attempt
+# ---------------------------------------------------------------------------
+
+
+class TestProductEnrichmentAuditNoDatasheetSourceConstraint:
+    """BLOCKER 1: NO_DATASHEET_SOURCE must be the ONLY attempt."""
+
+    def test_no_datasheet_source_with_other_attempt_rejected(self) -> None:
+        with pytest.raises(ValueError, match="NO_DATASHEET_SOURCE must be the only attempt"):
+            ProductEnrichmentAudit(
+                product_mpn="XP",
+                attempts=(
+                    DatasheetAttemptResult(
+                        outcome=DatasheetAuditOutcomeKind.NO_DATASHEET_SOURCE,
+                    ),
+                    DatasheetAttemptResult(
+                        outcome=DatasheetAuditOutcomeKind.FETCH_FAILED,
+                        source_name="S",
+                        source_url="https://example.com/",
+                        final_url=None,
+                        retrieved_at=None,
+                        observation_count=0,
+                    ),
+                ),
+            )
+
+    def test_multiple_no_datasheet_source_rejected(self) -> None:
+        with pytest.raises(ValueError, match="NO_DATASHEET_SOURCE must be the only attempt"):
+            ProductEnrichmentAudit(
+                product_mpn="XP",
+                attempts=(
+                    DatasheetAttemptResult(
+                        outcome=DatasheetAuditOutcomeKind.NO_DATASHEET_SOURCE,
+                    ),
+                    DatasheetAttemptResult(
+                        outcome=DatasheetAuditOutcomeKind.NO_DATASHEET_SOURCE,
+                    ),
+                ),
+            )
+
+
+# ---------------------------------------------------------------------------
+# BLOCKER 2: AMBIGUOUS_AUTHORITY legal mixes with NO_MPN_IN_SOURCE
+# ---------------------------------------------------------------------------
+
+
+class TestAmbiguousAuthorityLegalMixes:
+    """BLOCKER 2: AMBIGUOUS_AUTHORITY permits NO_MPN_IN_SOURCE alongside
+    AMBIGUOUS_MPN_MATCH."""
+
+    def test_ambiguous_plus_no_mpn_in_source(self) -> None:
+        """AMBIGUOUS_MPN_MATCH + NO_MPN_IN_SOURCE -> AMBIGUOUS_AUTHORITY."""
+        result = ComparableResearchResult(
+            kind=ComparableResultKind.AMBIGUOUS_AUTHORITY,
+            target_mpn="AMBIGUOUS",
+            target_manufacturer=None,
+            target_enrichment_audit=None,
+            authority_audit=(
+                AuthorityAttemptResult(
+                    policy_id=POLICY_ID,
+                    outcome=AuthorityAuditOutcomeKind.AMBIGUOUS_MPN_MATCH,
+                    requested_source_url=SOURCE_URL,
+                    fetched_final_url=FINAL_URL,
+                    retrieved_at=RETRIEVED_AT,
+                ),
+                AuthorityAttemptResult(
+                    policy_id="other-policy",
+                    outcome=AuthorityAuditOutcomeKind.NO_MPN_IN_SOURCE,
+                    requested_source_url=SOURCE_URL,
+                    fetched_final_url=FINAL_URL,
+                    retrieved_at=RETRIEVED_AT,
+                ),
+            ),
+            candidates=(),
+        )
+        assert result.kind is ComparableResultKind.AMBIGUOUS_AUTHORITY
+
+    def test_matched_plus_matched_plus_no_mpn_in_source(self) -> None:
+        """MATCHED + MATCHED + NO_MPN_IN_SOURCE -> AMBIGUOUS_AUTHORITY."""
+        result = ComparableResearchResult(
+            kind=ComparableResultKind.AMBIGUOUS_AUTHORITY,
+            target_mpn="AMBIGUOUS",
+            target_manufacturer=None,
+            target_enrichment_audit=None,
+            authority_audit=(
+                AuthorityAttemptResult(
+                    policy_id=POLICY_ID,
+                    outcome=AuthorityAuditOutcomeKind.MATCHED,
+                    requested_source_url=SOURCE_URL,
+                    fetched_final_url=FINAL_URL,
+                    retrieved_at=RETRIEVED_AT,
+                    matching_mpn="AMBIGUOUS",
+                ),
+                AuthorityAttemptResult(
+                    policy_id="other-policy",
+                    outcome=AuthorityAuditOutcomeKind.MATCHED,
+                    requested_source_url=SOURCE_URL,
+                    fetched_final_url=FINAL_URL,
+                    retrieved_at=RETRIEVED_AT,
+                    matching_mpn="AMBIGUOUS",
+                ),
+                AuthorityAttemptResult(
+                    policy_id="third-policy",
+                    outcome=AuthorityAuditOutcomeKind.NO_MPN_IN_SOURCE,
+                    requested_source_url=SOURCE_URL,
+                    fetched_final_url=FINAL_URL,
+                    retrieved_at=RETRIEVED_AT,
+                ),
+            ),
+            candidates=(),
+        )
+        assert result.kind is ComparableResultKind.AMBIGUOUS_AUTHORITY
+
+
+# ---------------------------------------------------------------------------
+# BLOCKER 3: FULL kind authority evidence binding
+# ---------------------------------------------------------------------------
+
+
+class TestFullAuthorityEvidenceBinding:
+    """BLOCKER 3: FULL kind binds matching_mpn to target_mpn."""
+
+    def test_full_requires_matching_mpn_equals_target_mpn(self) -> None:
+        with pytest.raises(ValueError, match="matching_mpn"):
+            ComparableResearchResult(
+                kind=ComparableResultKind.FULL,
+                target_mpn="XP15360SE70005",
+                target_manufacturer="Seagate",
+                target_enrichment_audit=_make_target_enrichment_audit(),
+                authority_audit=(AuthorityAttemptResult(
+                    policy_id=POLICY_ID,
+                    outcome=AuthorityAuditOutcomeKind.MATCHED,
+                    requested_source_url=SOURCE_URL,
+                    fetched_final_url=FINAL_URL,
+                    retrieved_at=RETRIEVED_AT,
+                    matching_mpn="WRONG_MPN",
+                ),),
+                candidates=(),
+            )
+
+    def test_full_duplicate_policy_ids_rejected(self) -> None:
+        with pytest.raises(ValueError, match="duplicate policy_ids"):
+            ComparableResearchResult(
+                kind=ComparableResultKind.FULL,
+                target_mpn="XP15360SE70005",
+                target_manufacturer="Seagate",
+                target_enrichment_audit=_make_target_enrichment_audit(),
+                authority_audit=(
+                    _make_matched_authority(),
+                    AuthorityAttemptResult(
+                        policy_id=POLICY_ID,
+                        outcome=AuthorityAuditOutcomeKind.NO_MPN_IN_SOURCE,
+                        requested_source_url=SOURCE_URL,
+                        fetched_final_url=FINAL_URL,
+                        retrieved_at=RETRIEVED_AT,
+                    ),
+                ),
+                candidates=(),
+            )
+
+    def test_ambiguous_duplicate_policy_ids_rejected(self) -> None:
+        """Duplicate policy_ids rejected for ALL kinds, not just FULL."""
+        with pytest.raises(ValueError, match="duplicate policy_ids"):
+            ComparableResearchResult(
+                kind=ComparableResultKind.AMBIGUOUS_AUTHORITY,
+                target_mpn="AMBIGUOUS",
+                target_manufacturer=None,
+                target_enrichment_audit=None,
+                authority_audit=(
+                    AuthorityAttemptResult(
+                        policy_id=POLICY_ID,
+                        outcome=AuthorityAuditOutcomeKind.AMBIGUOUS_MPN_MATCH,
+                        requested_source_url=SOURCE_URL,
+                        fetched_final_url=FINAL_URL,
+                        retrieved_at=RETRIEVED_AT,
+                    ),
+                    AuthorityAttemptResult(
+                        policy_id=POLICY_ID,
+                        outcome=AuthorityAuditOutcomeKind.NO_MPN_IN_SOURCE,
+                        requested_source_url=SOURCE_URL,
+                        fetched_final_url=FINAL_URL,
+                        retrieved_at=RETRIEVED_AT,
+                    ),
+                ),
+                candidates=(),
+            )
+
+
+# ---------------------------------------------------------------------------
+# Non-FULL target shape constraints
+# ---------------------------------------------------------------------------
+
+
+class TestNonFullTargetShape:
+    """Non-FULL results must not leak authority-established target data."""
+
+    def test_no_authority_match_requires_none_enrichment(self) -> None:
+        with pytest.raises(ValueError, match="target_enrichment_audit=None"):
+            ComparableResearchResult(
+                kind=ComparableResultKind.NO_AUTHORITY_MATCH,
+                target_mpn="UNKNOWN",
+                target_manufacturer=None,
+                target_enrichment_audit=_make_target_enrichment_audit(),
+                authority_audit=(AuthorityAttemptResult(
+                    policy_id=POLICY_ID,
+                    outcome=AuthorityAuditOutcomeKind.NO_MPN_IN_SOURCE,
+                    requested_source_url=SOURCE_URL,
+                    fetched_final_url=FINAL_URL,
+                    retrieved_at=RETRIEVED_AT,
+                ),),
+                candidates=(),
+            )
+
+    def test_ambiguous_requires_none_enrichment(self) -> None:
+        with pytest.raises(ValueError, match="target_enrichment_audit=None"):
+            ComparableResearchResult(
+                kind=ComparableResultKind.AMBIGUOUS_AUTHORITY,
+                target_mpn="AMBIGUOUS",
+                target_manufacturer=None,
+                target_enrichment_audit=_make_target_enrichment_audit(),
+                authority_audit=(AuthorityAttemptResult(
+                    policy_id=POLICY_ID,
+                    outcome=AuthorityAuditOutcomeKind.AMBIGUOUS_MPN_MATCH,
+                    requested_source_url=SOURCE_URL,
+                    fetched_final_url=FINAL_URL,
+                    retrieved_at=RETRIEVED_AT,
+                ),),
+                candidates=(),
+            )
+
+    def test_no_requested_mpn_requires_none_enrichment(self) -> None:
+        with pytest.raises(ValueError, match="target_enrichment_audit=None"):
+            ComparableResearchResult(
+                kind=ComparableResultKind.NO_REQUESTED_MPN,
+                target_mpn="",
+                target_manufacturer=None,
+                target_enrichment_audit=_make_target_enrichment_audit(),
+                authority_audit=(AuthorityAttemptResult(
+                    policy_id=POLICY_ID,
+                    outcome=AuthorityAuditOutcomeKind.NO_REQUESTED_MPN,
+                    requested_source_url=SOURCE_URL,
+                ),),
+                candidates=(),
+            )
+
+    def test_no_authority_match_requires_none_manufacturer(self) -> None:
+        with pytest.raises(ValueError, match="target_manufacturer=None"):
+            ComparableResearchResult(
+                kind=ComparableResultKind.NO_AUTHORITY_MATCH,
+                target_mpn="UNKNOWN",
+                target_manufacturer="Leaked Manufacturer",
+                target_enrichment_audit=None,
+                authority_audit=(AuthorityAttemptResult(
+                    policy_id=POLICY_ID,
+                    outcome=AuthorityAuditOutcomeKind.NO_MPN_IN_SOURCE,
+                    requested_source_url=SOURCE_URL,
+                    fetched_final_url=FINAL_URL,
+                    retrieved_at=RETRIEVED_AT,
+                ),),
+                candidates=(),
+            )
+
+    def test_ambiguous_requires_none_manufacturer(self) -> None:
+        with pytest.raises(ValueError, match="target_manufacturer=None"):
+            ComparableResearchResult(
+                kind=ComparableResultKind.AMBIGUOUS_AUTHORITY,
+                target_mpn="AMBIGUOUS",
+                target_manufacturer="Leaked Manufacturer",
+                target_enrichment_audit=None,
+                authority_audit=(AuthorityAttemptResult(
+                    policy_id=POLICY_ID,
+                    outcome=AuthorityAuditOutcomeKind.AMBIGUOUS_MPN_MATCH,
+                    requested_source_url=SOURCE_URL,
+                    fetched_final_url=FINAL_URL,
+                    retrieved_at=RETRIEVED_AT,
+                ),),
+                candidates=(),
+            )
+
+    def test_no_authority_match_requires_nonempty_target_mpn(self) -> None:
+        with pytest.raises(ValueError, match="non-empty target_mpn"):
+            ComparableResearchResult(
+                kind=ComparableResultKind.NO_AUTHORITY_MATCH,
+                target_mpn="",
+                target_manufacturer=None,
+                target_enrichment_audit=None,
+                authority_audit=(AuthorityAttemptResult(
+                    policy_id=POLICY_ID,
+                    outcome=AuthorityAuditOutcomeKind.NO_MPN_IN_SOURCE,
+                    requested_source_url=SOURCE_URL,
+                    fetched_final_url=FINAL_URL,
+                    retrieved_at=RETRIEVED_AT,
+                ),),
+                candidates=(),
+            )
+
+    def test_no_requested_mpn_requires_empty_target_mpn(self) -> None:
+        with pytest.raises(ValueError, match="empty target_mpn"):
+            ComparableResearchResult(
+                kind=ComparableResultKind.NO_REQUESTED_MPN,
+                target_mpn="LEAKED_MPN",
+                target_manufacturer=None,
+                target_enrichment_audit=None,
+                authority_audit=(AuthorityAttemptResult(
+                    policy_id=POLICY_ID,
+                    outcome=AuthorityAuditOutcomeKind.NO_REQUESTED_MPN,
+                    requested_source_url=SOURCE_URL,
+                ),),
+                candidates=(),
+            )
+
+    def test_ambiguous_requires_nonempty_target_mpn(self) -> None:
+        with pytest.raises(ValueError, match="non-empty target_mpn"):
+            ComparableResearchResult(
+                kind=ComparableResultKind.AMBIGUOUS_AUTHORITY,
+                target_mpn="",
+                target_manufacturer=None,
+                target_enrichment_audit=None,
+                authority_audit=(AuthorityAttemptResult(
+                    policy_id=POLICY_ID,
+                    outcome=AuthorityAuditOutcomeKind.AMBIGUOUS_MPN_MATCH,
+                    requested_source_url=SOURCE_URL,
+                    fetched_final_url=FINAL_URL,
+                    retrieved_at=RETRIEVED_AT,
+                ),),
+                candidates=(),
+            )
+
+
+# ---------------------------------------------------------------------------
+# BLOCKER 4: FieldAssessmentResult resolution state value/evidence invariants
+# ---------------------------------------------------------------------------
+
+
+class TestFieldAssessmentResolutionStateInvariants:
+    """BLOCKER 4: ResolutionState -> value/evidence contracts."""
+
+    def test_verified_rejects_none_value(self) -> None:
+        with pytest.raises(ValueError, match="VERIFIED.*non-None"):
+            FieldAssessmentResult(
+                definition_key="capacity",
+                comparison_state=ComparisonState.CANDIDATE_NOT_VERIFIED,
+                target_resolution_state=ResolutionState.VERIFIED,
+                candidate_resolution_state=ResolutionState.UNKNOWN,
+                field_similarity=None,
+                target_value=None,
+                candidate_value=None,
+                target_evidence=(_make_evidence_ref(),),
+            )
+
+    def test_verified_rejects_empty_evidence(self) -> None:
+        with pytest.raises(ValueError, match="VERIFIED.*non-empty evidence"):
+            FieldAssessmentResult(
+                definition_key="capacity",
+                comparison_state=ComparisonState.CANDIDATE_NOT_VERIFIED,
+                target_resolution_state=ResolutionState.VERIFIED,
+                candidate_resolution_state=ResolutionState.UNKNOWN,
+                field_similarity=None,
+                target_value="value",
+                candidate_value=None,
+                target_evidence=(),
+            )
+
+    def test_verified_rejects_no_authoritative_evidence(self) -> None:
+        secondary_ref = EvidenceSourceReference(
+            source_name="S",
+            source_url="https://example.com/",
+            evidence_layer=EvidenceLayer.SUPPORT_PAGE,
+            source_authority=SourceAuthority.SECONDARY,
+            retrieved_at=RETRIEVED_AT,
+        )
+        with pytest.raises(ValueError, match="AUTHORITATIVE"):
+            FieldAssessmentResult(
+                definition_key="capacity",
+                comparison_state=ComparisonState.CANDIDATE_NOT_VERIFIED,
+                target_resolution_state=ResolutionState.VERIFIED,
+                candidate_resolution_state=ResolutionState.UNKNOWN,
+                field_similarity=None,
+                target_value="value",
+                candidate_value=None,
+                target_evidence=(secondary_ref,),
+            )
+
+    def test_unverified_rejects_none_value(self) -> None:
+        with pytest.raises(ValueError, match="UNVERIFIED.*non-None"):
+            FieldAssessmentResult(
+                definition_key="capacity",
+                comparison_state=ComparisonState.BOTH_NOT_VERIFIED,
+                target_resolution_state=ResolutionState.UNVERIFIED,
+                candidate_resolution_state=ResolutionState.UNKNOWN,
+                field_similarity=None,
+                target_value=None,
+                candidate_value=None,
+                target_evidence=(_make_evidence_ref(),),
+            )
+
+    def test_unverified_rejects_empty_evidence(self) -> None:
+        with pytest.raises(ValueError, match="UNVERIFIED.*non-empty"):
+            FieldAssessmentResult(
+                definition_key="capacity",
+                comparison_state=ComparisonState.BOTH_NOT_VERIFIED,
+                target_resolution_state=ResolutionState.UNVERIFIED,
+                candidate_resolution_state=ResolutionState.UNKNOWN,
+                field_similarity=None,
+                target_value="value",
+                candidate_value=None,
+                target_evidence=(),
+            )
+
+    def test_conflict_rejects_present_value(self) -> None:
+        with pytest.raises(ValueError, match="CONFLICT.*None"):
+            FieldAssessmentResult(
+                definition_key="capacity",
+                comparison_state=ComparisonState.BOTH_NOT_VERIFIED,
+                target_resolution_state=ResolutionState.CONFLICT,
+                candidate_resolution_state=ResolutionState.UNKNOWN,
+                field_similarity=None,
+                target_value="should_be_none",
+                candidate_value=None,
+                target_evidence=(_make_evidence_ref(),),
+            )
+
+    def test_conflict_rejects_empty_evidence(self) -> None:
+        with pytest.raises(ValueError, match="CONFLICT.*non-empty"):
+            FieldAssessmentResult(
+                definition_key="capacity",
+                comparison_state=ComparisonState.BOTH_NOT_VERIFIED,
+                target_resolution_state=ResolutionState.CONFLICT,
+                candidate_resolution_state=ResolutionState.UNKNOWN,
+                field_similarity=None,
+                target_value=None,
+                candidate_value=None,
+                target_evidence=(),
+            )
+
+    def test_unknown_rejects_present_value(self) -> None:
+        with pytest.raises(ValueError, match="UNKNOWN.*None"):
+            FieldAssessmentResult(
+                definition_key="capacity",
+                comparison_state=ComparisonState.BOTH_NOT_VERIFIED,
+                target_resolution_state=ResolutionState.UNKNOWN,
+                candidate_resolution_state=ResolutionState.UNKNOWN,
+                field_similarity=None,
+                target_value="should_be_none",
+                candidate_value=None,
+            )
+
+    def test_unknown_permits_empty_evidence(self) -> None:
+        """UNKNOWN may have empty evidence (issue-only evidence may exist)."""
+        fa = FieldAssessmentResult(
+            definition_key="capacity",
+            comparison_state=ComparisonState.BOTH_NOT_VERIFIED,
+            target_resolution_state=ResolutionState.UNKNOWN,
+            candidate_resolution_state=ResolutionState.UNKNOWN,
+            field_similarity=None,
+            target_value=None,
+            candidate_value=None,
+        )
+        assert fa.target_value is None
+
+    def test_unknown_permits_nonempty_evidence(self) -> None:
+        """UNKNOWN may have non-empty evidence."""
+        fa = FieldAssessmentResult(
+            definition_key="capacity",
+            comparison_state=ComparisonState.BOTH_NOT_VERIFIED,
+            target_resolution_state=ResolutionState.UNKNOWN,
+            candidate_resolution_state=ResolutionState.UNKNOWN,
+            field_similarity=None,
+            target_value=None,
+            candidate_value=None,
+            target_evidence=(_make_evidence_ref(),),
+        )
+        assert fa.target_value is None
+
+
+# ---------------------------------------------------------------------------
+# Field order enforcement (frozen 7B)
+# ---------------------------------------------------------------------------
+
+
+class TestFieldOrderEnforcement:
+    """ComparableCandidateResult requires exact canonical field order."""
+
+    def test_rejects_permuted_field_order(self) -> None:
+        """Same 12 keys in wrong order are rejected."""
+        assessments = _make_all_12_assessments(scored_keys=())
+        # Swap first two
+        permuted = (assessments[1], assessments[0]) + assessments[2:]
+        with pytest.raises(ValueError, match="canonical schema definition order"):
+            ComparableCandidateResult(
+                candidate_mpn="XP",
+                candidate_normalized_mpn="XP",
+                scored_field_count=0,
+                evidence_coverage=Decimal("0"),
+                observed_similarity=None,
+                evidence_weighted_similarity=None,
+                field_assessments=permuted,
+                enrichment_audit=ProductEnrichmentAudit(
+                    product_mpn="XP",
+                    attempts=(DatasheetAttemptResult(
+                        outcome=DatasheetAuditOutcomeKind.NO_DATASHEET_SOURCE,
+                    ),),
+                ),
             )

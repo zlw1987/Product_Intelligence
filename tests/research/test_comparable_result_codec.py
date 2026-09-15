@@ -106,6 +106,7 @@ def _make_all_12_assessments(
     scored_similarity: Decimal = Decimal("1"),
 ) -> tuple[FieldAssessmentResult, ...]:
     assessments: list[FieldAssessmentResult] = []
+    ref = _make_evidence_ref()
     for key in ENTERPRISE_SSD_SCHEMA.definitions.keys():
         if key in scored_keys:
             assessments.append(FieldAssessmentResult(
@@ -116,6 +117,8 @@ def _make_all_12_assessments(
                 field_similarity=scored_similarity,
                 target_value="test",
                 candidate_value="test",
+                target_evidence=(ref,),
+                candidate_evidence=(ref,),
             ))
         else:
             assessments.append(FieldAssessmentResult(
@@ -259,8 +262,8 @@ class TestCodecRoundTrip:
         assert len(scored) == 2
         for s in scored:
             assert s.field_similarity == Decimal("1")
-            assert len(s.target_evidence) == 0
-            assert len(s.candidate_evidence) == 0
+            assert len(s.target_evidence) == 1
+            assert len(s.candidate_evidence) == 1
 
         not_scored = [fa for fa in candidate.field_assessments
                       if fa.comparison_state is not ComparisonState.SCORED]
@@ -456,7 +459,7 @@ class TestDecimalSafety:
                         "outcome": "MATCHED",
                         "requested_source_url": "https://example.com/",
                         "fetched_final_url": "https://example.com/",
-                        "retrieved_at": "2025-01-01",
+                        "retrieved_at": "2025-01-01T00:00:00+00:00",
                         "matching_mpn": "XP",
                     }],
                     "candidates": [{
@@ -474,8 +477,20 @@ class TestDecimalSafety:
                             "field_similarity": 1.0,
                             "target_value": "x",
                             "candidate_value": "y",
-                            "target_evidence": [],
-                            "candidate_evidence": [],
+                            "target_evidence": [{
+                                "source_name": "S",
+                                "source_url": "https://example.com/",
+                                "evidence_layer": "SUPPORT_PAGE",
+                                "source_authority": "AUTHORITATIVE",
+                                "retrieved_at": "2025-01-01T00:00:00+00:00",
+                            }],
+                            "candidate_evidence": [{
+                                "source_name": "S",
+                                "source_url": "https://example.com/",
+                                "evidence_layer": "SUPPORT_PAGE",
+                                "source_authority": "AUTHORITATIVE",
+                                "retrieved_at": "2025-01-01T00:00:00+00:00",
+                            }],
                         }] + [{
                             "definition_key": k,
                             "comparison_state": "BOTH_NOT_VERIFIED",
@@ -651,6 +666,7 @@ class TestEnumStability:
                         target_value="15.36 TB",
                         candidate_value="15.36 TB",
                         target_evidence=(_make_evidence_ref(),),
+                        candidate_evidence=(_make_evidence_ref(),),
                     ),
                 ) + tuple(
                     FieldAssessmentResult(
@@ -696,6 +712,7 @@ class TestEnumStability:
                         target_value="15.36 TB",
                         candidate_value="15.36 TB",
                         target_evidence=(_make_evidence_ref(),),
+                        candidate_evidence=(_make_evidence_ref(),),
                     ),
                 ) + tuple(
                     FieldAssessmentResult(

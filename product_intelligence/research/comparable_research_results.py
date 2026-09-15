@@ -26,6 +26,7 @@ by the durable field-level projection.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime as _datetime
 from decimal import Decimal
 from enum import Enum
 
@@ -140,6 +141,34 @@ class EvidenceLayer(str, Enum):
 
 
 # ---------------------------------------------------------------------------
+# Timestamp validation helper (stdlib only, no execution/provider imports)
+# ---------------------------------------------------------------------------
+
+
+def _validate_iso8601_tz(ts: str, field_name: str) -> None:
+    """Validate non-empty ISO-8601 with timezone offset using stdlib only.
+
+    Raises ValueError if the string is not a valid ISO-8601 timestamp
+    with timezone information (UTC offset).
+    """
+    if not isinstance(ts, str) or not ts.strip():
+        raise ValueError(
+            f"{field_name} must be a non-empty ISO-8601 string"
+        )
+    try:
+        parsed = _datetime.fromisoformat(ts)
+    except (ValueError, TypeError) as exc:
+        raise ValueError(
+            f"{field_name} must be a valid ISO-8601 timestamp, got {ts!r}"
+        ) from exc
+    if parsed.tzinfo is None:
+        raise ValueError(
+            f"{field_name} must be timezone-aware (have UTC offset), "
+            f"got {ts!r}"
+        )
+
+
+# ---------------------------------------------------------------------------
 # AuthorityAttemptResult
 # ---------------------------------------------------------------------------
 
@@ -212,6 +241,7 @@ class AuthorityAttemptResult:
                 raise ValueError(
                     "MATCHED outcome requires a non-empty retrieved_at"
                 )
+            _validate_iso8601_tz(self.retrieved_at, "AuthorityAttemptResult.retrieved_at")
             if self.matching_mpn is None or not self.matching_mpn.strip():
                 raise ValueError(
                     "MATCHED outcome requires a non-empty matching_mpn"
@@ -290,6 +320,7 @@ class AuthorityAttemptResult:
                 raise ValueError(
                     "AMBIGUOUS_MPN_MATCH requires a non-empty retrieved_at"
                 )
+            _validate_iso8601_tz(self.retrieved_at, "AuthorityAttemptResult.retrieved_at")
             if self.matching_mpn is not None:
                 raise ValueError(
                     "AMBIGUOUS_MPN_MATCH must not have matching_mpn"
@@ -313,6 +344,7 @@ class AuthorityAttemptResult:
                 raise ValueError(
                     f"{self.outcome.value} requires a non-empty retrieved_at"
                 )
+            _validate_iso8601_tz(self.retrieved_at, "AuthorityAttemptResult.retrieved_at")
             if self.matching_mpn is not None:
                 raise ValueError(
                     f"{self.outcome.value} must not have matching_mpn"
@@ -328,25 +360,37 @@ class AuthorityAttemptResult:
 class DatasheetAttemptResult:
     """The audited outcome of one datasheet-PDF enrichment attempt.
 
-    outcome : DatasheetAuditOutcomeKind
-        The result of this attempt.
+    Mechanically preserves the frozen 6D DatasheetSourceOutcome contract.
 
-    source_name : str | None
-        The datasheet source name. Set for source-backed outcomes.
-        None for NO_DATASHEET_SOURCE.
+    ENRICHED:
+        source_name non-empty, source_url non-empty,
+        final_url non-empty, retrieved_at non-empty (TZ-aware),
+        observation_count is exact int > 0
 
-    source_url : str | None
-        The datasheet URL that was attempted. Set for source-backed outcomes.
-        None for NO_DATASHEET_SOURCE.
+    NO_OBSERVATIONS:
+        source_name non-empty, source_url non-empty,
+        final_url non-empty, retrieved_at non-empty (TZ-aware),
+        observation_count == 0
 
-    final_url : str | None
-        The final URL after redirects. Set when a fetch occurred.
+    PARSE_FAILED:
+        source_name non-empty, source_url non-empty,
+        final_url non-empty, retrieved_at non-empty (TZ-aware),
+        observation_count == 0
 
-    retrieved_at : str | None
-        ISO-8601 retrieval timestamp. Set when a fetch occurred.
+    FETCH_FAILED:
+        source_name non-empty, source_url non-empty,
+        final_url is None, retrieved_at is None,
+        observation_count == 0
 
-    observation_count : int | None
-        Number of specification observations extracted. Set for ENRICHED.
+    SOURCE_REFUSED:
+        source_name non-empty, source_url non-empty,
+        final_url is None, retrieved_at is None,
+        observation_count == 0
+
+    NO_DATASHEET_SOURCE:
+        source_name is None, source_url is None,
+        final_url is None, retrieved_at is None,
+        observation_count is None
     """
 
     outcome: DatasheetAuditOutcomeKind
@@ -391,8 +435,7 @@ class DatasheetAttemptResult:
                     "NO_DATASHEET_SOURCE must not have observation_count"
                 )
         else:
-            # Source-backed outcome — validate the fields that frozen 6D
-            # actually guarantees for source-backed attempts.
+            # Source-backed outcome — source_name and source_url always required
             if self.source_name is None or not self.source_name.strip():
                 raise ValueError(
                     f"source-backed outcome {self.outcome.value} requires "
@@ -404,19 +447,101 @@ class DatasheetAttemptResult:
                     "a non-empty source_url"
                 )
 
+            # --- Per-outcome shape (mirrors frozen 6D DatasheetSourceOutcome) ---
+
             if self.outcome is DatasheetAuditOutcomeKind.ENRICHED:
+                # ENRICHED: full provenance + positive observation count
+                if self.final_url is None or not self.final_url.strip():
+                    raise ValueError(
+                        "ENRICHED outcome requires a non-empty final_url"
+                    )
+                if self.retrieved_at is None or not self.retrieved_at.strip():
+                    raise ValueError(
+                        "ENRICHED outcome requires a non-empty retrieved_at"
+                    )
+                _validate_iso8601_tz(self.retrieved_at, "DatasheetAttemptResult.retrieved_at")
                 if self.observation_count is None:
                     raise ValueError(
                         "ENRICHED outcome requires observation_count"
+                    )
+                if isinstance(self.observation_count, bool):
+                    raise TypeError(
+                        "observation_count must be int, got bool"
                     )
                 if not isinstance(self.observation_count, int):
                     raise TypeError(
                         f"observation_count must be int, got "
                         f"{type(self.observation_count).__name__}"
                     )
-                if self.observation_count < 0:
+                if self.observation_count <= 0:
                     raise ValueError(
-                        f"observation_count must be >= 0, got {self.observation_count}"
+                        f"ENRICHED outcome requires observation_count > 0, "
+                        f"got {self.observation_count}"
+                    )
+
+            elif self.outcome in (
+                DatasheetAuditOutcomeKind.NO_OBSERVATIONS,
+                DatasheetAuditOutcomeKind.PARSE_FAILED,
+            ):
+                # Fetched and parsed (or attempted parse), but zero observations
+                if self.final_url is None or not self.final_url.strip():
+                    raise ValueError(
+                        f"{self.outcome.value} requires a non-empty final_url"
+                    )
+                if self.retrieved_at is None or not self.retrieved_at.strip():
+                    raise ValueError(
+                        f"{self.outcome.value} requires a non-empty retrieved_at"
+                    )
+                _validate_iso8601_tz(self.retrieved_at, "DatasheetAttemptResult.retrieved_at")
+                if self.observation_count is None:
+                    raise ValueError(
+                        f"{self.outcome.value} requires observation_count"
+                    )
+                if isinstance(self.observation_count, bool):
+                    raise TypeError(
+                        "observation_count must be int, got bool"
+                    )
+                if not isinstance(self.observation_count, int):
+                    raise TypeError(
+                        f"observation_count must be int, got "
+                        f"{type(self.observation_count).__name__}"
+                    )
+                if self.observation_count != 0:
+                    raise ValueError(
+                        f"{self.outcome.value} requires observation_count == 0, "
+                        f"got {self.observation_count}"
+                    )
+
+            elif self.outcome in (
+                DatasheetAuditOutcomeKind.FETCH_FAILED,
+                DatasheetAuditOutcomeKind.SOURCE_REFUSED,
+            ):
+                # Fetch attempted but failed — no response received
+                if self.final_url is not None:
+                    raise ValueError(
+                        f"{self.outcome.value} must not have final_url"
+                    )
+                if self.retrieved_at is not None:
+                    raise ValueError(
+                        f"{self.outcome.value} must not have retrieved_at"
+                    )
+                if self.observation_count is None:
+                    raise ValueError(
+                        f"{self.outcome.value} requires observation_count"
+                    )
+                if isinstance(self.observation_count, bool):
+                    raise TypeError(
+                        "observation_count must be int, got bool"
+                    )
+                if not isinstance(self.observation_count, int):
+                    raise TypeError(
+                        f"observation_count must be int, got "
+                        f"{type(self.observation_count).__name__}"
+                    )
+                if self.observation_count != 0:
+                    raise ValueError(
+                        f"{self.outcome.value} requires observation_count == 0, "
+                        f"got {self.observation_count}"
                     )
 
 
@@ -446,7 +571,9 @@ class ProductEnrichmentAudit:
 
     attempts : tuple[DatasheetAttemptResult, ...]
         The datasheet-PDF enrichment attempt results for this product.
-        May be empty if no datasheet enrichment was attempted.
+        Non-empty. If any attempt is NO_DATASHEET_SOURCE, it must be
+        the ONLY attempt because NO_DATASHEET_SOURCE means no
+        DatasheetSource was established.
     """
 
     product_mpn: str
@@ -482,6 +609,24 @@ class ProductEnrichmentAudit:
                     f"{type(attempt).__name__}"
                 )
 
+        # NO_DATASHEET_SOURCE must be the ONLY attempt
+        # because it means no DatasheetSource was established
+        no_datasheet_count = sum(
+            1 for a in self.attempts
+            if a.outcome is DatasheetAuditOutcomeKind.NO_DATASHEET_SOURCE
+        )
+        if no_datasheet_count > 0 and len(self.attempts) > 1:
+            raise ValueError(
+                "NO_DATASHEET_SOURCE must be the only attempt; "
+                "it means no datasheet source was established, "
+                f"but {len(self.attempts)} attempts were recorded"
+            )
+        if no_datasheet_count > 1:
+            raise ValueError(
+                "Multiple NO_DATASHEET_SOURCE attempts; "
+                "at most one is permitted per product"
+            )
+
 
 # ---------------------------------------------------------------------------
 # EvidenceSourceReference
@@ -507,7 +652,7 @@ class EvidenceSourceReference:
         The authority tier of the evidence source.
 
     retrieved_at : str
-        ISO-8601 retrieval timestamp. Serializable/read-model representation.
+        ISO-8601 retrieval timestamp (timezone-aware). Serializable/read-model representation.
     """
 
     source_name: str
@@ -537,6 +682,9 @@ class EvidenceSourceReference:
 
         if not isinstance(self.retrieved_at, str) or not self.retrieved_at.strip():
             raise ValueError("retrieved_at must be a non-empty ISO-8601 string")
+
+        # Validate timezone-aware ISO-8601
+        _validate_iso8601_tz(self.retrieved_at, "EvidenceSourceReference.retrieved_at")
 
 
 # ---------------------------------------------------------------------------
@@ -587,6 +735,21 @@ class FieldAssessmentResult:
     Invariants:
         - comparison_state == SCORED  -> field_similarity is Decimal in [0, 1]
         - non-SCORED                  -> field_similarity is None
+
+    ResolutionState -> value/evidence contracts (BLOCKER 4):
+        VERIFIED:
+            resolved display value must be non-None
+            evidence tuple must be non-empty
+            at least one evidence reference must be AUTHORITATIVE
+        UNVERIFIED:
+            resolved display value must be non-None
+            evidence tuple must be non-empty
+        CONFLICT:
+            resolved display value must be None
+            evidence tuple must be non-empty
+        UNKNOWN:
+            resolved display value must be None
+            evidence MAY be empty or non-empty
     """
 
     definition_key: str
@@ -715,6 +878,87 @@ class FieldAssessmentResult:
                     f"{type(ref).__name__}"
                 )
 
+        # --- BLOCKER 4: ResolutionState -> value/evidence contracts ---
+        # Each side independently validated.
+
+        # Target side
+        self._validate_resolution_side(
+            self.target_resolution_state,
+            self.target_value,
+            self.target_evidence,
+            "target",
+        )
+
+        # Candidate side
+        self._validate_resolution_side(
+            self.candidate_resolution_state,
+            self.candidate_value,
+            self.candidate_evidence,
+            "candidate",
+        )
+
+    @staticmethod
+    def _validate_resolution_side(
+        state: ResolutionState,
+        resolved_value: str | None,
+        evidence: tuple[EvidenceSourceReference, ...],
+        side_label: str,
+    ) -> None:
+        """Validate value and evidence invariants for one resolution side."""
+        if state is ResolutionState.VERIFIED:
+            # VERIFIED: value must be present, evidence non-empty,
+            # at least one AUTHORITATIVE reference
+            if resolved_value is None:
+                raise ValueError(
+                    f"VERIFIED {side_label} must have a non-None resolved value"
+                )
+            if not evidence:
+                raise ValueError(
+                    f"VERIFIED {side_label} must have non-empty evidence"
+                )
+            has_authoritative = any(
+                ref.source_authority is SourceAuthority.AUTHORITATIVE
+                for ref in evidence
+            )
+            if not has_authoritative:
+                raise ValueError(
+                    f"VERIFIED {side_label} must have at least one "
+                    "AUTHORITATIVE evidence reference"
+                )
+
+        elif state is ResolutionState.UNVERIFIED:
+            # UNVERIFIED: value must be present, evidence non-empty
+            # (do NOT require all evidence to be SECONDARY — issue-only
+            # authoritative evidence can coexist with the usable secondary value)
+            if resolved_value is None:
+                raise ValueError(
+                    f"UNVERIFIED {side_label} must have a non-None resolved value"
+                )
+            if not evidence:
+                raise ValueError(
+                    f"UNVERIFIED {side_label} must have non-empty evidence"
+                )
+
+        elif state is ResolutionState.CONFLICT:
+            # CONFLICT: value must be None, evidence non-empty
+            if resolved_value is not None:
+                raise ValueError(
+                    f"CONFLICT {side_label} must have resolved_value=None, "
+                    f"got {resolved_value!r}"
+                )
+            if not evidence:
+                raise ValueError(
+                    f"CONFLICT {side_label} must have non-empty evidence"
+                )
+
+        elif state is ResolutionState.UNKNOWN:
+            # UNKNOWN: value must be None, evidence may be empty or non-empty
+            if resolved_value is not None:
+                raise ValueError(
+                    f"UNKNOWN {side_label} must have resolved_value=None, "
+                    f"got {resolved_value!r}"
+                )
+
 
 # ---------------------------------------------------------------------------
 # ComparableCandidateResult
@@ -753,6 +997,8 @@ class ComparableCandidateResult:
 
     field_assessments : tuple[FieldAssessmentResult, ...]
         Per-field comparison assessments between target and this candidate.
+        Must follow the exact canonical order of ENTERPRISE_SSD_SCHEMA
+        definitions.
 
     enrichment_audit : ProductEnrichmentAudit
         Specification enrichment audit for this candidate.
@@ -876,7 +1122,7 @@ class ComparableCandidateResult:
                 "Enrichment audit must belong to this candidate."
             )
 
-        # --- BLOCKER 2: Field set validation against ENTERPRISE_SSD_SCHEMA ---
+        # --- Field set validation against ENTERPRISE_SSD_SCHEMA ---
         schema_keys = set(ENTERPRISE_SSD_SCHEMA.definitions.keys())
         total_field_count = len(schema_keys)
 
@@ -911,7 +1157,17 @@ class ComparableCandidateResult:
                 f"Extra: {sorted(extra) if extra else 'none'}"
             )
 
-        # --- BLOCKER 2: Re-derive aggregate scalars from field_assessments ---
+        # --- PRESERVE EXACT FROZEN 7B FIELD ORDER ---
+        canonical_order = tuple(ENTERPRISE_SSD_SCHEMA.definitions.keys())
+        actual_order = tuple(fa.definition_key for fa in self.field_assessments)
+        if actual_order != canonical_order:
+            raise ValueError(
+                f"field_assessments must follow the canonical schema definition order. "
+                f"Expected: {canonical_order}, "
+                f"Got: {actual_order}"
+            )
+
+        # --- Re-derive aggregate scalars from field_assessments ---
         scored_similarities: list[Decimal] = [
             fa.field_similarity
             for fa in self.field_assessments
@@ -1067,6 +1323,18 @@ class ComparableResearchResult:
                     f"{type(candidate).__name__}"
                 )
 
+        # --- BLOCKER 3: unique policy_ids across all authority_audit ---
+        # PRE1 evaluates each approved policy exactly once.
+        policy_ids = [a.policy_id for a in self.authority_audit]
+        if len(set(policy_ids)) != len(policy_ids):
+            duplicates = [
+                pid for pid in policy_ids if policy_ids.count(pid) > 1
+            ]
+            raise ValueError(
+                f"authority_audit must not contain duplicate policy_ids: "
+                f"{sorted(set(duplicates))}"
+            )
+
         # --- Kind-specific invariants ---
         if self.kind is ComparableResultKind.FULL:
             self._validate_full()
@@ -1094,6 +1362,8 @@ class ComparableResearchResult:
         - every non-MATCHED attempt is NO_MPN_IN_SOURCE
         - candidates may be empty or non-empty
         - target_enrichment_audit must be set
+        - BLOCKER 3: matched attempt's matching_mpn == target_mpn
+        - BLOCKER 3: unique policy_ids across authority_audit
         """
         if not self.target_mpn.strip():
             raise ValueError("FULL kind requires a non-empty target_mpn")
@@ -1101,14 +1371,25 @@ class ComparableResearchResult:
         if not self.target_manufacturer or not self.target_manufacturer.strip():
             raise ValueError("FULL kind requires a non-empty target_manufacturer")
 
-        matched_count = sum(
-            1 for a in self.authority_audit
+        matched_attempts = [
+            a for a in self.authority_audit
             if a.outcome is AuthorityAuditOutcomeKind.MATCHED
-        )
+        ]
+        matched_count = len(matched_attempts)
         if matched_count != 1:
             raise ValueError(
                 f"FULL kind requires exactly one MATCHED authority attempt, "
                 f"got {matched_count}"
+            )
+
+        # --- BLOCKER 3: bind matching_mpn to target_mpn ---
+        matched_attempt = matched_attempts[0]
+        if matched_attempt.matching_mpn != self.target_mpn:
+            raise ValueError(
+                f"FULL kind: matched attempt's matching_mpn "
+                f"{matched_attempt.matching_mpn!r} does not equal "
+                f"target_mpn {self.target_mpn!r}. "
+                "Authority evidence must be bound to the exact target."
             )
 
         for i, attempt in enumerate(self.authority_audit):
@@ -1140,7 +1421,9 @@ class ComparableResearchResult:
         - candidates == ()
         - authority_audit non-empty
         - EVERY attempt is NO_MPN_IN_SOURCE
-        - no fabricated target manufacturer
+        - target_enrichment_audit is None (no authority-established target)
+        - target_manufacturer is None (no authority-established manufacturer)
+        - target_mpn must be non-empty (original request-side MPN)
         """
         if self.candidates:
             raise ValueError(
@@ -1154,10 +1437,22 @@ class ComparableResearchResult:
                     f"to be NO_MPN_IN_SOURCE, got {attempt.outcome.value} at [{i}]"
                 )
 
+        if self.target_enrichment_audit is not None:
+            raise ValueError(
+                "NO_AUTHORITY_MATCH kind must have target_enrichment_audit=None; "
+                "no authority-established target exists"
+            )
+
         if self.target_manufacturer is not None and self.target_manufacturer.strip():
             raise ValueError(
-                "NO_AUTHORITY_MATCH kind must not have a fabricated "
-                "target_manufacturer"
+                "NO_AUTHORITY_MATCH kind must have target_manufacturer=None; "
+                "no authority-established manufacturer may leak into an abstention result"
+            )
+
+        if not self.target_mpn.strip():
+            raise ValueError(
+                "NO_AUTHORITY_MATCH kind requires a non-empty target_mpn; "
+                "this represents the original request-side MPN"
             )
 
     def _validate_no_requested_mpn(self) -> None:
@@ -1165,8 +1460,9 @@ class ComparableResearchResult:
         - candidates == ()
         - authority_audit non-empty
         - EVERY attempt is NO_REQUESTED_MPN
-        - target MPN may be empty
-        - no fabricated target manufacturer
+        - target_enrichment_audit is None (no authority-established target)
+        - target_manufacturer is None (no authority-established manufacturer)
+        - target_mpn must be empty (no MPN was requested)
         """
         if self.candidates:
             raise ValueError(
@@ -1180,22 +1476,64 @@ class ComparableResearchResult:
                     f"to be NO_REQUESTED_MPN, got {attempt.outcome.value} at [{i}]"
                 )
 
+        if self.target_enrichment_audit is not None:
+            raise ValueError(
+                "NO_REQUESTED_MPN kind must have target_enrichment_audit=None; "
+                "no authority-established target exists"
+            )
+
         if self.target_manufacturer is not None and self.target_manufacturer.strip():
             raise ValueError(
-                "NO_REQUESTED_MPN kind must not have a fabricated "
-                "target_manufacturer"
+                "NO_REQUESTED_MPN kind must have target_manufacturer=None; "
+                "no authority-established manufacturer may leak into an abstention result"
+            )
+
+        if self.target_mpn.strip():
+            raise ValueError(
+                "NO_REQUESTED_MPN kind requires an empty target_mpn; "
+                "no MPN was requested for this research"
             )
 
     def _validate_ambiguous_authority(self) -> None:
         """AMBIGUOUS_AUTHORITY requires:
         - candidates == ()
         - authority_audit non-empty
-        - zero incomplete/failure audit states
-        - at least one AMBIGUOUS_MPN_MATCH OR more than one MATCHED
+        - ZERO fatal/incomplete outcomes:
+            AUTHORITY_FETCH_FAILED
+            AUTHORITY_SOURCE_REFUSED
+            AUTHORITY_HOST_ESCAPED
+            NO_STRUCTURAL_OBSERVATIONS
+        - ZERO NO_REQUESTED_MPN
+        - at least one AMBIGUOUS_MPN_MATCH OR matched_count > 1
+        - MAY additionally contain NO_MPN_IN_SOURCE outcomes
+        - target_enrichment_audit is None (no authority-established target)
+        - target_manufacturer is None (no authority-established manufacturer)
+        - target_mpn must be non-empty (original request-side MPN)
         """
         if self.candidates:
             raise ValueError(
                 "AMBIGUOUS_AUTHORITY kind must have empty candidates"
+            )
+
+        # target_enrichment_audit and target_manufacturer must be None
+        # (no authority-established target)
+        if self.target_enrichment_audit is not None:
+            raise ValueError(
+                "AMBIGUOUS_AUTHORITY kind must have target_enrichment_audit=None; "
+                "no authority-established target exists"
+            )
+
+        if self.target_manufacturer is not None and self.target_manufacturer.strip():
+            raise ValueError(
+                "AMBIGUOUS_AUTHORITY kind must have target_manufacturer=None; "
+                "no authority-established manufacturer may leak into an abstention result"
+            )
+
+        # target_mpn must be non-empty (original request-side MPN state)
+        if not self.target_mpn.strip():
+            raise ValueError(
+                "AMBIGUOUS_AUTHORITY kind requires a non-empty target_mpn; "
+                "this represents the original request-side MPN"
             )
 
         for i, attempt in enumerate(self.authority_audit):
@@ -1209,11 +1547,9 @@ class ComparableResearchResult:
                     f"AMBIGUOUS_AUTHORITY cannot have NO_REQUESTED_MPN in "
                     f"authority_audit[{i}]"
                 )
-            if attempt.outcome is AuthorityAuditOutcomeKind.NO_MPN_IN_SOURCE:
-                raise ValueError(
-                    f"AMBIGUOUS_AUTHORITY cannot have NO_MPN_IN_SOURCE in "
-                    f"authority_audit[{i}]"
-                )
+            # NO_MPN_IN_SOURCE is PERMITTED alongside AMBIGUOUS_MPN_MATCH
+            # because ambiguity/multiple matches dominate successfully
+            # evaluated non-match policies
 
         ambiguous_count = sum(
             1 for a in self.authority_audit
