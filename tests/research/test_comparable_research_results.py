@@ -2342,39 +2342,21 @@ class TestDatasheetEvidenceAuthorityRule:
     """DATASHEET_PDF evidence must have source_authority=AUTHORITATIVE."""
 
     def test_datasheet_pdf_rejects_secondary_authority(self) -> None:
-        """DATASHEET_PDF + SECONDARY -> reject."""
-        secondary_ref = EvidenceSourceReference(
-            source_name="Some Source",
-            source_url="https://example.com/datasheet.pdf",
-            evidence_layer=EvidenceLayer.DATASHEET_PDF,
-            source_authority=SourceAuthority.SECONDARY,
-            retrieved_at=RETRIEVED_AT,
-        )
-        assessments = _make_all_12_assessments(scored_keys=())
-        # Inject candidate with DATASHEET_PDF + SECONDARY evidence
-        first_fa = assessments[0]
-        tampered = FieldAssessmentResult(
-            definition_key=first_fa.definition_key,
-            comparison_state=first_fa.comparison_state,
-            target_resolution_state=first_fa.target_resolution_state,
-            candidate_resolution_state=first_fa.candidate_resolution_state,
-            field_similarity=first_fa.field_similarity,
-            target_value=first_fa.target_value,
-            candidate_value=first_fa.candidate_value,
-            target_evidence=first_fa.target_evidence,
-            candidate_evidence=(secondary_ref,),
-        )
-        tampered_assessments = (tampered,) + assessments[1:]
+        """DATASHEET_PDF + SECONDARY -> reject at EvidenceSourceReference
+        construction itself.
+
+        The datasheet-PDF authority rule belongs to the reference contract:
+        the failure must occur while constructing the reference, BEFORE any
+        FieldAssessmentResult / ComparableCandidateResult / audit
+        cross-validation can run.
+        """
         with pytest.raises(ValueError, match="AUTHORITATIVE"):
-            ComparableCandidateResult(
-                candidate_mpn="XP15360SE70015",
-                candidate_normalized_mpn="XP15360SE70015",
-                scored_field_count=0,
-                evidence_coverage=Decimal("0"),
-                observed_similarity=None,
-                evidence_weighted_similarity=None,
-                field_assessments=tampered_assessments,
-                enrichment_audit=_make_candidate_enrichment_audit(),
+            EvidenceSourceReference(
+                source_name="Some Source",
+                source_url="https://example.com/datasheet.pdf",
+                evidence_layer=EvidenceLayer.DATASHEET_PDF,
+                source_authority=SourceAuthority.SECONDARY,
+                retrieved_at=RETRIEVED_AT,
             )
 
     def test_support_page_secondary_is_unaffected(self) -> None:
@@ -2742,6 +2724,442 @@ class TestTargetAuditTraceRejection:
             candidates=(),
         )
         assert result.kind is ComparableResultKind.FULL
+
+
+# ---------------------------------------------------------------------------
+# BLOCKER FU5-1: Per-field target evidence validation
+# ---------------------------------------------------------------------------
+
+
+def _make_b1_assessments(
+    first_field_target_evidence: tuple[EvidenceSourceReference, ...],
+    last_field_target_evidence: tuple[EvidenceSourceReference, ...],
+    *,
+    last_field_target_state: ResolutionState = ResolutionState.UNKNOWN,
+    last_field_target_value: str | None = None,
+) -> tuple[FieldAssessmentResult, ...]:
+    """Build 12 field-specific assessments for Blocker FU5-1 tests.
+
+    First schema field: target VERIFIED with the given evidence tuple
+        (candidate UNKNOWN → CANDIDATE_NOT_VERIFIED).
+    Last schema field: the given state/value/evidence tuple
+        (candidate UNKNOWN).
+    All other fields: both sides UNKNOWN, no evidence.
+
+    Aggregate scalars stay at zero (no scored fields).
+    """
+    keys = tuple(ENTERPRISE_SSD_SCHEMA.definitions.keys())
+    first_key = keys[0]
+    last_key = keys[-1]
+    assessments: list[FieldAssessmentResult] = []
+    for key in keys:
+        if key == first_key:
+            assessments.append(FieldAssessmentResult(
+                definition_key=key,
+                comparison_state=ComparisonState.CANDIDATE_NOT_VERIFIED,
+                target_resolution_state=ResolutionState.VERIFIED,
+                candidate_resolution_state=ResolutionState.UNKNOWN,
+                field_similarity=None,
+                target_value="test",
+                candidate_value=None,
+                target_evidence=first_field_target_evidence,
+                candidate_evidence=(),
+            ))
+        elif key == last_key:
+            # Candidate is always UNKNOWN in this helper.
+            if last_field_target_state is ResolutionState.VERIFIED:
+                _comp = ComparisonState.CANDIDATE_NOT_VERIFIED
+            else:
+                _comp = ComparisonState.BOTH_NOT_VERIFIED
+            assessments.append(FieldAssessmentResult(
+                definition_key=key,
+                comparison_state=_comp,
+                target_resolution_state=last_field_target_state,
+                candidate_resolution_state=ResolutionState.UNKNOWN,
+                field_similarity=None,
+                target_value=last_field_target_value,
+                candidate_value=None,
+                target_evidence=last_field_target_evidence,
+                candidate_evidence=(),
+            ))
+        else:
+            assessments.append(FieldAssessmentResult(
+                definition_key=key,
+                comparison_state=ComparisonState.BOTH_NOT_VERIFIED,
+                target_resolution_state=ResolutionState.UNKNOWN,
+                candidate_resolution_state=ResolutionState.UNKNOWN,
+                field_similarity=None,
+                target_value=None,
+                candidate_value=None,
+            ))
+    return tuple(assessments)
+
+
+def _make_b1_candidate(
+    assessments: tuple[FieldAssessmentResult, ...],
+) -> ComparableCandidateResult:
+    return ComparableCandidateResult(
+        candidate_mpn="XP15360SE70015",
+        candidate_normalized_mpn="XP15360SE70015",
+        scored_field_count=0,
+        evidence_coverage=Decimal("0"),
+        observed_similarity=None,
+        evidence_weighted_similarity=None,
+        field_assessments=assessments,
+        enrichment_audit=_make_candidate_enrichment_audit(),
+    )
+
+
+def _make_b1_full(
+    candidate: ComparableCandidateResult,
+    target_audit: ProductEnrichmentAudit,
+) -> ComparableResearchResult:
+    return ComparableResearchResult(
+        kind=ComparableResultKind.FULL,
+        target_mpn="XP15360SE70005",
+        target_manufacturer="Seagate",
+        target_enrichment_audit=target_audit,
+        authority_audit=(_make_matched_authority(),),
+        candidates=(candidate,),
+    )
+
+
+class TestTargetEvidencePerFieldValidation:
+    """BLOCKER FU5-1: every field's target_evidence is validated against
+    the target enrichment audit (the old first-field-only `break` shortcut
+    is gone)."""
+
+    def test_full_rejects_fabricated_datasheet_evidence_in_last_field(
+        self,
+    ) -> None:
+        """Fabricated DATASHEET_PDF evidence in the LAST schema field is
+        rejected even though the first field's evidence is perfectly valid.
+
+        This proves the old `break` bug (which validated only the first
+        field per candidate) is gone.
+        """
+        keys = tuple(ENTERPRISE_SSD_SCHEMA.definitions.keys())
+        support_ref = _make_evidence_ref()
+        # Fabricated: claims a DATASHEET_PDF provenance the ENRICHED target
+        # audit never recorded (wrong source_name).
+        fabricated_ref = _make_datasheet_pdf_ref(
+            source_name="Fabricated Datasheet",
+        )
+        assessments = _make_b1_assessments(
+            first_field_target_evidence=(support_ref,),
+            last_field_target_evidence=(fabricated_ref,),
+        )
+
+        # Prove the invalid evidence is NOT in the first field:
+        assert assessments[0].definition_key == keys[0]
+        assert assessments[0].definition_key != keys[-1]
+        assert assessments[0].target_evidence[0].evidence_layer is EvidenceLayer.SUPPORT_PAGE
+        # Invalid DATASHEET_PDF lives in the last field only:
+        assert assessments[-1].definition_key == keys[-1]
+        assert assessments[-1].target_evidence[0].evidence_layer is EvidenceLayer.DATASHEET_PDF
+
+        target_audit = _make_enriched_audit("XP15360SE70005")
+        candidate = _make_b1_candidate(assessments)
+
+        with pytest.raises(ValueError, match="no matching ENRICHED"):
+            _make_b1_full(candidate, target_audit)
+
+        # Positive control: the identical result with only the last field's
+        # fabricated evidence removed is accepted — proving the first field
+        # (and everything else) was never the problem.
+        clean_assessments = tuple(
+            FieldAssessmentResult(
+                definition_key=fa.definition_key,
+                comparison_state=fa.comparison_state,
+                target_resolution_state=fa.target_resolution_state,
+                candidate_resolution_state=fa.candidate_resolution_state,
+                field_similarity=fa.field_similarity,
+                target_value=fa.target_value,
+                candidate_value=fa.candidate_value,
+                target_evidence=()
+                    if fa.definition_key == keys[-1]
+                    else fa.target_evidence,
+                candidate_evidence=fa.candidate_evidence,
+            )
+            for fa in assessments
+        )
+        clean_result = _make_b1_full(
+            _make_b1_candidate(clean_assessments), target_audit
+        )
+        assert clean_result.kind is ComparableResultKind.FULL
+
+    def test_full_accepts_different_valid_target_evidence_per_field(
+        self,
+    ) -> None:
+        """Different target fields may legitimately carry different evidence
+        tuples: a SUPPORT_PAGE tuple on one field and a valid DATASHEET_PDF
+        tuple on another, both validating against the same target enrichment
+        audit.
+        """
+        support_ref = _make_evidence_ref()
+        # Valid DATASHEET_PDF ref: defaults match the ENRICHED attempt
+        # produced by _make_enriched_audit() exactly.
+        valid_ds_ref = _make_datasheet_pdf_ref()
+        # Last field (power_loss_protection) is BOOLEAN — use a realistic
+        # resolved value with VERIFIED state.
+        assessments = _make_b1_assessments(
+            first_field_target_evidence=(support_ref,),
+            last_field_target_evidence=(valid_ds_ref,),
+            last_field_target_state=ResolutionState.VERIFIED,
+            last_field_target_value="True",
+        )
+        target_audit = _make_enriched_audit("XP15360SE70005")
+        candidate = _make_b1_candidate(assessments)
+        result = _make_b1_full(candidate, target_audit)
+        assert result.kind is ComparableResultKind.FULL
+
+        # The two fields actually carry different evidence tuples:
+        first_ev = result.candidates[0].field_assessments[0].target_evidence
+        last_ev = result.candidates[0].field_assessments[-1].target_evidence
+        assert first_ev != last_ev
+        assert first_ev[0].evidence_layer is EvidenceLayer.SUPPORT_PAGE
+        assert last_ev[0].evidence_layer is EvidenceLayer.DATASHEET_PDF
+
+
+# ---------------------------------------------------------------------------
+# BLOCKER FU5-3: One target truth across all candidates
+# ---------------------------------------------------------------------------
+
+
+def _make_b3_assessments(
+    target_side: dict[str, tuple[ResolutionState, str | None, tuple[EvidenceSourceReference, ...]]],
+    candidate_side: dict[str, tuple[ResolutionState, str | None, tuple[EvidenceSourceReference, ...]]],
+) -> tuple[FieldAssessmentResult, ...]:
+    """Build 12 assessments from explicit per-field target/candidate specs.
+
+    Both dicts must cover every ENTERPRISE_SSD_SCHEMA definition key.
+    Comparison state and field_similarity are re-derived from the resolution
+    states so the result is internally self-consistent.
+    """
+    assessments: list[FieldAssessmentResult] = []
+    for key in ENTERPRISE_SSD_SCHEMA.definitions.keys():
+        t_state, t_value, t_ev = target_side[key]
+        c_state, c_value, c_ev = candidate_side[key]
+        t_verified = t_state is ResolutionState.VERIFIED
+        c_verified = c_state is ResolutionState.VERIFIED
+        if t_verified and c_verified:
+            comp = ComparisonState.SCORED
+            sim = Decimal("1")
+        elif t_verified:
+            comp = ComparisonState.CANDIDATE_NOT_VERIFIED
+            sim = None
+        elif c_verified:
+            comp = ComparisonState.TARGET_NOT_VERIFIED
+            sim = None
+        else:
+            comp = ComparisonState.BOTH_NOT_VERIFIED
+            sim = None
+        assessments.append(FieldAssessmentResult(
+            definition_key=key,
+            comparison_state=comp,
+            target_resolution_state=t_state,
+            candidate_resolution_state=c_state,
+            field_similarity=sim,
+            target_value=t_value,
+            candidate_value=c_value,
+            target_evidence=t_ev,
+            candidate_evidence=c_ev,
+        ))
+    return tuple(assessments)
+
+
+def _make_b3_candidate(
+    mpn: str,
+    assessments: tuple[FieldAssessmentResult, ...],
+) -> ComparableCandidateResult:
+    """Build a self-validating ComparableCandidateResult with auto-derived
+    aggregate scalars."""
+    scored = sum(
+        1 for fa in assessments if fa.comparison_state is ComparisonState.SCORED
+    )
+    total = len(assessments)
+    sims = [
+        fa.field_similarity for fa in assessments
+        if fa.comparison_state is ComparisonState.SCORED
+    ]
+    return ComparableCandidateResult(
+        candidate_mpn=mpn,
+        candidate_normalized_mpn=mpn,  # already canonical uppercase
+        scored_field_count=scored,
+        evidence_coverage=Decimal(scored) / Decimal(total),
+        observed_similarity=(sum(sims, Decimal("0")) / Decimal(scored)) if scored else None,
+        evidence_weighted_similarity=(sum(sims, Decimal("0")) / Decimal(total)) if scored else None,
+        field_assessments=assessments,
+        enrichment_audit=_make_candidate_enrichment_audit(mpn),
+    )
+
+
+def _b3_canonical_target_side() -> dict[str, tuple[ResolutionState, str | None, tuple[EvidenceSourceReference, ...]]]:
+    """Canonical target-side projection: field 4 (physical_form_factor)
+    VERIFIED, all others UNKNOWN."""
+    side: dict[str, tuple[ResolutionState, str | None, tuple[EvidenceSourceReference, ...]]] = {
+        key: (ResolutionState.UNKNOWN, None, ())
+        for key in ENTERPRISE_SSD_SCHEMA.definitions.keys()
+    }
+    side["physical_form_factor"] = (
+        ResolutionState.VERIFIED,
+        "2.5-inch",
+        (_make_evidence_ref(),),
+    )
+    return side
+
+
+def _b3_candidate_a_side() -> dict[str, tuple[ResolutionState, str | None, tuple[EvidenceSourceReference, ...]]]:
+    """Candidate A side: physical_form_factor VERIFIED (SCORED with target),
+    sequential_write VERIFIED (candidate only → TARGET_NOT_VERIFIED)."""
+    ref = _make_evidence_ref()
+    side: dict[str, tuple[ResolutionState, str | None, tuple[EvidenceSourceReference, ...]]] = {
+        key: (ResolutionState.UNKNOWN, None, ())
+        for key in ENTERPRISE_SSD_SCHEMA.definitions.keys()
+    }
+    side["physical_form_factor"] = (ResolutionState.VERIFIED, "2.5-inch", (ref,))
+    side["sequential_write"] = (ResolutionState.VERIFIED, "7200", (ref,))
+    return side
+
+
+def _b3_candidate_b_side() -> dict[str, tuple[ResolutionState, str | None, tuple[EvidenceSourceReference, ...]]]:
+    """Candidate B side: physical_form_factor VERIFIED (SCORED with target).
+    random_read_iops VERIFIED (candidate only → TARGET_NOT_VERIFIED).
+    Sequential_write remains UNKNOWN (both candidates differ on candidate
+    side, which is expected)."""
+    ref = _make_evidence_ref()
+    side: dict[str, tuple[ResolutionState, str | None, tuple[EvidenceSourceReference, ...]]] = {
+        key: (ResolutionState.UNKNOWN, None, ())
+        for key in ENTERPRISE_SSD_SCHEMA.definitions.keys()
+    }
+    side["physical_form_factor"] = (ResolutionState.VERIFIED, "2.5-inch", (ref,))
+    side["random_read_iops"] = (ResolutionState.VERIFIED, "6900", (ref,))
+    return side
+
+
+class TestSingleTargetTruthAcrossCandidates:
+    """BLOCKER FU5-3: one target truth across all candidates (FULL).
+
+    Frozen 7B scores every candidate against the same target specification
+    set. The persisted projection repeats target-side data inside each
+    ComparableCandidateResult; ComparableResearchResult must mechanically
+    preserve that invariant.
+    """
+
+    def _make_full(self, cand_a, cand_b):
+        return ComparableResearchResult(
+            kind=ComparableResultKind.FULL,
+            target_mpn="XP15360SE70005",
+            target_manufacturer="Seagate",
+            target_enrichment_audit=_make_target_enrichment_audit(),
+            authority_audit=(_make_matched_authority(),),
+            candidates=(cand_a, cand_b),
+        )
+
+    def test_identical_target_side_projections_accept(self) -> None:
+        """Two candidates with identical target-side projections are accepted
+        even when their candidate-side projections genuinely differ."""
+        target_side = _b3_canonical_target_side()
+        cand_a = _make_b3_candidate("XP15360SE70015",
+                                    _make_b3_assessments(target_side,
+                                                         _b3_candidate_a_side()))
+        cand_b = _make_b3_candidate("XP3840SE70005",
+                                    _make_b3_assessments(target_side,
+                                                         _b3_candidate_b_side()))
+        # Sanity: candidate-side projections genuinely differ
+        assert (
+            cand_a.field_assessments[
+                list(ENTERPRISE_SSD_SCHEMA.definitions.keys()).index("sequential_write")
+            ].comparison_state
+            is not cand_b.field_assessments[
+                list(ENTERPRISE_SSD_SCHEMA.definitions.keys()).index("sequential_write")
+            ].comparison_state
+        )
+        result = self._make_full(cand_a, cand_b)
+        assert len(result.candidates) == 2
+
+    def test_candidate_b_changed_target_resolution_state_reject(self) -> None:
+        """Candidate B changes target_resolution_state on a non-first field
+        (sequential_write, index 7) → reject."""
+        target_side = _b3_canonical_target_side()
+        cand_a = _make_b3_candidate("XP15360SE70015",
+                                    _make_b3_assessments(target_side,
+                                                         _b3_candidate_a_side()))
+        # Tamper B's target-side resolution state on sequential_write
+        # (non-first field — index 7).
+        tampered_target = dict(target_side)
+        tampered_ref = EvidenceSourceReference(
+            source_name="Reseller Page",
+            source_url="https://reseller.example.com/product",
+            evidence_layer=EvidenceLayer.SUPPORT_PAGE,
+            source_authority=SourceAuthority.SECONDARY,
+            retrieved_at=RETRIEVED_AT,
+        )
+        tampered_target["sequential_write"] = (
+            ResolutionState.UNVERIFIED,
+            "7200",
+            (tampered_ref,),
+        )
+        cand_b_tampered = _make_b3_candidate(
+            "XP3840SE70005",
+            _make_b3_assessments(tampered_target, _b3_candidate_b_side()),
+        )
+        # B is itself self-consistent; the divergence is result-level only.
+        assert cand_b_tampered.candidate_mpn == "XP3840SE70005"
+
+        with pytest.raises(ValueError, match="target-side projection"):
+            self._make_full(cand_a, cand_b_tampered)
+
+    def test_candidate_b_changed_target_value_reject(self) -> None:
+        """Candidate B changes target_value on a non-first field
+        (physical_form_factor, index 4) → reject."""
+        target_side = _b3_canonical_target_side()
+        cand_a = _make_b3_candidate("XP15360SE70015",
+                                    _make_b3_assessments(target_side,
+                                                         _b3_candidate_a_side()))
+        tampered_target = dict(target_side)
+        tampered_target["physical_form_factor"] = (
+            ResolutionState.VERIFIED,
+            "3.5-inch",
+            (_make_evidence_ref(),),
+        )
+        cand_b_tampered = _make_b3_candidate(
+            "XP3840SE70005",
+            _make_b3_assessments(tampered_target, _b3_candidate_b_side()),
+        )
+        assert cand_b_tampered.candidate_mpn == "XP3840SE70005"
+
+        with pytest.raises(ValueError, match="target-side projection"):
+            self._make_full(cand_a, cand_b_tampered)
+
+    def test_candidate_b_changed_target_evidence_reject(self) -> None:
+        """Candidate B changes target_evidence on a non-first field
+        (random_read_iops, index 8) → reject."""
+        target_side = _b3_canonical_target_side()
+        cand_a = _make_b3_candidate("XP15360SE70015",
+                                    _make_b3_assessments(target_side,
+                                                         _b3_candidate_a_side()))
+        tampered_target = dict(target_side)
+        different_ref = EvidenceSourceReference(
+            source_name="Alternate Support",
+            source_url="https://alt-support.example.com/page",
+            evidence_layer=EvidenceLayer.SUPPORT_PAGE,
+            source_authority=SourceAuthority.AUTHORITATIVE,
+            retrieved_at="2025-02-01T00:00:00+00:00",
+        )
+        tampered_target["random_read_iops"] = (
+            ResolutionState.UNKNOWN,
+            None,
+            (different_ref,),
+        )
+        cand_b_tampered = _make_b3_candidate(
+            "XP3840SE70005",
+            _make_b3_assessments(tampered_target, _b3_candidate_b_side()),
+        )
+        assert cand_b_tampered.candidate_mpn == "XP3840SE70005"
+
+        with pytest.raises(ValueError, match="target-side projection"):
+            self._make_full(cand_a, cand_b_tampered)
 
 
 # ---------------------------------------------------------------------------

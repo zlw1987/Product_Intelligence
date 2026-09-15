@@ -762,6 +762,22 @@ class EvidenceSourceReference:
                 f"{type(self.source_authority).__name__}"
             )
 
+        # DATASHEET_PDF authority belongs to the reference contract itself:
+        # a datasheet-PDF evidence reference may only claim AUTHORITATIVE
+        # authority. Enforced here, at construction, rather than relying
+        # only on later ProductEnrichmentAudit cross-validation. SUPPORT_PAGE
+        # references remain generic and retain the existing authority
+        # vocabulary.
+        if (
+            self.evidence_layer is EvidenceLayer.DATASHEET_PDF
+            and self.source_authority is not SourceAuthority.AUTHORITATIVE
+        ):
+            raise ValueError(
+                "DATASHEET_PDF evidence must have "
+                "source_authority=AUTHORITATIVE, got "
+                f"{self.source_authority.value}"
+            )
+
         if not isinstance(self.retrieved_at, str) or not self.retrieved_at.strip():
             raise ValueError("retrieved_at must be a non-empty ISO-8601 string")
 
@@ -1567,9 +1583,12 @@ class ComparableResearchResult:
             )
 
         # --- BLOCKER FU4: Target evidence binding to enrichment audit ---
-        # Every candidate's field_assessment target_evidence must validate
-        # against self.target_enrichment_audit.
-        # If zero candidates, no target field projections to cross-check.
+        # Every field_assessment's target_evidence (for EVERY candidate)
+        # must validate against self.target_enrichment_audit.
+        # Target specification evidence is FIELD-SPECIFIC: each field may
+        # carry a different evidence tuple, and every tuple must be
+        # checked against the audit. If zero candidates, there are no
+        # target field projections to cross-check.
         for candidate in self.candidates:
             for fa in candidate.field_assessments:
                 _validate_evidence_references_against_audit(
@@ -1577,7 +1596,50 @@ class ComparableResearchResult:
                     self.target_enrichment_audit,
                     f"target ({self.target_mpn})",
                 )
-                break  # target evidence is the same across all fields
+
+        # --- BLOCKER FU5: One target truth across all candidates ---
+        # Frozen 7B scores every candidate against the SAME target
+        # specification set. The persisted projection repeats target-side
+        # data inside each ComparableCandidateResult, so this result must
+        # mechanically preserve that invariant: for each canonical
+        # definition_key, every candidate must carry the identical
+        # target-side projection (definition_key,
+        # target_resolution_state, target_value, target_evidence).
+        #
+        # The first candidate's target-side projection is the canonical
+        # persisted projection; every later candidate is compared against
+        # it. Field order is already frozen and canonical, so position is
+        # unambiguous. Candidate-side projections are expected to differ
+        # and are NOT compared; neither are comparison_state or
+        # field_similarity, which depend on the candidate.
+        if len(self.candidates) > 1:
+            canonical_fas = self.candidates[0].field_assessments
+            for candidate in self.candidates[1:]:
+                for canonical_fa, fa in zip(
+                    canonical_fas, candidate.field_assessments, strict=True
+                ):
+                    mismatched = [
+                        name
+                        for name, canonical_value, value in (
+                            ("definition_key", canonical_fa.definition_key, fa.definition_key),
+                            ("target_resolution_state", canonical_fa.target_resolution_state, fa.target_resolution_state),
+                            ("target_value", canonical_fa.target_value, fa.target_value),
+                            ("target_evidence", canonical_fa.target_evidence, fa.target_evidence),
+                        )
+                        if canonical_value != value
+                    ]
+                    if mismatched:
+                        raise ValueError(
+                            f"Candidate {candidate.candidate_mpn!r} target-side "
+                            f"projection diverges from the canonical target "
+                            f"projection (candidate "
+                            f"{self.candidates[0].candidate_mpn!r}) for field "
+                            f"{canonical_fa.definition_key!r}: mismatched "
+                            f"{mismatched}. Frozen 7B scores every candidate "
+                            "against the same target specification set, so "
+                            "every candidate must repeat the identical "
+                            "target-side projection."
+                        )
 
     def _validate_no_authority_match(self) -> None:
         """NO_AUTHORITY_MATCH requires:
