@@ -36,6 +36,10 @@ from product_intelligence.research.enterprise_ssd import (
 from product_intelligence.research.enterprise_ssd_similarity import (
     ComparisonState,
 )
+from product_intelligence.research.identity import (
+    compare_part_numbers,
+    normalize_part_number,
+)
 from product_intelligence.research.specifications import (
     ResolutionState,
     SourceAuthority,
@@ -166,6 +170,84 @@ def _validate_iso8601_tz(ts: str, field_name: str) -> None:
             f"{field_name} must be timezone-aware (have UTC offset), "
             f"got {ts!r}"
         )
+
+
+# ---------------------------------------------------------------------------
+# Cross-object evidence-to-audit validation (BLOCKER 1)
+# ---------------------------------------------------------------------------
+
+
+def _validate_evidence_references_against_audit(
+    evidence_refs: tuple[EvidenceSourceReference, ...],
+    audit: ProductEnrichmentAudit,
+    side_label: str,
+) -> None:
+    """Validate DATASHEET_PDF evidence references against a ProductEnrichmentAudit.
+
+    Every EvidenceSourceReference with evidence_layer == DATASHEET_PDF must
+    trace to exactly one ENRICHED DatasheetAttemptResult in the audit with
+    matching source_name, final_url, and retrieved_at.
+
+    Rules:
+    - DATASHEET_PDF evidence requires source_authority == AUTHORITATIVE.
+      SUPPORT_PAGE is not subject to this rule.
+    - If audit has NO_DATASHEET_SOURCE outcome, zero DATASHEET_PDF evidence
+      references are permitted.
+    - Non-ENRICHED outcomes (FETCH_FAILED, SOURCE_REFUSED, PARSE_FAILED,
+      NO_OBSERVATIONS) must never authorize DATASHEET_PDF evidence.
+    - SUPPORT_PAGE evidence is always permitted regardless of audit state.
+    """
+    # Collect ENRICHED attempts for provenance matching
+    enriched_attempts = [
+        a for a in audit.attempts
+        if a.outcome is DatasheetAuditOutcomeKind.ENRICHED
+    ]
+
+    has_no_datasheet = any(
+        a.outcome is DatasheetAuditOutcomeKind.NO_DATASHEET_SOURCE
+        for a in audit.attempts
+    )
+
+    for ref in evidence_refs:
+        if ref.evidence_layer is not EvidenceLayer.DATASHEET_PDF:
+            # SUPPORT_PAGE evidence is not subject to datasheet audit rules
+            continue
+
+        # RULE 1: DATASHEET_PDF must be AUTHORITATIVE
+        if ref.source_authority is not SourceAuthority.AUTHORITATIVE:
+            raise ValueError(
+                f"{side_label} DATASHEET_PDF evidence reference must have "
+                f"source_authority=AUTHORITATIVE, got "
+                f"{ref.source_authority.value}"
+            )
+
+        # RULE 2: If audit is NO_DATASHEET_SOURCE, zero DATASHEET_PDF refs
+        if has_no_datasheet:
+            raise ValueError(
+                f"{side_label} DATASHEET_PDF evidence reference exists but "
+                f"enrichment audit is NO_DATASHEET_SOURCE; "
+                "no datasheet evidence may be claimed without a datasheet"
+            )
+
+        # RULE 3: Must match an ENRICHED attempt with matching provenance
+        found_match = False
+        for attempt in enriched_attempts:
+            if (
+                attempt.source_name == ref.source_name
+                and attempt.final_url == ref.source_url
+                and attempt.retrieved_at == ref.retrieved_at
+            ):
+                found_match = True
+                break
+
+        if not found_match:
+            raise ValueError(
+                f"{side_label} DATASHEET_PDF evidence reference "
+                f"(source_name={ref.source_name!r}, "
+                f"source_url={ref.source_url!r}, "
+                f"retrieved_at={ref.retrieved_at!r}) "
+                f"has no matching ENRICHED attempt in the enrichment audit"
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -1032,6 +1114,19 @@ class ComparableCandidateResult:
         if not self.candidate_normalized_mpn.strip():
             raise ValueError("candidate_normalized_mpn must be a non-empty string")
 
+        # --- BLOCKER FU4: Candidate identity self-audit ---
+        # candidate_normalized_mpn must equal the deterministic normalization
+        # of candidate_mpn (frozen 2A normalize_part_number).
+        computed_normalized = normalize_part_number(self.candidate_mpn)
+        if computed_normalized != self.candidate_normalized_mpn:
+            raise ValueError(
+                f"candidate_normalized_mpn {self.candidate_normalized_mpn!r} "
+                f"does not match the deterministic normalization of "
+                f"candidate_mpn {self.candidate_mpn!r} "
+                f"(expected {computed_normalized!r}). "
+                "Use frozen 2A normalize_part_number."
+            )
+
         # scored_field_count — exact int type
         if type(self.scored_field_count) is not int:
             raise TypeError(
@@ -1229,6 +1324,16 @@ class ComparableCandidateResult:
                     f"(sum of scored similarities / {total_field_count})"
                 )
 
+        # --- BLOCKER FU4: Candidate evidence binding to enrichment audit ---
+        # Every field_assessment's candidate_evidence must validate against
+        # self.enrichment_audit.
+        for fa in self.field_assessments:
+            _validate_evidence_references_against_audit(
+                fa.candidate_evidence,
+                self.enrichment_audit,
+                f"candidate ({self.candidate_mpn})",
+            )
+
 
 # ---------------------------------------------------------------------------
 # ComparableResearchResult
@@ -1282,6 +1387,19 @@ class ComparableResearchResult:
                 f"{type(self.kind).__name__}"
             )
 
+        # --- BLOCKER FU4: Type shape hardening ---
+        if not isinstance(self.target_mpn, str):
+            raise TypeError(
+                f"target_mpn must be a string, got "
+                f"{type(self.target_mpn).__name__}"
+            )
+        if self.target_manufacturer is not None:
+            if not isinstance(self.target_manufacturer, str):
+                raise TypeError(
+                    f"target_manufacturer must be a string or None, got "
+                    f"{type(self.target_manufacturer).__name__}"
+                )
+
         # authority_audit must be non-empty
         if not isinstance(self.authority_audit, tuple):
             raise TypeError(
@@ -1322,6 +1440,38 @@ class ComparableResearchResult:
                     f"candidates[{i}] must be ComparableCandidateResult, got "
                     f"{type(candidate).__name__}"
                 )
+
+        # --- BLOCKER FU4: Candidate normalized-key uniqueness ---
+        # No two candidates may share the same candidate_normalized_mpn.
+        # Mirrors frozen 7A normalized-key deduplication.
+        normalized_keys = [c.candidate_normalized_mpn for c in self.candidates]
+        if len(set(normalized_keys)) != len(normalized_keys):
+            duplicates = [
+                k for k in normalized_keys if normalized_keys.count(k) > 1
+            ]
+            raise ValueError(
+                f"Candidates must have unique normalized MPNs; "
+                f"duplicates: {sorted(set(duplicates))}"
+            )
+
+        # --- BLOCKER FU4: Target-self exclusion ---
+        # A candidate that is the target itself must be rejected.
+        if self.candidates and self.target_mpn.strip():
+            for candidate in self.candidates:
+                cmp_result = compare_part_numbers(
+                    self.target_mpn,
+                    candidate.candidate_mpn,
+                )
+                from product_intelligence.domain.enums import (
+                    ESTABLISHED_MATCH_TYPES,
+                )
+                if cmp_result.match_type in ESTABLISHED_MATCH_TYPES:
+                    raise ValueError(
+                        f"Candidate {candidate.candidate_mpn!r} is the target "
+                        f"itself (target_mpn={self.target_mpn!r}, "
+                        f"match_type={cmp_result.match_type.value}). "
+                        "A product cannot be its own comparable."
+                    )
 
         # --- BLOCKER 3: unique policy_ids across all authority_audit ---
         # PRE1 evaluates each approved policy exactly once.
@@ -1416,6 +1566,19 @@ class ComparableResearchResult:
                 "Target enrichment audit must belong to this target."
             )
 
+        # --- BLOCKER FU4: Target evidence binding to enrichment audit ---
+        # Every candidate's field_assessment target_evidence must validate
+        # against self.target_enrichment_audit.
+        # If zero candidates, no target field projections to cross-check.
+        for candidate in self.candidates:
+            for fa in candidate.field_assessments:
+                _validate_evidence_references_against_audit(
+                    fa.target_evidence,
+                    self.target_enrichment_audit,
+                    f"target ({self.target_mpn})",
+                )
+                break  # target evidence is the same across all fields
+
     def _validate_no_authority_match(self) -> None:
         """NO_AUTHORITY_MATCH requires:
         - candidates == ()
@@ -1443,7 +1606,7 @@ class ComparableResearchResult:
                 "no authority-established target exists"
             )
 
-        if self.target_manufacturer is not None and self.target_manufacturer.strip():
+        if self.target_manufacturer is not None:
             raise ValueError(
                 "NO_AUTHORITY_MATCH kind must have target_manufacturer=None; "
                 "no authority-established manufacturer may leak into an abstention result"
@@ -1482,7 +1645,7 @@ class ComparableResearchResult:
                 "no authority-established target exists"
             )
 
-        if self.target_manufacturer is not None and self.target_manufacturer.strip():
+        if self.target_manufacturer is not None:
             raise ValueError(
                 "NO_REQUESTED_MPN kind must have target_manufacturer=None; "
                 "no authority-established manufacturer may leak into an abstention result"
@@ -1523,7 +1686,7 @@ class ComparableResearchResult:
                 "no authority-established target exists"
             )
 
-        if self.target_manufacturer is not None and self.target_manufacturer.strip():
+        if self.target_manufacturer is not None:
             raise ValueError(
                 "AMBIGUOUS_AUTHORITY kind must have target_manufacturer=None; "
                 "no authority-established manufacturer may leak into an abstention result"

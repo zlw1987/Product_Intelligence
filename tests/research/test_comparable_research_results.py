@@ -2331,3 +2331,827 @@ class TestFieldOrderEnforcement:
                     ),),
                 ),
             )
+
+
+# ---------------------------------------------------------------------------
+# BLOCKER FU4-1: DATASHEET_PDF evidence source authority rule
+# ---------------------------------------------------------------------------
+
+
+class TestDatasheetEvidenceAuthorityRule:
+    """DATASHEET_PDF evidence must have source_authority=AUTHORITATIVE."""
+
+    def test_datasheet_pdf_rejects_secondary_authority(self) -> None:
+        """DATASHEET_PDF + SECONDARY -> reject."""
+        secondary_ref = EvidenceSourceReference(
+            source_name="Some Source",
+            source_url="https://example.com/datasheet.pdf",
+            evidence_layer=EvidenceLayer.DATASHEET_PDF,
+            source_authority=SourceAuthority.SECONDARY,
+            retrieved_at=RETRIEVED_AT,
+        )
+        assessments = _make_all_12_assessments(scored_keys=())
+        # Inject candidate with DATASHEET_PDF + SECONDARY evidence
+        first_fa = assessments[0]
+        tampered = FieldAssessmentResult(
+            definition_key=first_fa.definition_key,
+            comparison_state=first_fa.comparison_state,
+            target_resolution_state=first_fa.target_resolution_state,
+            candidate_resolution_state=first_fa.candidate_resolution_state,
+            field_similarity=first_fa.field_similarity,
+            target_value=first_fa.target_value,
+            candidate_value=first_fa.candidate_value,
+            target_evidence=first_fa.target_evidence,
+            candidate_evidence=(secondary_ref,),
+        )
+        tampered_assessments = (tampered,) + assessments[1:]
+        with pytest.raises(ValueError, match="AUTHORITATIVE"):
+            ComparableCandidateResult(
+                candidate_mpn="XP15360SE70015",
+                candidate_normalized_mpn="XP15360SE70015",
+                scored_field_count=0,
+                evidence_coverage=Decimal("0"),
+                observed_similarity=None,
+                evidence_weighted_similarity=None,
+                field_assessments=tampered_assessments,
+                enrichment_audit=_make_candidate_enrichment_audit(),
+            )
+
+    def test_support_page_secondary_is_unaffected(self) -> None:
+        """SUPPORT_PAGE + SECONDARY is allowed regardless of audit state."""
+        secondary_ref = EvidenceSourceReference(
+            source_name="Reseller Page",
+            source_url="https://reseller.example.com/product",
+            evidence_layer=EvidenceLayer.SUPPORT_PAGE,
+            source_authority=SourceAuthority.SECONDARY,
+            retrieved_at=RETRIEVED_AT,
+        )
+        assessments = _make_all_12_assessments(scored_keys=())
+        first_fa = assessments[0]
+        tampered = FieldAssessmentResult(
+            definition_key=first_fa.definition_key,
+            comparison_state=first_fa.comparison_state,
+            target_resolution_state=first_fa.target_resolution_state,
+            candidate_resolution_state=first_fa.candidate_resolution_state,
+            field_similarity=first_fa.field_similarity,
+            target_value=first_fa.target_value,
+            candidate_value=first_fa.candidate_value,
+            target_evidence=first_fa.target_evidence,
+            candidate_evidence=(secondary_ref,),
+        )
+        tampered_assessments = (tampered,) + assessments[1:]
+        # Must not raise — SUPPORT_PAGE is not constrained by datasheet audit
+        result = ComparableCandidateResult(
+            candidate_mpn="XP15360SE70015",
+            candidate_normalized_mpn="XP15360SE70015",
+            scored_field_count=0,
+            evidence_coverage=Decimal("0"),
+            observed_similarity=None,
+            evidence_weighted_similarity=None,
+            field_assessments=tampered_assessments,
+            enrichment_audit=_make_candidate_enrichment_audit(),
+        )
+        assert result.candidate_mpn == "XP15360SE70015"
+
+
+# ---------------------------------------------------------------------------
+# BLOCKER FU4-1: Product audit trace — candidate binding
+# ---------------------------------------------------------------------------
+
+
+def _make_enriched_audit(
+    mpn: str,
+    source_name: str = "Seagate Datasheet",
+    source_url: str = "https://example.com/datasheet.pdf",
+    final_url: str = "https://example.com/datasheet.pdf",
+    retrieved_at: str = RETRIEVED_AT,
+    observation_count: int = 6,
+) -> ProductEnrichmentAudit:
+    return ProductEnrichmentAudit(
+        product_mpn=mpn,
+        attempts=(DatasheetAttemptResult(
+            outcome=DatasheetAuditOutcomeKind.ENRICHED,
+            source_name=source_name,
+            source_url=source_url,
+            final_url=final_url,
+            retrieved_at=retrieved_at,
+            observation_count=observation_count,
+        ),),
+    )
+
+
+def _make_datasheet_pdf_ref(
+    source_name: str = "Seagate Datasheet",
+    source_url: str = "https://example.com/datasheet.pdf",
+    retrieved_at: str = RETRIEVED_AT,
+) -> EvidenceSourceReference:
+    return EvidenceSourceReference(
+        source_name=source_name,
+        source_url=source_url,
+        evidence_layer=EvidenceLayer.DATASHEET_PDF,
+        source_authority=SourceAuthority.AUTHORITATIVE,
+        retrieved_at=retrieved_at,
+    )
+
+
+def _make_assessment_with_candidate_evidence(
+    scored_keys: tuple[str, ...] = (),
+    candidate_evidence: tuple[EvidenceSourceReference, ...] = (),
+) -> tuple[FieldAssessmentResult, ...]:
+    """Build 12 assessments with custom candidate evidence."""
+    assessments: list[FieldAssessmentResult] = []
+    ref = _make_evidence_ref()
+    for key in ENTERPRISE_SSD_SCHEMA.definitions.keys():
+        if key in scored_keys:
+            assessments.append(FieldAssessmentResult(
+                definition_key=key,
+                comparison_state=ComparisonState.SCORED,
+                target_resolution_state=ResolutionState.VERIFIED,
+                candidate_resolution_state=ResolutionState.VERIFIED,
+                field_similarity=Decimal("1"),
+                target_value="test",
+                candidate_value="test",
+                target_evidence=(ref,),
+                candidate_evidence=candidate_evidence if candidate_evidence else (ref,),
+            ))
+        else:
+            assessments.append(FieldAssessmentResult(
+                definition_key=key,
+                comparison_state=ComparisonState.BOTH_NOT_VERIFIED,
+                target_resolution_state=ResolutionState.UNKNOWN,
+                candidate_resolution_state=ResolutionState.UNKNOWN,
+                field_similarity=None,
+                target_value=None,
+                candidate_value=None,
+                candidate_evidence=candidate_evidence,
+            ))
+    return tuple(assessments)
+
+
+class TestCandidateAuditTraceRejection:
+    """Candidate NO_DATASHEET_SOURCE + DATASHEET_PDF evidence -> reject."""
+
+    def test_candidate_no_datasheet_source_plus_datasheet_pdf_reject(self) -> None:
+        """Candidate has NO_DATASHEET_SOURCE audit but DATASHEET_PDF evidence."""
+        ds_ref = _make_datasheet_pdf_ref()
+        assessments = _make_assessment_with_candidate_evidence(
+            scored_keys=(),
+            candidate_evidence=(ds_ref,),
+        )
+        with pytest.raises(ValueError, match="NO_DATASHEET_SOURCE"):
+            ComparableCandidateResult(
+                candidate_mpn="XP15360SE70015",
+                candidate_normalized_mpn="XP15360SE70015",
+                scored_field_count=0,
+                evidence_coverage=Decimal("0"),
+                observed_similarity=None,
+                evidence_weighted_similarity=None,
+                field_assessments=assessments,
+                enrichment_audit=_make_candidate_enrichment_audit(),
+            )
+
+    def test_candidate_source_name_mismatch(self) -> None:
+        """DATASHEET_PDF source_name does not match any ENRICHED attempt."""
+        ds_ref = _make_datasheet_pdf_ref(source_name="Wrong Source")
+        assessments = _make_assessment_with_candidate_evidence(
+            scored_keys=(),
+            candidate_evidence=(ds_ref,),
+        )
+        with pytest.raises(ValueError, match="no matching ENRICHED"):
+            ComparableCandidateResult(
+                candidate_mpn="XP15360SE70015",
+                candidate_normalized_mpn="XP15360SE70015",
+                scored_field_count=0,
+                evidence_coverage=Decimal("0"),
+                observed_similarity=None,
+                evidence_weighted_similarity=None,
+                field_assessments=assessments,
+                enrichment_audit=_make_enriched_audit("XP15360SE70015"),
+            )
+
+    def test_candidate_final_url_mismatch(self) -> None:
+        """DATASHEET_PDF source_url does not match ENRICHED final_url."""
+        ds_ref = _make_datasheet_pdf_ref(
+            source_url="https://wrong.com/datasheet.pdf",
+        )
+        assessments = _make_assessment_with_candidate_evidence(
+            scored_keys=(),
+            candidate_evidence=(ds_ref,),
+        )
+        with pytest.raises(ValueError, match="no matching ENRICHED"):
+            ComparableCandidateResult(
+                candidate_mpn="XP15360SE70015",
+                candidate_normalized_mpn="XP15360SE70015",
+                scored_field_count=0,
+                evidence_coverage=Decimal("0"),
+                observed_similarity=None,
+                evidence_weighted_similarity=None,
+                field_assessments=assessments,
+                enrichment_audit=_make_enriched_audit("XP15360SE70015"),
+            )
+
+    def test_candidate_retrieved_at_mismatch(self) -> None:
+        """DATASHEET_PDF retrieved_at does not match ENRICHED retrieved_at."""
+        ds_ref = _make_datasheet_pdf_ref(
+            retrieved_at="2025-06-01T12:00:00+00:00",
+        )
+        assessments = _make_assessment_with_candidate_evidence(
+            scored_keys=(),
+            candidate_evidence=(ds_ref,),
+        )
+        with pytest.raises(ValueError, match="no matching ENRICHED"):
+            ComparableCandidateResult(
+                candidate_mpn="XP15360SE70015",
+                candidate_normalized_mpn="XP15360SE70015",
+                scored_field_count=0,
+                evidence_coverage=Decimal("0"),
+                observed_similarity=None,
+                evidence_weighted_similarity=None,
+                field_assessments=assessments,
+                enrichment_audit=_make_enriched_audit("XP15360SE70015"),
+            )
+
+    def test_candidate_matching_enriched_accepts(self) -> None:
+        """Matching ENRICHED audit + matching DATASHEET_PDF evidence -> accept."""
+        ds_ref = _make_datasheet_pdf_ref()
+        assessments = _make_assessment_with_candidate_evidence(
+            scored_keys=(),
+            candidate_evidence=(ds_ref,),
+        )
+        result = ComparableCandidateResult(
+            candidate_mpn="XP15360SE70015",
+            candidate_normalized_mpn="XP15360SE70015",
+            scored_field_count=0,
+            evidence_coverage=Decimal("0"),
+            observed_similarity=None,
+            evidence_weighted_similarity=None,
+            field_assessments=assessments,
+            enrichment_audit=_make_enriched_audit("XP15360SE70015"),
+        )
+        assert result.candidate_mpn == "XP15360SE70015"
+
+    def test_candidate_support_page_unaffected_by_audit(self) -> None:
+        """SUPPORT_PAGE evidence is unaffected by datasheet audit state."""
+        assessments = _make_all_12_assessments(scored_keys=())
+        result = ComparableCandidateResult(
+            candidate_mpn="XP15360SE70015",
+            candidate_normalized_mpn="XP15360SE70015",
+            scored_field_count=0,
+            evidence_coverage=Decimal("0"),
+            observed_similarity=None,
+            evidence_weighted_similarity=None,
+            field_assessments=assessments,
+            enrichment_audit=_make_candidate_enrichment_audit(),
+        )
+        assert result.candidate_mpn == "XP15360SE70015"
+
+
+# ---------------------------------------------------------------------------
+# BLOCKER FU4-1: Target audit trace — FULL result
+# ---------------------------------------------------------------------------
+
+
+class TestTargetAuditTraceRejection:
+    """Target NO_DATASHEET_SOURCE + DATASHEET_PDF evidence -> reject (FULL)."""
+
+    def _make_candidate_with_target_ds_evidence(
+        self,
+        ds_ref: EvidenceSourceReference,
+    ) -> ComparableCandidateResult:
+        """Build a candidate where target_evidence uses the given DATASHEET_PDF ref."""
+        assessments: list[FieldAssessmentResult] = []
+        for key in ENTERPRISE_SSD_SCHEMA.definitions.keys():
+            assessments.append(FieldAssessmentResult(
+                definition_key=key,
+                comparison_state=ComparisonState.BOTH_NOT_VERIFIED,
+                target_resolution_state=ResolutionState.UNKNOWN,
+                candidate_resolution_state=ResolutionState.UNKNOWN,
+                field_similarity=None,
+                target_value=None,
+                candidate_value=None,
+                target_evidence=(ds_ref,),
+                candidate_evidence=(),
+            ))
+        return ComparableCandidateResult(
+            candidate_mpn="XP15360SE70015",
+            candidate_normalized_mpn="XP15360SE70015",
+            scored_field_count=0,
+            evidence_coverage=Decimal("0"),
+            observed_similarity=None,
+            evidence_weighted_similarity=None,
+            field_assessments=tuple(assessments),
+            enrichment_audit=_make_candidate_enrichment_audit(),
+        )
+
+    def test_target_no_datasheet_source_plus_datasheet_pdf_reject(self) -> None:
+        """Target NO_DATASHEET_SOURCE + DATASHEET_PDF target evidence -> reject."""
+        ds_ref = _make_datasheet_pdf_ref()
+        candidate = self._make_candidate_with_target_ds_evidence(ds_ref)
+        with pytest.raises(ValueError, match="NO_DATASHEET_SOURCE"):
+            ComparableResearchResult(
+                kind=ComparableResultKind.FULL,
+                target_mpn="XP15360SE70005",
+                target_manufacturer="Seagate",
+                target_enrichment_audit=_make_target_enrichment_audit(),
+                authority_audit=(_make_matched_authority(),),
+                candidates=(candidate,),
+            )
+
+    def test_target_source_name_mismatch(self) -> None:
+        """DATASHEET_PDF target source_name mismatch -> reject."""
+        ds_ref = _make_datasheet_pdf_ref(source_name="Wrong Source")
+        candidate = self._make_candidate_with_target_ds_evidence(ds_ref)
+        with pytest.raises(ValueError, match="no matching ENRICHED"):
+            ComparableResearchResult(
+                kind=ComparableResultKind.FULL,
+                target_mpn="XP15360SE70005",
+                target_manufacturer="Seagate",
+                target_enrichment_audit=_make_enriched_audit("XP15360SE70005"),
+                authority_audit=(_make_matched_authority(),),
+                candidates=(candidate,),
+            )
+
+    def test_target_final_url_mismatch(self) -> None:
+        """DATASHEET_PDF target source_url mismatch -> reject."""
+        ds_ref = _make_datasheet_pdf_ref(
+            source_url="https://wrong.com/datasheet.pdf",
+        )
+        candidate = self._make_candidate_with_target_ds_evidence(ds_ref)
+        with pytest.raises(ValueError, match="no matching ENRICHED"):
+            ComparableResearchResult(
+                kind=ComparableResultKind.FULL,
+                target_mpn="XP15360SE70005",
+                target_manufacturer="Seagate",
+                target_enrichment_audit=_make_enriched_audit("XP15360SE70005"),
+                authority_audit=(_make_matched_authority(),),
+                candidates=(candidate,),
+            )
+
+    def test_target_retrieved_at_mismatch(self) -> None:
+        """DATASHEET_PDF target retrieved_at mismatch -> reject."""
+        ds_ref = _make_datasheet_pdf_ref(
+            retrieved_at="2025-06-01T12:00:00+00:00",
+        )
+        candidate = self._make_candidate_with_target_ds_evidence(ds_ref)
+        with pytest.raises(ValueError, match="no matching ENRICHED"):
+            ComparableResearchResult(
+                kind=ComparableResultKind.FULL,
+                target_mpn="XP15360SE70005",
+                target_manufacturer="Seagate",
+                target_enrichment_audit=_make_enriched_audit("XP15360SE70005"),
+                authority_audit=(_make_matched_authority(),),
+                candidates=(candidate,),
+            )
+
+    def test_target_matching_enriched_accepts(self) -> None:
+        """Matching ENRICHED target audit + matching DATASHEET_PDF -> accept."""
+        ds_ref = _make_datasheet_pdf_ref(
+            source_name="Seagate Datasheet",
+            source_url="https://example.com/datasheet.pdf",
+            retrieved_at=RETRIEVED_AT,
+        )
+        candidate = self._make_candidate_with_target_ds_evidence(ds_ref)
+        result = ComparableResearchResult(
+            kind=ComparableResultKind.FULL,
+            target_mpn="XP15360SE70005",
+            target_manufacturer="Seagate",
+            target_enrichment_audit=ProductEnrichmentAudit(
+                product_mpn="XP15360SE70005",
+                attempts=(DatasheetAttemptResult(
+                    outcome=DatasheetAuditOutcomeKind.ENRICHED,
+                    source_name="Seagate Datasheet",
+                    source_url="https://example.com/datasheet.pdf",
+                    final_url="https://example.com/datasheet.pdf",
+                    retrieved_at=RETRIEVED_AT,
+                    observation_count=6,
+                ),),
+            ),
+            authority_audit=(_make_matched_authority(),),
+            candidates=(candidate,),
+        )
+        assert result.kind is ComparableResultKind.FULL
+
+    def test_full_no_candidates_no_target_projections(self) -> None:
+        """FULL with zero candidates: no target field projections to check."""
+        result = ComparableResearchResult(
+            kind=ComparableResultKind.FULL,
+            target_mpn="XP15360SE70005",
+            target_manufacturer="Seagate",
+            target_enrichment_audit=_make_target_enrichment_audit(),
+            authority_audit=(_make_matched_authority(),),
+            candidates=(),
+        )
+        assert result.kind is ComparableResultKind.FULL
+
+
+# ---------------------------------------------------------------------------
+# BLOCKER FU4-2: Candidate identity self-audit (frozen 2A)
+# ---------------------------------------------------------------------------
+
+
+class TestCandidateIdentitySelfAudit:
+    """candidate_normalized_mpn must equal normalize_part_number(candidate_mpn)."""
+
+    def test_fabricated_normalized_mpn_rejected(self) -> None:
+        """Valid candidate_mpn but fabricated candidate_normalized_mpn."""
+        assessments = _make_all_12_assessments(scored_keys=())
+        with pytest.raises(ValueError, match="does not match the deterministic normalization"):
+            ComparableCandidateResult(
+                candidate_mpn="XP15360SE70015",
+                candidate_normalized_mpn="FABRICATED-NORMALIZED",
+                scored_field_count=0,
+                evidence_coverage=Decimal("0"),
+                observed_similarity=None,
+                evidence_weighted_similarity=None,
+                field_assessments=assessments,
+                enrichment_audit=ProductEnrichmentAudit(
+                    product_mpn="XP15360SE70015",
+                    attempts=(DatasheetAttemptResult(
+                        outcome=DatasheetAuditOutcomeKind.NO_DATASHEET_SOURCE,
+                    ),),
+                ),
+            )
+
+    def test_correct_normalized_mpn_accepts(self) -> None:
+        """Correct normalization of candidate_mpn."""
+        assessments = _make_all_12_assessments(scored_keys=())
+        result = ComparableCandidateResult(
+            candidate_mpn="XP15360SE70015",
+            candidate_normalized_mpn="XP15360SE70015",
+            scored_field_count=0,
+            evidence_coverage=Decimal("0"),
+            observed_similarity=None,
+            evidence_weighted_similarity=None,
+            field_assessments=assessments,
+            enrichment_audit=ProductEnrichmentAudit(
+                product_mpn="XP15360SE70015",
+                attempts=(DatasheetAttemptResult(
+                    outcome=DatasheetAuditOutcomeKind.NO_DATASHEET_SOURCE,
+                ),),
+            ),
+        )
+        assert result.candidate_normalized_mpn == "XP15360SE70015"
+
+    def test_normalized_mpn_from_2a_equivalence(self) -> None:
+        """candidate_mpn with whitespace normalizes correctly via 2A."""
+        # "XP 15360SE70015" normalizes to "XP-15360SE70015"
+        assessments = _make_all_12_assessments(scored_keys=())
+        result = ComparableCandidateResult(
+            candidate_mpn="XP 15360SE70015",
+            candidate_normalized_mpn="XP-15360SE70015",
+            scored_field_count=0,
+            evidence_coverage=Decimal("0"),
+            observed_similarity=None,
+            evidence_weighted_similarity=None,
+            field_assessments=assessments,
+            enrichment_audit=ProductEnrichmentAudit(
+                product_mpn="XP 15360SE70015",
+                attempts=(DatasheetAttemptResult(
+                    outcome=DatasheetAuditOutcomeKind.NO_DATASHEET_SOURCE,
+                ),),
+            ),
+        )
+        assert result.candidate_normalized_mpn == "XP-15360SE70015"
+
+
+# ---------------------------------------------------------------------------
+# BLOCKER FU4-2: Top-level candidate uniqueness
+# ---------------------------------------------------------------------------
+
+
+class TestCandidateNormalizedKeyUniqueness:
+    """FULL result must not have duplicate candidate_normalized_mpn."""
+
+    def test_duplicate_normalized_keys_rejected(self) -> None:
+        """Two candidates with same normalized MPN are rejected."""
+        assessments = _make_all_12_assessments(scored_keys=())
+        cand1 = ComparableCandidateResult(
+            candidate_mpn="XP15360SE70015",
+            candidate_normalized_mpn="XP15360SE70015",
+            scored_field_count=0,
+            evidence_coverage=Decimal("0"),
+            observed_similarity=None,
+            evidence_weighted_similarity=None,
+            field_assessments=assessments,
+            enrichment_audit=_make_candidate_enrichment_audit("XP15360SE70015"),
+        )
+        # Same normalized key from lowercase variant (case fold)
+        cand2 = ComparableCandidateResult(
+            candidate_mpn="xp15360se70015",
+            candidate_normalized_mpn="XP15360SE70015",
+            scored_field_count=0,
+            evidence_coverage=Decimal("0"),
+            observed_similarity=None,
+            evidence_weighted_similarity=None,
+            field_assessments=assessments,
+            enrichment_audit=ProductEnrichmentAudit(
+                product_mpn="xp15360se70015",
+                attempts=(DatasheetAttemptResult(
+                    outcome=DatasheetAuditOutcomeKind.NO_DATASHEET_SOURCE,
+                ),),
+            ),
+        )
+        with pytest.raises(ValueError, match="unique normalized MPNs"):
+            ComparableResearchResult(
+                kind=ComparableResultKind.FULL,
+                target_mpn="XP15360SE70005",
+                target_manufacturer="Seagate",
+                target_enrichment_audit=_make_target_enrichment_audit(),
+                authority_audit=(_make_matched_authority(),),
+                candidates=(cand1, cand2),
+            )
+
+    def test_unique_normalized_keys_accept(self) -> None:
+        """Different candidates with unique normalized keys."""
+        assessments = _make_all_12_assessments(scored_keys=())
+        cand1 = ComparableCandidateResult(
+            candidate_mpn="XP15360SE70015",
+            candidate_normalized_mpn="XP15360SE70015",
+            scored_field_count=0,
+            evidence_coverage=Decimal("0"),
+            observed_similarity=None,
+            evidence_weighted_similarity=None,
+            field_assessments=assessments,
+            enrichment_audit=_make_candidate_enrichment_audit("XP15360SE70015"),
+        )
+        cand2 = ComparableCandidateResult(
+            candidate_mpn="XP3840SE70005",
+            candidate_normalized_mpn="XP3840SE70005",
+            scored_field_count=0,
+            evidence_coverage=Decimal("0"),
+            observed_similarity=None,
+            evidence_weighted_similarity=None,
+            field_assessments=assessments,
+            enrichment_audit=ProductEnrichmentAudit(
+                product_mpn="XP3840SE70005",
+                attempts=(DatasheetAttemptResult(
+                    outcome=DatasheetAuditOutcomeKind.NO_DATASHEET_SOURCE,
+                ),),
+            ),
+        )
+        result = ComparableResearchResult(
+            kind=ComparableResultKind.FULL,
+            target_mpn="XP15360SE70005",
+            target_manufacturer="Seagate",
+            target_enrichment_audit=_make_target_enrichment_audit(),
+            authority_audit=(_make_matched_authority(),),
+            candidates=(cand1, cand2),
+        )
+        assert len(result.candidates) == 2
+
+
+# ---------------------------------------------------------------------------
+# BLOCKER FU4-2: Target-self exclusion
+# ---------------------------------------------------------------------------
+
+
+class TestTargetSelfExclusion:
+    """A candidate that is the target itself must be rejected."""
+
+    def test_exact_target_candidate_rejected(self) -> None:
+        """Candidate with exact same MPN as target -> reject."""
+        assessments = _make_all_12_assessments(scored_keys=())
+        # Candidate MPN exactly equals target MPN
+        candidate = ComparableCandidateResult(
+            candidate_mpn="XP15360SE70005",
+            candidate_normalized_mpn="XP15360SE70005",
+            scored_field_count=0,
+            evidence_coverage=Decimal("0"),
+            observed_similarity=None,
+            evidence_weighted_similarity=None,
+            field_assessments=assessments,
+            enrichment_audit=ProductEnrichmentAudit(
+                product_mpn="XP15360SE70005",
+                attempts=(DatasheetAttemptResult(
+                    outcome=DatasheetAuditOutcomeKind.NO_DATASHEET_SOURCE,
+                ),),
+            ),
+        )
+        with pytest.raises(ValueError, match="is the target itself"):
+            ComparableResearchResult(
+                kind=ComparableResultKind.FULL,
+                target_mpn="XP15360SE70005",
+                target_manufacturer="Seagate",
+                target_enrichment_audit=_make_target_enrichment_audit(),
+                authority_audit=(_make_matched_authority(),),
+                candidates=(candidate,),
+            )
+
+    def test_normalized_exact_target_candidate_rejected(self) -> None:
+        """Candidate with normalized-exact match to target -> reject."""
+        assessments = _make_all_12_assessments(scored_keys=())
+        # "xp15360se70005" normalizes to "XP15360SE70005" (ASCII case fold)
+        candidate = ComparableCandidateResult(
+            candidate_mpn="xp15360se70005",
+            candidate_normalized_mpn="XP15360SE70005",
+            scored_field_count=0,
+            evidence_coverage=Decimal("0"),
+            observed_similarity=None,
+            evidence_weighted_similarity=None,
+            field_assessments=assessments,
+            enrichment_audit=ProductEnrichmentAudit(
+                product_mpn="xp15360se70005",
+                attempts=(DatasheetAttemptResult(
+                    outcome=DatasheetAuditOutcomeKind.NO_DATASHEET_SOURCE,
+                ),),
+            ),
+        )
+        with pytest.raises(ValueError, match="is the target itself"):
+            ComparableResearchResult(
+                kind=ComparableResultKind.FULL,
+                target_mpn="XP15360SE70005",
+                target_manufacturer="Seagate",
+                target_enrichment_audit=_make_target_enrichment_audit(),
+                authority_audit=(_make_matched_authority(),),
+                candidates=(candidate,),
+            )
+
+    def test_genuine_different_candidate_accepts(self) -> None:
+        """Genuine different candidate passes target-self check."""
+        assessments = _make_all_12_assessments(scored_keys=())
+        candidate = ComparableCandidateResult(
+            candidate_mpn="XP15360SE70015",
+            candidate_normalized_mpn="XP15360SE70015",
+            scored_field_count=0,
+            evidence_coverage=Decimal("0"),
+            observed_similarity=None,
+            evidence_weighted_similarity=None,
+            field_assessments=assessments,
+            enrichment_audit=_make_candidate_enrichment_audit(),
+        )
+        result = ComparableResearchResult(
+            kind=ComparableResultKind.FULL,
+            target_mpn="XP15360SE70005",
+            target_manufacturer="Seagate",
+            target_enrichment_audit=_make_target_enrichment_audit(),
+            authority_audit=(_make_matched_authority(),),
+            candidates=(candidate,),
+        )
+        assert len(result.candidates) == 1
+
+
+# ---------------------------------------------------------------------------
+# BLOCKER FU4-3: Non-FULL target_manufacturer must be exact None
+# ---------------------------------------------------------------------------
+
+
+class TestNonFullTargetManufacturerExactNone:
+    """Non-FULL kinds require target_manufacturer is None (not empty string)."""
+
+    def test_no_authority_match_empty_string_manufacturer_rejected(self) -> None:
+        with pytest.raises(ValueError, match="target_manufacturer=None"):
+            ComparableResearchResult(
+                kind=ComparableResultKind.NO_AUTHORITY_MATCH,
+                target_mpn="UNKNOWN",
+                target_manufacturer="",
+                target_enrichment_audit=None,
+                authority_audit=(AuthorityAttemptResult(
+                    policy_id=POLICY_ID,
+                    outcome=AuthorityAuditOutcomeKind.NO_MPN_IN_SOURCE,
+                    requested_source_url=SOURCE_URL,
+                    fetched_final_url=FINAL_URL,
+                    retrieved_at=RETRIEVED_AT,
+                ),),
+                candidates=(),
+            )
+
+    def test_no_authority_match_space_manufacturer_rejected(self) -> None:
+        with pytest.raises(ValueError, match="target_manufacturer=None"):
+            ComparableResearchResult(
+                kind=ComparableResultKind.NO_AUTHORITY_MATCH,
+                target_mpn="UNKNOWN",
+                target_manufacturer=" ",
+                target_enrichment_audit=None,
+                authority_audit=(AuthorityAttemptResult(
+                    policy_id=POLICY_ID,
+                    outcome=AuthorityAuditOutcomeKind.NO_MPN_IN_SOURCE,
+                    requested_source_url=SOURCE_URL,
+                    fetched_final_url=FINAL_URL,
+                    retrieved_at=RETRIEVED_AT,
+                ),),
+                candidates=(),
+            )
+
+    def test_ambiguous_authority_empty_string_manufacturer_rejected(self) -> None:
+        with pytest.raises(ValueError, match="target_manufacturer=None"):
+            ComparableResearchResult(
+                kind=ComparableResultKind.AMBIGUOUS_AUTHORITY,
+                target_mpn="AMBIGUOUS",
+                target_manufacturer="",
+                target_enrichment_audit=None,
+                authority_audit=(AuthorityAttemptResult(
+                    policy_id=POLICY_ID,
+                    outcome=AuthorityAuditOutcomeKind.AMBIGUOUS_MPN_MATCH,
+                    requested_source_url=SOURCE_URL,
+                    fetched_final_url=FINAL_URL,
+                    retrieved_at=RETRIEVED_AT,
+                ),),
+                candidates=(),
+            )
+
+    def test_ambiguous_authority_space_manufacturer_rejected(self) -> None:
+        with pytest.raises(ValueError, match="target_manufacturer=None"):
+            ComparableResearchResult(
+                kind=ComparableResultKind.AMBIGUOUS_AUTHORITY,
+                target_mpn="AMBIGUOUS",
+                target_manufacturer=" ",
+                target_enrichment_audit=None,
+                authority_audit=(AuthorityAttemptResult(
+                    policy_id=POLICY_ID,
+                    outcome=AuthorityAuditOutcomeKind.AMBIGUOUS_MPN_MATCH,
+                    requested_source_url=SOURCE_URL,
+                    fetched_final_url=FINAL_URL,
+                    retrieved_at=RETRIEVED_AT,
+                ),),
+                candidates=(),
+            )
+
+    def test_no_requested_mpn_empty_string_manufacturer_rejected(self) -> None:
+        with pytest.raises(ValueError, match="target_manufacturer=None"):
+            ComparableResearchResult(
+                kind=ComparableResultKind.NO_REQUESTED_MPN,
+                target_mpn="",
+                target_manufacturer="",
+                target_enrichment_audit=None,
+                authority_audit=(AuthorityAttemptResult(
+                    policy_id=POLICY_ID,
+                    outcome=AuthorityAuditOutcomeKind.NO_REQUESTED_MPN,
+                    requested_source_url=SOURCE_URL,
+                ),),
+                candidates=(),
+            )
+
+    def test_no_requested_mpn_space_manufacturer_rejected(self) -> None:
+        with pytest.raises(ValueError, match="target_manufacturer=None"):
+            ComparableResearchResult(
+                kind=ComparableResultKind.NO_REQUESTED_MPN,
+                target_mpn="",
+                target_manufacturer=" ",
+                target_enrichment_audit=None,
+                authority_audit=(AuthorityAttemptResult(
+                    policy_id=POLICY_ID,
+                    outcome=AuthorityAuditOutcomeKind.NO_REQUESTED_MPN,
+                    requested_source_url=SOURCE_URL,
+                ),),
+                candidates=(),
+            )
+
+
+# ---------------------------------------------------------------------------
+# BLOCKER FU4: Type shape hardening
+# ---------------------------------------------------------------------------
+
+
+class TestTypeShapeHardening:
+    """Direct-construction type checks for ComparableResearchResult."""
+
+    def test_target_mpn_must_be_str(self) -> None:
+        with pytest.raises(TypeError, match="target_mpn"):
+            ComparableResearchResult(
+                kind=ComparableResultKind.FULL,
+                target_mpn=12345,  # type: ignore[arg-type]
+                target_manufacturer="Seagate",
+                target_enrichment_audit=_make_target_enrichment_audit(),
+                authority_audit=(_make_matched_authority(),),
+                candidates=(),
+            )
+
+    def test_target_mpn_must_not_be_none(self) -> None:
+        with pytest.raises(TypeError, match="target_mpn"):
+            ComparableResearchResult(
+                kind=ComparableResultKind.FULL,
+                target_mpn=None,  # type: ignore[arg-type]
+                target_manufacturer="Seagate",
+                target_enrichment_audit=_make_target_enrichment_audit(),
+                authority_audit=(_make_matched_authority(),),
+                candidates=(),
+            )
+
+    def test_target_manufacturer_must_be_str_or_none(self) -> None:
+        with pytest.raises(TypeError, match="target_manufacturer"):
+            ComparableResearchResult(
+                kind=ComparableResultKind.FULL,
+                target_mpn="XP15360SE70005",
+                target_manufacturer=12345,  # type: ignore[arg-type]
+                target_enrichment_audit=_make_target_enrichment_audit(),
+                authority_audit=(_make_matched_authority(),),
+                candidates=(),
+            )
+
+    def test_target_manufacturer_none_is_valid(self) -> None:
+        """None is a valid target_manufacturer for non-FULL kinds."""
+        result = ComparableResearchResult(
+            kind=ComparableResultKind.NO_AUTHORITY_MATCH,
+            target_mpn="UNKNOWN",
+            target_manufacturer=None,
+            target_enrichment_audit=None,
+            authority_audit=(AuthorityAttemptResult(
+                policy_id=POLICY_ID,
+                outcome=AuthorityAuditOutcomeKind.NO_MPN_IN_SOURCE,
+                requested_source_url=SOURCE_URL,
+                fetched_final_url=FINAL_URL,
+                retrieved_at=RETRIEVED_AT,
+            ),),
+            candidates=(),
+        )
+        assert result.target_manufacturer is None
