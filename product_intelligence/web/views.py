@@ -26,10 +26,23 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-from product_intelligence.execution import ExecutionError, execute_research_run
-from product_intelligence.runs import ClaimExecutionFailed, retry_run
+from product_intelligence.execution import (
+    ComparableResearchExecutionError,
+    ExecutionError,
+    execute_comparable_research_with_default_providers,
+    execute_research_run,
+)
+from product_intelligence.runs import (
+    ClaimExecutionFailed,
+    ComparableResearchClaimError,
+    ComparableResearchTriggerError,
+    retry_run,
+    trigger_comparable_research,
+)
 from product_intelligence.runs.models import (
     AiAssistedReviewCandidate,
+    ComparableResearchExecution,
+    ComparableResearchState,
     PriceIntelligenceSnapshot,
     ResearchRun,
 )
@@ -40,6 +53,14 @@ from product_intelligence.research.aggregation import PriceAggregationResult
 from product_intelligence.research.price_result_codec import (
     PriceResultCodecError,
     decode_price_aggregation_result,
+)
+from product_intelligence.research.comparable_result_codec import (
+    ComparableResultCodecError,
+    decode_comparable_result,
+)
+from .comparable_presentation import (
+    build_comparable_result_presentation,
+    validate_result_parent_binding,
 )
 
 
@@ -122,6 +143,46 @@ def research_new(request: HttpRequest) -> HttpResponse:
     return render(request, "web/research_new.html", {"form": form})
 
 
+def _select_comparable_child(
+    run: ResearchRun,
+) -> ComparableResearchExecution | None:
+    """Select the one comparable child whose state should be presented.
+
+    Deterministic precedence:
+    1. Active child (PENDING / RUNNING) — newest created active child
+    2. Otherwise COMPLETED child — newest completed child
+    3. Otherwise FAILED child — newest failed child
+    4. Otherwise None
+    """
+    children = ComparableResearchExecution.objects.filter(
+        parent_run=run,
+    )
+
+    # 1. Active child (PENDING / RUNNING) — newest first
+    active = children.filter(
+        state__in=[ComparableResearchState.PENDING, ComparableResearchState.RUNNING],
+    ).order_by("-created_at")
+    for child in active:
+        return child
+
+    # 2. COMPLETED — newest first
+    completed = children.filter(
+        state=ComparableResearchState.COMPLETED,
+    ).order_by("-created_at")
+    for child in completed:
+        return child
+
+    # 3. FAILED — newest first
+    failed = children.filter(
+        state=ComparableResearchState.FAILED,
+    ).order_by("-created_at")
+    for child in failed:
+        return child
+
+    # 4. None
+    return None
+
+
 def research_detail(request: HttpRequest, run_id: uuid.UUID) -> HttpResponse:
     """The durable report for one run.
 
@@ -144,7 +205,7 @@ def research_detail(request: HttpRequest, run_id: uuid.UUID) -> HttpResponse:
     start_error = request.GET.get("start_error") == "1"
     retry_error = request.GET.get("retry_error") == "1"
 
-    # --- Attempt to load and decode the snapshot ---
+    # --- Attempt to load and decode the price snapshot ---
     decoded_result: "PriceAggregationResult | None" = None
     snapshot_error: "str | None" = None
     snapshot_created_at = None
@@ -265,6 +326,38 @@ def research_detail(request: HttpRequest, run_id: uuid.UUID) -> HttpResponse:
             )
             reviewed_result = None
 
+    # --- Transient comparable error flag ---
+    comparable_start_error = request.GET.get("comparable_start_error") == "1"
+
+    # --- Comparable research child + decoded result ---
+    comparable_child = _select_comparable_child(run)
+    comparable_presentation = None
+    comparable_decode_error = None
+    comparable_binding_error = False
+    comparable_result = None
+
+    if comparable_child is not None and comparable_child.state == ComparableResearchState.COMPLETED:
+        try:
+            comparable_result = decode_comparable_result(
+                comparable_child.result_payload,
+                schema_version=comparable_child.result_schema_version,
+            )
+        except ComparableResultCodecError:
+            comparable_decode_error = (
+                "The stored comparable result is invalid or in an unsupported format."
+            )
+        else:
+            # Parent / result binding check
+            if not validate_result_parent_binding(
+                comparable_result,
+                run.manufacturer_part_number,
+            ):
+                comparable_binding_error = True
+            else:
+                comparable_presentation = build_comparable_result_presentation(
+                    comparable_result,
+                )
+
     context = {
         "run": run,
         "report_presentation": report_presentation,
@@ -276,6 +369,11 @@ def research_detail(request: HttpRequest, run_id: uuid.UUID) -> HttpResponse:
         "review_candidates": review_candidates,
         "reviewed_result": reviewed_result,
         "confirmed_count": confirmed_count,
+        "comparable_child": comparable_child,
+        "comparable_presentation": comparable_presentation,
+        "comparable_decode_error": comparable_decode_error,
+        "comparable_binding_error": comparable_binding_error,
+        "comparable_start_error": comparable_start_error,
     }
 
     return render(request, "web/research_detail.html", context)
@@ -458,5 +556,71 @@ def research_review(
             action, candidate_id,
         )
         return redirect("research-detail", run_id=run_id)
+
+    return redirect("research-detail", run_id=run_id)
+
+
+@require_POST
+def research_comparables(
+    request: HttpRequest,
+    run_id: uuid.UUID,
+) -> HttpResponse:
+    """Trigger (or re-trigger) comparable research for a completed run.
+
+    POST-only. Redirects back to research-detail after every bounded outcome.
+
+    Flow:
+    1. Load the parent ResearchRun (404 if missing).
+    2. Call frozen trigger_comparable_research(run.id).
+    3. If trigger returns COMPLETED child -> redirect (idempotent).
+    4. If trigger returns RUNNING child -> redirect (already executing).
+    5. If trigger returns PENDING child -> execute synchronously with default
+       providers -> redirect.
+    6. On ComparableResearchTriggerError -> redirect with
+       ?comparable_start_error=1.
+    7. On ComparableResearchExecutionError or ComparableResearchClaimError
+       -> redirect normally (child state is authoritative).
+    8. On unexpected exception -> log + redirect with
+       ?comparable_start_error=1.
+    """
+    logger = getLogger(__name__)
+    run = get_object_or_404(ResearchRun, pk=run_id)
+
+    # Trigger (idempotent)
+    try:
+        child = trigger_comparable_research(run.id)
+    except ComparableResearchTriggerError:
+        logger.warning(
+            "Comparable research trigger failed for run %s", run.id
+        )
+        return redirect(
+            f"/research/{run.id}?comparable_start_error=1"
+        )
+
+    # Already terminal (COMPLETED) or RUNNING
+    if child.state in (
+        ComparableResearchState.COMPLETED,
+        ComparableResearchState.RUNNING,
+    ):
+        return redirect("research-detail", run_id=run.id)
+
+    # PENDING — execute synchronously
+    try:
+        execute_comparable_research_with_default_providers(child.id)
+    except ComparableResearchExecutionError:
+        # Bounded failure: child already terminalised FAILED by 7C-B
+        pass
+    except ComparableResearchClaimError:
+        # Race: another request claimed the child after trigger returned it.
+        # Child state is authoritative; redirect normally.
+        pass
+    except Exception:
+        logger.exception(
+            "Unexpected error during comparable research execution "
+            "for child %s (run %s)", child.id, run.id
+        )
+        return redirect(
+            f"/research/{run.id}?comparable_start_error=1"
+        )
 
     return redirect("research-detail", run_id=run_id)

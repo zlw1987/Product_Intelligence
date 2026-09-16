@@ -53,6 +53,28 @@ An MPN and a description are untrusted input from any intake.
   }
   .bucket-entry dl { display: grid; gap: 0.5rem 1.5rem; grid-template-columns: max-content 1fr; margin: 0.5rem 0; }
   .bucket-entry h3 { margin-top: 0; }
+
+  /* Comparable products section */
+  .comparable-candidate {
+    border: 1px solid #8884; border-radius: 0.25rem;
+    margin: 0.5rem 0; padding: 0.5rem 0.75rem;
+  }
+  .comparable-candidate > summary {
+    cursor: pointer; padding: 0.25rem 0;
+  }
+  .comparable-candidate > summary:hover { background: #8881; }
+  .spec-table-wrapper { overflow-x: auto; }
+  .spec-table {
+    border-collapse: collapse; width: 100%; font-size: 0.875rem;
+  }
+  .spec-table th, .spec-table td {
+    border: 1px solid #8884; padding: 0.35rem 0.5rem; text-align: left;
+    vertical-align: top;
+  }
+  .spec-table th { background: #8881; }
+  .evidence-refs { font-size: 0.8em; margin-top: 0.15rem; }
+  .evidence-ref { display: inline-block; margin-right: 0.5rem; }
+
   footer { border-top: 1px solid #8884; color: #6b7280; font-size: 0.85rem;
            margin-top: 3rem; padding-top: 1rem; }
 </style>

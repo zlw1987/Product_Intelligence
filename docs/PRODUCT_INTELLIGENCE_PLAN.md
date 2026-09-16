@@ -2312,8 +2312,8 @@ Status:
     7A — IMPLEMENTED / APPROVED / FROZEN
     7B — IMPLEMENTED / APPROVED / FROZEN
     7C-A — IMPLEMENTED / APPROVED / FROZEN
-    7C-B — IMPLEMENTED / PENDING CHATGPT REVIEW
-    7C (web) — NOT IMPLEMENTED
+    7C-B — IMPLEMENTED / APPROVED / FROZEN
+    7C-C — IMPLEMENTED / PENDING CHATGPT REVIEW (web trigger + presentation)
 
 ## 18. Caching / freshness direction
 
@@ -2679,8 +2679,8 @@ PRODUCT-INTEL.6D   Authoritative datasheet specification
 PRODUCT-INTEL.7A   Comparable-product candidate discovery     IMPLEMENTED / APPROVED / FROZEN
 PRODUCT-INTEL.7B   Similarity scoring                         IMPLEMENTED / APPROVED / FROZEN
 PRODUCT-INTEL.7C-A  Comparable research results + codec      IMPLEMENTED / APPROVED / FROZEN
-PRODUCT-INTEL.7C-B  Comparable research orchestration         IMPLEMENTED / PENDING REVIEW
-PRODUCT-INTEL.7C    Comparison web report                      NOT IMPLEMENTED
+PRODUCT-INTEL.7C-B  Comparable research orchestration         IMPLEMENTED / APPROVED / FROZEN
+PRODUCT-INTEL.7C-C  Comparable web trigger + presentation     IMPLEMENTED / PENDING CHATGPT REVIEW
 
 ----- COMPARABLE MVP -----
 

@@ -132,7 +132,7 @@ FU3B wires the frozen FU3A semantic runtime into real research execution:
 | 6D | Authoritative Datasheet Specification Enrichment | Implemented (approved / frozen)
 | 7A | Comparable-Product Candidate Discovery | Implemented (frozen)
 | 7B | Enterprise SSD Similarity Scoring | Implemented (approved / frozen)
-| 7C | Comparable-Product Presentation | IN PROGRESS — 7C-A FROZEN; 7C-B IMPLEMENTED / PENDING REVIEW; web NOT IMPLEMENTED
+| 7C | Comparable-Product Presentation | IN PROGRESS — 7C-A FROZEN; 7C-B FROZEN; 7C-C IMPLEMENTED / PENDING CHATGPT REVIEW; web NOT IMPLEMENTED
 | SAP | SAP launcher integration | Future |
 
 
@@ -693,6 +693,21 @@ delivery.
         fields per candidate (Form Factor + 6 Datasheet fields),
         evidence layers SUPPORT_PAGE/DATASHEET_PDF classified by
         object-identity pools, codec V1 round-trip verified;
+
+**7C-C**: COMPARABLE WEB TRIGGER & PRESENTATION — IMPLEMENTED / PENDING CHATGPT REVIEW
+        Web trigger route POST /research/<uuid>/comparables (research-comparables);
+        default-provider adapter execute_comparable_research_with_default_providers();
+        pure presentation module comparable_presentation.py (DISPLAY ONLY);
+        extended research_detail.html with comparable section;
+        child selection: active (PENDING/RUNNING) > COMPLETED > FAILED (deterministic);
+        result decode via frozen V1 codec + parent binding via frozen 2A comparison;
+        candidate order exactly preserved (no ranking/sorting); ALL retained;
+        Decimal values string-exact; labels/units from ENTERPRISE_SSD_SCHEMA;
+        safe URL / autoescape rules; no |safe / mark_safe;
+        GET research_detail read-only: no trigger/executor/provider calls;
+        boundary tests updated for new research/execution/runs imports;
+        new test count: 43 (8 runtime + 16 presentation + 19 report);
+        collection delta: 3762 -> 3812 (+50 including parameterization expansion);
 
 **6D**: IMPLEMENTED / APPROVED / FROZEN —
         Authoritative Datasheet Specification Enrichment;

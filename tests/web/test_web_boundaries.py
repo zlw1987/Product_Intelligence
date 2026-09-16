@@ -55,11 +55,34 @@ ALLOWED_RESEARCH_IMPORTS: dict[str, set[str]] = {
         "ListingIdentityAssessment",
         "is_human_review_eligible_assessment",  # FU3B authority alignment: binding predicate
     },
+    "product_intelligence.research.comparable_result_codec": {
+        "ComparableResultCodecError",
+        "decode_comparable_result",  # 7C-C: decode comparable result payload
+    },
+    "product_intelligence.research.comparable_research_results": {
+        "ComparableResultKind",  # 7C-C: parent/result binding kind check
+        # 7C-C: pure display module consumes result contracts for presentation
+        "AuthorityAttemptResult",
+        "ComparableCandidateResult",
+        "ComparableResearchResult",
+        "DatasheetAttemptResult",
+        "EvidenceSourceReference",
+        "FieldAssessmentResult",
+        "ProductEnrichmentAudit",
+    },
+    "product_intelligence.research.enterprise_ssd": {
+        "ENTERPRISE_SSD_SCHEMA",  # 7C-C: schema labels/units for presentation
+    },
+    "product_intelligence.research.identity": {
+        "compare_part_numbers",  # 7C-C: frozen 2A binding validation
+    },
 }
 
 ALLOWED_EXECUTION_IMPORTS: set[str] = {
     "execute_research_run",
     "ExecutionError",
+    "ComparableResearchExecutionError",
+    "execute_comparable_research_with_default_providers",
 }
 
 
@@ -91,7 +114,8 @@ def _research_import_violation(source: str) -> str | None:
                     "name the submodule explicitly."
                 )
             # research/identity is a research decision primitive.
-            if node.module.endswith(".identity"):
+            # 7C-C extends the allowlist for the frozen 2A binding primitive.
+            if node.module.endswith(".identity") and node.module not in ALLOWED_RESEARCH_IMPORTS:
                 return (
                     "imports from research/identity; "
                     "web layer may not pull in research decision primitives."
@@ -408,7 +432,7 @@ def _runs_import_violation(source: str) -> str | None:
                any other runs.internal submodule
     """
     tree = ast.parse(source)
-    ALLOWED_MODELS_IMPORTS = frozenset({"ResearchRun", "PriceIntelligenceSnapshot", "AiAssistedReviewCandidate"})
+    ALLOWED_MODELS_IMPORTS = frozenset({"ResearchRun", "PriceIntelligenceSnapshot", "AiAssistedReviewCandidate", "ComparableResearchExecution", "ComparableResearchState"})
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom):
             if not node.module or node.level:

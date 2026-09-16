@@ -27,4 +27,5 @@ urlpatterns = [
     path("research/<uuid:run_id>", views.research_detail, name="research-detail"),
     path("research/<uuid:run_id>/retry", views.research_retry, name="research-retry"),
     path("research/<uuid:run_id>/review/<uuid:candidate_id>", views.research_review, name="research-review"),
+    path("research/<uuid:run_id>/comparables", views.research_comparables, name="research-comparables"),
 ]
