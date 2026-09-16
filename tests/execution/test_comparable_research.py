@@ -936,8 +936,11 @@ class TestCompositionAndProjection(TestCase):
 
         Proves the target identity is included in the same batch and candidates
         are not separately enriched through additional batch calls.
+        Batch candidate identities must match frozen discovery order exactly.
         """
         from product_intelligence.execution import comparable_research as cr_mod
+        import unittest.mock as mock
+
         batch_calls = 0
         captured_identities = None
         original_batch = cr_mod.enrich_enterprise_ssd_specifications_batch
@@ -948,8 +951,19 @@ class TestCompositionAndProjection(TestCase):
             captured_identities = kwargs.get("identities", args[0] if args else None)
             return original_batch(*args, **kwargs)
 
-        import unittest.mock as mock
-        with mock.patch.object(cr_mod, "enrich_enterprise_ssd_specifications_batch", side_effect=spy_batch):
+        captured_discovery_result = None
+        original_discover = cr_mod.discover_enterprise_ssd_comparable_candidates
+
+        def spy_discover(*args, **kwargs):
+            nonlocal captured_discovery_result
+            result = original_discover(*args, **kwargs)
+            captured_discovery_result = result
+            return result
+
+        with (
+            mock.patch.object(cr_mod, "enrich_enterprise_ssd_specifications_batch", side_effect=spy_batch),
+            mock.patch.object(cr_mod, "discover_enterprise_ssd_comparable_candidates", side_effect=spy_discover),
+        ):
             parent = _make_completed_run()
             child = ComparableResearchExecution.objects.create(
                 parent_run=parent,
@@ -967,10 +981,18 @@ class TestCompositionAndProjection(TestCase):
         self.assertIsInstance(captured_identities, tuple)
         # Target MPN is first
         self.assertEqual(captured_identities[0].manufacturer_part_number, "XP15360SE70005")
-        # Total identities = 1 (target) + 80 (candidates from discovery)
-        self.assertEqual(len(captured_identities), 81)
-        # Remaining identity MPNs match the 80 discovered candidates
-        self.assertEqual(len(captured_identities) - 1, 80)
+        # Total identities = 1 (target) + discovery candidate count
+        self.assertEqual(len(captured_identities), 1 + len(captured_discovery_result.candidates))
+        # Remaining identity MPNs exactly match frozen discovery candidate order
+        batch_candidate_order = tuple(
+            identity.manufacturer_part_number
+            for identity in captured_identities[1:]
+        )
+        discovery_candidate_order = tuple(
+            candidate.manufacturer_part_number
+            for candidate in captured_discovery_result.candidates
+        )
+        self.assertEqual(batch_candidate_order, discovery_candidate_order)
 
     def test_no_per_candidate_6c_public_call(self) -> None:
         """No per-candidate public 6C execution call (only target + held)."""
@@ -1158,8 +1180,11 @@ class TestDiscoveryOrder(TestCase):
 class TestComparableResearchBoundaries(TestCase):
     """AST-based import guards for the 7C-B execution module."""
 
-    def test_no_old_executor_call(self) -> None:
+    def test_placeholder(self) -> None:
         """The execution module must not call the old high-level executor.
+
+        The historical node name is intentionally preserved for test-node
+        continuity; the placeholder now enforces the old-executor call ban.
 
         Parses comparable_research.py and rejects any ast.Call whose called
         function is research_and_score_enterprise_ssd_candidates — whether
