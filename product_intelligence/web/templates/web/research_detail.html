@@ -970,7 +970,7 @@
                     <tr>
                       <td>{{ field.definition_label }}{% if field.unit %} ({{ field.unit }}){% endif %}</td>
                       <td>
-                        {# BLOCKER 1: Branch by resolution state FIRST #}
+                        {# FU2: Branch by resolution state FIRST, then render evidence independently #}
                         {% if field.target_resolution_state == "VERIFIED" %}
                           {{ field.target_value }}
                           {% if field.target_evidence %}
@@ -1009,12 +1009,45 @@
                           {% endif %}
                         {% elif field.target_resolution_state == "CONFLICT" %}
                           <span class="absent">Conflict</span>
+                          {% if field.target_evidence %}
+                            <div class="evidence-refs">
+                              {% for ref in field.target_evidence %}
+                                <span class="evidence-ref">
+                                  [{{ ref.evidence_layer }}]
+                                  {% if ref.source_url_safe %}
+                                    <a href="{{ ref.source_url }}">{{ ref.source_name }}</a>
+                                  {% else %}
+                                    {{ ref.source_name }}
+                                  {% endif %}
+                                  ({{ ref.source_authority }})
+                                  {{ ref.retrieved_at }}
+                                </span>
+                              {% endfor %}
+                            </div>
+                          {% endif %}
                         {% else %}
+                          {# UNKNOWN: value is None, but evidence may be non-empty #}
                           <span class="absent">Unknown</span>
+                          {% if field.target_evidence %}
+                            <div class="evidence-refs">
+                              {% for ref in field.target_evidence %}
+                                <span class="evidence-ref">
+                                  [{{ ref.evidence_layer }}]
+                                  {% if ref.source_url_safe %}
+                                    <a href="{{ ref.source_url }}">{{ ref.source_name }}</a>
+                                  {% else %}
+                                    {{ ref.source_name }}
+                                  {% endif %}
+                                  ({{ ref.source_authority }})
+                                  {{ ref.retrieved_at }}
+                                </span>
+                              {% endfor %}
+                            </div>
+                          {% endif %}
                         {% endif %}
                       </td>
                       <td>
-                        {# BLOCKER 1: Branch by resolution state FIRST #}
+                        {# FU2: Branch by resolution state FIRST, then render evidence independently #}
                         {% if field.candidate_resolution_state == "VERIFIED" %}
                           {{ field.candidate_value }}
                           {% if field.candidate_evidence %}
@@ -1053,8 +1086,41 @@
                           {% endif %}
                         {% elif field.candidate_resolution_state == "CONFLICT" %}
                           <span class="absent">Conflict</span>
+                          {% if field.candidate_evidence %}
+                            <div class="evidence-refs">
+                              {% for ref in field.candidate_evidence %}
+                                <span class="evidence-ref">
+                                  [{{ ref.evidence_layer }}]
+                                  {% if ref.source_url_safe %}
+                                    <a href="{{ ref.source_url }}">{{ ref.source_name }}</a>
+                                  {% else %}
+                                    {{ ref.source_name }}
+                                  {% endif %}
+                                  ({{ ref.source_authority }})
+                                  {{ ref.retrieved_at }}
+                                </span>
+                              {% endfor %}
+                            </div>
+                          {% endif %}
                         {% else %}
+                          {# UNKNOWN: value is None, but evidence may be non-empty #}
                           <span class="absent">Unknown</span>
+                          {% if field.candidate_evidence %}
+                            <div class="evidence-refs">
+                              {% for ref in field.candidate_evidence %}
+                                <span class="evidence-ref">
+                                  [{{ ref.evidence_layer }}]
+                                  {% if ref.source_url_safe %}
+                                    <a href="{{ ref.source_url }}">{{ ref.source_name }}</a>
+                                  {% else %}
+                                    {{ ref.source_name }}
+                                  {% endif %}
+                                  ({{ ref.source_authority }})
+                                  {{ ref.retrieved_at }}
+                                </span>
+                              {% endfor %}
+                            </div>
+                          {% endif %}
                         {% endif %}
                       </td>
                       <td>{{ field.comparison_state }}</td>

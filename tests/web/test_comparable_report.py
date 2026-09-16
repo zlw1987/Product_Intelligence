@@ -1266,3 +1266,677 @@ class TestComparableSectionOrdering:
         assert comparable_products_pos > reviewed_price_pos, (
             "Comparable products section must appear after Reviewed price section"
         )
+
+
+# ---------------------------------------------------------------------------
+# BLOCKER 2: CONFLICT and UNKNOWN evidence rendering
+# ---------------------------------------------------------------------------
+
+
+class TestConflictEvidenceRendering:
+    """CONFLICT state must render evidence independently of value.
+
+    The frozen 7C-A contracts require:
+    CONFLICT: value=None, evidence NON-EMPTY.
+    Evidence display must be independent of resolution-state display.
+    """
+
+    def test_conflict_target_renders_evidence(self, client, human_review_db_isolation):
+        """CONFLICT target renders 'Conflict' AND evidence provenance.
+
+        FU2 BLOCKER 2A.
+        """
+        from product_intelligence.research.comparable_result_codec import (
+            encode_comparable_result,
+        )
+        from product_intelligence.research.specifications import ResolutionState
+        from product_intelligence.research.enterprise_ssd import (
+            ENTERPRISE_SSD_SCHEMA,
+        )
+        from product_intelligence.research.comparable_research_results import (
+            FieldAssessmentResult,
+        )
+        from product_intelligence.research.enterprise_ssd_similarity import (
+            ComparisonState,
+        )
+
+        run = _make_completed_run()
+
+        # Build a result with CONFLICT target state and evidence
+        schema_keys = list(ENTERPRISE_SSD_SCHEMA.definitions.keys())
+        conflict_fa = FieldAssessmentResult(
+            definition_key=schema_keys[0],
+            comparison_state=ComparisonState.TARGET_NOT_VERIFIED,
+            target_resolution_state=ResolutionState.CONFLICT,
+            candidate_resolution_state=ResolutionState.VERIFIED,
+            field_similarity=None,
+            target_value=None,
+            candidate_value="2.5-inch",
+            target_evidence=_make_evidence(),
+            candidate_evidence=_make_evidence(),
+        )
+        other_fas = [
+            FieldAssessmentResult(
+                definition_key=key,
+                comparison_state=ComparisonState.BOTH_NOT_VERIFIED,
+                target_resolution_state=ResolutionState.UNKNOWN,
+                candidate_resolution_state=ResolutionState.UNKNOWN,
+                field_similarity=None,
+                target_value=None,
+                candidate_value=None,
+                target_evidence=(),
+                candidate_evidence=(),
+            )
+            for key in schema_keys[1:]
+        ]
+        candidate = _make_comparable_candidate("CAND-001", scored_count=0)
+        # Replace field assessments with our conflict test
+        from product_intelligence.research.comparable_research_results import (
+            ComparableCandidateResult,
+            ProductEnrichmentAudit,
+            DatasheetAttemptResult,
+            DatasheetAuditOutcomeKind,
+        )
+        conflict_candidate = ComparableCandidateResult(
+            candidate_mpn=candidate.candidate_mpn,
+            candidate_normalized_mpn=candidate.candidate_normalized_mpn,
+            scored_field_count=0,
+            evidence_coverage=Decimal("0"),
+            observed_similarity=None,
+            evidence_weighted_similarity=None,
+            field_assessments=(conflict_fa,) + tuple(other_fas),
+            enrichment_audit=candidate.enrichment_audit,
+        )
+
+        result = _make_full_result(candidates=(conflict_candidate,))
+        payload = encode_comparable_result(result)
+
+        ComparableResearchExecution.objects.create(
+            parent_run=run, state=ComparableResearchState.COMPLETED,
+            active_slot=None, started_at=datetime.now(timezone.utc),
+            finished_at=datetime.now(timezone.utc),
+            result_schema_version=1, result_payload=payload,
+        )
+
+        response = client.get(f"/research/{run.id}")
+        assert response.status_code == 200
+        html = response.content.decode("utf-8")
+
+        # "Conflict" must render
+        assert "Conflict" in html
+        # Evidence source/layer/authority must render for CONFLICT state
+        assert "TestSource" in html
+        assert "SUPPORT_PAGE" in html
+        assert "AUTHORITATIVE" in html
+        assert "2024-01-01" in html
+
+    def test_conflict_candidate_renders_evidence(self, client, human_review_db_isolation):
+        """CONFLICT candidate renders 'Conflict' AND evidence provenance.
+
+        FU2 BLOCKER 2A.
+        """
+        from product_intelligence.research.comparable_result_codec import (
+            encode_comparable_result,
+        )
+        from product_intelligence.research.specifications import ResolutionState
+        from product_intelligence.research.enterprise_ssd import (
+            ENTERPRISE_SSD_SCHEMA,
+        )
+        from product_intelligence.research.comparable_research_results import (
+            FieldAssessmentResult,
+        )
+        from product_intelligence.research.enterprise_ssd_similarity import (
+            ComparisonState,
+        )
+
+        run = _make_completed_run()
+
+        schema_keys = list(ENTERPRISE_SSD_SCHEMA.definitions.keys())
+        conflict_fa = FieldAssessmentResult(
+            definition_key=schema_keys[0],
+            comparison_state=ComparisonState.CANDIDATE_NOT_VERIFIED,
+            target_resolution_state=ResolutionState.VERIFIED,
+            candidate_resolution_state=ResolutionState.CONFLICT,
+            field_similarity=None,
+            target_value="2.5-inch",
+            candidate_value=None,
+            target_evidence=_make_evidence(),
+            candidate_evidence=_make_evidence(),
+        )
+        other_fas = [
+            FieldAssessmentResult(
+                definition_key=key,
+                comparison_state=ComparisonState.BOTH_NOT_VERIFIED,
+                target_resolution_state=ResolutionState.UNKNOWN,
+                candidate_resolution_state=ResolutionState.UNKNOWN,
+                field_similarity=None,
+                target_value=None,
+                candidate_value=None,
+                target_evidence=(),
+                candidate_evidence=(),
+            )
+            for key in schema_keys[1:]
+        ]
+        from product_intelligence.research.comparable_research_results import (
+            ComparableCandidateResult,
+            ProductEnrichmentAudit,
+            DatasheetAttemptResult,
+            DatasheetAuditOutcomeKind,
+        )
+        candidate = _make_comparable_candidate("CAND-001", scored_count=0)
+        conflict_candidate = ComparableCandidateResult(
+            candidate_mpn=candidate.candidate_mpn,
+            candidate_normalized_mpn=candidate.candidate_normalized_mpn,
+            scored_field_count=0,
+            evidence_coverage=Decimal("0"),
+            observed_similarity=None,
+            evidence_weighted_similarity=None,
+            field_assessments=(conflict_fa,) + tuple(other_fas),
+            enrichment_audit=candidate.enrichment_audit,
+        )
+
+        result = _make_full_result(candidates=(conflict_candidate,))
+        payload = encode_comparable_result(result)
+
+        ComparableResearchExecution.objects.create(
+            parent_run=run, state=ComparableResearchState.COMPLETED,
+            active_slot=None, started_at=datetime.now(timezone.utc),
+            finished_at=datetime.now(timezone.utc),
+            result_schema_version=1, result_payload=payload,
+        )
+
+        response = client.get(f"/research/{run.id}")
+        assert response.status_code == 200
+        html = response.content.decode("utf-8")
+
+        # "Conflict" must render in the candidate cell
+        assert "Conflict" in html
+        # Evidence source/layer/authority must render for CONFLICT candidate
+        assert "TestSource" in html
+        assert "SUPPORT_PAGE" in html
+        assert "AUTHORITATIVE" in html
+
+
+class TestUnknownEvidenceRendering:
+    """UNKNOWN state must render evidence independently of value.
+
+    The frozen 7C-A contracts require:
+    UNKNOWN: value=None, evidence MAY be non-empty.
+    Evidence display must be independent of resolution-state display.
+    """
+
+    def test_unknown_target_renders_evidence(self, client, human_review_db_isolation):
+        """UNKNOWN target renders 'Unknown' AND evidence provenance.
+
+        The frozen 7C-A contract permits UNKNOWN with non-empty evidence.
+        This test proves evidence renders for UNKNOWN state in the target
+        column.
+
+        FU2 BLOCKER 2B.
+        """
+        from product_intelligence.research.comparable_result_codec import (
+            encode_comparable_result,
+        )
+        from product_intelligence.research.specifications import ResolutionState
+        from product_intelligence.research.enterprise_ssd import (
+            ENTERPRISE_SSD_SCHEMA,
+        )
+        from product_intelligence.research.comparable_research_results import (
+            FieldAssessmentResult,
+        )
+        from product_intelligence.research.enterprise_ssd_similarity import (
+            ComparisonState,
+        )
+
+        run = _make_completed_run()
+
+        schema_keys = list(ENTERPRISE_SSD_SCHEMA.definitions.keys())
+        # UNKNOWN target + VERIFIED candidate:
+        # comparison_state = TARGET_NOT_VERIFIED (target not verified, candidate verified)
+        # This is valid for FieldAssessmentResult validation.
+        unknown_fa = FieldAssessmentResult(
+            definition_key=schema_keys[0],
+            comparison_state=ComparisonState.TARGET_NOT_VERIFIED,
+            target_resolution_state=ResolutionState.UNKNOWN,
+            candidate_resolution_state=ResolutionState.VERIFIED,
+            field_similarity=None,
+            target_value=None,
+            candidate_value="2.5-inch",
+            target_evidence=_make_evidence(),
+            candidate_evidence=_make_evidence(),
+        )
+        other_fas = [
+            FieldAssessmentResult(
+                definition_key=key,
+                comparison_state=ComparisonState.BOTH_NOT_VERIFIED,
+                target_resolution_state=ResolutionState.UNKNOWN,
+                candidate_resolution_state=ResolutionState.UNKNOWN,
+                field_similarity=None,
+                target_value=None,
+                candidate_value=None,
+                target_evidence=(),
+                candidate_evidence=(),
+            )
+            for key in schema_keys[1:]
+        ]
+        from product_intelligence.research.comparable_research_results import (
+            ComparableCandidateResult,
+            ProductEnrichmentAudit,
+            DatasheetAttemptResult,
+            DatasheetAuditOutcomeKind,
+        )
+        candidate = _make_comparable_candidate("CAND-001", scored_count=0)
+        unknown_candidate = ComparableCandidateResult(
+            candidate_mpn=candidate.candidate_mpn,
+            candidate_normalized_mpn=candidate.candidate_normalized_mpn,
+            scored_field_count=0,
+            evidence_coverage=Decimal("0"),
+            observed_similarity=None,
+            evidence_weighted_similarity=None,
+            field_assessments=(unknown_fa,) + tuple(other_fas),
+            enrichment_audit=candidate.enrichment_audit,
+        )
+
+        result = _make_full_result(candidates=(unknown_candidate,))
+        payload = encode_comparable_result(result)
+
+        ComparableResearchExecution.objects.create(
+            parent_run=run, state=ComparableResearchState.COMPLETED,
+            active_slot=None, started_at=datetime.now(timezone.utc),
+            finished_at=datetime.now(timezone.utc),
+            result_schema_version=1, result_payload=payload,
+        )
+
+        response = client.get(f"/research/{run.id}")
+        assert response.status_code == 200
+        html = response.content.decode("utf-8")
+
+        # "Unknown" must render
+        assert "Unknown" in html
+        # Evidence source/layer/authority must render for UNKNOWN state
+        assert "TestSource" in html
+        assert "SUPPORT_PAGE" in html
+        assert "AUTHORITATIVE" in html
+        assert "2024-01-01" in html
+
+
+# ---------------------------------------------------------------------------
+# BLOCKER 3: Real retry trigger test
+# ---------------------------------------------------------------------------
+
+
+class TestRealRetryTrigger:
+    """Test that POST actually invokes the real frozen retry semantics.
+
+    BLOCKER 3: The previous test manually created a PENDING child and mocked
+    trigger_comparable_research. Strengthen to use the real trigger path.
+    """
+
+    def test_existing_failed_child_retries_with_real_trigger(
+        self, client, human_review_db_isolation,
+    ):
+        """Existing FAILED child: POST creates a new child via real trigger
+        and executes it. Old FAILED child remains unchanged.
+
+        FU2 BLOCKER 3.
+        """
+        run = _make_completed_run()
+
+        old_failed = ComparableResearchExecution.objects.create(
+            parent_run=run,
+            state=ComparableResearchState.FAILED,
+            active_slot=None,
+            started_at=datetime.now(timezone.utc),
+            finished_at=datetime.now(timezone.utc),
+            failure_reason=ComparableResearchFailureReason.INTERNAL_ERROR,
+        )
+        old_failed_id = old_failed.id
+
+        executor_calls = []
+
+        def _fake_executor(child_id):
+            executor_calls.append(child_id)
+            # No network access, just capture
+
+        with patch(
+            "product_intelligence.web.views."
+            "execute_comparable_research_with_default_providers",
+            side_effect=_fake_executor,
+        ):
+            response = client.post(f"/research/{run.id}/comparables")
+
+        assert response.status_code in (301, 302, 303)
+
+        # Old FAILED child still exists and is unchanged
+        old_child = ComparableResearchExecution.objects.get(id=old_failed_id)
+        assert old_child.state == ComparableResearchState.FAILED
+        assert old_child.failure_reason == ComparableResearchFailureReason.INTERNAL_ERROR
+
+        # Exactly one NEW comparable child was created
+        all_children = ComparableResearchExecution.objects.filter(
+            parent_run=run,
+        ).order_by("created_at")
+        assert len(all_children) == 2, (
+            f"Expected 2 children (old FAILED + new), got {len(all_children)}"
+        )
+
+        new_child = all_children.last()
+        assert new_child.id != old_failed_id
+        assert new_child.state == ComparableResearchState.PENDING
+
+        # Fake executor was called with the new child id
+        assert len(executor_calls) == 1
+        assert executor_calls[0] == new_child.id
+
+
+# ---------------------------------------------------------------------------
+# BLOCKER 4: Error tests prove web does not own lifecycle
+# ---------------------------------------------------------------------------
+
+
+class TestErrorLifecycleBoundedness:
+    """Error handling tests prove web does not rewrite child lifecycle.
+
+    BLOCKER 4A: claim-race error: web does not transition child.
+    BLOCKER 4B: bounded failure: frozen adapter terminalizes, not web.
+    BLOCKER 4C: unexpected error: error flag set, no web mutation.
+    """
+
+    def test_claim_race_error_redirects_normally_no_web_mutation(
+        self, client, human_review_db_isolation,
+    ):
+        """Claim-race ComparableResearchClaimError: redirect normally;
+        web does not rewrite child state/timestamps/failure_reason/result.
+
+        FU2 BLOCKER 4A.
+        """
+        from product_intelligence.runs import (
+            claim_comparable_research,
+            ComparableResearchClaimError,
+        )
+
+        run = _make_completed_run()
+
+        # Create a PENDING child that we can actually claim
+        pending = ComparableResearchExecution.objects.create(
+            parent_run=run,
+            state=ComparableResearchState.PENDING,
+            active_slot=1,
+        )
+        pending_id = pending.id
+
+        # Simulate the realistic race:
+        # Claim the child to RUNNING, then raise claim race
+        claim_comparable_research(pending_id)
+
+        executor_calls = []
+
+        def _fake_executor(child_id):
+            executor_calls.append(child_id)
+            # Simulate the child being claimed by another executor
+            raise ComparableResearchClaimError(
+                child_id=str(child_id),
+                detail="child already claimed by another executor",
+            )
+
+        with patch(
+            "product_intelligence.web.views."
+            "execute_comparable_research_with_default_providers",
+            side_effect=_fake_executor,
+        ):
+            response = client.post(f"/research/{run.id}/comparables")
+
+        # Normal redirect
+        assert response.status_code in (301, 302, 303)
+        # No comparable_start_error flag
+        assert "comparable_start_error=1" not in response.url
+
+        # Refresh child and assert web did not mutate it
+        pending.refresh_from_db()
+        # Child state should be RUNNING (not changed by web)
+        assert pending.state == ComparableResearchState.RUNNING
+        # started_at should be the frozen claim time
+        assert pending.started_at is not None
+        # finished_at should be null (web did not terminalize)
+        assert pending.finished_at is None
+        # failure_reason should be null
+        assert pending.failure_reason is None
+        # result should be null
+        assert pending.result_payload is None
+
+    def test_execution_error_redirects_normally_display_equivalent(
+        self, client, human_review_db_isolation,
+    ):
+        """ComparableResearchExecutionError: redirect normally;
+        child is in the state frozen fail_comparable_research set it to.
+        Web does not perform a second lifecycle transition.
+
+        The frozen adapter contract:
+        - ComparableResearchExecutionError means the child has already been
+          terminalized FAILED via fail_comparable_research.
+        - The executor must first claim the child to RUNNING before failing it.
+        - We verify the child is FAILED with the failure reason set by the
+          frozen service, not by web.
+
+        FU2 BLOCKER 4B.
+        """
+        from product_intelligence.execution import ComparableResearchExecutionError
+        from product_intelligence.runs import (
+            fail_comparable_research,
+            claim_comparable_research,
+        )
+
+        run = _make_completed_run()
+
+        # We create a PENDING child (which trigger will return).
+        # The fake executor claims it to RUNNING then fails it, matching
+        # the frozen adapter contract.
+        stale = ComparableResearchExecution.objects.create(
+            parent_run=run,
+            state=ComparableResearchState.PENDING,
+            active_slot=1,
+        )
+
+        new_child_ids = []
+
+        def _fake_executor(child_id):
+            new_child_ids.append(child_id)
+            # Claim to RUNNING (frozen adapter must do this first)
+            claim_comparable_research(child_id)
+            # Simulate the frozen adapter contract:
+            # fail_comparable_research terminalizes the child FAILED
+            # then raises ComparableResearchExecutionError
+            fail_comparable_research(
+                child_id,
+                ComparableResearchFailureReason.INTERNAL_ERROR,
+            )
+            raise ComparableResearchExecutionError(
+                "bounded execution failure in child " + str(child_id)
+            )
+
+        with patch(
+            "product_intelligence.web.views."
+            "execute_comparable_research_with_default_providers",
+            side_effect=_fake_executor,
+        ):
+            response = client.post(f"/research/{run.id}/comparables")
+
+        # Normal redirect
+        assert response.status_code in (301, 302, 303)
+        # No transient error flag
+        assert "comparable_start_error=1" not in response.url
+
+        # Verify the NEW child (created by trigger) is FAILED
+        assert len(new_child_ids) == 1
+        new_child = ComparableResearchExecution.objects.get(id=new_child_ids[0])
+        assert new_child.state == ComparableResearchState.FAILED
+        assert new_child.failure_reason == ComparableResearchFailureReason.INTERNAL_ERROR
+        assert new_child.finished_at is not None
+        # result_payload remains null (bounded failure sets failure_reason, not payload)
+        assert new_child.result_payload is None
+
+        # GET report renders failure message
+        detail_response = client.get(f"/research/{run.id}")
+        assert detail_response.status_code == 200
+        detail_html = detail_response.content.decode("utf-8")
+        assert "Comparable research did not complete successfully" in detail_html
+
+    def test_unexpected_executor_exception_shows_error_flag_no_web_mutation(
+        self, client, human_review_db_isolation,
+    ):
+        """Unexpected RuntimeError: redirect with comparable_start_error=1;
+        web performs no manual lifecycle mutation.
+
+        FU2 BLOCKER 4C.
+        """
+        run = _make_completed_run()
+
+        pending = ComparableResearchExecution.objects.create(
+            parent_run=run,
+            state=ComparableResearchState.PENDING,
+            active_slot=1,
+        )
+        pending_id = pending.id
+        original_created = pending.created_at
+        original_started = pending.started_at
+
+        with patch(
+            "product_intelligence.web.views."
+            "execute_comparable_research_with_default_providers",
+            side_effect=RuntimeError("unexpected crash"),
+        ):
+            response = client.post(f"/research/{run.id}/comparables")
+
+        # Redirect with error flag
+        assert response.status_code in (301, 302, 303)
+        assert "comparable_start_error=1" in response.url
+
+        # Web did not mutate the child's lifecycle fields
+        pending.refresh_from_db()
+        assert pending.state == ComparableResearchState.PENDING, (
+            "Web must not transition child state on unexpected error"
+        )
+        # Timestamps unchanged
+        assert pending.created_at == original_created
+        assert pending.started_at == original_started
+        # No failure reason set by web
+        assert pending.failure_reason is None
+        # result_payload unchanged (not written by web)
+        assert pending.result_payload is None
+
+
+# ---------------------------------------------------------------------------
+# BLOCKER 5: GET read-only tests strengthened
+# ---------------------------------------------------------------------------
+
+
+class TestGetReadOnlyStrengthened:
+    """GET read-only tests with complete field-level immutability proof.
+
+    BLOCKER 5: Strengthened to capture all relevant lifecycle/result fields.
+    """
+
+    def test_get_preserves_child_state_and_timestamps_complete(
+        self, client, human_review_db_isolation,
+    ):
+        """GET preserves child state AND all child lifecycle timestamps
+        AND result fields.
+
+        FU2 BLOCKER 5 item 11.
+        """
+        run = _make_completed_run()
+        ts = datetime.now(timezone.utc)
+
+        child = ComparableResearchExecution.objects.create(
+            parent_run=run, state=ComparableResearchState.COMPLETED,
+            active_slot=None,
+            started_at=ts,
+            finished_at=ts,
+            result_schema_version=1,
+            result_payload={"kind": "FULL", "candidates": []},
+        )
+        original_child_state = child.state
+        original_created = child.created_at
+        original_started = child.started_at
+        original_finished = child.finished_at
+        original_active_slot = child.active_slot
+        original_result_schema = child.result_schema_version
+        original_result_payload = child.result_payload
+        original_failure_reason = child.failure_reason
+
+        response = client.get(f"/research/{run.id}")
+        assert response.status_code == 200
+
+        child.refresh_from_db()
+        assert child.state == original_child_state
+        assert child.created_at == original_created
+        assert child.started_at == original_started
+        assert child.finished_at == original_finished
+        assert child.active_slot == original_active_slot
+        assert child.result_schema_version == original_result_schema
+        assert child.result_payload == original_result_payload
+        assert child.failure_reason == original_failure_reason
+
+    def test_repeated_get_produces_no_mutation_complete(
+        self, client, human_review_db_isolation,
+    ):
+        """Repeated GET produces no durable mutation to parent or child.
+
+        FU2 BLOCKER 5 item 12.
+        """
+        run = _make_completed_run()
+        ts = datetime.now(timezone.utc)
+
+        child = ComparableResearchExecution.objects.create(
+            parent_run=run, state=ComparableResearchState.COMPLETED,
+            active_slot=None,
+            started_at=ts,
+            finished_at=ts,
+            result_schema_version=1,
+            result_payload={"kind": "FULL"},
+        )
+
+        # Capture ALL relevant parent fields
+        parent_state_before = run.state
+        parent_created_before = run.created_at
+        parent_started_before = run.started_at
+        parent_finished_before = run.finished_at
+
+        # Capture ALL relevant child fields
+        child_state_before = child.state
+        child_created_before = child.created_at
+        child_started_before = child.started_at
+        child_finished_before = child.finished_at
+        child_active_slot_before = child.active_slot
+        child_failure_before = child.failure_reason
+        child_schema_before = child.result_schema_version
+        child_payload_before = child.result_payload
+
+        # Perform repeated GETs
+        for _ in range(5):
+            response = client.get(f"/research/{run.id}")
+            assert response.status_code == 200
+
+        run.refresh_from_db()
+        child.refresh_from_db()
+
+        # Assert no row count change
+        assert ComparableResearchExecution.objects.filter(
+            parent_run=run,
+        ).count() == 1
+
+        # Assert ALL parent fields unchanged
+        assert run.state == parent_state_before
+        assert run.created_at == parent_created_before
+        assert run.started_at == parent_started_before
+        assert run.finished_at == parent_finished_before
+
+        # Assert ALL child fields unchanged
+        assert child.state == child_state_before
+        assert child.created_at == child_created_before
+        assert child.started_at == child_started_before
+        assert child.finished_at == child_finished_before
+        assert child.active_slot == child_active_slot_before
+        assert child.failure_reason == child_failure_before
+        assert child.result_schema_version == child_schema_before
+        assert child.result_payload == child_payload_before

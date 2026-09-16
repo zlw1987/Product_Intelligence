@@ -4,6 +4,13 @@ Proves the adapter creates/passes the two concrete providers and delegates once.
 No live network test.
 
 BLOCKER 7: Strengthened to prove exact construction counts and exact delegation.
+FU2 BLOCKER 1: Restored test_constructs_http_page_fetcher and
+  test_constructs_http_pdf_fetcher as historical nodes.
+  Combined stronger test test_constructs_and_passes_providers_exactly_once retained.
+FU2 BLOCKER 2: Evidence rendering regression tests added.
+FU2 BLOCKER 3: Real retry trigger test strengthened.
+FU2 BLOCKER 4: Error tests prove web does not own lifecycle.
+FU2 BLOCKER 5: GET read-only tests strengthened to capture all relevant fields.
 """
 
 from __future__ import annotations
@@ -23,6 +30,80 @@ class TestExecuteComparableResearchWithDefaultProviders:
             execute_comparable_research_with_default_providers,
         )
         assert callable(execute_comparable_research_with_default_providers)
+
+    def test_constructs_http_page_fetcher(self) -> None:
+        """HttpPageFetcher is constructed exactly once and the exact constructed
+        object is passed as page_fetcher to frozen execute_comparable_research.
+
+        FU2 BLOCKER 1: Restored historical node.
+        """
+        from product_intelligence.execution import (
+            execute_comparable_research_with_default_providers,
+        )
+
+        captured_page_fetcher = None
+
+        def _capture(child_id, *, page_fetcher, document_fetcher):
+            nonlocal captured_page_fetcher
+            captured_page_fetcher = page_fetcher
+
+        mock_page_fetcher = MagicMock()
+        mock_pdf_fetcher = MagicMock()
+
+        with patch(
+            "product_intelligence.providers.http_page.HttpPageFetcher",
+            return_value=mock_page_fetcher,
+        ) as mock_page_cls, patch(
+            "product_intelligence.providers.http_pdf.HttpPdfFetcher",
+            return_value=mock_pdf_fetcher,
+        ), patch(
+            "product_intelligence.execution.comparable_research."
+            "execute_comparable_research",
+            side_effect=_capture,
+        ):
+            execute_comparable_research_with_default_providers("test-child-id")
+
+        # HttpPageFetcher constructed exactly once
+        mock_page_cls.assert_called_once()
+        # The exact constructed object was passed
+        assert captured_page_fetcher is mock_page_fetcher
+
+    def test_constructs_http_pdf_fetcher(self) -> None:
+        """HttpPdfFetcher is constructed exactly once and the exact constructed
+        object is passed as document_fetcher to frozen execute_comparable_research.
+
+        FU2 BLOCKER 1: Restored historical node.
+        """
+        from product_intelligence.execution import (
+            execute_comparable_research_with_default_providers,
+        )
+
+        captured_document_fetcher = None
+
+        def _capture(child_id, *, page_fetcher, document_fetcher):
+            nonlocal captured_document_fetcher
+            captured_document_fetcher = document_fetcher
+
+        mock_page_fetcher = MagicMock()
+        mock_pdf_fetcher = MagicMock()
+
+        with patch(
+            "product_intelligence.providers.http_page.HttpPageFetcher",
+            return_value=mock_page_fetcher,
+        ), patch(
+            "product_intelligence.providers.http_pdf.HttpPdfFetcher",
+            return_value=mock_pdf_fetcher,
+        ) as mock_pdf_cls, patch(
+            "product_intelligence.execution.comparable_research."
+            "execute_comparable_research",
+            side_effect=_capture,
+        ):
+            execute_comparable_research_with_default_providers("test-child-id")
+
+        # HttpPdfFetcher constructed exactly once
+        mock_pdf_cls.assert_called_once()
+        # The exact constructed object was passed
+        assert captured_document_fetcher is mock_pdf_fetcher
 
     def test_constructs_and_passes_providers_exactly_once(self) -> None:
         """HttpPageFetcher constructed exactly once, HttpPdfFetcher constructed
