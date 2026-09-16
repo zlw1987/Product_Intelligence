@@ -132,7 +132,7 @@ FU3B wires the frozen FU3A semantic runtime into real research execution:
 | 6D | Authoritative Datasheet Specification Enrichment | Implemented (approved / frozen)
 | 7A | Comparable-Product Candidate Discovery | Implemented (frozen)
 | 7B | Enterprise SSD Similarity Scoring | Implemented (approved / frozen)
-| 7C | Comparable-Product Presentation | Not started
+| 7C | Comparable-Product Presentation | 7C-B Execution Orchestrator IMPLEMENTED; 7C-A Results+Codec FROZEN
 | SAP | SAP launcher integration | Future |
 
 
@@ -669,7 +669,30 @@ Corrective pass (final evidence-backed closure):
 7B freeze. 7C Comparable-Product Presentation is the next comparable-product
 delivery.
 
-**7C**: NOT STARTED
+**7C-A**: COMPARABLE RESEARCH RESULTS + CODEC — IMPLEMENTED / APPROVED / FROZEN
+
+**7C-B**: COMPARABLE RESEARCH ORCHESTRATION — IMPLEMENTED
+        Frozen primitives composed into one bounded execution pipeline:
+        claim ComparableResearchExecution
+            -> exact parent ResearchRun request
+            -> PRE1 authority acquisition
+            -> target frozen 6C specification extraction
+            -> frozen 7A candidate discovery
+            -> candidate ProductIdentity bridge (frozen 7B)
+            -> candidate 6C from HELD authoritative support documents
+            -> ONE frozen 6D batch enrichment (target + candidates)
+            -> frozen 6C + 6D composition
+            -> pure frozen 7B similarity scoring
+            -> pure ComparableResearchResult projection
+            -> frozen V1 comparable codec
+            -> atomic ComparableResearchExecution completion
+        Exact bounded failure handling (PRE1 incomplete, codec errors,
+        programming exceptions); no web/presentation routes; zero
+        modifications to frozen contracts;
+        real Seagate fixture vertical slice: 80 candidates, 7 scoreable
+        fields per candidate (Form Factor + 6 Datasheet fields),
+        evidence layers SUPPORT_PAGE/DATASHEET_PDF classified by
+        object-identity pools, codec V1 round-trip verified;
 
 **6D**: IMPLEMENTED / APPROVED / FROZEN —
         Authoritative Datasheet Specification Enrichment;

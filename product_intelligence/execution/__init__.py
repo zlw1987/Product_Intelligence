@@ -60,10 +60,16 @@ from product_intelligence.execution.comparable_discovery import (
     discover_enterprise_ssd_comparable_candidates,
 )
 
+from product_intelligence.execution.comparable_research import (
+    ComparableResearchExecutionError,
+    execute_comparable_research,
+)
+
 __all__ = [
     "ComparableCandidateDiscoveryResult",
     "ComparableCandidateSourceOutcome",
     "ComparableCandidateSourceOutcomeState",
+    "ComparableResearchExecutionError",
     "ExecutionError",
     "ExecutionResult",
     "SpecificationEvidenceResult",
@@ -72,6 +78,7 @@ __all__ = [
     "SourceOutcomeState",
     "AiAssistedMatchResult",
     "discover_enterprise_ssd_comparable_candidates",
+    "execute_comparable_research",
     "execute_research_run",
     "research_enterprise_ssd_specifications",
 ]

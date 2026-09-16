@@ -2311,7 +2311,9 @@ first 6B category.
 Status:
     7A — IMPLEMENTED / APPROVED / FROZEN
     7B — IMPLEMENTED / APPROVED / FROZEN
-    7C — NOT STARTED
+    7C-A — IMPLEMENTED / APPROVED / FROZEN
+    7C-B — IMPLEMENTED
+    7C (web) — FUTURE
 
 ## 18. Caching / freshness direction
 
@@ -2676,7 +2678,9 @@ PRODUCT-INTEL.6D   Authoritative datasheet specification
                    enrichment                                 IMPLEMENTED / APPROVED / FROZEN
 PRODUCT-INTEL.7A   Comparable-product candidate discovery     IMPLEMENTED / APPROVED / FROZEN
 PRODUCT-INTEL.7B   Similarity scoring                         IMPLEMENTED / APPROVED / FROZEN
-PRODUCT-INTEL.7C   Comparison web report                      NOT STARTED
+PRODUCT-INTEL.7C-A  Comparable research results + codec      IMPLEMENTED / APPROVED / FROZEN
+PRODUCT-INTEL.7C-B  Comparable research orchestration         IMPLEMENTED
+PRODUCT-INTEL.7C    Comparison web report                      FUTURE
 
 ----- COMPARABLE MVP -----
 
@@ -2719,20 +2723,30 @@ DELIVERED (frozen):
 DELIVERED (approved / frozen):
   7B    Enterprise SSD similarity scoring (implemented / approved / frozen)
 
-IMPLEMENTED (approved / frozen):
+IMPLEMENTED (frozen):
   6D    Authoritative datasheet specification enrichment
         (6D IS the candidate-specification enrichment; implemented / approved / frozen)
 
+DELIVERED (frozen):
+  7C-A  Comparable research results + codec (implemented / approved / frozen)
+
+IMPLEMENTED:
+  7C-B  Comparable research orchestration
+        (frozen primitives composed into one bounded execution pipeline)
+
 FUTURE:
-  7C    Comparable-product presentation (not started —
-        next comparable-product delivery after 6D freeze)
+  7C    Comparison web report
+        (7C-A results/codec frozen, 7C-B orchestration implemented,
+         web presentation layer is the next delivery)
   SAP   SAP launcher integration
 ```
 
 **6C IMPLEMENTED AND FROZEN.**
 **7A IMPLEMENTED AND FROZEN.**
 **7B IMPLEMENTED / APPROVED / FROZEN.**
-**7C NOT STARTED.**
+**7C-A IMPLEMENTED AND FROZEN.**
+**7C-B IMPLEMENTED.**
+**7C web presentation remains FUTURE.**
 
 6A is IMPLEMENTED AND FROZEN. 6B is IMPLEMENTED AND FROZEN (with
 approved evidence-backed corrective addition: "2.5in" -> "2.5-inch").
@@ -2775,10 +2789,10 @@ Seagate Nytro 5050 demonstrates that deterministic static structured
 extraction is sufficient for the minimum real 6C vertical slice.
 Current evidence therefore does not justify an LLM extractor.
 
-7B is IMPLEMENTED / APPROVED / FROZEN. 7C is NOT STARTED.
+7B is IMPLEMENTED / APPROVED / FROZEN. 7C-A (results + codec) is IMPLEMENTED / APPROVED / FROZEN. 7C-B (execution orchestration) is IMPLEMENTED.
 6D (authoritative datasheet specification enrichment) is IMPLEMENTED / APPROVED / FROZEN and IS the candidate-specification enrichment that was the subject
-of the prior delivery-decision question. 7C remains NOT STARTED and is the
-next comparable-product delivery after 6D freeze.
+of the prior delivery-decision question. 7C (web presentation) is the
+next comparable-product delivery after the 7C-B execution orchestration.
 
 7B (similarity scoring) computes deterministic field-level similarity evidence
 between target and candidate specifications. VERIFIED-only scoring, 12-field
