@@ -2,13 +2,15 @@
 
 Pure display tests. Proves:
 - candidate order exactly preserved
-- no sorting by similarity
+- no sorting by similarity (with truly different values)
 - no top-N
 - all candidates retained
 - Decimal values remain string-exact
 - labels/units come from ENTERPRISE_SSD_SCHEMA
-- safe URL / unsafe URL behavior
+- safe URL / unsafe URL behavior (reuses authoritative helper)
 - no |safe / mark_safe
+- UNVERIFIED/VERIFIED/CONFLICT/UNKNOWN resolution state display
+- complete audit/evidence provenance rendering
 """
 
 from __future__ import annotations
@@ -32,6 +34,17 @@ def _make_evidence() -> tuple:
         source_url="https://example.com/support",
         evidence_layer=EvidenceLayer.SUPPORT_PAGE,
         source_authority=SourceAuthority.AUTHORITATIVE,
+        retrieved_at="2024-01-01T00:00:00+00:00",
+    ),)
+
+
+def _make_evidence_unverified() -> tuple:
+    """Create a minimal evidence reference for UNVERIFIED states."""
+    return (EvidenceSourceReference(
+        source_name="SecondarySource",
+        source_url="https://example.com/secondary",
+        evidence_layer=EvidenceLayer.SUPPORT_PAGE,
+        source_authority=SourceAuthority.SECONDARY,
         retrieved_at="2024-01-01T00:00:00+00:00",
     ),)
 
@@ -244,8 +257,16 @@ class TestBuildComparableResultPresentation:
         assert presentation.candidates[2].candidate_mpn == "CAND-MMM-M"
 
     def test_no_sorting_by_similarity(self) -> None:
-        """Presentation does not sort candidates by similarity."""
+        """Presentation does not sort candidates by similarity.
+
+        Uses candidates with deliberately different similarity values
+        to prove no sorting occurs regardless of score ordering.
+
+        Input order: A(low), B(high), C(medium)
+        Must remain: A, B, C (not sorted ascending or descending)
+        """
         from product_intelligence.research.comparable_research_results import (
+            ComparableCandidateResult,
             ComparableResearchResult,
             ComparableResultKind,
             AuthorityAttemptResult,
@@ -257,13 +278,85 @@ class TestBuildComparableResultPresentation:
         from product_intelligence.web.comparable_presentation import (
             build_comparable_result_presentation,
         )
+        from product_intelligence.research.enterprise_ssd import (
+            ENTERPRISE_SSD_SCHEMA,
+        )
+        from product_intelligence.research.enterprise_ssd_similarity import (
+            ComparisonState,
+        )
+        from product_intelligence.research.comparable_research_results import (
+            FieldAssessmentResult,
+        )
+        from product_intelligence.research.specifications import (
+            ResolutionState,
+        )
 
-        # Create candidates with same field pattern (BLOCKER FU5)
-        # but verify order is preserved regardless
+        total = len(ENTERPRISE_SSD_SCHEMA.definitions)
+
+        def _build_candidate_with_similarity(
+            mpn: str,
+            field_sim: Decimal,
+            scored_count: int,
+        ) -> ComparableCandidateResult:
+            """Build candidate with a specific field similarity."""
+            fas = []
+            for idx, key in enumerate(ENTERPRISE_SSD_SCHEMA.definitions.keys()):
+                if idx < scored_count:
+                    fas.append(
+                        FieldAssessmentResult(
+                            definition_key=key,
+                            comparison_state=ComparisonState.SCORED,
+                            target_resolution_state=ResolutionState.VERIFIED,
+                            candidate_resolution_state=ResolutionState.VERIFIED,
+                            field_similarity=field_sim,
+                            target_value="test",
+                            candidate_value="test",
+                            target_evidence=_make_evidence(),
+                            candidate_evidence=_make_evidence(),
+                        ),
+                    )
+                else:
+                    fas.append(
+                        FieldAssessmentResult(
+                            definition_key=key,
+                            comparison_state=ComparisonState.BOTH_NOT_VERIFIED,
+                            target_resolution_state=ResolutionState.UNKNOWN,
+                            candidate_resolution_state=ResolutionState.UNKNOWN,
+                            field_similarity=None,
+                            target_value=None,
+                            candidate_value=None,
+                            target_evidence=(),
+                            candidate_evidence=(),
+                        ),
+                    )
+            scored_sims = [field_sim] * scored_count
+            obs = sum(scored_sims, Decimal("0")) / Decimal(scored_count)
+            w = sum(scored_sims, Decimal("0")) / Decimal(total)
+            return ComparableCandidateResult(
+                candidate_mpn=mpn,
+                candidate_normalized_mpn=mpn.upper(),
+                scored_field_count=scored_count,
+                evidence_coverage=Decimal(scored_count) / Decimal(total),
+                observed_similarity=obs,
+                evidence_weighted_similarity=w,
+                field_assessments=tuple(fas),
+                enrichment_audit=ProductEnrichmentAudit(
+                    product_mpn=mpn,
+                    attempts=(
+                        DatasheetAttemptResult(
+                            outcome=DatasheetAuditOutcomeKind.NO_DATASHEET_SOURCE,
+                        ),
+                    ),
+                ),
+            )
+
+        # Three candidates with distinct similarity values
+        # Input order: low(0.25), high(0.95), medium(0.5)
+        # Must NOT be sorted to any similarity order
         candidates = (
-            _make_candidate("HIGHEST-Z", scored=7),
-            _make_candidate("MID-M", scored=7),
-            _make_candidate("LOWEST-A", scored=7),
+            _build_candidate_with_similarity("CAND-LOW-A", Decimal("0.25"), 1),
+            _build_candidate_with_similarity("CAND-HIGH-B", Decimal("0.95"), 1),
+            _build_candidate_with_similarity("CAND-MEDIUM-C", Decimal("0.50"), 1),
         )
 
         result = ComparableResearchResult(
@@ -293,9 +386,16 @@ class TestBuildComparableResultPresentation:
 
         presentation = build_comparable_result_presentation(result)
 
-        assert presentation.candidates[0].candidate_mpn == "HIGHEST-Z"
-        assert presentation.candidates[1].candidate_mpn == "MID-M"
-        assert presentation.candidates[2].candidate_mpn == "LOWEST-A"
+        # Output order must be exactly input order (A=low, B=high, C=medium)
+        assert len(presentation.candidates) == 3
+        assert presentation.candidates[0].candidate_mpn == "CAND-LOW-A"
+        assert presentation.candidates[1].candidate_mpn == "CAND-HIGH-B"
+        assert presentation.candidates[2].candidate_mpn == "CAND-MEDIUM-C"
+
+        # Verify the similarity values are truly different
+        assert presentation.candidates[0].observed_similarity == "0.25"
+        assert presentation.candidates[1].observed_similarity == "0.95"
+        assert presentation.candidates[2].observed_similarity == "0.50"
 
     def test_all_candidates_retained(self) -> None:
         """All candidates are retained, no top-N filtering."""
@@ -545,15 +645,6 @@ class TestBuildComparableResultPresentation:
             build_comparable_result_presentation,
         )
 
-        fa = _make_field_assessment(
-            "capacity",
-            "BOTH_NOT_VERIFIED",
-            "UNKNOWN",
-            "UNKNOWN",
-            None,
-            None,
-            None,
-        )
         candidates = (
             _make_candidate(
                 "UNKNOWN-FIELD",
@@ -608,6 +699,60 @@ class TestBuildComparableResultPresentation:
         assert field.target_value is None
         assert field.candidate_value is None
 
+    def test_unverified_value_preserved_and_marked(self) -> None:
+        """UNVERIFIED value remains visible and is marked as unverified.
+
+        BLOCKER 1: UNVERIFIED must not be silently converted to UNKNOWN.
+        The display object must carry the value AND the resolution state.
+        """
+        from product_intelligence.web.comparable_presentation import (
+            _build_field_display,
+        )
+
+        fa = _make_field_assessment(
+            "capacity",
+            "BOTH_NOT_VERIFIED",
+            "UNVERIFIED",
+            "UNVERIFIED",
+            None,
+            "15.36",
+            "3.84",
+            _make_evidence_unverified(),
+            _make_evidence_unverified(),
+        )
+        display = _build_field_display(fa)
+
+        # Value must be preserved (not discarded)
+        assert display.target_value == "15.36"
+        assert display.candidate_value == "3.84"
+        # Resolution state must show UNVERIFIED
+        assert display.target_resolution_state == "UNVERIFIED"
+        assert display.candidate_resolution_state == "UNVERIFIED"
+
+    def test_conflict_value_is_none(self) -> None:
+        """CONFLICT resolution state has value=None."""
+        from product_intelligence.web.comparable_presentation import (
+            _build_field_display,
+        )
+
+        fa = _make_field_assessment(
+            "capacity",
+            "BOTH_NOT_VERIFIED",
+            "CONFLICT",
+            "CONFLICT",
+            None,
+            None,
+            None,
+            _make_evidence(),
+            _make_evidence(),
+        )
+        display = _build_field_display(fa)
+
+        assert display.target_resolution_state == "CONFLICT"
+        assert display.candidate_resolution_state == "CONFLICT"
+        assert display.target_value is None
+        assert display.candidate_value is None
+
     def test_safe_url_is_href_safe(self) -> None:
         """Safe HTTP/HTTPS URLs get source_url_safe=True."""
         from product_intelligence.web.comparable_presentation import (
@@ -628,6 +773,22 @@ class TestBuildComparableResultPresentation:
         assert _is_safe_href_url("file:///etc/passwd") is False
         assert _is_safe_href_url("ftp://example.com") is False
         assert _is_safe_href_url("") is False
+
+    def test_url_safety_reuses_authoritative_helper(self) -> None:
+        """URL safety in comparable_presentation reuses the same function
+        from web/presentation.py, not a duplicate implementation.
+
+        BLOCKER 3A: No copied _is_safe_href_url.
+        """
+        from product_intelligence.web.comparable_presentation import (
+            _is_safe_href_url as comparable_safe,
+        )
+        from product_intelligence.web.presentation import (
+            _is_safe_href_url as presentation_safe,
+        )
+
+        # Must be the SAME function object, not just equivalent behavior
+        assert comparable_safe is presentation_safe
 
     def test_12_fields_preserve_canonical_order(self) -> None:
         """Field assessments preserve the canonical ENTERPRISE_SSD_SCHEMA order."""
@@ -682,9 +843,233 @@ class TestBuildComparableResultPresentation:
         canonical_keys = list(ENTERPRISE_SSD_SCHEMA.definitions.keys())
         assert field_keys == canonical_keys
 
+    def test_evidence_display_carries_all_provenance_fields(self) -> None:
+        """EvidenceReferenceDisplay carries source_name, source_url,
+        source_url_safe, source_authority, evidence_layer, retrieved_at.
+
+        BLOCKER 2: Complete evidence provenance.
+        """
+        from product_intelligence.web.comparable_presentation import (
+            _build_evidence_display,
+        )
+
+        ref = EvidenceSourceReference(
+            source_name="Seagate Support",
+            source_url="https://www.seagate.com/support/ssds/",
+            evidence_layer=EvidenceLayer.SUPPORT_PAGE,
+            source_authority=SourceAuthority.AUTHORITATIVE,
+            retrieved_at="2024-06-01T12:00:00+00:00",
+        )
+        display = _build_evidence_display(ref)
+
+        assert display.source_name == "Seagate Support"
+        assert display.source_url == "https://www.seagate.com/support/ssds/"
+        assert display.source_url_safe is True
+        assert display.source_authority == "AUTHORITATIVE"
+        assert display.evidence_layer == "SUPPORT_PAGE"
+        assert display.retrieved_at == "2024-06-01T12:00:00+00:00"
+
+    def test_evidence_display_unsafe_url_no_href(self) -> None:
+        """Unsafe evidence URL produces source_url_safe=False.
+
+        BLOCKER 2: unsafe URLs produce no href.
+        """
+        from product_intelligence.web.comparable_presentation import (
+            _build_evidence_display,
+        )
+
+        ref = EvidenceSourceReference(
+            source_name="JS Trap",
+            source_url="javascript:alert(1)",
+            evidence_layer=EvidenceLayer.SUPPORT_PAGE,
+            source_authority=SourceAuthority.SECONDARY,
+            retrieved_at="2024-06-01T12:00:00+00:00",
+        )
+        display = _build_evidence_display(ref)
+
+        assert display.source_url_safe is False
+        assert display.source_url == "javascript:alert(1)"
+
+    def test_authority_attempt_display_complete(self) -> None:
+        """AuthorityAttemptDisplay carries all audit fields.
+
+        BLOCKER 2: Complete authority provenance.
+        """
+        from product_intelligence.research.comparable_research_results import (
+            AuthorityAttemptResult,
+            AuthorityAuditOutcomeKind,
+        )
+        from product_intelligence.web.comparable_presentation import (
+            _build_authority_attempt_display,
+        )
+
+        attempt = AuthorityAttemptResult(
+            policy_id="pre1-authority",
+            outcome=AuthorityAuditOutcomeKind.MATCHED,
+            requested_source_url="https://example.com/support",
+            fetched_final_url="https://example.com/support/final",
+            retrieved_at="2024-06-01T12:00:00+00:00",
+            matching_mpn="XP15360SE70005",
+        )
+        display = _build_authority_attempt_display(attempt)
+
+        assert display.policy_id == "pre1-authority"
+        assert display.outcome == "MATCHED"
+        assert display.requested_source_url == "https://example.com/support"
+        assert display.requested_source_url_safe is True
+        assert display.fetched_final_url == "https://example.com/support/final"
+        assert display.fetched_final_url_safe is True
+        assert display.retrieved_at == "2024-06-01T12:00:00+00:00"
+        assert display.matching_mpn == "XP15360SE70005"
+
+    def test_datasheet_attempt_display_complete(self) -> None:
+        """DatasheetAttemptDisplay carries all provenance fields.
+
+        BLOCKER 2: Complete datasheet provenance.
+        """
+        from product_intelligence.research.comparable_research_results import (
+            DatasheetAttemptResult,
+            DatasheetAuditOutcomeKind,
+        )
+        from product_intelligence.web.comparable_presentation import (
+            _build_datasheet_attempt_display,
+        )
+
+        attempt = DatasheetAttemptResult(
+            outcome=DatasheetAuditOutcomeKind.ENRICHED,
+            source_name="Nytro Datasheet",
+            source_url="https://example.com/datasheet.pdf",
+            final_url="https://example.com/datasheet-final.pdf",
+            retrieved_at="2024-06-01T12:00:00+00:00",
+            observation_count=6,
+        )
+        display = _build_datasheet_attempt_display(attempt)
+
+        assert display.outcome == "ENRICHED"
+        assert display.source_name == "Nytro Datasheet"
+        assert display.source_url == "https://example.com/datasheet.pdf"
+        assert display.source_url_safe is True
+        assert display.final_url == "https://example.com/datasheet-final.pdf"
+        assert display.final_url_safe is True
+        assert display.retrieved_at == "2024-06-01T12:00:00+00:00"
+        assert display.observation_count == 6
+
+    def test_support_page_evidence_provenance(self) -> None:
+        """SUPPORT_PAGE evidence layer is preserved in display."""
+        from product_intelligence.web.comparable_presentation import (
+            _build_evidence_display,
+        )
+
+        ref = EvidenceSourceReference(
+            source_name="Support",
+            source_url="https://example.com/support",
+            evidence_layer=EvidenceLayer.SUPPORT_PAGE,
+            source_authority=SourceAuthority.AUTHORITATIVE,
+            retrieved_at="2024-06-01T12:00:00+00:00",
+        )
+        display = _build_evidence_display(ref)
+        assert display.evidence_layer == "SUPPORT_PAGE"
+
+    def test_datasheet_pdf_evidence_provenance(self) -> None:
+        """DATASHEET_PDF evidence layer is preserved in display."""
+        from product_intelligence.web.comparable_presentation import (
+            _build_evidence_display,
+        )
+
+        ref = EvidenceSourceReference(
+            source_name="Datasheet",
+            source_url="https://example.com/datasheet.pdf",
+            evidence_layer=EvidenceLayer.DATASHEET_PDF,
+            source_authority=SourceAuthority.AUTHORITATIVE,
+            retrieved_at="2024-06-01T12:00:00+00:00",
+        )
+        display = _build_evidence_display(ref)
+        assert display.evidence_layer == "DATASHEET_PDF"
+
+    def test_comparable_presentation_imports_no_runs(self) -> None:
+        """comparable_presentation must not import runs."""
+        import ast
+        from pathlib import Path
+
+        module_path = Path(__file__).resolve().parents[2] / "product_intelligence" / "web" / "comparable_presentation.py"
+        tree = ast.parse(module_path.read_text(encoding="utf-8"))
+
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.module:
+                assert not node.module.startswith("product_intelligence.runs"), (
+                    f"comparable_presentation imports {node.module}; "
+                    "must not import runs."
+                )
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    assert not alias.name.startswith("product_intelligence.runs"), (
+                        f"comparable_presentation imports {alias.name}; "
+                        "must not import runs."
+                    )
+
+    def test_comparable_presentation_imports_no_execution(self) -> None:
+        """comparable_presentation must not import execution."""
+        import ast
+        from pathlib import Path
+
+        module_path = Path(__file__).resolve().parents[2] / "product_intelligence" / "web" / "comparable_presentation.py"
+        tree = ast.parse(module_path.read_text(encoding="utf-8"))
+
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.module:
+                assert not node.module.startswith("product_intelligence.execution"), (
+                    f"comparable_presentation imports {node.module}; "
+                    "must not import execution."
+                )
+
+    def test_comparable_presentation_imports_no_providers(self) -> None:
+        """comparable_presentation must not import providers."""
+        import ast
+        from pathlib import Path
+
+        module_path = Path(__file__).resolve().parents[2] / "product_intelligence" / "web" / "comparable_presentation.py"
+        tree = ast.parse(module_path.read_text(encoding="utf-8"))
+
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.module:
+                assert not node.module.startswith("product_intelligence.providers"), (
+                    f"comparable_presentation imports {node.module}; "
+                    "must not import providers."
+                )
+
+    def test_comparable_presentation_does_not_import_compare_part_numbers(self) -> None:
+        """comparable_presentation must not import compare_part_numbers after
+        binding validation is moved to views.py.
+
+        BLOCKER 3B: comparable_presentation is display-only.
+        """
+        import ast
+        from pathlib import Path
+
+        module_path = Path(__file__).resolve().parents[2] / "product_intelligence" / "web" / "comparable_presentation.py"
+        tree = ast.parse(module_path.read_text(encoding="utf-8"))
+
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.module:
+                if "identity" in node.module:
+                    imported = {alias.name for alias in node.names}
+                    assert "compare_part_numbers" not in imported, (
+                        "comparable_presentation must not import compare_part_numbers."
+                    )
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    assert "compare_part_numbers" not in alias.name, (
+                        "comparable_presentation must not import compare_part_numbers."
+                    )
+
 
 class TestParentResultBinding:
-    """Tests for validate_result_parent_binding."""
+    """Tests for validate_result_parent_binding (now in views.py).
+
+    BLOCKER 3B: Binding validation moved out of comparable_presentation.py
+    into views.py as _validate_comparable_result_parent_binding.
+    Test node names preserved (TestParentResultBinding), import target updated.
+    """
 
     def test_exact_mpn_match(self) -> None:
         """EXACT match is accepted."""
@@ -697,8 +1082,8 @@ class TestParentResultBinding:
             DatasheetAttemptResult,
             DatasheetAuditOutcomeKind,
         )
-        from product_intelligence.web.comparable_presentation import (
-            validate_result_parent_binding,
+        from product_intelligence.web.views import (
+            _validate_comparable_result_parent_binding,
         )
 
         result = ComparableResearchResult(
@@ -726,7 +1111,7 @@ class TestParentResultBinding:
             candidates=(),
         )
 
-        assert validate_result_parent_binding(result, "XP15360SE70005") is True
+        assert _validate_comparable_result_parent_binding(result, "XP15360SE70005") is True
 
     def test_normalized_exact_match(self) -> None:
         """NORMALIZED_EXACT match is accepted."""
@@ -739,8 +1124,8 @@ class TestParentResultBinding:
             DatasheetAttemptResult,
             DatasheetAuditOutcomeKind,
         )
-        from product_intelligence.web.comparable_presentation import (
-            validate_result_parent_binding,
+        from product_intelligence.web.views import (
+            _validate_comparable_result_parent_binding,
         )
 
         result = ComparableResearchResult(
@@ -769,7 +1154,7 @@ class TestParentResultBinding:
         )
 
         # Whitespace-different but normalized-exact
-        assert validate_result_parent_binding(result, "XP15360SE70005 ") is True
+        assert _validate_comparable_result_parent_binding(result, "XP15360SE70005 ") is True
 
     def test_mpn_mismatch_rejected(self) -> None:
         """Different MPNs are rejected."""
@@ -782,8 +1167,8 @@ class TestParentResultBinding:
             DatasheetAttemptResult,
             DatasheetAuditOutcomeKind,
         )
-        from product_intelligence.web.comparable_presentation import (
-            validate_result_parent_binding,
+        from product_intelligence.web.views import (
+            _validate_comparable_result_parent_binding,
         )
 
         result = ComparableResearchResult(
@@ -811,7 +1196,7 @@ class TestParentResultBinding:
             candidates=(),
         )
 
-        assert validate_result_parent_binding(result, "XP3840SE70005") is False
+        assert _validate_comparable_result_parent_binding(result, "XP3840SE70005") is False
 
     def test_no_requested_mpn_both_empty(self) -> None:
         """NO_REQUESTED_MPN with both empty is accepted."""
@@ -821,8 +1206,8 @@ class TestParentResultBinding:
             AuthorityAttemptResult,
             AuthorityAuditOutcomeKind,
         )
-        from product_intelligence.web.comparable_presentation import (
-            validate_result_parent_binding,
+        from product_intelligence.web.views import (
+            _validate_comparable_result_parent_binding,
         )
 
         result = ComparableResearchResult(
@@ -840,7 +1225,7 @@ class TestParentResultBinding:
             candidates=(),
         )
 
-        assert validate_result_parent_binding(result, "") is True
+        assert _validate_comparable_result_parent_binding(result, "") is True
 
     def test_no_requested_mpn_nonempty_parent_rejected(self) -> None:
         """NO_REQUESTED_MPN with non-empty parent is rejected."""
@@ -850,8 +1235,8 @@ class TestParentResultBinding:
             AuthorityAttemptResult,
             AuthorityAuditOutcomeKind,
         )
-        from product_intelligence.web.comparable_presentation import (
-            validate_result_parent_binding,
+        from product_intelligence.web.views import (
+            _validate_comparable_result_parent_binding,
         )
 
         result = ComparableResearchResult(
@@ -869,4 +1254,4 @@ class TestParentResultBinding:
             candidates=(),
         )
 
-        assert validate_result_parent_binding(result, "SOMEMPAN") is False
+        assert _validate_comparable_result_parent_binding(result, "SOMEMPAN") is False

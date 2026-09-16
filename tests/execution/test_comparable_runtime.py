@@ -2,12 +2,14 @@
 
 Proves the adapter creates/passes the two concrete providers and delegates once.
 No live network test.
+
+BLOCKER 7: Strengthened to prove exact construction counts and exact delegation.
 """
 
 from __future__ import annotations
 
 from decimal import Decimal
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, call
 
 import pytest
 
@@ -22,40 +24,13 @@ class TestExecuteComparableResearchWithDefaultProviders:
         )
         assert callable(execute_comparable_research_with_default_providers)
 
-    def test_constructs_http_page_fetcher(self) -> None:
-        """HttpPageFetcher is constructed once."""
-        from product_intelligence.execution import (
-            execute_comparable_research_with_default_providers,
-        )
+    def test_constructs_and_passes_providers_exactly_once(self) -> None:
+        """HttpPageFetcher constructed exactly once, HttpPdfFetcher constructed
+        exactly once, execute_comparable_research called exactly once with those
+        exact two objects.
 
-        mock_result = MagicMock()
-        mock_page_fetcher = MagicMock()
-        mock_pdf_fetcher = MagicMock()
-
-        call_args: list[list] = []
-
-        def _capture(child_id, *, page_fetcher, document_fetcher):
-            call_args.append([child_id, page_fetcher, document_fetcher])
-
-        with patch(
-            "product_intelligence.providers.http_page.HttpPageFetcher",
-            return_value=mock_page_fetcher,
-        ), patch(
-            "product_intelligence.providers.http_pdf.HttpPdfFetcher",
-            return_value=mock_pdf_fetcher,
-        ), patch(
-            "product_intelligence.execution.comparable_research."
-            "execute_comparable_research",
-            side_effect=_capture,
-        ):
-            execute_comparable_research_with_default_providers("test-child-id")
-
-        assert len(call_args) == 1
-        assert call_args[0][0] == "test-child-id"
-        assert mock_page_fetcher is call_args[0][1]
-
-    def test_constructs_http_pdf_fetcher(self) -> None:
-        """HttpPdfFetcher is constructed once."""
+        BLOCKER 7: Strengthened combined construction proof.
+        """
         from product_intelligence.execution import (
             execute_comparable_research_with_default_providers,
         )
@@ -63,26 +38,40 @@ class TestExecuteComparableResearchWithDefaultProviders:
         mock_page_fetcher = MagicMock()
         mock_pdf_fetcher = MagicMock()
 
-        call_args: list[list] = []
+        call_records: list[dict] = []
 
         def _capture(child_id, *, page_fetcher, document_fetcher):
-            call_args.append([child_id, page_fetcher, document_fetcher])
+            call_records.append({
+                "child_id": child_id,
+                "page_fetcher": page_fetcher,
+                "document_fetcher": document_fetcher,
+            })
 
         with patch(
             "product_intelligence.providers.http_page.HttpPageFetcher",
             return_value=mock_page_fetcher,
-        ), patch(
+        ) as mock_page_cls, patch(
             "product_intelligence.providers.http_pdf.HttpPdfFetcher",
             return_value=mock_pdf_fetcher,
-        ), patch(
+        ) as mock_pdf_cls, patch(
             "product_intelligence.execution.comparable_research."
             "execute_comparable_research",
             side_effect=_capture,
-        ):
+        ) as mock_exec:
             execute_comparable_research_with_default_providers("test-child-id")
 
-        assert len(call_args) == 1
-        assert mock_pdf_fetcher is call_args[0][2]
+        # HttpPageFetcher constructed exactly once
+        mock_page_cls.assert_called_once()
+        # HttpPdfFetcher constructed exactly once
+        mock_pdf_cls.assert_called_once()
+        # execute_comparable_research called exactly once
+        mock_exec.assert_called_once()
+
+        # The exact same objects were passed
+        assert len(call_records) == 1
+        assert call_records[0]["child_id"] == "test-child-id"
+        assert call_records[0]["page_fetcher"] is mock_page_fetcher
+        assert call_records[0]["document_fetcher"] is mock_pdf_fetcher
 
     def test_delegates_once_to_frozen_operation(self) -> None:
         """Frozen execute_comparable_research is called exactly once."""

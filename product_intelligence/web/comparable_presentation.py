@@ -15,7 +15,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
-from urllib.parse import urlsplit
 
 if TYPE_CHECKING:
     from product_intelligence.research.comparable_research_results import (
@@ -29,33 +28,9 @@ if TYPE_CHECKING:
         ComparableResultKind,
     )
 
-# ---------------------------------------------------------------------------
-# URL safety (same rule as web/presentation.py)
-# ---------------------------------------------------------------------------
-
-
-def _is_safe_href_url(url: str) -> bool:
-    """Return True if ``url`` is safe to use as an ``href`` value.
-
-    Requires absolute http/https with hostname, no HTML-breaking characters,
-    no embedded credentials. Rejects javascript:, data:, file:, relative URLs.
-    """
-    if not url:
-        return False
-    for bad in ('"', "'", "<", ">", "\n", "\r", "\t"):
-        if bad in url:
-            return False
-    try:
-        parsed = urlsplit(url)
-    except ValueError:
-        return False
-    if parsed.scheme.lower() not in ("http", "https"):
-        return False
-    if not parsed.hostname:
-        return False
-    if parsed.username is not None or parsed.password is not None:
-        return False
-    return True
+# Reuse the authoritative URL safety helper from the existing presentation
+# module — never duplicate it.
+from .presentation import _is_safe_href_url
 
 
 # ---------------------------------------------------------------------------
@@ -382,52 +357,4 @@ def build_comparable_result_presentation(
     )
 
 
-# ---------------------------------------------------------------------------
-# Parent / result binding validation
-# ---------------------------------------------------------------------------
 
-
-def validate_result_parent_binding(
-    result: Any,
-    parent_mpn: str,
-) -> bool:
-    """Validate that a decoded result is bound to the correct parent ResearchRun.
-
-    Uses the frozen 2A part-number comparison primitive. Accepts only
-    EXACT or NORMALIZED_EXACT matches (or empty MPN for NO_REQUESTED_MPN).
-
-    Parameters
-    ----------
-    result
-        A decoded ``ComparableResearchResult``.
-    parent_mpn
-        The parent ResearchRun's ``manufacturer_part_number``.
-
-    Returns
-    -------
-    bool
-        True if the result is validly bound to the parent.
-    """
-    from product_intelligence.domain.enums import ESTABLISHED_MATCH_TYPES
-    from product_intelligence.research.comparable_research_results import (
-        ComparableResultKind,
-    )
-    from product_intelligence.research.identity import compare_part_numbers
-
-    # NO_REQUESTED_MPN: both must be empty
-    if result.kind is ComparableResultKind.NO_REQUESTED_MPN:
-        return (
-            not parent_mpn.strip() and not result.target_mpn.strip()
-        )
-
-    # For all other kinds, compare via frozen 2A primitive
-    if not parent_mpn.strip() or not result.target_mpn.strip():
-        return False
-
-    comparison = compare_part_numbers(parent_mpn, result.target_mpn)
-
-    # Accept only EXACT or NORMALIZED_EXACT
-    if comparison.match_type not in ESTABLISHED_MATCH_TYPES:
-        return False
-
-    return True

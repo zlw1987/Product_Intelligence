@@ -493,3 +493,117 @@ from product_intelligence.runs import (
 )
 """
     assert _runs_import_violation(source) is None
+
+
+# ---------------------------------------------------------------------------
+# BLOCKER 3B: comparable_presentation display-only boundary
+# ---------------------------------------------------------------------------
+
+
+def _comparable_presentation_path() -> Path:
+    return WEB_ROOT / "comparable_presentation.py"
+
+
+def test_comparable_presentation_imports_no_runs() -> None:
+    """comparable_presentation.py must not import runs."""
+    source = _comparable_presentation_path().read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module:
+            assert not node.module.startswith("product_intelligence.runs"), (
+                f"comparable_presentation imports {node.module}; must not import runs."
+            )
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                assert not alias.name.startswith("product_intelligence.runs"), (
+                    f"comparable_presentation imports {alias.name}; must not import runs."
+                )
+
+
+def test_comparable_presentation_imports_no_execution() -> None:
+    """comparable_presentation.py must not import execution."""
+    source = _comparable_presentation_path().read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module:
+            assert not node.module.startswith("product_intelligence.execution"), (
+                f"comparable_presentation imports {node.module}; must not import execution."
+            )
+
+
+def test_comparable_presentation_imports_no_providers() -> None:
+    """comparable_presentation.py must not import providers."""
+    source = _comparable_presentation_path().read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module:
+            assert not node.module.startswith("product_intelligence.providers"), (
+                f"comparable_presentation imports {node.module}; must not import providers."
+            )
+
+
+def test_comparable_presentation_imports_no_django_orm() -> None:
+    """comparable_presentation.py must not import Django ORM modules."""
+    source = _comparable_presentation_path().read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    forbidden_modules = {
+        "django.db",
+        "django.db.models",
+        "django.contrib",
+    }
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module:
+            for forbidden in forbidden_modules:
+                assert not node.module.startswith(forbidden), (
+                    f"comparable_presentation imports {node.module}; must not import Django ORM."
+                )
+
+
+def test_comparable_presentation_does_not_import_compare_part_numbers() -> None:
+    """comparable_presentation.py must not import or call compare_part_numbers.
+
+    After BLOCKER 3B, binding validation moved to views.py.
+    comparable_presentation is display-only.
+    """
+    source = _comparable_presentation_path().read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module:
+            if "identity" in node.module:
+                imported = {alias.name for alias in node.names}
+                assert "compare_part_numbers" not in imported, (
+                    "comparable_presentation must not import compare_part_numbers."
+                )
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                assert "compare_part_numbers" not in alias.name
+
+
+def test_views_may_import_compare_part_numbers() -> None:
+    """views.py is the approved consumer of compare_part_numbers for
+    the narrow 7C-C read-side parent/result binding validation exception.
+
+    The ONE narrow exception: product_intelligence.research.identity
+    compare_part_numbers is allowed solely for persisted comparable-result
+    / parent binding validation in views.py.
+    """
+    views_path = WEB_ROOT / "views.py"
+    source = views_path.read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    # Verify views.py actually uses compare_part_numbers
+    found_identity_import = False
+    found_compare_import = False
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module:
+            if node.module == "product_intelligence.research.identity":
+                found_identity_import = True
+                imported = {alias.name for alias in node.names}
+                if "compare_part_numbers" in imported:
+                    found_compare_import = True
+    assert found_identity_import, (
+        "views.py should import from product_intelligence.research.identity "
+        "for the narrow 7C-C binding validation exception."
+    )
+    assert found_compare_import, (
+        "views.py should import compare_part_numbers for parent/result binding."
+    )

@@ -132,7 +132,7 @@ FU3B wires the frozen FU3A semantic runtime into real research execution:
 | 6D | Authoritative Datasheet Specification Enrichment | Implemented (approved / frozen)
 | 7A | Comparable-Product Candidate Discovery | Implemented (frozen)
 | 7B | Enterprise SSD Similarity Scoring | Implemented (approved / frozen)
-| 7C | Comparable-Product Presentation | IN PROGRESS — 7C-A FROZEN; 7C-B FROZEN; 7C-C IMPLEMENTED / PENDING CHATGPT REVIEW; web NOT IMPLEMENTED
+| 7C | Comparable-Product Presentation | IMPLEMENTED / PENDING CHATGPT REVIEW — 7C-A FROZEN; 7C-B FROZEN; 7C-C IMPLEMENTED / PENDING CHATGPT REVIEW
 | SAP | SAP launcher integration | Future |
 
 
@@ -215,25 +215,52 @@ Implementation snapshot:
 The web layer may import only the public execution API and the approved read-side research symbols:
 
 ```
-web  ->  product_intelligence.execution  (execute_research_run, ExecutionError)
+web  ->  product_intelligence.execution  (execute_research_run, ExecutionError,
+         ComparableResearchExecutionError, execute_comparable_research_with_default_providers)
 web  ->  product_intelligence.runs  (ClaimExecutionFailed, retry_run, ResearchRun,
-         confirm_candidate, reject_candidate, undo_review, review errors)
+         confirm_candidate, reject_candidate, undo_review, review errors,
+         trigger_comparable_research, ComparableResearchTriggerError,
+         ComparableResearchClaimError)
 web  ->  product_intelligence.research.price_result_codec
          (PriceResultCodecError, decode_price_aggregation_result)
 web  ->  product_intelligence.research.aggregation
          (PriceAggregationResult, aggregate_reviewed_listing_prices)
 web  ->  product_intelligence.research.matching
          (ListingIdentityAssessment, is_human_review_eligible_assessment)
+web  ->  product_intelligence.research.comparable_result_codec
+         (ComparableResultCodecError, decode_comparable_result)          # 7C-C
+web  ->  product_intelligence.research.comparable_research_results
+         (ComparableResultKind, AuthorityAttemptResult, ComparableCandidateResult,
+          ComparableResearchResult, DatasheetAttemptResult,
+          EvidenceSourceReference, FieldAssessmentResult, ProductEnrichmentAudit)  # 7C-C
+web  ->  product_intelligence.research.enterprise_ssd
+         (ENTERPRISE_SSD_SCHEMA)                                          # 7C-C
 web  ->  product_intelligence.runs.models
-         (ResearchRun, PriceIntelligenceSnapshot, AiAssistedReviewCandidate)
+         (ResearchRun, PriceIntelligenceSnapshot, AiAssistedReviewCandidate,
+          ComparableResearchExecution, ComparableResearchState)            # 7C-C
 ```
+
+**Narrow 7C-C read-side exception:**
+
+The general prohibition on `product_intelligence.research.identity` remains.
+However, the ONE narrow exception is:
+
+```
+views.py  ->  product_intelligence.research.identity  (compare_part_numbers)
+```
+
+This is allowed **solely** for persisted comparable-result / parent binding
+validation in `views._validate_comparable_result_parent_binding()`. It is
+the frozen 2A part-number comparison primitive used read-side only.
+`comparable_presentation.py` (pure display) must NOT import this symbol.
 
 The web layer MUST NOT import:
 - `product_intelligence.execution.orchestration` (or any execution submodule)
 - `product_intelligence.execution` (bare module import)
 - `product_intelligence.providers` (or any provider submodule)
 - `product_intelligence.runs.execution_claims` (internal)
-- `product_intelligence.research.identity` (research decision primitive)
+- `product_intelligence.research.identity` (research decision primitive,
+  except the ONE narrow views.py exception documented above)
 - Any unapproved symbol from approved research modules
 
 Web writes review state through the runs-owned review service
@@ -241,6 +268,11 @@ Web writes review state through the runs-owned review service
 composition and binding validation as enforced by boundary tests.
 Web must not bypass providers, must not own execution internals,
 and must not carry research semantics.
+
+`comparable_presentation.py` is DISPLAY-ONLY: it reuses the authoritative
+URL safety helper from `presentation._is_safe_href_url` (no duplication),
+imports only research contracts/schema for presentation, and contains no
+runs, execution, providers, Django ORM, or research decision primitives.
 
 ## FoxPro ownership
 
@@ -698,16 +730,33 @@ delivery.
         Web trigger route POST /research/<uuid>/comparables (research-comparables);
         default-provider adapter execute_comparable_research_with_default_providers();
         pure presentation module comparable_presentation.py (DISPLAY ONLY);
-        extended research_detail.html with comparable section;
+        comparable section AFTER existing review content in template;
         child selection: active (PENDING/RUNNING) > COMPLETED > FAILED (deterministic);
-        result decode via frozen V1 codec + parent binding via frozen 2A comparison;
+        result decode via frozen V1 codec + parent binding via frozen 2A comparison
+        (binding validation in views._validate_comparable_result_parent_binding(),
+        NOT in display-only comparable_presentation);
         candidate order exactly preserved (no ranking/sorting); ALL retained;
         Decimal values string-exact; labels/units from ENTERPRISE_SSD_SCHEMA;
-        safe URL / autoescape rules; no |safe / mark_safe;
+        UNVERIFIED values visibly marked "Unverified — <value>";
+        VERIFIED/CONFLICT/UNKNOWN resolution states branch correctly;
+        complete AuthorityAttemptDisplay provenance (policy_id, outcome,
+        requested_source_url, fetched_final_url, retrieved_at, matching_mpn);
+        complete DatasheetAttemptDisplay provenance (outcome, source_name,
+        source_url, final_url, retrieved_at, observation_count);
+        complete EvidenceSourceReference provenance (source_name, source_url,
+        evidence_layer, source_authority, retrieved_at);
+        URL safety: reuses authoritative presentation._is_safe_href_url
+        (no duplication in comparable_presentation);
+        unsafe URLs: escaped text with no href;
         GET research_detail read-only: no trigger/executor/provider calls;
+        CSRF: POST enforced with Django CSRF middleware;
         boundary tests updated for new research/execution/runs imports;
-        new test count: 43 (8 runtime + 16 presentation + 19 report);
-        collection delta: 3762 -> 3812 (+50 including parameterization expansion);
+        boundary: comparable_presentation imports no runs/execution/providers/Django;
+        views.py may import only compare_part_numbers (narrow 7C-C exception);
+        new test count: 38 (7 runtime + 29 presentation + 39 report + 6 boundary = 81
+        total test nodes in FU scope; 38 net new after accounting for strengthened
+        existing nodes and removed duplicates);
+        collection delta: 3812 -> 3850 (+38);
 
 **6D**: IMPLEMENTED / APPROVED / FROZEN —
         Authoritative Datasheet Specification Enrichment;

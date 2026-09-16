@@ -2747,7 +2747,7 @@ NOT IMPLEMENTED:
 **7B IMPLEMENTED / APPROVED / FROZEN.**
 **7C-A IMPLEMENTED AND FROZEN.**
 **7C-B IMPLEMENTED / PENDING CHATGPT REVIEW.**
-**7C web presentation NOT IMPLEMENTED.**
+**7C-C IMPLEMENTED / PENDING CHATGPT REVIEW (web trigger + presentation).**
 
 6A is IMPLEMENTED AND FROZEN. 6B is IMPLEMENTED AND FROZEN (with
 approved evidence-backed corrective addition: "2.5in" -> "2.5-inch").

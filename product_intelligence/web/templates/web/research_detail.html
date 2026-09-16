@@ -419,345 +419,6 @@
   </p>
 {% endif %}
 
-<h2>Comparable products</h2>
-
-{% if comparable_child %}
-  {# Child exists #}
-  {% if comparable_child.state == "PENDING" %}
-    <p class="notice">
-      Comparable research is queued.
-    </p>
-
-  {% elif comparable_child.state == "RUNNING" %}
-    <p class="notice">
-      Comparable research is currently running.
-    </p>
-
-  {% elif comparable_child.state == "FAILED" %}
-    <p class="notice">
-      Comparable research did not complete successfully.
-      No comparable result was published.
-    </p>
-    {% if comparable_child.failure_reason %}
-      <p><strong>Failure reason:</strong> <code>{{ comparable_child.failure_reason }}</code></p>
-    {% endif %}
-    <form method="post" action="{% url 'research-comparables' run_id=run.id %}">
-      {% csrf_token %}
-      <button type="submit">Retry Comparable Research</button>
-    </form>
-
-  {% elif comparable_child.state == "COMPLETED" %}
-    {# COMPLETED child #}
-    {% if comparable_decode_error %}
-      <p class="notice">
-        Stored comparable result unavailable. {{ comparable_decode_error }}
-      </p>
-
-    {% elif comparable_binding_error %}
-      <p class="notice">
-        Stored comparable result unavailable.
-      </p>
-
-    {% elif comparable_presentation %}
-      {# Render the comparable result #}
-      {% if comparable_presentation.kind == "NO_REQUESTED_MPN" %}
-        <p class="notice">
-          Comparable research could not establish a target because no MPN was supplied.
-        </p>
-
-      {% elif comparable_presentation.kind == "NO_AUTHORITY_MATCH" %}
-        <p class="notice">
-          The manufacturer authority source did not establish the requested MPN.
-        </p>
-        {% if comparable_presentation.authority_audit %}
-          <h3>Authority audit</h3>
-          {% for attempt in comparable_presentation.authority_audit %}
-            <div class="evidence-entry">
-              <dl>
-                <dt>Policy</dt>
-                <dd>{{ attempt.policy_id }}</dd>
-                <dt>Outcome</dt>
-                <dd>{{ attempt.outcome }}</dd>
-                {% if attempt.requested_source_url %}
-                  <dt>Source URL</dt>
-                  <dd>
-                    {% if attempt.requested_source_url_safe %}
-                      <a href="{{ attempt.requested_source_url }}">{{ attempt.requested_source_url }}</a>
-                    {% else %}
-                      {{ attempt.requested_source_url }}
-                    {% endif %}
-                  </dd>
-                {% endif %}
-              </dl>
-            </div>
-          {% endfor %}
-        {% endif %}
-
-      {% elif comparable_presentation.kind == "AMBIGUOUS_AUTHORITY" %}
-        <p class="notice">
-          The manufacturer authority source produced an ambiguous target match.
-        </p>
-        {% if comparable_presentation.authority_audit %}
-          <h3>Authority audit</h3>
-          {% for attempt in comparable_presentation.authority_audit %}
-            <div class="evidence-entry">
-              <dl>
-                <dt>Policy</dt>
-                <dd>{{ attempt.policy_id }}</dd>
-                <dt>Outcome</dt>
-                <dd>{{ attempt.outcome }}</dd>
-                {% if attempt.requested_source_url %}
-                  <dt>Source URL</dt>
-                  <dd>
-                    {% if attempt.requested_source_url_safe %}
-                      <a href="{{ attempt.requested_source_url }}">{{ attempt.requested_source_url }}</a>
-                    {% else %}
-                      {{ attempt.requested_source_url }}
-                    {% endif %}
-                  </dd>
-                {% endif %}
-              </dl>
-            </div>
-          {% endfor %}
-        {% endif %}
-
-      {% elif comparable_presentation.kind == "FULL" %}
-        {# FULL result — target + candidates #}
-        <dl>
-          {% if comparable_presentation.target_manufacturer %}
-            <dt>Target manufacturer</dt>
-            <dd>{{ comparable_presentation.target_manufacturer }}</dd>
-          {% endif %}
-          <dt>Target MPN</dt>
-          <dd>{{ comparable_presentation.target_mpn }}</dd>
-        </dl>
-
-        {% if comparable_presentation.authority_audit %}
-          <h3>Authority audit</h3>
-          {% for attempt in comparable_presentation.authority_audit %}
-            <div class="evidence-entry">
-              <dl>
-                <dt>Policy</dt>
-                <dd>{{ attempt.policy_id }}</dd>
-                <dt>Outcome</dt>
-                <dd>{{ attempt.outcome }}</dd>
-                {% if attempt.requested_source_url %}
-                  <dt>Source URL</dt>
-                  <dd>
-                    {% if attempt.requested_source_url_safe %}
-                      <a href="{{ attempt.requested_source_url }}">{{ attempt.requested_source_url }}</a>
-                    {% else %}
-                      {{ attempt.requested_source_url }}
-                    {% endif %}
-                  </dd>
-                {% endif %}
-                {% if attempt.matching_mpn %}
-                  <dt>Matching MPN</dt>
-                  <dd>{{ attempt.matching_mpn }}</dd>
-                {% endif %}
-              </dl>
-            </div>
-          {% endfor %}
-        {% endif %}
-
-        {% if comparable_presentation.target_enrichment_audit %}
-          <h3>Target enrichment audit</h3>
-          <div class="evidence-entry">
-            <dl>
-              <dt>Product MPN</dt>
-              <dd>{{ comparable_presentation.target_enrichment_audit.product_mpn }}</dd>
-            </dl>
-            {% for attempt in comparable_presentation.target_enrichment_audit.attempts %}
-              <dl>
-                <dt>Enrichment outcome</dt>
-                <dd>{{ attempt.outcome }}</dd>
-                {% if attempt.source_name %}
-                  <dt>Source</dt>
-                  <dd>{{ attempt.source_name }}</dd>
-                {% endif %}
-                {% if attempt.final_url %}
-                  <dt>Datasheet URL</dt>
-                  <dd>
-                    {% if attempt.final_url_safe %}
-                      <a href="{{ attempt.final_url }}">{{ attempt.final_url }}</a>
-                    {% else %}
-                      {{ attempt.final_url }}
-                    {% endif %}
-                  </dd>
-                {% endif %}
-                {% if attempt.observation_count is not None %}
-                  <dt>Observations</dt>
-                  <dd>{{ attempt.observation_count }}</dd>
-                {% endif %}
-              </dl>
-            {% endfor %}
-          </div>
-        {% endif %}
-
-        {% if not comparable_presentation.candidates %}
-          <p class="notice">
-            No comparable candidates were discovered.
-          </p>
-        {% endif %}
-
-        {% for candidate in comparable_presentation.candidates %}
-          <details class="comparable-candidate">
-            <summary>
-              <strong>{{ candidate.candidate_mpn }}</strong>
-              &mdash;
-              Scored fields: {{ candidate.scored_field_count }} / {{ candidate.total_field_count }}
-              | Evidence coverage: {{ candidate.evidence_coverage }}
-              | Observed similarity: {{ candidate.observed_similarity|default:"N/A" }}
-              | Evidence-weighted similarity: {{ candidate.evidence_weighted_similarity|default:"N/A" }}
-            </summary>
-
-            <dl>
-              <dt>Candidate MPN</dt>
-              <dd>{{ candidate.candidate_mpn }}</dd>
-              <dt>Normalized MPN</dt>
-              <dd>{{ candidate.candidate_normalized_mpn }}</dd>
-              <dt>Scored fields</dt>
-              <dd>{{ candidate.scored_field_count }} / {{ candidate.total_field_count }}</dd>
-              <dt>Evidence coverage</dt>
-              <dd>{{ candidate.evidence_coverage }}</dd>
-              <dt>Observed similarity</dt>
-              <dd>{{ candidate.observed_similarity|default:"N/A" }}</dd>
-              <dt>Evidence-weighted similarity</dt>
-              <dd>{{ candidate.evidence_weighted_similarity|default:"N/A" }}</dd>
-            </dl>
-
-            {% if candidate.enrichment_audit %}
-              <h4>Candidate enrichment audit</h4>
-              <div class="evidence-entry">
-                <dl>
-                  <dt>Product MPN</dt>
-                  <dd>{{ candidate.enrichment_audit.product_mpn }}</dd>
-                </dl>
-                {% for attempt in candidate.enrichment_audit.attempts %}
-                  <dl>
-                    <dt>Enrichment outcome</dt>
-                    <dd>{{ attempt.outcome }}</dd>
-                    {% if attempt.source_name %}
-                      <dt>Source</dt>
-                      <dd>{{ attempt.source_name }}</dd>
-                    {% endif %}
-                    {% if attempt.final_url %}
-                      <dt>Datasheet URL</dt>
-                      <dd>
-                        {% if attempt.final_url_safe %}
-                          <a href="{{ attempt.final_url }}">{{ attempt.final_url }}</a>
-                        {% else %}
-                          {{ attempt.final_url }}
-                        {% endif %}
-                      </dd>
-                    {% endif %}
-                    {% if attempt.observation_count is not None %}
-                      <dt>Observations</dt>
-                      <dd>{{ attempt.observation_count }}</dd>
-                    {% endif %}
-                  </dl>
-                {% endfor %}
-              </div>
-            {% endif %}
-
-            <h4>Specification comparison</h4>
-            <div class="spec-table-wrapper">
-              <table class="spec-table">
-                <thead>
-                  <tr>
-                    <th>Specification</th>
-                    <th>Target</th>
-                    <th>Candidate</th>
-                    <th>Comparison</th>
-                    <th>Similarity</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {% for field in candidate.field_assessments %}
-                    <tr>
-                      <td>{{ field.definition_label }}{% if field.unit %} ({{ field.unit }}){% endif %}</td>
-                      <td>
-                        {% if field.target_value %}
-                          {{ field.target_value }}
-                        {% elif field.target_resolution_state == "UNKNOWN" %}
-                          <span class="absent">Unknown</span>
-                        {% elif field.target_resolution_state == "UNVERIFIED" %}
-                          <span class="absent">Unverified</span>
-                        {% elif field.target_resolution_state == "CONFLICT" %}
-                          <span class="absent">Conflict</span>
-                        {% else %}
-                          <span class="absent">Unknown</span>
-                        {% endif %}
-                        {% if field.target_evidence %}
-                          <div class="evidence-refs">
-                            {% for ref in field.target_evidence %}
-                              <span class="evidence-ref">
-                                [{{ ref.evidence_layer }}]
-                                {% if ref.source_url_safe %}
-                                  <a href="{{ ref.source_url }}">{{ ref.source_name }}</a>
-                                {% else %}
-                                  {{ ref.source_name }}
-                                {% endif %}
-                              </span>
-                            {% endfor %}
-                          </div>
-                        {% endif %}
-                      </td>
-                      <td>
-                        {% if field.candidate_value %}
-                          {{ field.candidate_value }}
-                        {% elif field.candidate_resolution_state == "UNKNOWN" %}
-                          <span class="absent">Unknown</span>
-                        {% elif field.candidate_resolution_state == "UNVERIFIED" %}
-                          <span class="absent">Unverified</span>
-                        {% elif field.candidate_resolution_state == "CONFLICT" %}
-                          <span class="absent">Conflict</span>
-                        {% else %}
-                          <span class="absent">Unknown</span>
-                        {% endif %}
-                        {% if field.candidate_evidence %}
-                          <div class="evidence-refs">
-                            {% for ref in field.candidate_evidence %}
-                              <span class="evidence-ref">
-                                [{{ ref.evidence_layer }}]
-                                {% if ref.source_url_safe %}
-                                  <a href="{{ ref.source_url }}">{{ ref.source_name }}</a>
-                                {% else %}
-                                  {{ ref.source_name }}
-                                {% endif %}
-                              </span>
-                            {% endfor %}
-                          </div>
-                        {% endif %}
-                      </td>
-                      <td>{{ field.comparison_state }}</td>
-                      <td>{{ field.field_similarity|default:"—" }}</td>
-                    </tr>
-                  {% endfor %}
-                </tbody>
-              </table>
-            </div>
-          </details>
-        {% endfor %}
-      {% endif %}
-    {% endif %}
-  {% endif %}
-{% else %}
-  {# No comparable child — show trigger button (eligible COMPLETED parent) #}
-  {% if run.state == "COMPLETED" %}
-    <form method="post" action="{% url 'research-comparables' run_id=run.id %}">
-      {% csrf_token %}
-      <button type="submit">Research Comparable Products</button>
-    </form>
-  {% else %}
-    <p class="notice">
-      Comparable research is available for completed research runs.
-    </p>
-  {% endif %}
-{% endif %}
-
-<p><a href="{% url 'research-new' %}">Create another research request</a></p>
-
 {% if review_candidates %}
   <h2>AI-assisted semantic matches</h2>
   <p>
@@ -969,4 +630,459 @@
     </div>
   {% endfor %}
 {% endif %}
+
+{# ================================================================ #}
+{# BLOCKER 4: Comparable section AFTER existing review content      #}
+{# ================================================================ #}
+<h2>Comparable products</h2>
+
+{% if comparable_child %}
+  {# Child exists #}
+  {% if comparable_child.state == "PENDING" %}
+    <p class="notice">
+      Comparable research is queued.
+    </p>
+
+  {% elif comparable_child.state == "RUNNING" %}
+    <p class="notice">
+      Comparable research is currently running.
+    </p>
+
+  {% elif comparable_child.state == "FAILED" %}
+    <p class="notice">
+      Comparable research did not complete successfully.
+      No comparable result was published.
+    </p>
+    {% if comparable_child.failure_reason %}
+      <p><strong>Failure reason:</strong> <code>{{ comparable_child.failure_reason }}</code></p>
+    {% endif %}
+    <form method="post" action="{% url 'research-comparables' run_id=run.id %}">
+      {% csrf_token %}
+      <button type="submit">Retry Comparable Research</button>
+    </form>
+
+  {% elif comparable_child.state == "COMPLETED" %}
+    {# COMPLETED child #}
+    {% if comparable_decode_error %}
+      <p class="notice">
+        Stored comparable result unavailable. {{ comparable_decode_error }}
+      </p>
+
+    {% elif comparable_binding_error %}
+      <p class="notice">
+        Stored comparable result unavailable.
+      </p>
+
+    {% elif comparable_presentation %}
+      {# Render the comparable result #}
+      {% if comparable_presentation.kind == "NO_REQUESTED_MPN" %}
+        <p class="notice">
+          Comparable research could not establish a target because no MPN was supplied.
+        </p>
+
+      {% elif comparable_presentation.kind == "NO_AUTHORITY_MATCH" %}
+        <p class="notice">
+          The manufacturer authority source did not establish the requested MPN.
+        </p>
+        {% if comparable_presentation.authority_audit %}
+          <h3>Authority audit</h3>
+          {% for attempt in comparable_presentation.authority_audit %}
+            <div class="evidence-entry">
+              <dl>
+                <dt>Policy</dt>
+                <dd>{{ attempt.policy_id }}</dd>
+                <dt>Outcome</dt>
+                <dd>{{ attempt.outcome }}</dd>
+                {% if attempt.requested_source_url %}
+                  <dt>Requested URL</dt>
+                  <dd>
+                    {% if attempt.requested_source_url_safe %}
+                      <a href="{{ attempt.requested_source_url }}">{{ attempt.requested_source_url }}</a>
+                    {% else %}
+                      {{ attempt.requested_source_url }}
+                    {% endif %}
+                  </dd>
+                {% endif %}
+                {% if attempt.fetched_final_url %}
+                  <dt>Final URL</dt>
+                  <dd>
+                    {% if attempt.fetched_final_url_safe %}
+                      <a href="{{ attempt.fetched_final_url }}">{{ attempt.fetched_final_url }}</a>
+                    {% else %}
+                      {{ attempt.fetched_final_url }}
+                    {% endif %}
+                  </dd>
+                {% endif %}
+                {% if attempt.retrieved_at %}
+                  <dt>Retrieved at</dt>
+                  <dd>{{ attempt.retrieved_at }}</dd>
+                {% endif %}
+                {% if attempt.matching_mpn %}
+                  <dt>Matching MPN</dt>
+                  <dd>{{ attempt.matching_mpn }}</dd>
+                {% endif %}
+              </dl>
+            </div>
+          {% endfor %}
+        {% endif %}
+
+      {% elif comparable_presentation.kind == "AMBIGUOUS_AUTHORITY" %}
+        <p class="notice">
+          The manufacturer authority source produced an ambiguous target match.
+        </p>
+        {% if comparable_presentation.authority_audit %}
+          <h3>Authority audit</h3>
+          {% for attempt in comparable_presentation.authority_audit %}
+            <div class="evidence-entry">
+              <dl>
+                <dt>Policy</dt>
+                <dd>{{ attempt.policy_id }}</dd>
+                <dt>Outcome</dt>
+                <dd>{{ attempt.outcome }}</dd>
+                {% if attempt.requested_source_url %}
+                  <dt>Requested URL</dt>
+                  <dd>
+                    {% if attempt.requested_source_url_safe %}
+                      <a href="{{ attempt.requested_source_url }}">{{ attempt.requested_source_url }}</a>
+                    {% else %}
+                      {{ attempt.requested_source_url }}
+                    {% endif %}
+                  </dd>
+                {% endif %}
+                {% if attempt.fetched_final_url %}
+                  <dt>Final URL</dt>
+                  <dd>
+                    {% if attempt.fetched_final_url_safe %}
+                      <a href="{{ attempt.fetched_final_url }}">{{ attempt.fetched_final_url }}</a>
+                    {% else %}
+                      {{ attempt.fetched_final_url }}
+                    {% endif %}
+                  </dd>
+                {% endif %}
+                {% if attempt.retrieved_at %}
+                  <dt>Retrieved at</dt>
+                  <dd>{{ attempt.retrieved_at }}</dd>
+                {% endif %}
+                {% if attempt.matching_mpn %}
+                  <dt>Matching MPN</dt>
+                  <dd>{{ attempt.matching_mpn }}</dd>
+                {% endif %}
+              </dl>
+            </div>
+          {% endfor %}
+        {% endif %}
+
+      {% elif comparable_presentation.kind == "FULL" %}
+        {# FULL result — target + candidates #}
+        <dl>
+          {% if comparable_presentation.target_manufacturer %}
+            <dt>Target manufacturer</dt>
+            <dd>{{ comparable_presentation.target_manufacturer }}</dd>
+          {% endif %}
+          <dt>Target MPN</dt>
+          <dd>{{ comparable_presentation.target_mpn }}</dd>
+        </dl>
+
+        {% if comparable_presentation.authority_audit %}
+          <h3>Authority audit</h3>
+          {% for attempt in comparable_presentation.authority_audit %}
+            <div class="evidence-entry">
+              <dl>
+                <dt>Policy</dt>
+                <dd>{{ attempt.policy_id }}</dd>
+                <dt>Outcome</dt>
+                <dd>{{ attempt.outcome }}</dd>
+                {% if attempt.requested_source_url %}
+                  <dt>Requested URL</dt>
+                  <dd>
+                    {% if attempt.requested_source_url_safe %}
+                      <a href="{{ attempt.requested_source_url }}">{{ attempt.requested_source_url }}</a>
+                    {% else %}
+                      {{ attempt.requested_source_url }}
+                    {% endif %}
+                  </dd>
+                {% endif %}
+                {% if attempt.fetched_final_url %}
+                  <dt>Final URL</dt>
+                  <dd>
+                    {% if attempt.fetched_final_url_safe %}
+                      <a href="{{ attempt.fetched_final_url }}">{{ attempt.fetched_final_url }}</a>
+                    {% else %}
+                      {{ attempt.fetched_final_url }}
+                    {% endif %}
+                  </dd>
+                {% endif %}
+                {% if attempt.retrieved_at %}
+                  <dt>Retrieved at</dt>
+                  <dd>{{ attempt.retrieved_at }}</dd>
+                {% endif %}
+                {% if attempt.matching_mpn %}
+                  <dt>Matching MPN</dt>
+                  <dd>{{ attempt.matching_mpn }}</dd>
+                {% endif %}
+              </dl>
+            </div>
+          {% endfor %}
+        {% endif %}
+
+        {% if comparable_presentation.target_enrichment_audit %}
+          <h3>Target enrichment audit</h3>
+          <div class="evidence-entry">
+            <dl>
+              <dt>Product MPN</dt>
+              <dd>{{ comparable_presentation.target_enrichment_audit.product_mpn }}</dd>
+            </dl>
+            {% for attempt in comparable_presentation.target_enrichment_audit.attempts %}
+              <dl>
+                <dt>Enrichment outcome</dt>
+                <dd>{{ attempt.outcome }}</dd>
+                {% if attempt.source_name %}
+                  <dt>Source</dt>
+                  <dd>{{ attempt.source_name }}</dd>
+                {% endif %}
+                {% if attempt.source_url %}
+                  <dt>Source URL</dt>
+                  <dd>
+                    {% if attempt.source_url_safe %}
+                      <a href="{{ attempt.source_url }}">{{ attempt.source_url }}</a>
+                    {% else %}
+                      {{ attempt.source_url }}
+                    {% endif %}
+                  </dd>
+                {% endif %}
+                {% if attempt.final_url %}
+                  <dt>Final URL</dt>
+                  <dd>
+                    {% if attempt.final_url_safe %}
+                      <a href="{{ attempt.final_url }}">{{ attempt.final_url }}</a>
+                    {% else %}
+                      {{ attempt.final_url }}
+                    {% endif %}
+                  </dd>
+                {% endif %}
+                {% if attempt.retrieved_at %}
+                  <dt>Retrieved at</dt>
+                  <dd>{{ attempt.retrieved_at }}</dd>
+                {% endif %}
+                {% if attempt.observation_count is not None %}
+                  <dt>Observations</dt>
+                  <dd>{{ attempt.observation_count }}</dd>
+                {% endif %}
+              </dl>
+            {% endfor %}
+          </div>
+        {% endif %}
+
+        {% if not comparable_presentation.candidates %}
+          <p class="notice">
+            No comparable candidates were discovered.
+          </p>
+        {% endif %}
+
+        {% for candidate in comparable_presentation.candidates %}
+          <details class="comparable-candidate">
+            <summary>
+              <strong>{{ candidate.candidate_mpn }}</strong>
+              &mdash;
+              Scored fields: {{ candidate.scored_field_count }} / {{ candidate.total_field_count }}
+              | Evidence coverage: {{ candidate.evidence_coverage }}
+              | Observed similarity: {{ candidate.observed_similarity|default:"N/A" }}
+              | Evidence-weighted similarity: {{ candidate.evidence_weighted_similarity|default:"N/A" }}
+            </summary>
+
+            <dl>
+              <dt>Candidate MPN</dt>
+              <dd>{{ candidate.candidate_mpn }}</dd>
+              <dt>Normalized MPN</dt>
+              <dd>{{ candidate.candidate_normalized_mpn }}</dd>
+              <dt>Scored fields</dt>
+              <dd>{{ candidate.scored_field_count }} / {{ candidate.total_field_count }}</dd>
+              <dt>Evidence coverage</dt>
+              <dd>{{ candidate.evidence_coverage }}</dd>
+              <dt>Observed similarity</dt>
+              <dd>{{ candidate.observed_similarity|default:"N/A" }}</dd>
+              <dt>Evidence-weighted similarity</dt>
+              <dd>{{ candidate.evidence_weighted_similarity|default:"N/A" }}</dd>
+            </dl>
+
+            {% if candidate.enrichment_audit %}
+              <h4>Candidate enrichment audit</h4>
+              <div class="evidence-entry">
+                <dl>
+                  <dt>Product MPN</dt>
+                  <dd>{{ candidate.enrichment_audit.product_mpn }}</dd>
+                </dl>
+                {% for attempt in candidate.enrichment_audit.attempts %}
+                  <dl>
+                    <dt>Enrichment outcome</dt>
+                    <dd>{{ attempt.outcome }}</dd>
+                    {% if attempt.source_name %}
+                      <dt>Source</dt>
+                      <dd>{{ attempt.source_name }}</dd>
+                    {% endif %}
+                    {% if attempt.source_url %}
+                      <dt>Source URL</dt>
+                      <dd>
+                        {% if attempt.source_url_safe %}
+                          <a href="{{ attempt.source_url }}">{{ attempt.source_url }}</a>
+                        {% else %}
+                          {{ attempt.source_url }}
+                        {% endif %}
+                      </dd>
+                    {% endif %}
+                    {% if attempt.final_url %}
+                      <dt>Final URL</dt>
+                      <dd>
+                        {% if attempt.final_url_safe %}
+                          <a href="{{ attempt.final_url }}">{{ attempt.final_url }}</a>
+                        {% else %}
+                          {{ attempt.final_url }}
+                        {% endif %}
+                      </dd>
+                    {% endif %}
+                    {% if attempt.retrieved_at %}
+                      <dt>Retrieved at</dt>
+                      <dd>{{ attempt.retrieved_at }}</dd>
+                    {% endif %}
+                    {% if attempt.observation_count is not None %}
+                      <dt>Observations</dt>
+                      <dd>{{ attempt.observation_count }}</dd>
+                    {% endif %}
+                  </dl>
+                {% endfor %}
+              </div>
+            {% endif %}
+
+            <h4>Specification comparison</h4>
+            <div class="spec-table-wrapper">
+              <table class="spec-table">
+                <thead>
+                  <tr>
+                    <th>Specification</th>
+                    <th>Target</th>
+                    <th>Candidate</th>
+                    <th>Comparison</th>
+                    <th>Similarity</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for field in candidate.field_assessments %}
+                    <tr>
+                      <td>{{ field.definition_label }}{% if field.unit %} ({{ field.unit }}){% endif %}</td>
+                      <td>
+                        {# BLOCKER 1: Branch by resolution state FIRST #}
+                        {% if field.target_resolution_state == "VERIFIED" %}
+                          {{ field.target_value }}
+                          {% if field.target_evidence %}
+                            <div class="evidence-refs">
+                              {% for ref in field.target_evidence %}
+                                <span class="evidence-ref">
+                                  [{{ ref.evidence_layer }}]
+                                  {% if ref.source_url_safe %}
+                                    <a href="{{ ref.source_url }}">{{ ref.source_name }}</a>
+                                  {% else %}
+                                    {{ ref.source_name }}
+                                  {% endif %}
+                                  ({{ ref.source_authority }})
+                                  {{ ref.retrieved_at }}
+                                </span>
+                              {% endfor %}
+                            </div>
+                          {% endif %}
+                        {% elif field.target_resolution_state == "UNVERIFIED" %}
+                          <span class="unverified">Unverified — {{ field.target_value }}</span>
+                          {% if field.target_evidence %}
+                            <div class="evidence-refs">
+                              {% for ref in field.target_evidence %}
+                                <span class="evidence-ref">
+                                  [{{ ref.evidence_layer }}]
+                                  {% if ref.source_url_safe %}
+                                    <a href="{{ ref.source_url }}">{{ ref.source_name }}</a>
+                                  {% else %}
+                                    {{ ref.source_name }}
+                                  {% endif %}
+                                  ({{ ref.source_authority }})
+                                  {{ ref.retrieved_at }}
+                                </span>
+                              {% endfor %}
+                            </div>
+                          {% endif %}
+                        {% elif field.target_resolution_state == "CONFLICT" %}
+                          <span class="absent">Conflict</span>
+                        {% else %}
+                          <span class="absent">Unknown</span>
+                        {% endif %}
+                      </td>
+                      <td>
+                        {# BLOCKER 1: Branch by resolution state FIRST #}
+                        {% if field.candidate_resolution_state == "VERIFIED" %}
+                          {{ field.candidate_value }}
+                          {% if field.candidate_evidence %}
+                            <div class="evidence-refs">
+                              {% for ref in field.candidate_evidence %}
+                                <span class="evidence-ref">
+                                  [{{ ref.evidence_layer }}]
+                                  {% if ref.source_url_safe %}
+                                    <a href="{{ ref.source_url }}">{{ ref.source_name }}</a>
+                                  {% else %}
+                                    {{ ref.source_name }}
+                                  {% endif %}
+                                  ({{ ref.source_authority }})
+                                  {{ ref.retrieved_at }}
+                                </span>
+                              {% endfor %}
+                            </div>
+                          {% endif %}
+                        {% elif field.candidate_resolution_state == "UNVERIFIED" %}
+                          <span class="unverified">Unverified — {{ field.candidate_value }}</span>
+                          {% if field.candidate_evidence %}
+                            <div class="evidence-refs">
+                              {% for ref in field.candidate_evidence %}
+                                <span class="evidence-ref">
+                                  [{{ ref.evidence_layer }}]
+                                  {% if ref.source_url_safe %}
+                                    <a href="{{ ref.source_url }}">{{ ref.source_name }}</a>
+                                  {% else %}
+                                    {{ ref.source_name }}
+                                  {% endif %}
+                                  ({{ ref.source_authority }})
+                                  {{ ref.retrieved_at }}
+                                </span>
+                              {% endfor %}
+                            </div>
+                          {% endif %}
+                        {% elif field.candidate_resolution_state == "CONFLICT" %}
+                          <span class="absent">Conflict</span>
+                        {% else %}
+                          <span class="absent">Unknown</span>
+                        {% endif %}
+                      </td>
+                      <td>{{ field.comparison_state }}</td>
+                      <td>{{ field.field_similarity|default:"—" }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </details>
+        {% endfor %}
+      {% endif %}
+    {% endif %}
+  {% endif %}
+{% else %}
+  {# No comparable child — show trigger button (eligible COMPLETED parent) #}
+  {% if run.state == "COMPLETED" %}
+    <form method="post" action="{% url 'research-comparables' run_id=run.id %}">
+      {% csrf_token %}
+      <button type="submit">Research Comparable Products</button>
+    </form>
+  {% else %}
+    <p class="notice">
+      Comparable research is available for completed research runs.
+    </p>
+  {% endif %}
+{% endif %}
+
+<p><a href="{% url 'research-new' %}">Create another research request</a></p>
+
 {% endblock %}

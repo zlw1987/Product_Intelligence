@@ -60,8 +60,44 @@ from product_intelligence.research.comparable_result_codec import (
 )
 from .comparable_presentation import (
     build_comparable_result_presentation,
-    validate_result_parent_binding,
 )
+
+
+def _validate_comparable_result_parent_binding(
+    result: object,
+    parent_mpn: str,
+) -> bool:
+    """Validate that a decoded comparable result is bound to the correct parent.
+
+    Uses the frozen 2A part-number comparison primitive. Accepts only
+    EXACT or NORMALIZED_EXACT matches (or empty MPN for NO_REQUESTED_MPN).
+
+    This lives in views (read-side web integrity path), not in the
+    display-only comparable_presentation module.
+    """
+    from product_intelligence.domain.enums import ESTABLISHED_MATCH_TYPES
+    from product_intelligence.research.comparable_research_results import (
+        ComparableResultKind,
+    )
+    from product_intelligence.research.identity import compare_part_numbers
+
+    # NO_REQUESTED_MPN: both must be empty
+    if result.kind is ComparableResultKind.NO_REQUESTED_MPN:
+        return (
+            not parent_mpn.strip() and not result.target_mpn.strip()
+        )
+
+    # For all other kinds, compare via frozen 2A primitive
+    if not parent_mpn.strip() or not result.target_mpn.strip():
+        return False
+
+    comparison = compare_part_numbers(parent_mpn, result.target_mpn)
+
+    # Accept only EXACT or NORMALIZED_EXACT
+    if comparison.match_type not in ESTABLISHED_MATCH_TYPES:
+        return False
+
+    return True
 
 
 def _redirect_to_report(run: ResearchRun, start_error: bool = False, retry_error: bool = False) -> HttpResponse:
@@ -348,7 +384,7 @@ def research_detail(request: HttpRequest, run_id: uuid.UUID) -> HttpResponse:
             )
         else:
             # Parent / result binding check
-            if not validate_result_parent_binding(
+            if not _validate_comparable_result_parent_binding(
                 comparable_result,
                 run.manufacturer_part_number,
             ):
