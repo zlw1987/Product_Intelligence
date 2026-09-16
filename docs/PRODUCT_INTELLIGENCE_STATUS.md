@@ -132,7 +132,7 @@ FU3B wires the frozen FU3A semantic runtime into real research execution:
 | 6D | Authoritative Datasheet Specification Enrichment | Implemented (approved / frozen)
 | 7A | Comparable-Product Candidate Discovery | Implemented (frozen)
 | 7B | Enterprise SSD Similarity Scoring | Implemented (approved / frozen)
-| 7C | Comparable-Product Presentation | 7C-B Execution Orchestrator IMPLEMENTED; 7C-A Results+Codec FROZEN
+| 7C | Comparable-Product Presentation | IN PROGRESS — 7C-A FROZEN; 7C-B IMPLEMENTED / PENDING REVIEW; web NOT IMPLEMENTED
 | SAP | SAP launcher integration | Future |
 
 
@@ -671,7 +671,7 @@ delivery.
 
 **7C-A**: COMPARABLE RESEARCH RESULTS + CODEC — IMPLEMENTED / APPROVED / FROZEN
 
-**7C-B**: COMPARABLE RESEARCH ORCHESTRATION — IMPLEMENTED
+**7C-B**: COMPARABLE RESEARCH ORCHESTRATION — IMPLEMENTED / PENDING CHATGPT REVIEW
         Frozen primitives composed into one bounded execution pipeline:
         claim ComparableResearchExecution
             -> exact parent ResearchRun request

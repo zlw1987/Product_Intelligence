@@ -34,7 +34,7 @@ web execution/retry integration, FU3A/FU3B implement semantic qualification
 and semantic execution integration, and HUMAN-REVIEW implements human review
 for AI-assisted semantic matches. The web form creates a run, triggers
 execution synchronously, and redirects to the report with the full result.
-Remaining future work: structured API (5A), comparable-product research (7C — 7A implemented and frozen, 7B implemented and frozen).
+Remaining future work: structured API (5A), comparable-product research (7C — 7A implemented and frozen, 7B implemented and frozen, 7C-A frozen, 7C-B implemented pending review).
 
 ## 2. Problem statement
 
@@ -2312,8 +2312,8 @@ Status:
     7A — IMPLEMENTED / APPROVED / FROZEN
     7B — IMPLEMENTED / APPROVED / FROZEN
     7C-A — IMPLEMENTED / APPROVED / FROZEN
-    7C-B — IMPLEMENTED
-    7C (web) — FUTURE
+    7C-B — IMPLEMENTED / PENDING CHATGPT REVIEW
+    7C (web) — NOT IMPLEMENTED
 
 ## 18. Caching / freshness direction
 
@@ -2679,8 +2679,8 @@ PRODUCT-INTEL.6D   Authoritative datasheet specification
 PRODUCT-INTEL.7A   Comparable-product candidate discovery     IMPLEMENTED / APPROVED / FROZEN
 PRODUCT-INTEL.7B   Similarity scoring                         IMPLEMENTED / APPROVED / FROZEN
 PRODUCT-INTEL.7C-A  Comparable research results + codec      IMPLEMENTED / APPROVED / FROZEN
-PRODUCT-INTEL.7C-B  Comparable research orchestration         IMPLEMENTED
-PRODUCT-INTEL.7C    Comparison web report                      FUTURE
+PRODUCT-INTEL.7C-B  Comparable research orchestration         IMPLEMENTED / PENDING REVIEW
+PRODUCT-INTEL.7C    Comparison web report                      NOT IMPLEMENTED
 
 ----- COMPARABLE MVP -----
 
@@ -2732,9 +2732,10 @@ DELIVERED (frozen):
 
 IMPLEMENTED:
   7C-B  Comparable research orchestration
-        (frozen primitives composed into one bounded execution pipeline)
+        (frozen primitives composed into one bounded execution pipeline;
+         implemented, pending ChatGPT review)
 
-FUTURE:
+NOT IMPLEMENTED:
   7C    Comparison web report
         (7C-A results/codec frozen, 7C-B orchestration implemented,
          web presentation layer is the next delivery)
@@ -2745,8 +2746,8 @@ FUTURE:
 **7A IMPLEMENTED AND FROZEN.**
 **7B IMPLEMENTED / APPROVED / FROZEN.**
 **7C-A IMPLEMENTED AND FROZEN.**
-**7C-B IMPLEMENTED.**
-**7C web presentation remains FUTURE.**
+**7C-B IMPLEMENTED / PENDING CHATGPT REVIEW.**
+**7C web presentation NOT IMPLEMENTED.**
 
 6A is IMPLEMENTED AND FROZEN. 6B is IMPLEMENTED AND FROZEN (with
 approved evidence-backed corrective addition: "2.5in" -> "2.5-inch").
@@ -2789,7 +2790,7 @@ Seagate Nytro 5050 demonstrates that deterministic static structured
 extraction is sufficient for the minimum real 6C vertical slice.
 Current evidence therefore does not justify an LLM extractor.
 
-7B is IMPLEMENTED / APPROVED / FROZEN. 7C-A (results + codec) is IMPLEMENTED / APPROVED / FROZEN. 7C-B (execution orchestration) is IMPLEMENTED.
+7B is IMPLEMENTED / APPROVED / FROZEN. 7C-A (results + codec) is IMPLEMENTED / APPROVED / FROZEN. 7C-B (execution orchestration) is IMPLEMENTED / PENDING CHATGPT REVIEW.
 6D (authoritative datasheet specification enrichment) is IMPLEMENTED / APPROVED / FROZEN and IS the candidate-specification enrichment that was the subject
 of the prior delivery-decision question. 7C (web presentation) is the
 next comparable-product delivery after the 7C-B execution orchestration.

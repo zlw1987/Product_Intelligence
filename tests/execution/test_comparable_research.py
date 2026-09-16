@@ -932,14 +932,20 @@ class TestCompositionAndProjection(TestCase):
             self.assertEqual(identity.manufacturer_part_number, candidate.manufacturer_part_number)
 
     def test_single_6d_batch_call(self) -> None:
-        """Exactly ONE 6D batch call for target + all candidates."""
+        """Exactly ONE 6D batch call for target + all candidates.
+
+        Proves the target identity is included in the same batch and candidates
+        are not separately enriched through additional batch calls.
+        """
         from product_intelligence.execution import comparable_research as cr_mod
         batch_calls = 0
+        captured_identities = None
         original_batch = cr_mod.enrich_enterprise_ssd_specifications_batch
 
         def spy_batch(*args, **kwargs):
-            nonlocal batch_calls
+            nonlocal batch_calls, captured_identities
             batch_calls += 1
+            captured_identities = kwargs.get("identities", args[0] if args else None)
             return original_batch(*args, **kwargs)
 
         import unittest.mock as mock
@@ -955,7 +961,16 @@ class TestCompositionAndProjection(TestCase):
                 page_fetcher=_RecordingPageFetcher(bodies={SEAGATE_URL: _read_real_html()}),
                 document_fetcher=_FilePdfFetcher(REAL_PDF_PATH),
             )
+        # Batch called exactly once
         self.assertEqual(batch_calls, 1)
+        # identities is a tuple
+        self.assertIsInstance(captured_identities, tuple)
+        # Target MPN is first
+        self.assertEqual(captured_identities[0].manufacturer_part_number, "XP15360SE70005")
+        # Total identities = 1 (target) + 80 (candidates from discovery)
+        self.assertEqual(len(captured_identities), 81)
+        # Remaining identity MPNs match the 80 discovered candidates
+        self.assertEqual(len(captured_identities) - 1, 80)
 
     def test_no_per_candidate_6c_public_call(self) -> None:
         """No per-candidate public 6C execution call (only target + held)."""
@@ -1088,24 +1103,51 @@ class TestFailureContracts(TestCase):
 
 class TestDiscoveryOrder(TestCase):
     def test_candidates_preserve_discovery_order(self) -> None:
+        """Orchestration must preserve frozen discovery candidate order exactly.
+
+        Spies on discover_enterprise_ssd_comparable_candidates during execution,
+        captures its return value, then asserts the persisted result's candidate
+        MPN tuple matches the discovery result's MPN tuple in the same order.
+        """
+        from product_intelligence.execution import comparable_research as cr_mod
+        import unittest.mock as mock
+
+        captured_discovery_result = None
+        original_discover = cr_mod.discover_enterprise_ssd_comparable_candidates
+
+        def spy_discover(*args, **kwargs):
+            nonlocal captured_discovery_result
+            result = original_discover(*args, **kwargs)
+            captured_discovery_result = result
+            return result
+
         parent = _make_completed_run()
         child = ComparableResearchExecution.objects.create(
             parent_run=parent,
             state=ComparableResearchState.PENDING,
             active_slot=1,
         )
-        terminal = execute_comparable_research(
-            child.id,
-            page_fetcher=_RecordingPageFetcher(bodies={SEAGATE_URL: _read_real_html()}),
-            document_fetcher=_FilePdfFetcher(REAL_PDF_PATH),
-        )
+        with mock.patch.object(cr_mod, "discover_enterprise_ssd_comparable_candidates", side_effect=spy_discover):
+            terminal = execute_comparable_research(
+                child.id,
+                page_fetcher=_RecordingPageFetcher(bodies={SEAGATE_URL: _read_real_html()}),
+                document_fetcher=_FilePdfFetcher(REAL_PDF_PATH),
+            )
+
+        self.assertIsNotNone(captured_discovery_result)
         result = decode_comparable_result(
             terminal.result_payload, schema_version=COMPARABLE_RESULT_SCHEMA_VERSION,
         )
-        # Candidate MPNs should be in the order produced by the discovery primitive
-        # (not sorted, not ranked)
-        mpns = [c.candidate_mpn for c in result.candidates]
-        self.assertEqual(len(mpns), len(set(mpns)), "no duplicates")
+        # Exact order preservation — no sorting, no set comparison
+        persisted_order = tuple(
+            candidate.candidate_mpn
+            for candidate in result.candidates
+        )
+        discovery_order = tuple(
+            candidate.manufacturer_part_number
+            for candidate in captured_discovery_result.candidates
+        )
+        self.assertEqual(persisted_order, discovery_order)
 
 
 # ---------------------------------------------------------------------------
@@ -1116,9 +1158,28 @@ class TestDiscoveryOrder(TestCase):
 class TestComparableResearchBoundaries(TestCase):
     """AST-based import guards for the 7C-B execution module."""
 
-    @pytest.mark.skip(reason="AST boundary — not in a Django transaction context")
-    def test_placeholder(self):
-        pass
+    def test_no_old_executor_call(self) -> None:
+        """The execution module must not call the old high-level executor.
+
+        Parses comparable_research.py and rejects any ast.Call whose called
+        function is research_and_score_enterprise_ssd_candidates — whether
+        a bare name or an attribute access.
+        """
+        import ast
+        import pathlib
+        source_path = pathlib.Path(__file__).resolve().parent.parent.parent / "product_intelligence" / "execution" / "comparable_research.py"
+        tree = ast.parse(source_path.read_text())
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call):
+                func = node.func
+                if isinstance(func, ast.Name):
+                    assert func.id != "research_and_score_enterprise_ssd_candidates", (
+                        "execution module must not call old high-level executor"
+                    )
+                elif isinstance(func, ast.Attribute):
+                    assert func.attr != "research_and_score_enterprise_ssd_candidates", (
+                        "execution module must not call old high-level executor"
+                    )
 
 
 class TestComparableResearchBoundaryAsts:
@@ -1139,20 +1200,30 @@ class TestComparableResearchBoundaryAsts:
                     pytest.fail(f"execution module must not import web: {node.module}")
 
     def test_no_old_comparable_similarity_import(self, pytestconfig: pytest.Config) -> None:
+        """Reject imports of the old execution module product_intelligence.execution.comparable_similarity.
+
+        Allows the research module product_intelligence.research.enterprise_ssd_similarity.
+        Rejects both `import ...` and `from ... import ...` forms.
+        """
         import ast
         path = pytestconfig.rootpath / "product_intelligence" / "execution" / "comparable_research.py"
         tree = ast.parse(path.read_text())
+        forbidden_module = "product_intelligence.execution.comparable_similarity"
         for node in ast.walk(tree):
-            if isinstance(node, ast.ImportFrom):
-                if (
-                    node.module
-                    and "comparable_similarity" in node.module
-                    and "similarity" in node.module
-                    and "enterprise_ssd" not in node.module
-                ):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    # Reject exact module or any child path
+                    if alias.name == forbidden_module or alias.name.startswith(forbidden_module + "."):
+                        pytest.fail(
+                            f"execution module must not import old high-level executor: "
+                            f"{alias.name}"
+                        )
+            elif isinstance(node, ast.ImportFrom):
+                mod = node.module or ""
+                if mod == forbidden_module or mod.startswith(forbidden_module + "."):
                     pytest.fail(
                         f"execution module must not import old high-level executor: "
-                        f"{node.module}"
+                        f"{mod}"
                     )
 
     def test_research_still_free_of_runs(self, pytestconfig: pytest.Config) -> None:
@@ -1171,3 +1242,12 @@ class TestComparableResearchBoundaryAsts:
                             f"{py_file.name} must not import {forbidden} "
                             f"(found: {mod})"
                         )
+                elif isinstance(node, ast.Import):
+                    for alias in node.names:
+                        for forbidden in ("product_intelligence.runs",
+                                           "product_intelligence.providers",
+                                           "django"):
+                            assert not alias.name.startswith(forbidden), (
+                                f"{py_file.name} must not import {forbidden} "
+                                f"(found: {alias.name})"
+                            )
