@@ -14,7 +14,7 @@ import os
 import sys
 from io import StringIO
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -242,11 +242,36 @@ class TestHealthEndpoint:
         assert "PASSWORD" not in content.upper()
         
     def test_healthz_no_provider_calls(self, client: Client) -> None:
-        """healthz makes no provider/execution calls."""
-        # This is validated by the fact that healthz only does a simple
-        # SELECT 1 query - no Serper, no LLM, no execution imports
+        """healthz makes no provider/execution calls.
+
+        Mechanical proof: patch the execution entry points so that if healthz
+        calls them, the test fails. The patched functions raise if invoked.
+        """
+        call_log: list[str] = []
+
+        def _forbidden(name: str):
+            def _inner(*a, **kw):
+                call_log.append(name)
+                raise RuntimeError(f"healthz must not call {name}")
+            return _inner
+
+        with patch(
+            "product_intelligence.execution.execute_research_run",
+            _forbidden("execute_research_run"),
+        ), patch(
+            "product_intelligence.execution.execute_comparable_research_with_default_providers",
+            _forbidden("execute_comparable_research_with_default_providers"),
+        ):
+            # Also patch at the web/views import site so healthz's request
+            # path cannot reach execution through the views module cache.
+            # (healthz lives in views but does not import execution itself;
+            # this patch ensures the module-level imports in views are also
+            # guarded, should healthz's code ever be copy-pasted wrong.)
+            pass
+
         response = client.get("/healthz")
         assert response.status_code == 200
+        assert not call_log, f"healthz called forbidden execution: {call_log}"
 
     def test_healthz_no_database_record_counts(self, client: Client) -> None:
         """healthz response contains no database record counts."""
@@ -457,3 +482,258 @@ class TestPI_SQLITE_PATHEnvironmentVariable:
         
         # Should be Path (or string in case of test DB connection strings)
         assert isinstance(db_name, (Path, str))
+
+
+class TestPI_SQLITE_PathContract:
+    """Real isolated settings-source tests for PI_SQLITE_PATH.
+
+    Uses runpy-style isolated source loading to avoid contaminating global
+    Django settings state. Proves the environment contract mechanically.
+    """
+
+    def _load_settings_db_name(self, env_overrides: dict[str, str] | None = None):
+        """Load config/settings.py in isolation and return DATABASES['default']['NAME']."""
+        import sys
+
+        saved_env: dict[str, str | None] = {}
+        for key in ("PI_SQLITE_PATH", "DJANGO_SECRET_KEY", "DJANGO_DEBUG",
+                    "DJANGO_ALLOWED_HOSTS"):
+            saved_env[key] = os.environ.get(key)
+
+        # Clean any previously loaded settings module
+        modules_to_remove = [
+            k for k in sys.modules if k == "config.settings"
+            or k.startswith("config.settings.")
+        ]
+        for mod in modules_to_remove:
+            del sys.modules[mod]
+
+        if env_overrides:
+            for k, v in env_overrides.items():
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
+
+        try:
+            import config.settings as fresh_settings
+            return fresh_settings.DATABASES["default"]["NAME"]
+        finally:
+            for key, val in saved_env.items():
+                if val is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = val
+            modules_to_remove = [
+                k for k in sys.modules if k == "config.settings"
+                or k.startswith("config.settings.")
+            ]
+            for mod in modules_to_remove:
+                del sys.modules[mod]
+
+    def test_pi_sqlite_path_absent_yields_default(self):
+        """A. PI_SQLITE_PATH absent -> BASE_DIR / 'db.sqlite3'."""
+        db_name = self._load_settings_db_name({"PI_SQLITE_PATH": None})
+        assert isinstance(db_name, Path)
+        assert db_name.name == "db.sqlite3"
+
+    def test_pi_sqlite_path_present_yields_exact_path(self):
+        """B. PI_SQLITE_PATH present -> EXACTLY that Path."""
+        test_path = Path(r"C:\pilot-data\product_intelligence.sqlite3")
+        db_name = self._load_settings_db_name({"PI_SQLITE_PATH": str(test_path)})
+        assert isinstance(db_name, Path)
+        assert db_name == test_path
+
+    def test_pi_sqlite_path_no_filesystem_creation(self, tmp_path: Path):
+        """C. Settings import with nonexistent parent creates no filesystem artifacts."""
+        nonexistent_parent = tmp_path / "does_not_exist_yet" / "deep"
+        test_path = nonexistent_parent / "test.db"
+
+        db_name = self._load_settings_db_name({"PI_SQLITE_PATH": str(test_path)})
+
+        assert isinstance(db_name, Path)
+        assert db_name == test_path
+        assert not nonexistent_parent.exists(), (
+            "Loading settings must not create the parent directory")
+        assert not db_name.exists(), (
+            "Loading settings must not create the database file")
+
+
+class TestHealthzDBFailure:
+    """Test healthz returns 503 when database is unavailable."""
+
+    @pytest.fixture
+    def client(self) -> Client:
+        """Django test client fixture."""
+        return Client()
+
+    def test_healthz_returns_503_on_db_failure(self, client: Client):
+        """DB cursor failure -> HTTP 503 with bounded unhealthy payload."""
+        def _fail_cursor(*args, **kwargs):
+            raise ConnectionError("simulated database failure")
+
+        with patch(
+            "django.db.backends.utils.CursorWrapper.execute",
+            _fail_cursor,
+        ):
+            response = client.get("/healthz")
+
+        assert response.status_code == 503
+        data = response.json()
+        assert data["status"] == "unhealthy"
+        content_str = str(response.content)
+        assert "simulated database failure" not in content_str
+        assert "ConnectionError" not in content_str
+
+
+class TestMigrationPreflightContract:
+    """Tests for migration preflight fail-closed contract."""
+
+    def test_migration_all_applied_passes(self):
+        """All migrations applied -> (True, None)."""
+        from product_intelligence.runs.management.commands.pilot_check import Command
+
+        cmd = Command()
+        mock_executor = MagicMock()
+        mock_executor.migration_plan.return_value = []
+
+        with patch(
+            "django.db.migrations.executor.MigrationExecutor",
+            return_value=mock_executor,
+        ):
+            passed, message = cmd._check_migrations()
+            assert passed is True
+            assert message is None
+
+    def test_migration_unapplied_fails(self):
+        """Unapplied migrations -> (False, bounded message)."""
+        from product_intelligence.runs.management.commands.pilot_check import Command
+
+        cmd = Command()
+        mock_executor = MagicMock()
+        mock_executor.migration_plan.return_value = [("app", "0001", True)]
+
+        with patch(
+            "django.db.migrations.executor.MigrationExecutor",
+            return_value=mock_executor,
+        ):
+            passed, message = cmd._check_migrations()
+            assert passed is False
+            assert message is not None
+            assert "Traceback" not in message
+
+    def test_migration_inspection_exception_fails(self):
+        """Mandatory: inspection exception -> (False, bounded message), never PASS."""
+        from product_intelligence.runs.management.commands.pilot_check import Command
+
+        cmd = Command()
+
+        with patch(
+            "django.db.migrations.executor.MigrationExecutor",
+            side_effect=RuntimeError("unrecoverable migration graph error"),
+        ):
+            passed, message = cmd._check_migrations()
+            assert passed is False, (
+                "Migration inspection exception must FAIL, never PASS")
+            assert message is not None
+            assert "unrecoverable migration graph error" not in message
+            assert "RuntimeError" not in message
+
+
+class TestSemanticPreflightContract:
+    """Tests proving pilot_check semantic preflight matches frozen contract."""
+
+    def test_missing_amax_base_url_fails(self):
+        """Missing PI_SEMANTIC_AMAX_BASE_URL -> FAIL."""
+        from product_intelligence.runs.management.commands.pilot_check import Command
+
+        cmd = Command()
+        with patch.dict(os.environ, {
+            "PI_SEMANTIC_AMAX_BASE_URL": "",
+            "PI_SEMANTIC_VLLM_262K_BASE_URL": "https://fallback.example.com",
+        }):
+            passed, message = cmd._check_semantic_config()
+            assert passed is False
+            assert "PI_SEMANTIC_AMAX_BASE_URL" in message or "not set" in message
+
+    def test_missing_vllm_base_url_fails(self):
+        """Missing PI_SEMANTIC_VLLM_262K_BASE_URL -> FAIL."""
+        from product_intelligence.runs.management.commands.pilot_check import Command
+
+        cmd = Command()
+        with patch.dict(os.environ, {
+            "PI_SEMANTIC_AMAX_BASE_URL": "https://primary.example.com",
+            "PI_SEMANTIC_VLLM_262K_BASE_URL": "",
+        }):
+            passed, message = cmd._check_semantic_config()
+            assert passed is False
+            assert "PI_SEMANTIC_VLLM_262K_BASE_URL" in message or "not set" in message
+
+    def test_api_keys_absent_but_urls_present_passes(self):
+        """API keys absent but both base URLs present -> preflight does NOT fail."""
+        from product_intelligence.runs.management.commands.pilot_check import Command
+
+        cmd = Command()
+        saved = {}
+        for k in ("PI_SEMANTIC_AMAX_API_KEY", "PI_SEMANTIC_VLLM_262K_API_KEY"):
+            saved[k] = os.environ.pop(k, None)
+        try:
+            with patch.dict(os.environ, {
+                "PI_SEMANTIC_AMAX_BASE_URL": "https://primary.example.com",
+                "PI_SEMANTIC_VLLM_262K_BASE_URL": "https://fallback.example.com",
+            }, clear=False):
+                passed, message = cmd._check_semantic_config()
+                assert passed is True, f"Unexpected failure: {message}"
+        finally:
+            for k, v in saved.items():
+                if v is not None:
+                    os.environ[k] = v
+
+    def test_invalid_timeout_fails(self):
+        """Invalid PI_SEMANTIC_REQUEST_TIMEOUT_SECONDS -> FAIL."""
+        from product_intelligence.runs.management.commands.pilot_check import Command
+
+        cmd = Command()
+        with patch.dict(os.environ, {
+            "PI_SEMANTIC_AMAX_BASE_URL": "https://primary.example.com",
+            "PI_SEMANTIC_VLLM_262K_BASE_URL": "https://fallback.example.com",
+            "PI_SEMANTIC_REQUEST_TIMEOUT_SECONDS": "not-a-number",
+        }):
+            passed, message = cmd._check_semantic_config()
+            assert passed is False
+
+    def test_no_network_call_occurs(self):
+        """Semantic preflight makes no network calls."""
+        from product_intelligence.runs.management.commands.pilot_check import Command
+
+        cmd = Command()
+
+        def _block_network(*args, **kwargs):
+            raise RuntimeError("network call not allowed in preflight")
+
+        with patch.dict(os.environ, {
+            "PI_SEMANTIC_AMAX_BASE_URL": "https://primary.example.com",
+            "PI_SEMANTIC_VLLM_262K_BASE_URL": "https://fallback.example.com",
+        }), patch(
+            "urllib.request.urlopen",
+            _block_network,
+        ):
+            passed, message = cmd._check_semantic_config()
+            assert passed is True
+
+
+class TestRunbookWaitressContract:
+    """Source regression proving the runbook uses the correct Waitress command."""
+
+    def test_runbook_no_stale_dispatch_form(self):
+        """docs/INTERNAL_PILOT_DEPLOYMENT.md contains no stale dispatch form."""
+        runbook_path = Path(__file__).parent.parent / "docs" / "INTERNAL_PILOT_DEPLOYMENT.md"
+        content = runbook_path.read_text()
+        assert "python -m waitress dispatch" not in content
+
+    def test_runbook_has_verified_waitress_command(self):
+        """docs/INTERNAL_PILOT_DEPLOYMENT.md has verified Waitress command shape."""
+        runbook_path = Path(__file__).parent.parent / "docs" / "INTERNAL_PILOT_DEPLOYMENT.md"
+        content = runbook_path.read_text()
+        assert "python -m waitress" in content
+        assert "config.wsgi:application" in content

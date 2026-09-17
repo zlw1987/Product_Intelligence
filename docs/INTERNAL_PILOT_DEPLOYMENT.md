@@ -193,7 +193,7 @@ This script:
 ```cmd
 set PI_BIND_PORT=8080
 set PI_BIND_HOST=0.0.0.0
-python -m waitress dispatch "config.wsgi:application" --host=%PI_BIND_HOST% --port=%PI_BIND_PORT%
+python -m waitress --host=%PI_BIND_HOST% --port=%PI_BIND_PORT% config.wsgi:application
 ```
 
 **Note:** Binding to `0.0.0.0` is acceptable for the internal pilot ONLY when your network firewall/access control restricts access to the approved internal network. 0.0.0.0 is NOT secure by itself.
@@ -255,7 +255,7 @@ Use one known safe test MPN to verify the complete flow:
 
 1. **Open the launcher** from FoxPro or manually navigate to the research form with prefill:
    ```
-   http://<internal-host>:<port>/research/new?mpn=XP15360SE70005&description=Seagate%20Nytro%205050%202TB%20SSD
+   http://<internal-host>:<port>/research/new?mpn=XP15360SE70005&description=Seagate%20Nytro%205350H%2015.36TB%20SSD
    ```
 
 2. **Verify MPN prefill is exact** — the form should show `XP15360SE70005`

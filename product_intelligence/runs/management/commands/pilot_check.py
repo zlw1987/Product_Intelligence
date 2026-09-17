@@ -178,26 +178,21 @@ class Command(BaseCommand):
             return False, f"Database connection failed: {type(e).__name__}"
 
     def _check_migrations(self) -> tuple[bool, str | None]:
-        """Check that all required migrations are applied."""
-        from django.core.management import call_command
-        from io import StringIO
+        """Check that all required migrations are applied.
 
-        output = StringIO()
+        Uses Django's MigrationExecutor for a direct read-only inspection
+        of the migration graph. Fails closed if the graph cannot be read.
+        """
+        from django.db.migrations.executor import MigrationExecutor
+
         try:
-            # --check returns non-zero if unapplied migrations exist
-            call_command("showmigrations", "--plan", stdout=output)
-            output.seek(0)
-            lines = output.readlines()
-
-            # Look for any [ ] (unapplied) markers
-            unapplied = [line for line in lines if line.strip().startswith("[ ]")]
-            if unapplied:
-                return False, f"{len(unapplied)} migration(s) are not applied"
+            executor = MigrationExecutor(connection)
+            plan = executor.migration_plan(executor.loader.graph.leaf_nodes())
+            if plan:
+                return False, f"{len(plan)} migration(s) are not applied"
             return True, None
         except Exception:
-            # If showmigrations fails, do a basic check via migrate --check
-            # This is a fallback that may not give detailed output
-            return True, None  # Soft pass if we can't determine
+            return False, "Migration state could not be verified"
 
     def _check_semantic_config(self) -> tuple[bool, str | None]:
         """Validate semantic provider configuration without making network calls.

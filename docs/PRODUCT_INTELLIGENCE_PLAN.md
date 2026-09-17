@@ -2792,8 +2792,8 @@ Current evidence therefore does not justify an LLM extractor.
 
 7B is IMPLEMENTED / APPROVED / FROZEN. 7C (Comparable-Product Presentation) is IMPLEMENTED / APPROVED / FROZEN.
 6D (authoritative datasheet specification enrichment) is IMPLEMENTED / APPROVED / FROZEN and IS the candidate-specification enrichment that was the subject
-of the prior delivery-decision question. 7C (web presentation) is the
-next comparable-product delivery after the 7C-B execution orchestration.
+of the prior delivery-decision question. 7C (web presentation) is frozen: all
+three sub-phases (7C-A, 7C-B, 7C-C) are implemented and approved.
 
 7B (similarity scoring) computes deterministic field-level similarity evidence
 between target and candidate specifications. VERIFIED-only scoring, 12-field
