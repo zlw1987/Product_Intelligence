@@ -246,30 +246,36 @@ class TestHealthEndpoint:
 
         Mechanical proof: patch the execution entry points so that if healthz
         calls them, the test fails. The patched functions raise if invoked.
+
+        Patches both the underlying execution module AND the views-level aliases
+        to defend against accidental code path changes that might call through
+        the views module imports.
         """
         call_log: list[str] = []
 
         def _forbidden(name: str):
             def _inner(*a, **kw):
                 call_log.append(name)
-                raise RuntimeError(f"healthz must not call {name}")
+                raise AssertionError(f"healthz must not call {name}")
             return _inner
 
         with patch(
+            "product_intelligence.web.views.execute_research_run",
+            _forbidden("views.execute_research_run"),
+        ), patch(
+            "product_intelligence.web.views.execute_comparable_research_with_default_providers",
+            _forbidden("views.execute_comparable_research_with_default_providers"),
+        ), patch(
             "product_intelligence.execution.execute_research_run",
-            _forbidden("execute_research_run"),
+            _forbidden("execution.execute_research_run"),
         ), patch(
             "product_intelligence.execution.execute_comparable_research_with_default_providers",
-            _forbidden("execute_comparable_research_with_default_providers"),
+            _forbidden("execution.execute_comparable_research_with_default_providers"),
         ):
-            # Also patch at the web/views import site so healthz's request
-            # path cannot reach execution through the views module cache.
-            # (healthz lives in views but does not import execution itself;
-            # this patch ensures the module-level imports in views are also
-            # guarded, should healthz's code ever be copy-pasted wrong.)
-            pass
+            # CRITICAL: The healthz request MUST occur INSIDE the patch context
+            # to prove execution entry points are not called during healthz.
+            response = client.get("/healthz")
 
-        response = client.get("/healthz")
         assert response.status_code == 200
         assert not call_log, f"healthz called forbidden execution: {call_log}"
 
