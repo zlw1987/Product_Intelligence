@@ -1472,6 +1472,11 @@ class TestUnknownEvidenceRendering:
         This test proves evidence renders for UNKNOWN state in the target
         column.
 
+        Regression property: if the target-side UNKNOWN evidence rendering
+        block is removed from the template, this test FAILS. The test is
+        branch-isolated: the target-side uses a unique evidence marker
+        (TARGET-UNKNOWN-EVIDENCE) that never appears on the candidate side.
+
         FU2 BLOCKER 2B.
         """
         from product_intelligence.research.comparable_result_codec import (
@@ -1482,7 +1487,10 @@ class TestUnknownEvidenceRendering:
             ENTERPRISE_SSD_SCHEMA,
         )
         from product_intelligence.research.comparable_research_results import (
+            EvidenceSourceReference,
+            EvidenceLayer,
             FieldAssessmentResult,
+            SourceAuthority,
         )
         from product_intelligence.research.enterprise_ssd_similarity import (
             ComparisonState,
@@ -1491,9 +1499,29 @@ class TestUnknownEvidenceRendering:
         run = _make_completed_run()
 
         schema_keys = list(ENTERPRISE_SSD_SCHEMA.definitions.keys())
-        # UNKNOWN target + VERIFIED candidate:
-        # comparison_state = TARGET_NOT_VERIFIED (target not verified, candidate verified)
-        # This is valid for FieldAssessmentResult validation.
+
+        # Branch-isolated evidence: unique target-side marker that cannot be
+        # satisfied by candidate-side rendering of any other evidence.
+        target_unknown_evidence = (
+            EvidenceSourceReference(
+                source_name="TARGET-UNKNOWN-EVIDENCE",
+                source_url="https://example.com/target-unknown",
+                evidence_layer=EvidenceLayer.SUPPORT_PAGE,
+                source_authority=SourceAuthority.AUTHORITATIVE,
+                retrieved_at="2024-01-02T00:00:00+00:00",
+            ),
+        )
+        # Separate distinct marker on the candidate (VERIFIED) side.
+        candidate_verified_evidence = (
+            EvidenceSourceReference(
+                source_name="CANDIDATE-VERIFIED-EVIDENCE",
+                source_url="https://example.com/candidate-verified",
+                evidence_layer=EvidenceLayer.SUPPORT_PAGE,
+                source_authority=SourceAuthority.AUTHORITATIVE,
+                retrieved_at="2024-01-03T00:00:00+00:00",
+            ),
+        )
+
         unknown_fa = FieldAssessmentResult(
             definition_key=schema_keys[0],
             comparison_state=ComparisonState.TARGET_NOT_VERIFIED,
@@ -1502,8 +1530,8 @@ class TestUnknownEvidenceRendering:
             field_similarity=None,
             target_value=None,
             candidate_value="2.5-inch",
-            target_evidence=_make_evidence(),
-            candidate_evidence=_make_evidence(),
+            target_evidence=target_unknown_evidence,
+            candidate_evidence=candidate_verified_evidence,
         )
         other_fas = [
             FieldAssessmentResult(
@@ -1521,9 +1549,6 @@ class TestUnknownEvidenceRendering:
         ]
         from product_intelligence.research.comparable_research_results import (
             ComparableCandidateResult,
-            ProductEnrichmentAudit,
-            DatasheetAttemptResult,
-            DatasheetAuditOutcomeKind,
         )
         candidate = _make_comparable_candidate("CAND-001", scored_count=0)
         unknown_candidate = ComparableCandidateResult(
@@ -1551,13 +1576,24 @@ class TestUnknownEvidenceRendering:
         assert response.status_code == 200
         html = response.content.decode("utf-8")
 
-        # "Unknown" must render
+        # "Unknown" must render for UNKNOWN target resolution state
         assert "Unknown" in html
-        # Evidence source/layer/authority must render for UNKNOWN state
-        assert "TestSource" in html
-        assert "SUPPORT_PAGE" in html
-        assert "AUTHORITATIVE" in html
-        assert "2024-01-01" in html
+        # Branch-isolation: target evidence marker appears.
+        # This is the UNIQUE target-side marker — it cannot appear from the
+        # candidate VERIFIED side. If the target-side UNKNOWN evidence branch
+        # is removed from the template, this assertion FAILS.
+        assert "TARGET-UNKNOWN-EVIDENCE" in html, (
+            "Target-side UNKNOWN evidence must render with its unique marker. "
+            "If the target evidence rendering block is removed, this fails."
+        )
+        # Verify the unique URL and timestamp also render (stronger isolation).
+        assert "https://example.com/target-unknown" in html
+        assert "2024-01-02" in html
+        # Candidate-side marker must NOT appear in this test's assertions
+        # (proves the assertion is on the target side, not leaked candidate).
+        # It may appear in HTML but we do not assert it here.
+        # Target-only provenance: SUPPORT_PAGE and AUTHORITATIVE are generic
+        # enough that we assert the unique name as the primary branch proof.
 
     def test_unknown_candidate_renders_evidence(self, client, human_review_db_isolation):
         """UNKNOWN candidate renders 'Unknown' AND evidence provenance.
@@ -1566,9 +1602,10 @@ class TestUnknownEvidenceRendering:
         This test proves evidence renders for UNKNOWN state in the candidate
         column.  The test fails if candidate UNKNOWN evidence disappears.
 
-        Regression coverage: ensures the candidate-side evidence branch is
-        exercised for UNKNOWN resolution state (target-side was already
-        covered by test_unknown_target_renders_evidence).
+        Regression property: if the candidate-side UNKNOWN evidence rendering
+        block is removed from the template, this test FAILS. The test is
+        branch-isolated: the candidate-side uses a unique evidence marker
+        (CANDIDATE-UNKNOWN-EVIDENCE) that never appears on the target side.
         """
         from product_intelligence.research.comparable_result_codec import (
             encode_comparable_result,
@@ -1578,7 +1615,10 @@ class TestUnknownEvidenceRendering:
             ENTERPRISE_SSD_SCHEMA,
         )
         from product_intelligence.research.comparable_research_results import (
+            EvidenceSourceReference,
+            EvidenceLayer,
             FieldAssessmentResult,
+            SourceAuthority,
         )
         from product_intelligence.research.enterprise_ssd_similarity import (
             ComparisonState,
@@ -1587,8 +1627,29 @@ class TestUnknownEvidenceRendering:
         run = _make_completed_run()
 
         schema_keys = list(ENTERPRISE_SSD_SCHEMA.definitions.keys())
-        # UNKNOWN candidate + VERIFIED target:
-        # comparison_state = CANDIDATE_NOT_VERIFIED
+
+        # Separate distinct marker on the target (VERIFIED) side.
+        target_verified_evidence = (
+            EvidenceSourceReference(
+                source_name="TARGET-VERIFIED-EVIDENCE",
+                source_url="https://example.com/target-verified",
+                evidence_layer=EvidenceLayer.SUPPORT_PAGE,
+                source_authority=SourceAuthority.AUTHORITATIVE,
+                retrieved_at="2024-01-04T00:00:00+00:00",
+            ),
+        )
+        # Branch-isolated evidence: unique candidate-side marker that cannot be
+        # satisfied by target-side rendering of any other evidence.
+        candidate_unknown_evidence = (
+            EvidenceSourceReference(
+                source_name="CANDIDATE-UNKNOWN-EVIDENCE",
+                source_url="https://example.com/candidate-unknown",
+                evidence_layer=EvidenceLayer.SUPPORT_PAGE,
+                source_authority=SourceAuthority.AUTHORITATIVE,
+                retrieved_at="2024-01-05T00:00:00+00:00",
+            ),
+        )
+
         unknown_fa = FieldAssessmentResult(
             definition_key=schema_keys[0],
             comparison_state=ComparisonState.CANDIDATE_NOT_VERIFIED,
@@ -1597,8 +1658,8 @@ class TestUnknownEvidenceRendering:
             field_similarity=None,
             target_value="2.5-inch",
             candidate_value=None,
-            target_evidence=_make_evidence(),
-            candidate_evidence=_make_evidence(),
+            target_evidence=target_verified_evidence,
+            candidate_evidence=candidate_unknown_evidence,
         )
         other_fas = [
             FieldAssessmentResult(
@@ -1643,25 +1704,22 @@ class TestUnknownEvidenceRendering:
         assert response.status_code == 200
         html = response.content.decode("utf-8")
 
-        # Candidate cell must render "Unknown"
+        # Candidate cell must render "Unknown" for UNKNOWN resolution state
         assert "Unknown" in html, (
             "Candidate cell must render 'Unknown' for CANDIDATE_NOT_VERIFIED + "
             "UNKNOWN resolution state"
         )
-        # Candidate evidence provenance must render.
-        # _make_evidence() produces evidence with these exact provenance fields:
-        assert "TestSource" in html, (
-            "Candidate evidence source_name must render"
+        # Branch-isolation: candidate evidence marker appears.
+        # This is the UNIQUE candidate-side marker — it cannot appear from the
+        # target VERIFIED side. If the candidate-side UNKNOWN evidence branch
+        # is removed from the template, this assertion FAILS.
+        assert "CANDIDATE-UNKNOWN-EVIDENCE" in html, (
+            "Candidate-side UNKNOWN evidence must render with its unique marker. "
+            "If the candidate evidence rendering block is removed, this fails."
         )
-        assert "SUPPORT_PAGE" in html, (
-            "Candidate evidence evidence_layer must render"
-        )
-        assert "AUTHORITATIVE" in html, (
-            "Candidate evidence source_authority must render"
-        )
-        assert "2024-01-01" in html, (
-            "Candidate evidence retrieved_at must render"
-        )
+        # Verify the unique URL and timestamp also render (stronger isolation).
+        assert "https://example.com/candidate-unknown" in html
+        assert "2024-01-05" in html
 
 
 # ---------------------------------------------------------------------------
