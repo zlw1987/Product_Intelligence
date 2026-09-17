@@ -84,10 +84,28 @@ WSGI_APPLICATION = "config.wsgi.application"
 # database for this phase; it is deliberately not swapped for a server database
 # merely because one is planned, and no production deployment configuration is
 # introduced here.
+# PILOT-RELEASE-1: SQLite database location is configurable via environment
+# variable to allow the database to live outside the Git checkout. This way
+# application upgrades do not risk the durable customer data file.
+#
+# Contract:
+#   - absent PI_SQLITE_PATH: preserve exact current development behavior
+#     (BASE_DIR / "db.sqlite3")
+#   - present PI_SQLITE_PATH: use the supplied filesystem path for the SQLite
+#     database NAME (parent directory must exist; no auto-creation)
+#
+# SQLite is pilot-only and NOT a scaling architecture decision. PostgreSQL
+# may follow after the pilot phase.
+_sqlite_path_env = os.environ.get("PI_SQLITE_PATH")
+if _sqlite_path_env:
+    _db_name = Path(_sqlite_path_env)
+else:
+    _db_name = BASE_DIR / "db.sqlite3"
+
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+        "NAME": _db_name,
     }
 }
 

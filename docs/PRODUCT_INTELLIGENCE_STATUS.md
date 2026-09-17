@@ -132,7 +132,7 @@ FU3B wires the frozen FU3A semantic runtime into real research execution:
 | 6D | Authoritative Datasheet Specification Enrichment | Implemented (approved / frozen)
 | 7A | Comparable-Product Candidate Discovery | Implemented (frozen)
 | 7B | Enterprise SSD Similarity Scoring | Implemented (approved / frozen)
-| 7C | Comparable-Product Presentation | IMPLEMENTED / PENDING CHATGPT REVIEW — 7C-A FROZEN; 7C-B FROZEN; 7C-C IMPLEMENTED / PENDING CHATGPT REVIEW
+| 7C | Comparable-Product Presentation | **IMPLEMENTED / APPROVED / FROZEN** — 7C-PRE1 FROZEN; 7C-PRE2 FROZEN; 7C-A FROZEN; 7C-B FROZEN; 7C-C FROZEN
 | SAP | SAP launcher integration | Future |
 
 
@@ -195,6 +195,9 @@ FU3B wires the frozen FU3A semantic runtime into real research execution:
 | Comparable Discovery Execution (7A) | `execution/comparable_discovery.py` | **Implemented (frozen)**
 | Enterprise SSD Similarity Scoring (7B) | `research/enterprise_ssd_similarity.py` | **Implemented (approved / frozen)**
 | Comparable Similarity Execution (7B) | `execution/comparable_similarity.py` | **Implemented (approved / frozen)**
+| Comparable Research Results + Codec (7C-A) | `research/comparable_research_results.py` + `research/comparable_result_codec.py` | **Implemented (frozen)**
+| Comparable Research Orchestration (7C-B) | `execution/comparable_orchestration.py` | **Implemented (frozen)**
+| Comparable Web Trigger & Presentation (7C-C) | `web/views.py` + `web/comparable_presentation.py` | **Implemented (frozen)**
 | Document Provider Boundary (6D) | `providers/document.py` | **Implemented (approved / frozen)**
 | HTTP PDF Fetcher (6D) | `providers/http_pdf.py` | **Implemented (approved / frozen)**
 | Datasheet Table Interpretation (6D) | `research/enterprise_ssd_datasheet.py` | **Implemented (approved / frozen)**
@@ -703,7 +706,7 @@ delivery.
 
 **7C-A**: COMPARABLE RESEARCH RESULTS + CODEC — IMPLEMENTED / APPROVED / FROZEN
 
-**7C-B**: COMPARABLE RESEARCH ORCHESTRATION — IMPLEMENTED / PENDING CHATGPT REVIEW
+**7C-B**: COMPARABLE RESEARCH ORCHESTRATION — IMPLEMENTED / APPROVED / FROZEN
         Frozen primitives composed into one bounded execution pipeline:
         claim ComparableResearchExecution
             -> exact parent ResearchRun request
@@ -726,7 +729,7 @@ delivery.
         evidence layers SUPPORT_PAGE/DATASHEET_PDF classified by
         object-identity pools, codec V1 round-trip verified;
 
-**7C-C**: COMPARABLE WEB TRIGGER & PRESENTATION — IMPLEMENTED / PENDING CHATGPT REVIEW
+**7C-C**: COMPARABLE WEB TRIGGER & PRESENTATION — IMPLEMENTED / APPROVED / FROZEN
         Web trigger route POST /research/<uuid>/comparables (research-comparables);
         default-provider adapter execute_comparable_research_with_default_providers();
         pure presentation module comparable_presentation.py (DISPLAY ONLY);

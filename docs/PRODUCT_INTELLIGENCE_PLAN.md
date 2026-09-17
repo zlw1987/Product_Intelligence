@@ -34,7 +34,7 @@ web execution/retry integration, FU3A/FU3B implement semantic qualification
 and semantic execution integration, and HUMAN-REVIEW implements human review
 for AI-assisted semantic matches. The web form creates a run, triggers
 execution synchronously, and redirects to the report with the full result.
-Remaining future work: structured API (5A), comparable-product research (7C — 7A implemented and frozen, 7B implemented and frozen, 7C-A frozen, 7C-B implemented pending review).
+Remaining future work: structured API (5A).
 
 ## 2. Problem statement
 
@@ -214,7 +214,7 @@ implemented and frozen; semantic integration (FU3B) is implemented and frozen;
 human review (HUMAN-REVIEW) is implemented and frozen. Still-not-implemented:
 structured API (5A). Full product resolution / comparable-product research
 remain future phases: 6A/6B/6C are specification prerequisites; 7A-7C are
-comparable-product work.
+comparable-product work (7A-7C all implemented and frozen).
 
 ## 6. Multi-interface intake design
 
@@ -2313,7 +2313,7 @@ Status:
     7B — IMPLEMENTED / APPROVED / FROZEN
     7C-A — IMPLEMENTED / APPROVED / FROZEN
     7C-B — IMPLEMENTED / APPROVED / FROZEN
-    7C-C — IMPLEMENTED / PENDING CHATGPT REVIEW (web trigger + presentation)
+    7C-C — IMPLEMENTED / APPROVED / FROZEN
 
 ## 18. Caching / freshness direction
 
@@ -2680,7 +2680,7 @@ PRODUCT-INTEL.7A   Comparable-product candidate discovery     IMPLEMENTED / APPR
 PRODUCT-INTEL.7B   Similarity scoring                         IMPLEMENTED / APPROVED / FROZEN
 PRODUCT-INTEL.7C-A  Comparable research results + codec      IMPLEMENTED / APPROVED / FROZEN
 PRODUCT-INTEL.7C-B  Comparable research orchestration         IMPLEMENTED / APPROVED / FROZEN
-PRODUCT-INTEL.7C-C  Comparable web trigger + presentation     IMPLEMENTED / PENDING CHATGPT REVIEW
+PRODUCT-INTEL.7C-C  Comparable web trigger + presentation     IMPLEMENTED / APPROVED / FROZEN
 
 ----- COMPARABLE MVP -----
 
@@ -2746,8 +2746,8 @@ NOT IMPLEMENTED:
 **7A IMPLEMENTED AND FROZEN.**
 **7B IMPLEMENTED / APPROVED / FROZEN.**
 **7C-A IMPLEMENTED AND FROZEN.**
-**7C-B IMPLEMENTED / PENDING CHATGPT REVIEW.**
-**7C-C IMPLEMENTED / PENDING CHATGPT REVIEW (web trigger + presentation).**
+**7C-B IMPLEMENTED / APPROVED / FROZEN.**
+**7C-C IMPLEMENTED / APPROVED / FROZEN (web trigger + presentation).**
 
 6A is IMPLEMENTED AND FROZEN. 6B is IMPLEMENTED AND FROZEN (with
 approved evidence-backed corrective addition: "2.5in" -> "2.5-inch").
@@ -2790,7 +2790,7 @@ Seagate Nytro 5050 demonstrates that deterministic static structured
 extraction is sufficient for the minimum real 6C vertical slice.
 Current evidence therefore does not justify an LLM extractor.
 
-7B is IMPLEMENTED / APPROVED / FROZEN. 7C-A (results + codec) is IMPLEMENTED / APPROVED / FROZEN. 7C-B (execution orchestration) is IMPLEMENTED / PENDING CHATGPT REVIEW.
+7B is IMPLEMENTED / APPROVED / FROZEN. 7C (Comparable-Product Presentation) is IMPLEMENTED / APPROVED / FROZEN.
 6D (authoritative datasheet specification enrichment) is IMPLEMENTED / APPROVED / FROZEN and IS the candidate-specification enrichment that was the subject
 of the prior delivery-decision question. 7C (web presentation) is the
 next comparable-product delivery after the 7C-B execution orchestration.

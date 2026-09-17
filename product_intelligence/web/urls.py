@@ -23,6 +23,9 @@ from django.urls import path
 from product_intelligence.web import views
 
 urlpatterns = [
+    # PILOT-RELEASE-1: Operational health endpoint
+    path("healthz", views.healthz, name="healthz"),
+    # End PILOT-RELEASE-1
     path("research/new", views.research_new, name="research-new"),
     path("research/<uuid:run_id>", views.research_detail, name="research-detail"),
     path("research/<uuid:run_id>/retry", views.research_retry, name="research-retry"),

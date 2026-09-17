@@ -10,6 +10,11 @@
 # effect of a dependency correction.
 Django>=5.2,<6.0
 
+# Production WSGI server for Windows-compatible deployment (PILOT-RELEASE-1).
+# Gunicorn is Unix-only; Waitress is the approved Windows-compatible server.
+# Waitress 3.0.2 verified on Python 3.14.7.
+waitress>=3.0.2,<4.0
+
 # PDF table extraction for specification enrichment (6D execution layer only).
 # pdfplumber depends on pdfminer.six (transitive). Production imports both:
 #   - pdfplumber (open PDFs, extract tables)

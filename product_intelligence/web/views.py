@@ -1,4 +1,6 @@
-"""Standalone intake and report views (PRODUCT-INTEL.1B, extended 4B, 4C-C).
+"""Standalone intake and report views (PRODUCT-INTEL.1B, extended 4B, 4C-C, PILOT-RELEASE-1).
+
+PILOT-RELEASE-1 adds the /healthz operational health endpoint.
 
 Two views, and between them the whole browser workflow:
 
@@ -18,7 +20,7 @@ from logging import getLogger
 
 import uuid
 
-from django.http import HttpRequest, HttpResponse
+from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 import logging
@@ -61,6 +63,48 @@ from product_intelligence.research.comparable_result_codec import (
 from .comparable_presentation import (
     build_comparable_result_presentation,
 )
+
+
+def healthz(request: HttpRequest) -> HttpResponse:
+    """Operational health check endpoint (PILOT-RELEASE-1).
+
+    GET /healthz returns a minimal health response:
+    - HTTP 200 when the process is healthy
+    - HTTP 503 when the database is unavailable
+
+    Requirements:
+    - GET only (POST returns 405)
+    - No authentication (internal network-restricted pilot)
+    - No research execution
+    - No provider calls
+    - No LLM calls
+    - No sensitive configuration
+    - No model/provider identifiers
+    - No database record counts
+    - No customer data
+    - No UUIDs
+
+    The endpoint performs a minimal database connectivity check.
+    It does NOT mutate database state.
+    """
+    if request.method != "GET":
+        return JsonResponse(
+            {"status": "error", "message": "Method not allowed"},
+            status=405,
+        )
+
+    # Minimal database connectivity check
+    try:
+        from django.db import connection
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1")
+        return JsonResponse({"status": "healthy"}, status=200)
+    except Exception:
+        return JsonResponse(
+            {"status": "unhealthy", "message": "Database unavailable"},
+            status=503,
+        )
+
 
 
 def _validate_comparable_result_parent_binding(
