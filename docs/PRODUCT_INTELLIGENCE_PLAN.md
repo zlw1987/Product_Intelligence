@@ -1,4 +1,4 @@
-# Product Intelligence — Canonical Architecture and Roadmap
+﻿# Product Intelligence — Canonical Architecture and Roadmap
 
 This is the canonical long-form design document for Product Intelligence.
 Read it before implementing anything.
@@ -34,7 +34,7 @@ web execution/retry integration, FU3A/FU3B implement semantic qualification
 and semantic execution integration, and HUMAN-REVIEW implements human review
 for AI-assisted semantic matches. The web form creates a run, triggers
 execution synchronously, and redirects to the report with the full result.
-Remaining future work: structured API (5A).
+Remaining future work: structured API (5A). 4D is the next planned phase.
 
 ## 2. Problem statement
 
@@ -212,9 +212,11 @@ and the 4B report are implemented; and (4C-B) end-to-end execution/
 orchestration is implemented; web execution/retry integration (4C-C) is
 implemented and frozen; semantic integration (FU3B) is implemented and frozen;
 human review (HUMAN-REVIEW) is implemented and frozen. Still-not-implemented:
-structured API (5A). Full product resolution / comparable-product research
-remain future phases: 6A/6B/6C are specification prerequisites; 7A-7C are
-comparable-product work (7A-7C all implemented and frozen).
+structured API (5A). 6A/6B/6C are implemented and frozen (product specification
+framework, Enterprise SSD category schema, specification evidence extraction
+and resolution). 7A/7B/7C are implemented and frozen (comparable-product
+candidate discovery, similarity scoring, comparison presentation). 4D is the
+next planned phase.
 
 ## 6. Multi-interface intake design
 
@@ -912,12 +914,18 @@ external-call protection must be addressed before it is used as normal
 application behaviour — see §18, which distinguishes that narrow concern from
 general caching.
 
-A future **internal or distributor price source** enters through this same
-boundary, as one more provider. It must not become conditional logic in the core
-for one company's systems. Internal commercial pricing and public market pricing
-are distinct classes of evidence and must not automatically share one aggregate
-(§16); exposing internal pricing through a report also makes report access
-control a blocker rather than a deferred question (§19).
+A future **internal or distributor price source** does not automatically enter
+through this same boundary. The earlier 2B-era direction anticipated it generically
+as another provider; 4D-B refines that direction based on the now-known real
+structured Vendor API: a structured internal/distributor commercial source does
+NOT have to use `SearchProvider` when the `SearchProvider` contract
+(`SearchQuery` → URLs/search results) is semantically wrong. 4D-B uses a
+provider-neutral commercial-source boundary for structured commercial
+observations, with vendor-specific payload/transport logic in adapters and
+core/business rules remaining vendor-neutral. Internal commercial pricing and
+public market pricing are distinct classes of evidence and MUST NOT automatically
+share an aggregate (§16); exposing internal pricing through a report also makes
+report access control a blocker rather than a deferred question (§19, §26.3).
 
 Status: `IMPLEMENTED` (2B) for the boundary — the contracts, the protocol, the
 one exception, and their guards; `IMPLEMENTED` (2C) for the first real
@@ -2390,6 +2398,13 @@ audience is a different exposure from a distributor's negotiated price shown to
 whoever holds a URL. Launcher URLs remain URL builders throughout and never
 carry provider or authentication secrets (AD-005).
 
+**4D-B is the phase that triggers this gate.** Before 4D-B vendor/customer
+commercial prices are exposed in the report, deployment MUST verify or
+establish trusted-corporate-network / VPN / approved-subnet access restriction.
+Full application authentication is NOT required for this documentation — 8C
+remains the formal production-hardening/authentication phase. Report UUID is
+never access control.
+
 Consequence for the 1B web shell, stated plainly rather than discovered at
 deployment time: **anyone who can reach the server can open any report whose
 identifier they hold, and can submit a request.** That is acceptable for local
@@ -2667,6 +2682,17 @@ PRODUCT-INTEL.4C   Research execution orchestration
 PRODUCT-INTEL.5A   Structured external intake API             PLANNED
 PRODUCT-INTEL.5B   Visual FoxPro 5 launcher integration       IMPLEMENTED
 PRODUCT-INTEL.HUMAN-REVIEW  Human review for AI-assisted matches  IMPLEMENTED
+PRODUCT-INTEL.PILOT-RELEASE-1  Internal pilot deployment          DEPLOYED / ACCEPTED
+
+----- PILOT DEPLOYED / ACCEPTED — NEXT: 4D -----
+
+PRODUCT-INTEL.4D-PRE  Preferred Source Feasibility Audit         PLANNED
+PRODUCT-INTEL.4D-A    Source Acquisition Optimization            PLANNED
+PRODUCT-INTEL.4D-B    Internal Vendor Commercial Evidence        PLANNED
+PRODUCT-INTEL.4D-C    Compact Quote Summary                      PLANNED
+PRODUCT-INTEL.4D-D    Micron Packaging Alias Retrieval           PLANNED
+
+----- PRODUCT-INTEL.4D — Customer Quote Research Expansion -----
 
 ----- FOXPRO MVP + HUMAN REVIEW -----
 
@@ -2699,6 +2725,19 @@ Future:
 **Roadmap (current state):**
 
 ```
+DEPLOYED / ACCEPTED:
+  PILOT-RELEASE-1  Internal pilot deployment (pilot_check PASS, Waitress,
+                   remote browser, real Serper, AMAX/nemotron-3-super primary
+                   semantic, human review, comparable research, persistent
+                   SQLite, Windows service)
+
+NEXT — PRODUCT-INTEL.4D (Customer Quote Research Expansion):
+  4D-PRE  Preferred Source Feasibility Audit
+  4D-A    Source Acquisition Optimization
+  4D-B    Internal Vendor Commercial Evidence
+  4D-C    Compact Quote Summary
+  4D-D    Micron Packaging Alias Retrieval
+
 IMPLEMENTED (frozen):
   4C-A  Execution ownership/lifecycle/evidence primitives
   4C-B  Backend research execution (orchestration pipeline)
@@ -2710,6 +2749,9 @@ IMPLEMENTED (frozen):
 
 PLANNED:
   5A    Structured external API (not a blocker for current workflow)
+  8A    Caching / refresh strategy
+  8B    Research history
+  8C    Production hardening
 
 DELIVERED:
   5B    Visual FoxPro 5 launcher (server-side + client integrated outside repo)
@@ -2729,16 +2771,14 @@ IMPLEMENTED (frozen):
 
 DELIVERED (frozen):
   7C-A  Comparable research results + codec (implemented / approved / frozen)
-
-IMPLEMENTED:
   7C-B  Comparable research orchestration
         (frozen primitives composed into one bounded execution pipeline;
-         implemented, pending ChatGPT review)
+         implemented / approved / frozen)
+  7C-C  Comparable web trigger + presentation
+        (web trigger route, pure presentation, CSRF, boundary guards;
+         implemented / approved / frozen)
 
-NOT IMPLEMENTED:
-  7C    Comparison web report
-        (7C-A results/codec frozen, 7C-B orchestration implemented,
-         web presentation layer is the next delivery)
+FUTURE:
   SAP   SAP launcher integration
 ```
 
@@ -4060,3 +4100,412 @@ This canonical plan does not duplicate that operational snapshot.
 | AD-057 | 7A candidate discovery is evidence-first and distinct from similarity: explicit AUTHORITATIVE manufacturer catalog sources produce raw candidate observations; frozen 2A excludes the target and groups only exact/normalized-exact candidate identities; no SearchProvider, LLM, spec filtering, scoring, ranking, or persistence is introduced. | Candidate != comparable. 7A discovers product identities from approved catalog sources; 7B scores similarity. ProductIdentity is NOT reused for discovered candidates (it represents the requested product, not catalog rows). supportSpecsData is the first mechanism. Target-self exclusion uses frozen 2A compare_part_numbers(). Deduplication uses frozen 2A normalize_part_number() semantics. No spec-based pre-filtering (that is 7B). No score/rank fields on candidates. Result is self-auditing. | Accepted (7A implementation) |
 | AD-058 | 7B deterministic similarity scoring: VERIFIED-only field comparison, 12-field equal weight, Decimal min/max ratio for numeric fields, candidate ProductIdentity bridge (EXACT, no manufacturer guessed), evidence_coverage and evidence_weighted_similarity, one-fetch-per-source execution reusing frozen 6C extraction per candidate identity, self-validating contracts, field score self-validation, exact scalar types, execution-owned EnterpriseSsdSimilarityResult with 7A source binding, retained source outcomes and provenance audit. | 7B computes auditable similarity evidence between target and candidate specifications. Similarity != compatibility certification. VERIFIED-only scoring: UNKNOWN/UNVERIFIED/CONFLICT states are not mismatches. 12 fields have equal weight (no domain-business weights). DECIMAL fields use min/max ratio (positive values), TEXT/ENUM/BOOLEAN use exact canonical equality. Field score self-validation: SpecificationSimilarityFieldAssessment recomputes actual score from raw resolutions, rejecting wrong-but-in-range supplied values. Exact scalar types: scored_field_count must be int (not bool/float), evidence_coverage/observed_similarity/evidence_weighted_similarity must be Decimal (not int/float/bool). evidence_coverage = scored/12, evidence_weighted_similarity = sum/12. Candidate ProductIdentity bridge uses EXACT match type, rejects non-AUTHORITATIVE evidence, and ComparableCandidateSpecificationProfile enforces exact bridge output identity (no enriched metadata). Execution fetches each unique source ONCE, calls frozen 6C extraction per candidate identity. EnterpriseSsdSimilarityResult is execution-owned: exact ComparableCandidateDiscoveryResult type (no duck typing, TypeError BEFORE fetch), 7A source binding (canonical EXTRACTED source descriptors derived from frozen 7A result, exact object identity enforced — copied/value-equal substitutes rejected, count and order audited), retained source outcomes, final_url structurally validated, candidate spec evidence traced to FETCHED 7B outcomes (provenance audit). Real Seagate fixture: 80 candidates, each with 1 scoreable field (Form Factor), coverage = 1/12. Evidence too sparse for useful differentiation. | Accepted (7B implementation) |
 | AD-059 | 6D Authoritative Datasheet Specification Enrichment: manufacturer PDF datasheet acquisition through provider-neutral DocumentFetcher boundary; concrete HttpPdfFetcher (stdlib urllib); pure research table interpretation (MPN -> table -> column -> row binding, unit incorporation); frozen 6B normalization + frozen 6A resolution; 7A-grounded authority chain (derive_datasheet_source_from_discovery); public API requires frozen ComparableCandidateDiscoveryResult + exact EXTRACTED outcome (identity-verified member) — arbitrary DatasheetSource objects rejected; batch shared PDF fetch; bounded parser exception taxonomy (pdfminer only, RuntimeError propagates); fully self-auditing SpecificationEnrichmentResult (raw->outcome->normalized->resolution provenance); 6C+6D evidence composition (normalize + re-resolve); abstention paths return valid empty result (zero source_outcomes, all UNKNOWN). | 6D extends specification evidence capability beyond frozen 6C extraction. Added after 7B freeze because frozen 7B revealed only 1/12 candidate evidence coverage. Provider-neutral document boundary. Concrete PDF fetcher (stdlib urllib, no browser). Pure research layer table interpretation (no PDF parser in research/). Six-field allowlist: capacity, sequential_read, sequential_write, random_read_iops, random_write_iops, endurance_dwpd. Support-record datasheet-link extraction from var supportSpecsData JSON. AUTHORITATIVE-only enforcement. Bounded model-row grammar (3 exact forms). Whole-PDF MPN uniqueness. Raw MPN exactness. Bounded parser exception handling (pdfminer/pdfplumber only, programming errors propagate). Self-auditing result. 6C+6D evidence composition. Real Seagate fixture: Nytro 5550/5350 datasheet PDF (8 pages, 15 tables). XP15360SE70005: 6 VERIFIED observations. Candidate composition: scored_field_count=7, evidence_coverage=7/12. | Accepted (6D implementation) |
+
+## 26. Customer Quote Research Expansion — 4D Phase Architecture
+
+**Status: PLANNED. No production implementation yet.**
+
+PILOT-RELEASE-1 is deployed and accepted. 4D is the next roadmap phase.
+4D-PRE is the first 4D sub-phase and produces no production changes.
+
+### 26.0 Overview
+
+PRODUCT-INTEL.4D extends the deployed pilot to incorporate customer-pilot
+requirements around quote research, vendor commercial pricing, compact
+presentation, currency conversion display, and Micron packaging alias
+retrieval.
+
+It is structured as five sub-phases, each with a specific purpose, boundary,
+and non-goal. None of them reopens frozen phases. No frozen phase boundary is
+weakened.
+
+```
+4D-PRE  Preferred Source Feasibility Audit  (evidence only, no production change)
+4D-A    Source Acquisition Optimization
+4D-B    Internal Vendor Commercial Evidence
+4D-C    Compact Quote Summary
+4D-D    Micron Packaging Alias Retrieval
+```
+
+### 26.1 4D-PRE — Preferred Source Feasibility Audit
+
+**Purpose:** Audit the customer's 12 preferred public websites to determine
+per-site acquisition viability, data quality, and whether direct lookup can
+reduce Serper credit usage.
+
+**Scope:** Evidence collection only. No production code, no tests, no
+architecture change.
+
+**The 12 preferred sites:**
+
+cdw.com, newegg.com, serversupply.com, harddiskdirect.com, esaitech.com,
+serverorbit.com, directmacro.com, dihuni.com, centralcomputer.com,
+memory4less.com, fs.com, naddod.com
+
+
+**Configuration:**
+
+```
+Planned server-side environment variable:
+    PI_PREFERRED_SEARCH_DOMAINS
+
+Current customer value:
+    cdw.com,newegg.com,serversupply.com,harddiskdirect.com,esaitech.com,serverorbit.com,directmacro.com,dihuni.com,centralcomputer.com,memory4less.com,fs.com,naddod.com
+```
+
+This affects acquisition preference only. It grants no source or identity
+authority.
+
+**Per-site audit fields:**
+
+| Field | What it records |
+| --- | --- |
+| source / domain | The hostname being audited |
+| direct lookup mechanism | Stable URL pattern or search entry point |
+| tested search shape | Query form used to find a known MPN |
+| stable product URL? | Does the same MPN resolve to the same URL? |
+| static HTML? | Returns structured product data via plain HTTP? |
+| JS required? | Requires client-side rendering for product data? |
+| bot / blocking behavior | 403, CAPTCHA, interstitial, rate limit? |
+| explicit MPN evidence? | MPN published as a structured field? |
+| price? | Price visible and structured? |
+| currency? | Currency published? |
+| availability? | Stock status visible and structured? |
+| condition? | NEW / USED / REFURBISHED published? |
+| source-specific extraction needed? | Does the generic 3A path produce usable observations? |
+| recommendation | DIRECT / SERPER_FALLBACK / UNSUITABLE |
+| evidence / notes | Free-text findings |
+
+**Non-goals:**
+- No production code
+- No scraping infrastructure
+- No headless browser or scraping infrastructure acquired, installed, or
+  implemented. 4D-PRE may *record* that a site requires JavaScript rendering.
+  Whether browser support is justified is a later 4D-A design decision based on
+  the completed audit evidence.
+- No per-site adapter written in 4D-PRE
+
+### 26.2 4D-A — Source Acquisition Optimization
+
+**Intent:** Use direct source lookup where 4D-PRE evidence proves it reliable.
+Serper becomes fallback rather than unconditional discovery dependency.
+
+**Architecture decisions:**
+
+- Direct-source results flow through the **existing** fetch/extract/normalize/
+  deterministic-identity/semantic-assist authority boundaries. They do not
+  bypass any frozen step.
+- Preferred source status affects acquisition **priority only**.
+- Preferred source status **NEVER grants identity authority.**
+- No headless-browser or scraping infrastructure unless later evidence justifies it.
+- Provider-cost reduction is an explicit goal.
+- No arbitrary fallback trigger (e.g. "3 results means skip Serper") is frozen
+  at this stage; the exact trigger is a 4D-A design decision after 4D-PRE
+  evidence exists.
+
+**Non-goals:**
+- 4D-A does not by itself authorize another generic metered web-search provider.
+  Evidence-backed direct-source/site adapters may be introduced behind the
+  provider boundary when 4D-PRE demonstrates a stable mechanism.
+- Not a bypass of frozen identity or authority contracts
+- Vendor/site-specific transport logic must not leak into research core or web
+  presentation
+
+### 26.3 4D-B — Internal Vendor Commercial Evidence
+
+**Intent:** Integrate the customer's internal vendor lookup API as a
+structured commercial evidence source.
+
+**Vendor API:**
+
+```
+configured via environment:
+    PI_VENDOR_LOOKUP_BASE_URL
+
+current deployment example:
+    http://157.22.244.39:8808/vendor
+
+request form:
+    ?partno=<URL-ENCODED-MPN>
+```
+
+Known upstream sources: Ingram, CDW, Synnex EU.
+
+This is **structured internal commercial evidence**, not public web search.
+
+**Boundary decision:**
+
+- Introduce a **provider-neutral commercial-source boundary** appropriate to
+  structured vendor observations. This does NOT force structured commercial
+  data into `SearchProvider` if that contract is semantically wrong.
+- Vendor-shaped payloads remain in adapters.
+- Core / business logic consumes provider-neutral normalized observations.
+- One vendor section failure must not destroy usable other vendor results.
+- Whole vendor API failure is supplemental / nonfatal.
+
+**Authority constraints (binding):**
+
+Vendor commercial data **MUST NOT** automatically enter:
+- frozen 4A Machine Price
+- frozen Reviewed Price
+- 2A identity authority
+- semantic authority
+- comparable scoring
+
+It is **supplemental commercial evidence** unless a later explicit phase
+changes that authority contract.
+
+**Condition policy:**
+
+Customer policy: if a vendor API result successfully identifies the requested
+product, that vendor API inventory is BRAND NEW.
+
+Represent this as explicit policy provenance:
+```
+brand_new = true
+brand_new_basis = VENDOR_API_POLICY
+```
+
+Do NOT fabricate a source-published NEW condition field.
+
+**Known successful payload fields:**
+
+| Source | Fields |
+| --- | --- |
+| Ingram | `vendorPartNumber`, `pricing.customerPrice`, `pricing.retailPrice`, `pricing.currencyCode`, `availability.available`, `availability.Avl_Quantity` |
+| CDW | `manufacturerPartNumber`, `price`, `currencyCode`, `inventoryStatus.stockStatus`, `inventoryStatus.Avl_Quantity` |
+| Synnex EU | `OnlineCheck.Header.CurrencyCode`, `OnlineCheck.Item.ManufacturerItemIdentifier`, `UnitPriceAmount`, `AvailabilityTotal`, `Note`; "not maintained in our catalogue" means no usable product |
+
+**Vendor identity binding (binding validation):**
+
+A successful vendor commercial observation requires the vendor's explicit
+manufacturer-part-number field to compare against the requested MPN through
+the frozen 2A comparator as `EXACT` or `NORMALIZED_EXACT`:
+
+| Source | MPN field |
+| --- | --- |
+| Ingram | `vendorPartNumber` |
+| CDW | `manufacturerPartNumber` |
+| Synnex EU | `OnlineCheck.Item.ManufacturerItemIdentifier` |
+
+Mismatch or absent explicit vendor MPN: do not create a normal commercial
+product row. This is a binding validation for a supplemental vendor
+observation. It MUST NOT promote vendor data into frozen 4A identity authority.
+
+**Vendor price / not-found / inventory contract:**
+
+*Ingram:*
+- Primary displayed commercial price: `pricing.customerPrice`
+- Fallback only if `customerPrice` absent: `pricing.retailPrice`
+- If `customerPrice` used and `retailPrice` present, `retailPrice` may be
+  summarized in Note
+- Currency: `pricing.currencyCode`
+- `available=true` or `Avl_Quantity > 0`, when non-conflicting => `In Stock`
+- `available=false` with `Avl_Quantity=0` => `Out of Stock`
+- Contradiction or insufficient evidence => `Unknown`
+- Not-found response (`{Not Found}`): no row
+
+*CDW:*
+- Price: `price`
+- Currency: `currencyCode`
+- `stockStatus InStock` => `In Stock`
+- `stockStatus OutOfStock` => `Out of Stock`
+- Contradictory or unknown => `Unknown`
+- `Avl_Quantity` may appear in Note
+- Not-found response (`{Not Found}`): no row
+
+*Synnex EU:*
+- Price: `UnitPriceAmount`
+- Currency: `OnlineCheck.Header.CurrencyCode`
+- Numeric `AvailabilityTotal > 0` => `In Stock`
+- Numeric `0` => `Out of Stock`
+- Missing or unparseable => `Unknown`
+- Useful bounded note such as "No Returns" may be displayed
+- Response containing "not maintained in our catalogue": no row
+
+Vendor API successful identity-bound row:
+- `Brand New = Yes`
+- `basis = VENDOR_API_POLICY`
+- Do NOT fabricate source-published NEW condition evidence.
+
+**Vendor sensitive metadata (binding rule):**
+
+Do NOT persist, render, log into report payloads, or expose through Note/raw
+references internal transport/account/session metadata such as:
+
+- `SessionId`
+- `BuyerAccountId`
+- `SystemId`
+- or equivalent credentials/session/account identifiers
+
+Recorded test fixtures in 4D-B must be sanitized.
+
+**Security gate:**
+
+§19 already states that report access control stops being deferrable when
+internal commercial pricing enters reports. **4D-B is the phase that triggers
+this gate.**
+
+Before 4D-B vendor/customer commercial prices are exposed in the report,
+deployment MUST verify or establish trusted-corporate-network / VPN /
+approved-subnet access restriction. Current pilot security state is not
+claimed to satisfy this gate.
+
+Full application authentication is NOT required for this documentation — 8C
+remains the formal production-hardening / authentication phase. Report UUID is
+never access control.
+
+### 26.4 4D-C — Compact Quote Summary
+
+**Intent:** Add a compact customer-facing table near the top of Price
+Intelligence.
+
+**Table columns:**
+
+| Column | Meaning |
+| --- | --- |
+| Source | Hostname (web) or vendor name (vendor API) |
+| Price | Original price in published currency |
+| USD Equivalent | Supplemental display via FX evidence |
+| Inventory | Normalized availability |
+| Brand New | Condition: Yes / No / Unknown |
+| Note | Bounded human-facing note (web and vendor rows) |
+
+**Public web rows:**
+- Source displays main hostname, stripping leading `www.`.
+- Full safe URL remains link target.
+- Existing full evidence / audit sections MUST remain.
+
+**Vendor API rows:**
+- Display human names: `Ingram (Vendor API)`, `CDW (Vendor API)`,
+  `Synnex EU (Vendor API)`.
+
+**Inventory display:**
+- `IN_STOCK` => `In Stock`
+- `LIMITED` => `In Stock`, retain `Limited` in Note
+- `OUT_OF_STOCK` => `Out of Stock`
+- `PREORDER` / `BACKORDER` / `DISCONTINUED` => `Out of Stock`, retain
+  specific state in Note
+- `UNKNOWN` => `Unknown`
+- Do not fabricate a binary result from `UNKNOWN`.
+- Web evidence uses existing deterministic normalized availability.
+- Vendor API uses explicit provider mapping.
+
+**Brand New:**
+- Web evidence: uses existing normalized condition.
+  - `NEW` => `Yes`
+  - `USED` / `REFURBISHED` / `DAMAGED` => `No`
+  - `UNKNOWN` => `Unknown`
+- Vendor API successful identity match => `Yes` by explicit `VENDOR_API_POLICY`.
+
+**Note (web and vendor rows):**
+
+Bounded human-facing note. Examples:
+- Verified
+- AI-assisted HIGH - review required
+- Human confirmed
+- Excluded - MPN evidence insufficient
+- Preferred source
+- Vendor API - customer price
+- Qty 48
+- No Returns
+
+No raw payload or secret/session/account data in Note.
+
+### 26.5 4D-C FX (Currency Conversion Display)
+
+**USD Equivalent is a supplemental display value.**
+
+**Binding constraints:**
+
+- Currency conversion **MUST NOT** be moved into frozen 3B normalization or
+  frozen 4A aggregation.
+- FX rate is itself **evidence**, carrying: source, retrieved/rate date, rate.
+- Historical report reload must use **persisted** FX evidence.
+- `GET /research/<uuid>` must **not** make live Vendor API or FX calls.
+  Historical report GET renders persisted evidence only.
+- If FX is unavailable, original price remains valid and USD Equivalent
+  displays unavailable.
+- Use `Decimal` semantics in future implementation.
+- Official ECB daily / working-day reference data is the intended source unless
+  design evidence later requires otherwise.
+
+**USD source rows:** USD Equivalent = same USD amount without needing an FX
+conversion lookup.
+
+**Non-USD source rows:** use only persisted FX evidence. Zero live FX network
+calls on historical report GET.
+
+### 26.6 4D-D — Micron Packaging Alias Retrieval
+
+**Customer requirement:**
+
+Manufacturer: Micron only. For Micron Memory / SSD, a final `R` or `T` may
+identify packaging variants:
+
+```
+MTFDKCC3T8TGP-1BK1DABYYR
+MTFDKCC3T8TGP-1BK1DABYYT
+MTFDKCC3T8TGP-1BK1DABYY
+```
+
+**The rule:**
+- Manufacturer must be Micron.
+- Only the **final** character may be `R` or `T`.
+- Removing that final character must leave the exact same base.
+
+**Safety gate:**
+
+Packaging alias expansion is allowed only when manufacturer is established as
+Micron AND product category is evidence-backed as Memory or SSD.
+
+Do NOT enable the rule merely because unverified request-description text says
+"SSD" or "Memory".
+
+If manufacturer/category eligibility is not established, abstain and generate
+no packaging alias.
+
+**Architecture decision:**
+
+**DO NOT** modify frozen 2A part-number identity normalization.
+**DO NOT** classify these as `EXACT` or `NORMALIZED_EXACT` merely by dropping
+`R`/`T`.
+
+Use a **distinct retrieval/reference relation**, conceptually:
+`MICRON_PACKAGING_ALIAS`.
+
+It may generate retrieval aliases:
+- requested base+`R`
+- base+`T`
+- base
+
+**Purpose:**
+- Improve search / discovery recall.
+- Allow clearly labeled reference rows.
+
+**It must NOT automatically:**
+- Enter Machine Price authority.
+- Become deterministic exact identity.
+- Become Reviewed Price authority.
+- Alter frozen 2A normalization.
+
+If a later phase wants these variants to enter authoritative pricing, that
+requires independent evidence-backed validation.
+
+### 26.7 Deferred items for 4D
+
+The following are NOT pulled into 4D unless already documented as future:
+
+- Redis
+- Celery
+- Background jobs
+- Generic scraping platform
+- React / SPA rewrite
+- Full auth implementation
+- PostgreSQL migration
+- Caching implementation (8A)
+- SAP work
+
+8A caching / refresh remains later.
+8B research history remains later.
+8C production hardening remains later.

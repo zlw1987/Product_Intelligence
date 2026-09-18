@@ -2,6 +2,21 @@
 
 ## Current state
 
+**PILOT-RELEASE-1 DEPLOYED / ACCEPTED**
+
+Internal pilot deployment is deployed and accepted on the internal Windows pilot server.
+
+Verified live:
+- pilot_check PASS
+- Waitress service
+- remote browser access
+- real Serper execution
+- AMAX / nemotron-3-super primary semantic execution
+- human review
+- comparable research
+- persistent SQLite
+- Windows service
+
 **PRODUCT-INTEL.PILOT-UX — Semantic qualification APPROVED/FROZEN;
 FU3A Production Semantic Runtime Contract APPROVED/FROZEN;
 FU3B Semantic Execution Integration APPROVED/FROZEN;
@@ -11,6 +26,19 @@ HUMAN-REVIEW Human Review for AI-Assisted Matches APPROVED/FROZEN;
 7A Comparable-Product Candidate Discovery IMPLEMENTED / APPROVED / FROZEN;
 7B Enterprise SSD Similarity Scoring IMPLEMENTED / APPROVED / FROZEN.**
 6D Authoritative Datasheet Specification Enrichment IMPLEMENTED / APPROVED / FROZEN
+
+**NEXT: PRODUCT-INTEL.4D (Customer Quote Research Expansion)**
+
+4D-PRE is the first 4D sub-phase. 4D-PRE produces evidence only — no
+production code changes. No 4D production implementation yet.
+
+```
+4D-PRE  Preferred Source Feasibility Audit  (evidence only)
+4D-A    Source Acquisition Optimization
+4D-B    Internal Vendor Commercial Evidence
+4D-C    Compact Quote Summary
+4D-D    Micron Packaging Alias Retrieval
+```
 
 Semantic qualification is APPROVED AND FROZEN:
 - Semantic qualification corpus, prompt v1.1, evaluator mathematics,
@@ -118,6 +146,12 @@ FU3B wires the frozen FU3A semantic runtime into real research execution:
 
 | Phase | Description | Status |
 | --- | --- | --- |
+| PILOT-RELEASE-1 | Internal pilot deployment | **DEPLOYED / ACCEPTED** |
+| 4D-PRE | Preferred Source Feasibility Audit | Planned (evidence only) |
+| 4D-A | Source Acquisition Optimization | Planned |
+| 4D-B | Internal Vendor Commercial Evidence | Planned |
+| 4D-C | Compact Quote Summary | Planned |
+| 4D-D | Micron Packaging Alias Retrieval | Planned |
 | 4C-A | Execution ownership/lifecycle/evidence primitives | Implemented (frozen) |
 | 4C-B | Backend research execution | Implemented (frozen) |
 | 4C-B-FU | Exact duplicate deduplication | Implemented (frozen) |
@@ -629,6 +663,24 @@ Corrective pass (final evidence-backed closure):
 
 ## Next delivery priority
 
+**PILOT-RELEASE-1**: DEPLOYED / ACCEPTED
+
+**4D-PRE**: PLANNED / EVIDENCE ONLY — Preferred Source Feasibility Audit;
+         audit 12 customer preferred sites;
+         record per-site: direct lookup mechanism, static HTML capability,
+         JS requirements, blocking behavior, MPN/price/currency evidence;
+         recommendation: DIRECT / SERPER_FALLBACK / UNSUITABLE;
+         no production code changes;
+         evidence recorded in docs/PILOT_SOURCE_FEASIBILITY.md
+
+**4D**: PLANNED — Customer Quote Research Expansion;
+       4D-PRE (feasibility audit) -> 4D-A (source optimization) ->
+       4D-B (vendor commercial evidence) -> 4D-C (compact quote + FX) ->
+       4D-D (Micron packaging alias);
+       no frozen phase reopened; no frozen boundary weakened;
+       4D-B triggers §19 security gate (access control no longer deferrable);
+       8C remains formal production-hardening/authentication phase
+
 **HUMAN-REVIEW**: IMPLEMENTED / APPROVED / FROZEN
 
 **5A**: PLANNED / NOT IMPLEMENTED / non-blocking
@@ -701,8 +753,7 @@ Corrective pass (final evidence-backed closure):
         real Seagate fixture: 80 candidates, 1 scoreable field each (Form Factor);
         evidence too sparse for useful differentiation (candidate spec enrichment needed);
         6D completed the candidate-specification enrichment identified after the
-7B freeze. 7C Comparable-Product Presentation is the next comparable-product
-delivery.
+7B freeze. 7C is IMPLEMENTED / APPROVED / FROZEN. 4D is the next delivery.
 
 **7C-A**: COMPARABLE RESEARCH RESULTS + CODEC — IMPLEMENTED / APPROVED / FROZEN
 
