@@ -56,15 +56,18 @@ GENERIC_BOUNDARY_MODULES = [
     PROVIDERS_ROOT / "search.py",
     PROVIDERS_ROOT / "page.py",
     PROVIDERS_ROOT / "document.py",  # 6D: provider-neutral document boundary
+    PROVIDERS_ROOT / "direct_source.py",  # 4D-A: provider-neutral direct-source boundary
 ]
 
 # Concrete adapters: the modules that are allowed to name a vendor and to open a
 # connection. `serper.py` talks to one search vendor; `http_page.py` talks to
 # whatever public page it is handed; `http_pdf.py` fetches PDF documents.
+# `directmacro.py` constructs DirectMacro URLs (no network call).
 ADAPTER_MODULES = [
     PROVIDERS_ROOT / "serper.py",
     PROVIDERS_ROOT / "http_page.py",
     PROVIDERS_ROOT / "http_pdf.py",  # 6D: concrete PDF fetcher
+    PROVIDERS_ROOT / "directmacro.py",  # 4D-A: DirectMacro locator (URL construction only)
 ]
 
 # Modules that perform or configure I/O. `urllib.parse` is deliberately absent:
@@ -292,15 +295,20 @@ def test_only_the_expected_adapter_modules_exist() -> None:
     `serper.py` is the one vendor-specific module 2C is permitted to add.
     3A added the page-fetch boundary (`page.py`, `http_page.py`).
     6D adds the document/PDF boundary (`document.py`, `http_pdf.py`).
+    4D-A adds the direct-source boundary (`direct_source.py`, `directmacro.py`)
+    and the preferred-source config resolver.
     Recorded fixtures live under `tests/fixtures/providers/serper/`, not here
     — the provider package itself stores no test data.
     """
     assert sorted(path.name for path in _python_files(PROVIDERS_ROOT)) == [
         "__init__.py",
+        "direct_source.py",
+        "directmacro.py",
         "document.py",
         "http_page.py",
         "http_pdf.py",
         "page.py",
+        "preferred_source_config.py",
         "search.py",
         "serper.py",
     ]

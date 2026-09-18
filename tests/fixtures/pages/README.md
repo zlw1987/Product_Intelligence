@@ -19,6 +19,13 @@ From the ten organic results in the existing recorded search fixture,
 were fetched: the manufacturer page, four independent retailer/distributor
 pages, and two large marketplaces as diagnostic samples.
 
+4D-A added the DirectMacro search results fixture:
+`directmacro_bcm957608_p2200gqf00_search.html`, captured from DirectMacro's
+site-owned search mechanism (`/catalogsearch/result/?q=<MPN>`). One explicit
+static HTTP fetch was performed against DirectMacro only, with no proxy, no
+login, no browser, and no Serper call. The fixture is reduced to the one
+Broadcom product relevant to the BCM957608-P2200GQF00 MPN.
+
 ## Reduction policy
 
 Four of the five fixtures are **reduced**. The live documents run from 198 KB to
@@ -51,6 +58,7 @@ credential and stores no header other than `Content-Type`.
 | `exxactcorp_pm9a3_mz_ql23t800.html` | `www.exxactcorp.com` (retailer) | `STATIC_FETCH_OK` | Reduced from 596 KB |
 | `newegg_pm9a3_mz_ql23t800.html` | `www.newegg.com` (marketplace) | `STATIC_FETCH_OK`, no product data | Reduced from 203 KB |
 | `fusionww_access_restricted.html` | `www.fusionww.com` (distributor) | Soft block, HTTP 200 | **Full**, 1.9 KB |
+| `directmacro_bcm957608_p2200gqf00_search.html` | `directmacro.com` (preferred source) | `STATIC_FETCH_OK`, SKU-only identity | **4D-A reduced**, 2.1 KB |
 
 ### `samsung_us_pm9a3_mz_ql23t800.html`
 
@@ -131,3 +139,31 @@ recorded; the API it advertises was not called, and nothing in this repository
 acts on text found in a fetched page. The extractor's correct output here is
 zero observations, because a `WebAPI` node is not an offer — and the fixture is
 kept so that stays true.
+
+### `directmacro_bcm957608_p2200gqf00_search.html`
+
+4D-PRE / 4D-A evidence. DirectMacro is the only site classified as DIRECT
+(discoverable via site-owned search + static HTML extraction).
+
+This is a reduced fixture capturing the ONE Broadcom P2200G product from the
+DirectMacro search results page for `BCM957608-P2200GQF00`. Other search-result
+products from the real page are omitted.
+
+Exact 3A extraction (verified against live page, 4D-PRE):
+
+- `manufacturer_part_number_text`: **None** — no explicit `mpn` field
+- `sku_text`: `BCM957608-P2200GQF00`
+- `product_title`: contains MPN in title text
+- `brand_text`: `Broadcom`
+- `price_text`: `2120.002`
+- `currency_text`: `USD`
+- `availability_text`: `http://schema.org/InStock`
+- `condition_text`: **None**
+
+This proves the 4D-PRE finding: DirectMacro provides price, currency, and
+availability evidence from the search results page, but the Broadcom product
+publishes **only** `sku`, not `mpn`. Frozen 3C rejects SKU-only evidence as
+`REJECTED / NO_EXPLICIT_MPN_EVIDENCE`, so the listing is excluded from 4A for
+`IDENTITY_NOT_ACCEPTED`. This fixture is used to verify that the 4D-A direct
+acquisition path correctly falls back to search when SKU-only evidence does not
+produce a valid 4A bucket.

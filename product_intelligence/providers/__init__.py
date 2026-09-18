@@ -32,11 +32,26 @@ standard-library fetcher in `http_page`: bounded, credential-free, GET-only,
 and refusing non-public destinations on every redirect hop. No paid crawler, no
 browser, and no browser automation was introduced.
 
-**Nothing in the system calls either boundary.** `runs/` and `web/` import no
-part of this package, so a submitted run is still `CREATED`. The LLM boundary is
-not implemented and is not scheduled before 6A.
+**Current calling topology:** `runs/` and `web/` import no part of this package.
+The execution layer (`execution/orchestration.py`) calls the search boundary
+(SearchProvider) and page-fetch boundary (PageFetcher) during research
+execution. The direct-source boundary (`direct_source`) is called by the
+orchestrator for preferred-source acquisition. The LLM boundary is not yet
+implemented as a generic `LLMProvider` protocol; the existing FU3A/FU3B semantic
+runtime uses its own transport module.
 """
 
+from product_intelligence.providers.direct_source import (
+    DirectSourceLocator,
+    DirectSourceQuery,
+    DirectSourceTarget,
+)
+from product_intelligence.providers.document import (
+    DocumentFetchError,
+    DocumentFetchRequest,
+    DocumentFetcher,
+    FetchedDocument,
+)
 from product_intelligence.providers.page import (
     ALLOWED_FETCH_SCHEMES,
     FetchedPage,
@@ -57,6 +72,13 @@ from product_intelligence.providers.search import (
 __all__ = [
     "ALLOWED_FETCH_SCHEMES",
     "ALLOWED_URL_SCHEMES",
+    "DocumentFetchError",
+    "DocumentFetchRequest",
+    "DocumentFetcher",
+    "DirectSourceLocator",
+    "DirectSourceQuery",
+    "DirectSourceTarget",
+    "FetchedDocument",
     "FetchedPage",
     "PageFetchError",
     "PageFetchRequest",
