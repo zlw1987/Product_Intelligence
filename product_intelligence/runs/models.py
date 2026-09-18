@@ -1123,3 +1123,80 @@ class ComparableResearchExecution(models.Model):
     def current_state(self) -> str:
         """The state as a string constant."""
         return self.state
+
+
+# ---------------------------------------------------------------------------
+# ResearchSupplementSnapshot — 4D-B
+# ---------------------------------------------------------------------------
+
+
+class ResearchSupplementSnapshot(models.Model):
+    """A persisted, versioned supplemental snapshot for one ResearchRun.
+
+    PRODUCT-INTEL.4D-B.
+
+    The snapshot is **storage, not interpretation**. It holds opaque JSON
+    (``schema_version`` + ``payload``) plus a creation timestamp. Encoding
+    and decoding happen in the research-layer codec
+    (``research/commercial_supplement_codec.py``), not here.
+
+    This model stores supplemental commercial evidence from the internal
+    Vendor API. It does NOT modify PriceIntelligenceSnapshot, nor does
+    its data enter Machine Price, Reviewed Price, or deterministic identity
+    authority.
+
+    Identity
+    --------
+
+    The primary key is the ``ResearchRun`` UUID via a ``OneToOneField``.
+    There is at most one supplemental snapshot per run. If the Vendor API
+    lookup was not attempted (no MPN or no config), this row is absent.
+
+    ``schema_version``
+        The codec version that produced ``payload``. The only supported
+        version is 1.
+
+    ``payload``
+        A ``JSONField`` holding the codec-encoded supplemental result.
+        The schema is owned by the codec, not the model.
+
+    ``created_at``
+        When the snapshot row was persisted.
+
+    Cascade behavior:
+        Deleting the ResearchRun cascades to this snapshot.
+    """
+
+    run = models.OneToOneField(
+        ResearchRun,
+        on_delete=models.CASCADE,
+        primary_key=True,
+        related_name="research_supplement_snapshot",
+        help_text="The research run this supplemental snapshot belongs to.",
+    )
+
+    schema_version = models.PositiveSmallIntegerField(
+        help_text="Codec version that produced the payload. Initial supported "
+        "value is 1.",
+    )
+
+    payload = models.JSONField(
+        help_text="Versioned codec-encoded supplemental result.",
+    )
+
+    created_at = models.DateTimeField(
+        default=timezone.now,
+        editable=False,
+        help_text="When this snapshot record was persisted.",
+    )
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(schema_version__gte=1),
+                name="research_supplement_snapshot_schema_version_gte_1",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"ResearchSupplementSnapshot {self.run_id} (v{self.schema_version})"

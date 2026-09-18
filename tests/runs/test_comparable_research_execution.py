@@ -85,7 +85,7 @@ class TestComparableResearchExecutionFields(TestCase):
         assert not hasattr(ResearchRun, "comparable_executions")
 
     def test_research_run_exact_fields_unchanged(self) -> None:
-        """ResearchRun has exactly the same fields as before 7C-A."""
+        """ResearchRun has exactly the approved fields (4D-B adds supplement)."""
         expected = {
             "id",
             "manufacturer_part_number",
@@ -97,6 +97,7 @@ class TestComparableResearchExecutionFields(TestCase):
             "price_intelligence_snapshot",
             "execution_evidence",
             "ai_assisted_review_candidates",
+            "research_supplement_snapshot",  # 4D-B: supplement snapshot
         }
         actual = {f.name for f in ResearchRun._meta.get_fields()}
         assert actual == expected

@@ -57,17 +57,20 @@ GENERIC_BOUNDARY_MODULES = [
     PROVIDERS_ROOT / "page.py",
     PROVIDERS_ROOT / "document.py",  # 6D: provider-neutral document boundary
     PROVIDERS_ROOT / "direct_source.py",  # 4D-A: provider-neutral direct-source boundary
+    PROVIDERS_ROOT / "commercial.py",  # 4D-B: provider-neutral commercial boundary
 ]
 
 # Concrete adapters: the modules that are allowed to name a vendor and to open a
 # connection. `serper.py` talks to one search vendor; `http_page.py` talks to
 # whatever public page it is handed; `http_pdf.py` fetches PDF documents.
 # `directmacro.py` constructs DirectMacro URLs (no network call).
+# `internal_vendor.py` calls the internal Vendor API (4D-B).
 ADAPTER_MODULES = [
     PROVIDERS_ROOT / "serper.py",
     PROVIDERS_ROOT / "http_page.py",
     PROVIDERS_ROOT / "http_pdf.py",  # 6D: concrete PDF fetcher
     PROVIDERS_ROOT / "directmacro.py",  # 4D-A: DirectMacro locator (URL construction only)
+    PROVIDERS_ROOT / "internal_vendor.py",  # 4D-B: internal Vendor API adapter
 ]
 
 # Modules that perform or configure I/O. `urllib.parse` is deliberately absent:
@@ -250,7 +253,7 @@ def test_the_provider_layer_adds_no_model_and_no_migration() -> None:
 
     assert not list(PROVIDERS_ROOT.rglob("models.py"))
     assert not list(PROVIDERS_ROOT.rglob("migrations"))
-    expected = {"runs.ResearchRun", "runs.PriceIntelligenceSnapshot", "runs.ExecutionEvidenceRecord", "runs.AiAssistedReviewCandidate", "runs.ComparableResearchExecution"}
+    expected = {"runs.ResearchRun", "runs.PriceIntelligenceSnapshot", "runs.ExecutionEvidenceRecord", "runs.AiAssistedReviewCandidate", "runs.ComparableResearchExecution", "runs.ResearchSupplementSnapshot"}
     assert {model._meta.label for model in apps.get_models()} == expected
 
 
@@ -297,16 +300,19 @@ def test_only_the_expected_adapter_modules_exist() -> None:
     6D adds the document/PDF boundary (`document.py`, `http_pdf.py`).
     4D-A adds the direct-source boundary (`direct_source.py`, `directmacro.py`)
     and the preferred-source config resolver.
+    4D-B adds the commercial-source boundary (`commercial.py`, `internal_vendor.py`).
     Recorded fixtures live under `tests/fixtures/providers/serper/`, not here
     — the provider package itself stores no test data.
     """
     assert sorted(path.name for path in _python_files(PROVIDERS_ROOT)) == [
         "__init__.py",
+        "commercial.py",
         "direct_source.py",
         "directmacro.py",
         "document.py",
         "http_page.py",
         "http_pdf.py",
+        "internal_vendor.py",
         "page.py",
         "preferred_source_config.py",
         "search.py",

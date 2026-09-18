@@ -51,12 +51,14 @@ from product_intelligence.providers.http_page import HttpPageFetcher
 from product_intelligence.providers.page import PageFetcher, PageFetchRequest, UnsafeFetchTargetError
 from product_intelligence.providers.search import SearchProvider
 from product_intelligence.research.aggregation import PriceAggregationResult, aggregate_listing_prices
+from product_intelligence.research.identity import compare_part_numbers
 from product_intelligence.runs import complete_execution, execution_claims
 from product_intelligence.runs.execution_claims import ClaimExecutionFailed
 from product_intelligence.runs.models import (
     AiAssistedReviewCandidate,
     PriceIntelligenceSnapshot,
     ResearchRun,
+    ResearchSupplementSnapshot,
 )
 
 logger = logging.getLogger(__name__)
@@ -442,6 +444,19 @@ def execute_research_run(
         # caught by this outer boundary, not rolled back inside a transaction
         encoded_payload = _encode_aggregation_result(aggregation_result)
 
+        # ================================================================
+        # 4D-B: Vendor API commercial lookup (supplemental)
+        # After public aggregation succeeds, but BEFORE atomic final
+        # publication. At most ONE Vendor API call per run.
+        # Vendor commercial evidence does NOT affect 4D-A, Price
+        # Intelligence, or any existing pipeline statistics.
+        # ================================================================
+        supplement_payload: dict | None = None
+        if request.manufacturer_part_number:
+            supplement_payload = _try_vendor_commercial_lookup(
+                claimed_run, request,
+            )
+
         with transaction.atomic():
             # Create the snapshot
             snapshot = PriceIntelligenceSnapshot.objects.create(
@@ -456,6 +471,14 @@ def execute_research_run(
                 assessments=aggregation_result.assessments,
                 ai_assisted_matches=exec_result.ai_assisted_matches,
             )
+
+            # 4D-B: Persist supplemental snapshot if vendor lookup was attempted
+            if supplement_payload is not None:
+                ResearchSupplementSnapshot.objects.create(
+                    run=claimed_run,
+                    schema_version=1,
+                    payload=supplement_payload,
+                )
 
             # Transition to COMPLETED
             completed_run = complete_execution(
@@ -889,3 +912,148 @@ def _deduplicate_exact_observations(
         if obs not in seen:
             seen.append(obs)
     return tuple(seen)
+
+
+# ---------------------------------------------------------------
+# 4D-B: Vendor API commercial lookup (supplemental)
+# ---------------------------------------------------------------
+
+
+def _try_vendor_commercial_lookup(
+    claimed_run: ResearchRun,
+    request: ResearchRequest,
+) -> dict | None:
+    """Try the internal Vendor API commercial lookup (4D-B).
+
+    Returns an encoded supplemental payload dict if the lookup was
+    attempted, or None if the lookup was not attempted (no config).
+
+    This function:
+    * Makes at most ONE Vendor API network call
+    * Binds returned candidates with frozen 2A (compare_part_numbers)
+    * Encodes the supplemental result
+    * Returns None (not attempted) if PI_VENDOR_LOOKUP_BASE_URL absent
+    * Propagates programming errors (does NOT catch broad Exception)
+    * Catches expected vendor failures (timeout, connection, invalid JSON)
+      and encodes them as FAILED supplemental result
+
+    Vendor commercial evidence MUST NOT affect:
+    * PriceIntelligenceSnapshot
+    * Machine Price
+    * Reviewed Price
+    * public ExecutionResult statistics
+    * whether 4D-A invokes Serper
+    """
+    import os
+
+    # Check if configured
+    base_url = os.environ.get("PI_VENDOR_LOOKUP_BASE_URL", "").strip()
+    if not base_url:
+        # Not configured — no vendor call, no supplemental snapshot
+        return None
+
+    from product_intelligence.providers.commercial import (
+        CommercialLookupQuery,
+        LookupStatus,
+    )
+    from product_intelligence.providers.internal_vendor import (
+        InternalVendorAdapter,
+    )
+    from product_intelligence.research.commercial_supplement_codec import (
+        ResearchSupplementResult,
+        SupplementCodecError,
+        SupplementSourceIssue,
+        VendorCommercialResult,
+        SupplementSourceObservation,
+        encode_research_supplement_result,
+    )
+
+    # Build lookup query from the request's canonical MPN
+    query = CommercialLookupQuery(mpn=request.manufacturer_part_number)
+
+    # Execute the single Vendor API call
+    adapter = InternalVendorAdapter()
+    try:
+        response = adapter.lookup(query)
+    except Exception as exc:
+        # Programming / configuration error — propagate to catastrophic boundary
+        logger.error(
+            "Vendor adapter programming error for run %s: %s",
+            claimed_run.id, exc, exc_info=True,
+        )
+        raise
+
+    # Filter candidates through frozen 2A identity binding
+    bound_observations: list[SupplementSourceObservation] = []
+    bound_issues: list[SupplementSourceIssue] = []
+
+    for candidate in response.candidates:
+        assessment = compare_part_numbers(
+            request.manufacturer_part_number,
+            candidate.explicit_candidate_mpn,
+        )
+        if assessment.match_type.value in ("EXACT", "NORMALIZED_EXACT"):
+            # Identity-bound — include in supplemental result
+            bound_observations.append(SupplementSourceObservation(
+                source_name=candidate.source_name,
+                explicit_candidate_mpn=candidate.explicit_candidate_mpn,
+                vendor_mpn_match_type=assessment.match_type.value,
+                price_amount=candidate.price_amount,
+                currency_code=candidate.currency_code,
+                availability=candidate.availability.value,
+                price_basis=candidate.price_basis.value,
+                quantity=candidate.quantity,
+                note_kind=candidate.note_kind.value if candidate.note_kind else None,
+                brand_new=candidate.brand_new,
+                brand_new_basis=candidate.brand_new_basis,
+            ))
+        else:
+            # MPN mismatch — record as issue
+            bound_issues.append(SupplementSourceIssue(
+                source_name=candidate.source_name,
+                outcome="MPN_MISMATCH",
+                detail=(
+                    f"{candidate.source_name}: vendor MPN "
+                    f"{candidate.explicit_candidate_mpn!r} vs requested "
+                    f"{request.manufacturer_part_number!r} "
+                    f"({assessment.match_type.value})"
+                ),
+            ))
+
+    # Copy issues from the original response
+    for issue in response.issues:
+        bound_issues.append(SupplementSourceIssue(
+            source_name=issue.source_name,
+            outcome=issue.outcome.value,
+            detail=issue.detail,
+        ))
+
+    # Determine final lookup status
+    if response.status == LookupStatus.FAILED:
+        # Whole transport failure — encode as FAILED
+        final_status = "FAILED"
+        retrieved_at = None
+    else:
+        final_status = response.status.value
+        retrieved_at = response.retrieved_at
+
+    # Encode the supplemental result
+    try:
+        supplement_result = ResearchSupplementResult(
+            vendor_commercial_result=VendorCommercialResult(
+                lookup_status=final_status,
+                retrieved_at=retrieved_at,
+                observations=tuple(bound_observations),
+                source_issues=tuple(bound_issues),
+            ),
+        )
+        encoded = encode_research_supplement_result(supplement_result)
+    except SupplementCodecError as exc:
+        # Codec error — propagate (programming/contract defect)
+        logger.error(
+            "Supplement codec error for run %s: %s",
+            claimed_run.id, exc, exc_info=True,
+        )
+        raise
+
+    return encoded

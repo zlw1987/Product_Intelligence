@@ -34,7 +34,8 @@ web execution/retry integration, FU3A/FU3B implement semantic qualification
 and semantic execution integration, and HUMAN-REVIEW implements human review
 for AI-assisted semantic matches. The web form creates a run, triggers
 execution synchronously, and redirects to the report with the full result.
-Remaining future work: structured API (5A). 4D is the next planned phase.
+Remaining future work: structured API (5A). 4D-B (Internal Vendor Commercial
+Evidence) is IMPLEMENTED/APPREOVED/FROZEN. 4D-C/D remain planned.
 
 ## 2. Problem statement
 

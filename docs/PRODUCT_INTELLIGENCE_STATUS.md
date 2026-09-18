@@ -35,10 +35,28 @@ production code changes. No 4D production implementation yet.
 ```
 4D-PRE  Preferred Source Feasibility Audit  (evidence only)
 4D-A    Source Acquisition Optimization
-4D-B    Internal Vendor Commercial Evidence
+4D-B    Internal Vendor Commercial Evidence  **IMPLEMENTED / APPROVED / FROZEN**
 4D-C    Compact Quote Summary
 4D-D    Micron Packaging Alias Retrieval
 ```
+
+**4D-B: Internal Vendor Commercial Evidence — IMPLEMENTED / APPROVED / FROZEN**
+
+Internal Vendor API integrated as supplemental commercial evidence.
+Key facts:
+- Provider-neutral commercial boundary: `providers/commercial.py`
+- Concrete adapter: `providers/internal_vendor.py`
+- Supplemental persistence: `runs.ResearchSupplementSnapshot` (migration 0008)
+- Versioned codec: `research/commercial_supplement_codec.py` (V1)
+- At most ONE Vendor API call per ResearchRun
+- Frozen 2A identity binding required for each commercial observation
+- Brand new by VENDOR_API_POLICY (not source-published condition)
+- **NO web exposure** — 4D-B does NOT render vendor commercial prices
+- **NO authority expansion** — vendor evidence does NOT enter Machine Price,
+  Reviewed Price, semantic authority, or comparable scoring
+- 4D-C security gate (trusted network/VPN) remains unresolved and must be
+  verified before 4D-C renders commercial pricing
+- Sensitive metadata (SessionId, BuyerAccountId, SystemId) stripped by allowlist
 
 Semantic qualification is APPROVED AND FROZEN:
 - Semantic qualification corpus, prompt v1.1, evaluator mathematics,
@@ -236,6 +254,10 @@ FU3B wires the frozen FU3A semantic runtime into real research execution:
 | HTTP PDF Fetcher (6D) | `providers/http_pdf.py` | **Implemented (approved / frozen)**
 | Datasheet Table Interpretation (6D) | `research/enterprise_ssd_datasheet.py` | **Implemented (approved / frozen)**
 | Specification Enrichment Execution (6D) | `execution/specification_enrichment.py` | **Implemented (approved / frozen)**
+| Commercial Source Boundary (4D-B) | `providers/commercial.py` | **Implemented (approved / frozen)**
+| Internal Vendor Adapter (4D-B) | `providers/internal_vendor.py` | **Implemented (approved / frozen)**
+| Supplemental Snapshot Model (4D-B) | `runs/models.py` (ResearchSupplementSnapshot) | **Implemented (approved / frozen)**
+| Supplemental Codec (4D-B) | `research/commercial_supplement_codec.py` | **Implemented (approved / frozen)**
 
 ## Research orchestration
 

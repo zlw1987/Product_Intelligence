@@ -98,6 +98,11 @@ def test_normalization_and_aggregation_may_use_decimal() -> None:
     if comparable_results_module.exists():
         allowed_decimal.add(comparable_results_module)
 
+    # 4D-B commercial supplement codec uses Decimal for price_amount encoding
+    supplement_codec_module = RESEARCH_ROOT / "commercial_supplement_codec.py"
+    if supplement_codec_module.exists():
+        allowed_decimal.add(supplement_codec_module)
+
     for path in _python_files(RESEARCH_ROOT):
         if path in allowed_decimal:
             continue

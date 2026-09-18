@@ -54,6 +54,7 @@ EXPECTED_FIELDS = {
     "price_intelligence_snapshot",  # 4B: reverse OneToOne from snapshot
     "execution_evidence",  # 4C-A: reverse FK to execution evidence records
     "ai_assisted_review_candidates",  # HUMAN-REVIEW: reverse FK to review candidates
+    "research_supplement_snapshot",  # 4D-B: reverse OneToOne from supplement snapshot
 }
 
 # The exact fields on PriceIntelligenceSnapshot (4B).
@@ -87,6 +88,14 @@ EXPECTED_REVIEW_CANDIDATE_FIELDS = {
     "review_state",
     "created_at",
     "reviewed_at",
+}
+
+# The exact fields on ResearchSupplementSnapshot (4D-B).
+EXPECTED_SUPPLEMENT_FIELDS = {
+    "run",
+    "schema_version",
+    "payload",
+    "created_at",
 }
 
 
@@ -143,6 +152,16 @@ def test_ai_assisted_review_candidate_has_review_state_choices() -> None:
     choices = {code for code, label in field.choices}
     assert choices == {"UNREVIEWED", "CONFIRMED", "REJECTED"}
     assert field.default == "UNREVIEWED"
+
+
+def test_research_supplement_snapshot_has_exactly_the_approved_fields() -> None:
+    """4D-B: The supplemental snapshot has exactly the approved field set."""
+    from product_intelligence.runs.models import ResearchSupplementSnapshot
+
+    assert (
+        {field.name for field in ResearchSupplementSnapshot._meta.get_fields()}
+        == EXPECTED_SUPPLEMENT_FIELDS
+    )
 
 
 def test_ai_assisted_review_candidate_uuid_primary_key() -> None:
@@ -295,6 +314,7 @@ def test_the_evaluation_corpus_is_not_persisted() -> None:
         "runs.ExecutionEvidenceRecord",  # 4C-A
         "runs.AiAssistedReviewCandidate",  # HUMAN-REVIEW
         "runs.ComparableResearchExecution",  # 7C-A
+        "runs.ResearchSupplementSnapshot",  # 4D-B
     }
     assert model_labels == expected
 
