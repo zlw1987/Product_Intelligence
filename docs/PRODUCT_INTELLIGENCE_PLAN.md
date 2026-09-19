@@ -35,7 +35,7 @@ and semantic execution integration, and HUMAN-REVIEW implements human review
 for AI-assisted semantic matches. The web form creates a run, triggers
 execution synchronously, and redirects to the report with the full result.
 Remaining future work: structured API (5A). 4D-B (Internal Vendor Commercial
-Evidence) is IMPLEMENTED/APPREOVED/FROZEN. 4D-C/D remain planned.
+Evidence) is IMPLEMENTED/PENDING FINAL REVIEW. 4D-C/D remain planned.
 
 ## 2. Problem statement
 
@@ -4104,7 +4104,7 @@ This canonical plan does not duplicate that operational snapshot.
 
 ## 26. Customer Quote Research Expansion — 4D Phase Architecture
 
-**Status: PLANNED. No production implementation yet.**
+**Status: IMPLEMENTED / PENDING FINAL REVIEW.**
 
 PILOT-RELEASE-1 is deployed and accepted. 4D is the next roadmap phase.
 4D-PRE is the first 4D sub-phase and produces no production changes.

@@ -1008,24 +1008,20 @@ def _try_vendor_commercial_lookup(
                 brand_new_basis=candidate.brand_new_basis,
             ))
         else:
-            # MPN mismatch — record as issue
+            # MPN mismatch — bounded detail only, never raw provider text
             bound_issues.append(SupplementSourceIssue(
                 source_name=candidate.source_name,
                 outcome="MPN_MISMATCH",
-                detail=(
-                    f"{candidate.source_name}: vendor MPN "
-                    f"{candidate.explicit_candidate_mpn!r} vs requested "
-                    f"{request.manufacturer_part_number!r} "
-                    f"({assessment.match_type.value})"
-                ),
+                detail="vendor_mpn_mismatch",
             ))
 
-    # Copy issues from the original response
+    # Copy issues from the original response — detail is already bounded
+    # by the adapter (never raw/free-form provider error text)
     for issue in response.issues:
         bound_issues.append(SupplementSourceIssue(
             source_name=issue.source_name,
             outcome=issue.outcome.value,
-            detail=issue.detail,
+            detail=issue.detail,  # adapter provides bounded detail or None
         ))
 
     # Determine final lookup status

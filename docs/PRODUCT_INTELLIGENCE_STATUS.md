@@ -33,14 +33,14 @@ HUMAN-REVIEW Human Review for AI-Assisted Matches APPROVED/FROZEN;
 production code changes. No 4D production implementation yet.
 
 ```
-4D-PRE  Preferred Source Feasibility Audit  (evidence only)
-4D-A    Source Acquisition Optimization
-4D-B    Internal Vendor Commercial Evidence  **IMPLEMENTED / APPROVED / FROZEN**
+4D-PRE  Preferred Source Feasibility Audit  (evidence only) — APPROVED / FROZEN
+4D-A    Source Acquisition Optimization — APPROVED / FROZEN
+4D-B    Internal Vendor Commercial Evidence  **IMPLEMENTED / PENDING FINAL REVIEW**
 4D-C    Compact Quote Summary
 4D-D    Micron Packaging Alias Retrieval
 ```
 
-**4D-B: Internal Vendor Commercial Evidence — IMPLEMENTED / APPROVED / FROZEN**
+**4D-B: Internal Vendor Commercial Evidence — IMPLEMENTED / PENDING FINAL REVIEW**
 
 Internal Vendor API integrated as supplemental commercial evidence.
 Key facts:
@@ -165,9 +165,9 @@ FU3B wires the frozen FU3A semantic runtime into real research execution:
 | Phase | Description | Status |
 | --- | --- | --- |
 | PILOT-RELEASE-1 | Internal pilot deployment | **DEPLOYED / ACCEPTED** |
-| 4D-PRE | Preferred Source Feasibility Audit | Planned (evidence only) |
-| 4D-A | Source Acquisition Optimization | Planned |
-| 4D-B | Internal Vendor Commercial Evidence | Planned |
+| 4D-PRE | Preferred Source Feasibility Audit | Implemented (evidence only, frozen) |
+| 4D-A | Source Acquisition Optimization | Implemented (frozen) |
+| 4D-B | Internal Vendor Commercial Evidence | Implemented / Pending Final Review |
 | 4D-C | Compact Quote Summary | Planned |
 | 4D-D | Micron Packaging Alias Retrieval | Planned |
 | 4C-A | Execution ownership/lifecycle/evidence primitives | Implemented (frozen) |
@@ -254,10 +254,10 @@ FU3B wires the frozen FU3A semantic runtime into real research execution:
 | HTTP PDF Fetcher (6D) | `providers/http_pdf.py` | **Implemented (approved / frozen)**
 | Datasheet Table Interpretation (6D) | `research/enterprise_ssd_datasheet.py` | **Implemented (approved / frozen)**
 | Specification Enrichment Execution (6D) | `execution/specification_enrichment.py` | **Implemented (approved / frozen)**
-| Commercial Source Boundary (4D-B) | `providers/commercial.py` | **Implemented (approved / frozen)**
-| Internal Vendor Adapter (4D-B) | `providers/internal_vendor.py` | **Implemented (approved / frozen)**
-| Supplemental Snapshot Model (4D-B) | `runs/models.py` (ResearchSupplementSnapshot) | **Implemented (approved / frozen)**
-| Supplemental Codec (4D-B) | `research/commercial_supplement_codec.py` | **Implemented (approved / frozen)**
+| Commercial Source Boundary (4D-B) | `providers/commercial.py` | **Implemented (pending final review)**
+| Internal Vendor Adapter (4D-B) | `providers/internal_vendor.py` | **Implemented (pending final review)**
+| Supplemental Snapshot Model (4D-B) | `runs/models.py` (ResearchSupplementSnapshot) | **Implemented (pending final review)**
+| Supplemental Codec (4D-B) | `research/commercial_supplement_codec.py` | **Implemented (pending final review)**
 
 ## Research orchestration
 

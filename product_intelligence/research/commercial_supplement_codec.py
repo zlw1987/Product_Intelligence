@@ -7,11 +7,15 @@ dependencies on Django, providers, research identity, or evaluation.
 Codec rules:
 * Strict required keys — reject missing keys
 * Reject extra keys (fail closed)
-* Decimal encoded as strings
+* Decimal encoded as strings; finite only; NaN/Infinity rejected
 * Timezone-aware datetime encoded deterministically (ISO 8601 UTC)
+* Naive datetime rejected on encode
 * Controlled enum/value validation
 * Fail closed on malformed persisted payload
 * Encode/decode round-trip
+* quantity: int only, bool rejected, nonnegative
+* brand_new_basis: exactly "VENDOR_API_POLICY" for V1
+* vendor_mpn_match_type: EXACT or NORMALIZED_EXACT only
 * No provider imports
 """
 
@@ -20,6 +24,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
+from math import isfinite
 from typing import Any
 
 
@@ -96,6 +101,72 @@ class SupplementSourceObservation:
     brand_new: bool
     brand_new_basis: str
 
+    def __post_init__(self) -> None:
+        # source_name
+        if not isinstance(self.source_name, str) or not self.source_name.strip():
+            raise ValueError("source_name must be a non-empty string")
+
+        # explicit_candidate_mpn
+        if not isinstance(self.explicit_candidate_mpn, str):
+            raise TypeError("explicit_candidate_mpn must be a string")
+        if not self.explicit_candidate_mpn.strip():
+            raise ValueError("explicit_candidate_mpn must be non-empty")
+
+        # vendor_mpn_match_type — EXACT or NORMALIZED_EXACT only
+        if self.vendor_mpn_match_type not in ("EXACT", "NORMALIZED_EXACT"):
+            raise ValueError(
+                f"vendor_mpn_match_type must be EXACT or NORMALIZED_EXACT, "
+                f"got {self.vendor_mpn_match_type!r}"
+            )
+
+        # price_amount — Decimal only, finite only
+        if not isinstance(self.price_amount, Decimal):
+            raise TypeError("price_amount must be a Decimal")
+        if not isfinite(float(self.price_amount)):
+            raise ValueError("price_amount must be finite; NaN/Infinity rejected")
+        if self.price_amount < 0:
+            raise ValueError("price_amount must not be negative")
+
+        # currency_code
+        if not isinstance(self.currency_code, str) or not self.currency_code.strip():
+            raise ValueError("currency_code must be a non-empty string")
+
+        # availability
+        if self.availability not in SupplementAvailability.ALL:
+            raise ValueError(f"invalid availability: {self.availability!r}")
+
+        # price_basis
+        if self.price_basis not in SupplementPriceBasis.ALL:
+            raise ValueError(f"invalid price_basis: {self.price_basis!r}")
+
+        # quantity — int only, bool rejected, nonnegative
+        if self.quantity is not None:
+            if type(self.quantity) is not int:
+                raise TypeError(
+                    f"quantity must be an int or None, got "
+                    f"{type(self.quantity).__name__}"
+                )
+            if self.quantity < 0:
+                raise ValueError("quantity must not be negative")
+
+        # note_kind
+        if self.note_kind is not None:
+            if not isinstance(self.note_kind, str):
+                raise TypeError("note_kind must be a string or None")
+            if self.note_kind not in SupplementNoteKind.ALL:
+                raise ValueError(f"invalid note_kind: {self.note_kind!r}")
+
+        # brand_new
+        if not isinstance(self.brand_new, bool):
+            raise TypeError("brand_new must be a bool")
+
+        # brand_new_basis — V1 requires exactly VENDOR_API_POLICY
+        if self.brand_new_basis != "VENDOR_API_POLICY":
+            raise ValueError(
+                f"brand_new_basis must be 'VENDOR_API_POLICY', "
+                f"got {self.brand_new_basis!r}"
+            )
+
 
 @dataclass(frozen=True)
 class SupplementSourceIssue:
@@ -105,15 +176,53 @@ class SupplementSourceIssue:
     outcome: str
     detail: str | None
 
+    def __post_init__(self) -> None:
+        if not isinstance(self.source_name, str) or not self.source_name.strip():
+            raise ValueError("source_name must be a non-empty string")
+
+        if self.outcome not in SupplementSourceOutcome.ALL:
+            raise ValueError(f"invalid outcome: {self.outcome!r}")
+
+        if self.detail is not None and not isinstance(self.detail, str):
+            raise TypeError("detail must be a string or None")
+
 
 @dataclass(frozen=True)
 class VendorCommercialResult:
     """The vendor-commercial lookup result for the supplemental snapshot."""
 
     lookup_status: str  # SUCCESS, PARTIAL, FAILED
-    retrieved_at: str | None  # ISO 8601 UTC or None
+    retrieved_at: datetime | None  # timezone-aware datetime
     observations: tuple[SupplementSourceObservation, ...]
     source_issues: tuple[SupplementSourceIssue, ...]
+
+    def __post_init__(self) -> None:
+        if self.lookup_status not in SupplementLookupStatus.ALL:
+            raise ValueError(f"invalid lookup_status: {self.lookup_status!r}")
+
+        if self.retrieved_at is not None:
+            if not isinstance(self.retrieved_at, datetime):
+                raise TypeError("retrieved_at must be a datetime or None")
+            if self.retrieved_at.tzinfo is None:
+                raise ValueError("retrieved_at must be timezone-aware when present")
+            if self.retrieved_at.utcoffset() is None:
+                raise ValueError("retrieved_at must be timezone-aware when present")
+
+        if not isinstance(self.observations, tuple):
+            raise TypeError("observations must be a tuple")
+        for i, obs in enumerate(self.observations):
+            if not isinstance(obs, SupplementSourceObservation):
+                raise TypeError(
+                    f"observations[{i}] must be SupplementSourceObservation"
+                )
+
+        if not isinstance(self.source_issues, tuple):
+            raise TypeError("source_issues must be a tuple")
+        for i, issue in enumerate(self.source_issues):
+            if not isinstance(issue, SupplementSourceIssue):
+                raise TypeError(
+                    f"source_issues[{i}] must be SupplementSourceIssue"
+                )
 
 
 @dataclass(frozen=True)
@@ -121,6 +230,12 @@ class ResearchSupplementResult:
     """The complete supplemental research result."""
 
     vendor_commercial_result: VendorCommercialResult
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.vendor_commercial_result, VendorCommercialResult):
+            raise TypeError(
+                "vendor_commercial_result must be VendorCommercialResult"
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -158,17 +273,31 @@ _V1_ISSUE_KEYS = frozenset({
 
 
 def _encode_datetime(dt: datetime | None) -> str | None:
-    """Encode a timezone-aware datetime as ISO 8601 UTC string."""
+    """Encode a timezone-aware datetime as ISO 8601 UTC string.
+
+    Raises SupplementCodecError if datetime is naive.
+    """
     if dt is None:
         return None
+    if dt.tzinfo is None or dt.utcoffset() is None:
+        raise SupplementCodecError(
+            "Cannot encode naive datetime; must be timezone-aware"
+        )
     utc_dt = dt.astimezone(timezone.utc)
     return utc_dt.strftime("%Y-%m-%dT%H:%M:%S+00:00")
 
 
 def _decode_datetime(value: str | None) -> datetime | None:
-    """Decode an ISO 8601 UTC string to a timezone-aware datetime."""
+    """Decode an ISO 8601 UTC string to a timezone-aware datetime.
+
+    Raises SupplementCodecError on malformed input or non-UTC offset.
+    """
     if value is None:
         return None
+    if not isinstance(value, str):
+        raise SupplementCodecError(
+            f"retrieved_at must be a string or null, got {type(value).__name__}"
+        )
     try:
         # Parse the deterministic format
         if value.endswith("+00:00"):
@@ -177,7 +306,7 @@ def _decode_datetime(value: str | None) -> datetime | None:
             base = value[:-1]
         else:
             raise SupplementCodecError(
-                f"retrieved_at must be UTC: {value!r}"
+                f"retrieved_at must be UTC (ends with +00:00 or Z): {value!r}"
             )
         dt = datetime.strptime(base, "%Y-%m-%dT%H:%M:%S")
         return dt.replace(tzinfo=timezone.utc)
@@ -188,23 +317,49 @@ def _decode_datetime(value: str | None) -> datetime | None:
 
 
 def _encode_decimal(value: Decimal) -> str:
-    """Encode a Decimal as its string representation."""
+    """Encode a Decimal as its string representation.
+
+    Raises SupplementCodecError for non-finite values.
+    """
+    if not isinstance(value, Decimal):
+        raise SupplementCodecError(
+            f"Cannot encode non-Decimal value: {type(value).__name__}"
+        )
+    if not isfinite(float(value)):
+        raise SupplementCodecError(
+            f"Cannot encode non-finite Decimal: {value}"
+        )
     return str(value)
 
 
 def _decode_decimal(value: Any, field_name: str) -> Decimal:
-    """Decode a string value as Decimal, fail closed."""
+    """Decode a string value as Decimal, fail closed.
+
+    Rejects NaN, Infinity, non-string values.
+    """
     if not isinstance(value, str):
         raise SupplementCodecError(
             f"{field_name} must be a string in codec, got "
             f"{type(value).__name__}"
         )
+    # Reject explicit NaN/Infinity strings
+    upper = value.upper().strip()
+    if upper in ("NAN", "INF", "INFINITY", "-INF", "-INFINITY"):
+        raise SupplementCodecError(
+            f"{field_name} is non-finite: {value!r}"
+        )
     try:
-        return Decimal(value)
+        result = Decimal(value)
     except (InvalidOperation, ValueError) as exc:
         raise SupplementCodecError(
             f"{field_name} is not a valid decimal: {value!r}"
         ) from exc
+    # Reject NaN/Infinity that Decimal might parse
+    if not isfinite(float(result)):
+        raise SupplementCodecError(
+            f"{field_name} is non-finite: {value!r}"
+        )
+    return result
 
 
 def encode_research_supplement_result(
@@ -213,8 +368,15 @@ def encode_research_supplement_result(
     """Encode a ResearchSupplementResult to a V1 payload dict.
 
     Returns a JSON-serializable dict suitable for persistence.
+    Raises SupplementCodecError on any validation failure.
     """
     vcr = result.vendor_commercial_result
+
+    # Validate lookup_status before encoding
+    if vcr.lookup_status not in SupplementLookupStatus.ALL:
+        raise SupplementCodecError(
+            f"invalid lookup_status for encoding: {vcr.lookup_status!r}"
+        )
 
     observations = []
     for obs in vcr.observations:
@@ -244,7 +406,7 @@ def encode_research_supplement_result(
         "schema_version": _SCHEMA_VERSION_V1,
         "vendor_commercial_result": {
             "lookup_status": vcr.lookup_status,
-            "retrieved_at": _encode_datetime(vcr.retrieved_at) if isinstance(vcr.retrieved_at, datetime) else vcr.retrieved_at,
+            "retrieved_at": _encode_datetime(vcr.retrieved_at),
             "observations": observations,
             "source_issues": source_issues,
         },
@@ -258,6 +420,7 @@ def decode_research_supplement_result(
 
     Raises SupplementCodecError on any validation failure.
     Rejects extra keys and unknown values (fail closed).
+    retrieved_at is decoded through _decode_datetime -> timezone-aware datetime.
     """
     # Check schema version
     if not isinstance(payload, dict):
@@ -306,12 +469,9 @@ def decode_research_supplement_result(
             f"invalid lookup_status: {lookup_status!r}"
         )
 
-    # retrieved_at
+    # retrieved_at — decode through datetime decoder (returns aware datetime)
     retrieved_at_raw = vcr_raw["retrieved_at"]
-    if retrieved_at_raw is not None and not isinstance(retrieved_at_raw, str):
-        raise SupplementCodecError(
-            "retrieved_at must be a string or null"
-        )
+    retrieved_at = _decode_datetime(retrieved_at_raw)
 
     # Decode observations
     obs_raw_list = vcr_raw["observations"]
@@ -368,10 +528,17 @@ def decode_research_supplement_result(
                 )
 
         quantity = obs_raw["quantity"]
-        if quantity is not None and not isinstance(quantity, int):
-            raise SupplementCodecError(
-                f"quantity in observations[{idx}] must be an int or null"
-            )
+        if quantity is not None:
+            # bool MUST be rejected (bool is subclass of int)
+            if type(quantity) is not int:
+                raise SupplementCodecError(
+                    f"quantity in observations[{idx}] must be an int or null, "
+                    f"got {type(quantity).__name__}"
+                )
+            if quantity < 0:
+                raise SupplementCodecError(
+                    f"quantity in observations[{idx}] must be non-negative"
+                )
 
         brand_new = obs_raw["brand_new"]
         if not isinstance(brand_new, bool):
@@ -380,6 +547,14 @@ def decode_research_supplement_result(
             )
 
         price_amount = _decode_decimal(obs_raw["price_amount"], "price_amount")
+
+        # brand_new_basis validation
+        brand_new_basis = obs_raw["brand_new_basis"]
+        if brand_new_basis != "VENDOR_API_POLICY":
+            raise SupplementCodecError(
+                f"invalid brand_new_basis in observations[{idx}]: "
+                f"{brand_new_basis!r}"
+            )
 
         observations.append(SupplementSourceObservation(
             source_name=obs_raw["source_name"],
@@ -392,7 +567,7 @@ def decode_research_supplement_result(
             quantity=quantity,
             note_kind=note_kind,
             brand_new=brand_new,
-            brand_new_basis=obs_raw["brand_new_basis"],
+            brand_new_basis=brand_new_basis,
         ))
 
     # Decode source_issues
@@ -433,7 +608,7 @@ def decode_research_supplement_result(
     return ResearchSupplementResult(
         vendor_commercial_result=VendorCommercialResult(
             lookup_status=lookup_status,
-            retrieved_at=retrieved_at_raw,
+            retrieved_at=retrieved_at,
             observations=tuple(observations),
             source_issues=tuple(source_issues),
         ),

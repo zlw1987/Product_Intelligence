@@ -1,5 +1,12 @@
 """Tests for 4D-B vendor commercial evidence authority boundaries.
 
+These are STRUCTURAL contract tests that prove type-level separation:
+commercial contracts do not leak into deterministic identity, price
+aggregation, or semantic authority.
+
+Real execution-integration coverage lives in:
+    tests/execution/test_4d_b_vendor_commercial.py
+
 Tests cover:
 * Vendor result does not change PriceIntelligenceSnapshot
 * Vendor result does not add Machine Price bucket
