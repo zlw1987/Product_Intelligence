@@ -43,7 +43,7 @@ from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urlsplit
 from urllib.request import (
-    HTTPDefaultErrorHandler,
+    HTTPRedirectHandler,
     OpenerDirector,
     ProxyHandler,
     Request,
@@ -82,18 +82,38 @@ _ALLOWED_SOURCE_NAMES: frozenset[str] = frozenset({
 # ---------------------------------------------------------------------------
 
 
-class _NoRedirectHandler(HTTPDefaultErrorHandler):
-    """Refuse ALL HTTP redirects (3xx). Never follow, never escape."""
+class _NoRedirectHandler(HTTPRedirectHandler):
+    """Refuse ALL HTTP redirects (3xx). Never follow, never escape.
 
-    def http_error_302(
-        self, req: Request, fp: Any, code: int, msg: str, headers: Any
+    Subclassing HTTPRedirectHandler so that build_opener registers our
+    methods into the opener's dispatch tables (handle_open / handle_error
+    / process_request / process_response). HTTPDefaultErrorHandler does not
+    own those registrations.
+
+    redirect_request() always raises so no subclass redirect logic fires.
+    """
+
+    def redirect_request(
+        self,
+        req: Request,
+        fp: Any,
+        code: int,
+        msg: str,
+        headers: Any,
+        newurl: str,
     ) -> None:
-        # Also handles 301, 303, 307, 308 via base class delegation
         raise HTTPError(
             req.full_url, code, f"Redirect refused: {msg}", headers, fp
         )
 
     def http_error_301(
+        self, req: Request, fp: Any, code: int, msg: str, headers: Any
+    ) -> None:
+        raise HTTPError(
+            req.full_url, code, f"Redirect refused: {msg}", headers, fp
+        )
+
+    def http_error_302(
         self, req: Request, fp: Any, code: int, msg: str, headers: Any
     ) -> None:
         raise HTTPError(
@@ -106,12 +126,6 @@ class _NoRedirectHandler(HTTPDefaultErrorHandler):
         raise HTTPError(
             req.full_url, code, f"Redirect refused: {msg}", headers, fp
         )
-
-    def http_error_304(
-        self, req: Request, fp: Any, code: int, msg: str, headers: Any
-    ) -> None:
-        # 304 is a cache response, not a redirect — let urllib handle normally
-        pass  # delegate to default
 
     def http_error_307(
         self, req: Request, fp: Any, code: int, msg: str, headers: Any
@@ -131,22 +145,21 @@ class _NoRedirectHandler(HTTPDefaultErrorHandler):
 def _build_vendor_opener() -> OpenerDirector:
     """Build a dedicated OpenerDirector with NO proxy and NO redirect following.
 
-    Uses NullHandler instead of ProxyHandler so ambient HTTP_PROXY /
-    HTTPS_PROXY environment variables are NEVER honoured.
+    Uses explicit ProxyHandler({}) so ambient HTTP_PROXY / HTTPS_PROXY
+    environment variables are NEVER honoured.
 
     Redirects (30x) are refused entirely — the one-network-call invariant
     is preserved by never making a second request.
+
+    Uses build_opener's native add_handler to populate dispatch tables
+    (handle_open / handle_error / process_request / process_response).
+    Does NOT manually assign .handlers.
     """
-    # NullHandler() passes through with no proxy — ignores all env proxy vars
-    opener = build_opener(_NoRedirectHandler())
-
-    # Ensure no proxy handler is present
-    # build_opener with only our handler should be clean, but be explicit:
-    handlers = [h for h in opener.handlers if not isinstance(h, ProxyHandler)]
-    opener = OpenerDirector()
-    opener.handlers = handlers
+    opener = build_opener(
+        ProxyHandler({}),
+        _NoRedirectHandler(),
+    )
     opener.addheaders = []  # no default headers
-
     return opener
 
 
@@ -243,8 +256,15 @@ def _safe_decimal(value: Any, default: Decimal | None = None) -> Decimal | None:
 
 
 def _safe_int(value: Any, default: int | None = None) -> int | None:
-    """Parse a value as int, return default on failure."""
+    """Parse a value as int, return default on failure.
+
+    bool is NOT an integer quantity — rejected by exact type check.
+    Negative values are returned as-is; the caller maps to MALFORMED.
+    """
     if value is None:
+        return default
+    if isinstance(value, bool):
+        # bool is subclass of int but is NOT a valid quantity
         return default
     try:
         return int(value)
@@ -285,54 +305,56 @@ def _map_ingram(source_section: dict[str, Any]) -> CommercialSourceCandidate | C
     ):
         return CommercialSourceIssue(
             source_name=source_name,
-            outcome=SourceOutcome.NOT_FOUND,
-            detail=None,
-        )
+            outcome=SourceOutcome.NOT_FOUND)
+
 
     # Explicit MPN (required)
     vendor_mpn = source_section.get("vendorPartNumber")
     if not vendor_mpn or not str(vendor_mpn).strip():
         return CommercialSourceIssue(
             source_name=source_name,
-            outcome=SourceOutcome.MISSING_EXPLICIT_MPN,
-            detail=None,
-        )
+            outcome=SourceOutcome.MISSING_EXPLICIT_MPN)
+
 
     # Price — customerPrice primary, retailPrice fallback
     pricing = source_section.get("pricing")
     if not isinstance(pricing, dict):
         return CommercialSourceIssue(
             source_name=source_name,
-            outcome=SourceOutcome.MALFORMED_SECTION,
-            detail=None,
-        )
+            outcome=SourceOutcome.MALFORMED_SECTION)
+
 
     # KEY RULE: if customerPrice key is PRESENT (even if null/malformed),
     # it is authoritative. Do NOT fall back to retailPrice.
     if "customerPrice" in pricing:
         customer_price_raw = pricing["customerPrice"]
         price = _safe_decimal(customer_price_raw)
-        if price is None:
-            # customerPrice present but malformed -> MALFORMED_SECTION
+        if price is None or not price.is_finite() or price < 0:
+            # customerPrice present but malformed/non-finite/negative
             return CommercialSourceIssue(
                 source_name=source_name,
-                outcome=SourceOutcome.MALFORMED_SECTION,
-                detail=None,
-            )
+                outcome=SourceOutcome.MALFORMED_SECTION)
+
         price_basis = CommercialPriceBasis.CUSTOMER_PRICE
     else:
         # customerPrice ABSENT — retail fallback allowed
         retail_price_raw = pricing.get("retailPrice")
         price = _safe_decimal(retail_price_raw)
-        if price is None:
+        if price is None or not price.is_finite() or price < 0:
             return CommercialSourceIssue(
                 source_name=source_name,
-                outcome=SourceOutcome.MALFORMED_SECTION,
-                detail=None,
-            )
+                outcome=SourceOutcome.MALFORMED_SECTION)
+
         price_basis = CommercialPriceBasis.RETAIL_PRICE_FALLBACK
 
-    currency = pricing.get("currencyCode", "")
+    # Currency — must be str and nonempty
+    currency_raw = pricing.get("currencyCode")
+    if not isinstance(currency_raw, str) or not currency_raw.strip():
+        return CommercialSourceIssue(
+            source_name=source_name,
+            outcome=SourceOutcome.MALFORMED_SECTION)
+
+    currency = currency_raw.strip().upper()
 
     # Availability (allowlisted fields only)
     availability_section = source_section.get("availability")
@@ -343,6 +365,9 @@ def _map_ingram(source_section: dict[str, Any]) -> CommercialSourceCandidate | C
         available = _safe_bool(availability_section.get("available"))
         qty_raw = availability_section.get("Avl_Quantity")
         quantity = _safe_int(qty_raw)
+        # Negative quantity -> discard (not valid)
+        if quantity is not None and quantity < 0:
+            quantity = None
 
         if available is True and quantity is not None and quantity > 0:
             availability = CommercialAvailability.IN_STOCK
@@ -369,12 +394,10 @@ def _map_ingram(source_section: dict[str, Any]) -> CommercialSourceCandidate | C
         source_name=source_name,
         explicit_candidate_mpn=str(vendor_mpn).strip(),
         price_amount=price,
-        currency_code=currency.strip().upper() if currency else "",
+        currency_code=currency,
         availability=availability,
         quantity=quantity,
         price_basis=price_basis,
-        brand_new=True,
-        brand_new_basis="VENDOR_API_POLICY",
     )
 
 
@@ -398,30 +421,34 @@ def _map_cdw(source_section: dict[str, Any]) -> CommercialSourceCandidate | Comm
     ):
         return CommercialSourceIssue(
             source_name=source_name,
-            outcome=SourceOutcome.NOT_FOUND,
-            detail=None,
-        )
+            outcome=SourceOutcome.NOT_FOUND)
+
 
     # Explicit MPN (required)
     vendor_mpn = source_section.get("manufacturerPartNumber")
     if not vendor_mpn or not str(vendor_mpn).strip():
         return CommercialSourceIssue(
             source_name=source_name,
-            outcome=SourceOutcome.MISSING_EXPLICIT_MPN,
-            detail=None,
-        )
+            outcome=SourceOutcome.MISSING_EXPLICIT_MPN)
 
-    # Price
+
+    # Price — must be finite, nonnegative Decimal
     price_raw = source_section.get("price")
     price = _safe_decimal(price_raw)
-    if price is None:
+    if price is None or not price.is_finite() or price < 0:
         return CommercialSourceIssue(
             source_name=source_name,
-            outcome=SourceOutcome.MALFORMED_SECTION,
-            detail=None,
-        )
+            outcome=SourceOutcome.MALFORMED_SECTION)
 
-    currency = source_section.get("currencyCode", "")
+
+    # Currency — must be str and nonempty
+    currency_raw = source_section.get("currencyCode")
+    if not isinstance(currency_raw, str) or not currency_raw.strip():
+        return CommercialSourceIssue(
+            source_name=source_name,
+            outcome=SourceOutcome.MALFORMED_SECTION)
+
+    currency = currency_raw.strip().upper()
 
     # Availability
     inventory = source_section.get("inventoryStatus")
@@ -433,6 +460,9 @@ def _map_cdw(source_section: dict[str, Any]) -> CommercialSourceCandidate | Comm
         stock_status = ""
 
     quantity = _safe_int(qty_raw)
+    # Negative quantity -> discard
+    if quantity is not None and quantity < 0:
+        quantity = None
 
     if stock_status == "InStock":
         if quantity is not None and quantity == 0:
@@ -451,12 +481,10 @@ def _map_cdw(source_section: dict[str, Any]) -> CommercialSourceCandidate | Comm
         source_name=source_name,
         explicit_candidate_mpn=str(vendor_mpn).strip(),
         price_amount=price,
-        currency_code=currency.strip().upper() if currency else "",
+        currency_code=currency,
         availability=availability,
         quantity=quantity,
         price_basis=CommercialPriceBasis.LIST_PRICE,
-        brand_new=True,
-        brand_new_basis="VENDOR_API_POLICY",
     )
 
 
@@ -486,26 +514,23 @@ def _map_synnex_eu(source_section: dict[str, Any]) -> CommercialSourceCandidate 
     ):
         return CommercialSourceIssue(
             source_name=source_name,
-            outcome=SourceOutcome.NOT_FOUND,
-            detail=None,
-        )
+            outcome=SourceOutcome.NOT_FOUND)
+
 
     # Check for "not maintained" at top level flag
     if source_section.get("notMaintained"):
         return CommercialSourceIssue(
             source_name=source_name,
-            outcome=SourceOutcome.NOT_FOUND,
-            detail=None,
-        )
+            outcome=SourceOutcome.NOT_FOUND)
+
 
     # Synnex EU uses OnlineCheck nesting
     online_check = source_section.get("OnlineCheck")
     if not isinstance(online_check, dict):
         return CommercialSourceIssue(
             source_name=source_name,
-            outcome=SourceOutcome.MALFORMED_SECTION,
-            detail=None,
-        )
+            outcome=SourceOutcome.MALFORMED_SECTION)
+
 
     # Check for not-maintained Note BEFORE requiring MPN/price
     item = online_check.get("Item")
@@ -517,16 +542,14 @@ def _map_synnex_eu(source_section: dict[str, Any]) -> CommercialSourceCandidate 
                 # Not maintained in catalogue -> NOT_FOUND, no candidate
                 return CommercialSourceIssue(
                     source_name=source_name,
-                    outcome=SourceOutcome.NOT_FOUND,
-                    detail=None,
-                )
+                    outcome=SourceOutcome.NOT_FOUND)
+
 
     if not isinstance(item, dict):
         return CommercialSourceIssue(
             source_name=source_name,
-            outcome=SourceOutcome.MALFORMED_SECTION,
-            detail=None,
-        )
+            outcome=SourceOutcome.MALFORMED_SECTION)
+
 
     # Currency from Header (allowlisted field only)
     header = online_check.get("Header")
@@ -540,19 +563,17 @@ def _map_synnex_eu(source_section: dict[str, Any]) -> CommercialSourceCandidate 
     if not vendor_mpn or not str(vendor_mpn).strip():
         return CommercialSourceIssue(
             source_name=source_name,
-            outcome=SourceOutcome.MISSING_EXPLICIT_MPN,
-            detail=None,
-        )
+            outcome=SourceOutcome.MISSING_EXPLICIT_MPN)
 
-    # Price
+
+    # Price — must be finite, nonnegative Decimal
     price_raw = item.get("UnitPriceAmount")
     price = _safe_decimal(price_raw)
-    if price is None:
+    if price is None or not price.is_finite() or price < 0:
         return CommercialSourceIssue(
             source_name=source_name,
-            outcome=SourceOutcome.MALFORMED_SECTION,
-            detail=None,
-        )
+            outcome=SourceOutcome.MALFORMED_SECTION)
+
 
     # Availability
     avail_raw = item.get("AvailabilityTotal")
@@ -563,8 +584,13 @@ def _map_synnex_eu(source_section: dict[str, Any]) -> CommercialSourceCandidate 
         elif avail_int == 0:
             availability = CommercialAvailability.OUT_OF_STOCK
         else:
+            # Negative quantity -> UNKNOWN, discard quantity
             availability = CommercialAvailability.UNKNOWN
-        quantity = avail_int
+            quantity = None
+        if availability != CommercialAvailability.UNKNOWN:
+            quantity = avail_int
+        else:
+            quantity = None
     else:
         availability = CommercialAvailability.UNKNOWN
         quantity = None
@@ -577,17 +603,23 @@ def _map_synnex_eu(source_section: dict[str, Any]) -> CommercialSourceCandidate 
         # "not maintained" already handled above
         # All other free-form note text is dropped
 
+    # Currency — must be str and nonempty
+    currency_val = currency.strip().upper() if currency else ""
+    if not currency_val:
+        return CommercialSourceIssue(
+            source_name=source_name,
+            outcome=SourceOutcome.MALFORMED_SECTION)
+
+
     return CommercialSourceCandidate(
         source_name=source_name,
         explicit_candidate_mpn=str(vendor_mpn).strip(),
         price_amount=price,
-        currency_code=currency.strip().upper() if currency else "",
+        currency_code=currency_val,
         availability=availability,
         quantity=quantity,
         price_basis=CommercialPriceBasis.LIST_PRICE,
         note_kind=note_kind,
-        brand_new=True,
-        brand_new_basis="VENDOR_API_POLICY",
     )
 
 
@@ -620,9 +652,8 @@ def _identify_and_map_source(source_section: dict[str, Any]) -> CommercialSource
     # Unknown source structure
     return CommercialSourceIssue(
         source_name="Unknown",
-        outcome=SourceOutcome.MALFORMED_SECTION,
-        detail=None,
-    )
+        outcome=SourceOutcome.MALFORMED_SECTION)
+
 
 
 # ---------------------------------------------------------------------------
@@ -688,9 +719,10 @@ class InternalVendorAdapter:
             response = opener.open(req, timeout=_VENDOR_TIMEOUT)
         except (URLError, HTTPError, OSError, TimeoutError) as exc:
             # Bounded transport failures -> FAILED response
+            # Log only bounded info (class name, MPN); never raw exception text
             logger.warning(
-                "Vendor API lookup failed for MPN %s: %s",
-                query.mpn, exc,
+                "Vendor API lookup failed for MPN %s (class=%s)",
+                query.mpn, type(exc).__name__,
             )
             return CommercialSourceResponse(
                 status=LookupStatus.FAILED,
@@ -702,8 +734,8 @@ class InternalVendorAdapter:
             body_bytes = response.read(_VENDOR_MAX_BODY + 1)
         except (URLError, OSError) as exc:
             logger.warning(
-                "Vendor API response read failed for MPN %s: %s",
-                query.mpn, exc,
+                "Vendor API response read failed for MPN %s (class=%s)",
+                query.mpn, type(exc).__name__,
             )
             return CommercialSourceResponse(
                 status=LookupStatus.FAILED,
@@ -720,14 +752,16 @@ class InternalVendorAdapter:
                 retrieved_at=None,
             )
 
-        # Parse JSON with Decimal awareness for monetary values
+        # Parse JSON with Decimal for exact monetary values.
+        # parse_float=Decimal preserves precision; no binary float conversion.
         try:
             body_text = body_bytes.decode("utf-8")
-            payload = json.loads(body_text, parse_float=str)
-        except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+            payload = json.loads(body_text, parse_float=Decimal)
+        except (json.JSONDecodeError, UnicodeDecodeError, InvalidOperation) as exc:
+            # InvalidOperation catches non-standard JSON constants like NaN
             logger.warning(
-                "Vendor API response JSON parse failed for MPN %s: %s",
-                query.mpn, exc,
+                "Vendor API response JSON parse failed for MPN %s",
+                query.mpn,
             )
             return CommercialSourceResponse(
                 status=LookupStatus.FAILED,
@@ -796,24 +830,43 @@ class InternalVendorAdapter:
     def _extract_source_sections(self, payload: dict[str, Any]) -> list[dict[str, Any]]:
         """Extract individual source sections from the Vendor API response.
 
-        The Vendor API returns a dict where values that are dicts with
-        source-specific fields are treated as source sections.
+        The Vendor API returns a dict where top-level keys are source names
+        (e.g. "Ingram", "CDW", "Synnex EU") and values are the source sections.
+
+        For bounded known source names, the top-level key is used as a
+        ``sourceName`` hint when the inner section lacks one. This is critical
+        for wrapper shapes like:
+
+            {"Ingram": {"Not Found": true}}
+
+        where the inner dict has no ``sourceName`` but the wrapper key
+        identifies the source. Arbitrary unknown wrapper names are NOT
+        persisted — only bounded known names are injected.
         """
         sections: list[dict[str, Any]] = []
 
         for key, value in payload.items():
-            if isinstance(value, dict):
-                # Check if this looks like a source section
-                if (
-                    "vendorPartNumber" in value
-                    or "manufacturerPartNumber" in value
-                    or "OnlineCheck" in value
-                    or "sourceName" in value
-                    or "NotFound" in value
-                    or "notFound" in value
-                    or "Not Found" in value
-                    or "notMaintained" in value
-                ):
-                    sections.append(value)
+            if not isinstance(value, dict):
+                continue
+
+            # Check if this inner dict looks like a source section
+            is_source_section = (
+                "vendorPartNumber" in value
+                or "manufacturerPartNumber" in value
+                or "OnlineCheck" in value
+                or "sourceName" in value
+                or "NotFound" in value
+                or "notFound" in value
+                or "Not Found" in value
+                or "notMaintained" in value
+            )
+
+            if is_source_section:
+                section = dict(value)
+                # If inner section lacks sourceName, inject from bounded
+                # top-level wrapper key (only for known source names)
+                if "sourceName" not in section and key in _ALLOWED_SOURCE_NAMES:
+                    section["sourceName"] = key
+                sections.append(section)
 
         return sections

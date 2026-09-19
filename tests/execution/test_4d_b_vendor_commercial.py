@@ -7,23 +7,25 @@ Tests cover:
 A. No config -> zero Vendor API calls, no ResearchSupplementSnapshot
 B. Description-only request -> configured endpoint, zero Vendor API calls
 C. Configured MPN success -> ONE Vendor API lookup, snapshot persisted
-D. Partial source failure -> valid observation + bounded issue
+D. Partial source failure -> valid observation + bounded issue persisted
 E. Whole Vendor transport failure -> FAILED supplemental, run COMPLETED
-F. Programming error -> propagates to catastrophic boundary, run FAILED
-G. Codec error -> no silently COMPLETED run
-H. Persistence error -> no half-publication, atomic rollback
-I. 4D-A interaction -> Vendor success does NOT suppress Serper
-J. Machine Price -> Vendor creates ZERO additional 4A buckets
-K. Semantic/human review -> Vendor rows not in semantic input
-L. Comparable -> Vendor data not consumed by comparable scoring
+F. Programming error -> catastrophic boundary, run FAILED, no half-publication
+G. Codec error -> no silently COMPLETED run, no supplement
+H. Persistence error -> atomic rollback, no PriceIntelligenceSnapshot
+I. Search independence -> both search and vendor execute independently
+J. Machine Price -> vendor data absent from decoded PriceIntelligenceSnapshot
+K. Semantic isolation -> semantic eval BEFORE vendor lookup (call order proof)
+L. Comparable isolation -> comparable pipeline imports no vendor contracts
 """
 
 from __future__ import annotations
 
+import ast
 import json
 import os
 from datetime import datetime, timezone
 from decimal import Decimal
+from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -266,31 +268,45 @@ class Test4DBMachinePrice(TestCase):
 
 
 class Test4DBNotInWebReport(TestCase):
-    """10. Web report does NOT expose vendor commercial data."""
+    """Web report does NOT expose vendor commercial data."""
 
     def test_historical_report_no_vendor_data(self) -> None:
-        """GET /research/<uuid> does not render vendor commercial prices."""
+        """GET /research/<uuid> does not render vendor commercial prices.
+
+        Uses a REAL valid PriceAggregationResult encoded through the real
+        price codec (not a fabricated payload). The report enters its normal
+        successful rendering path.
+        """
         from django.test import Client
 
-        request = ResearchRequest(
+        from product_intelligence.domain.enums import VerificationStatus
+        from product_intelligence.research.aggregation import (
+            PriceAggregationResult,
+        )
+        from product_intelligence.research.price_result_codec import (
+            encode_price_aggregation_result,
+        )
+
+        request_obj = ResearchRequest(
             manufacturer_part_number="BCM957608-P2200GQF00",
             description="Test SSD",
         )
-        run = ResearchRun.objects.create_from_request(request)
+        run = ResearchRun.objects.create_from_request(request_obj)
+
+        # Use a REAL valid aggregation result encoded through the real codec
+        valid_result = PriceAggregationResult(
+            request=request_obj,
+            assessments=(),
+            exclusions=(),
+            buckets=(),
+            verification_status=VerificationStatus.UNKNOWN,
+        )
+        encoded_payload = encode_price_aggregation_result(valid_result)
 
         PriceIntelligenceSnapshot.objects.create(
             run=run,
             schema_version=1,
-            payload={
-                "schema_version": 1,
-                "aggregation_result": {
-                    "request_mpn": "BCM957608-P2200GQF00",
-                    "request_description": "Test SSD",
-                    "buckets": [],
-                    "assessments": [],
-                    "verification_status": "UNVERIFIED",
-                },
-            },
+            payload=encoded_payload,
         )
 
         run.transition_to(ResearchRunState.RUNNING)
@@ -517,3 +533,516 @@ class Test4DBOneToOne(TestCase):
                     "source_issues": [],
                 }},
             )
+
+
+class Test4DBPartialSourceFailure(TestCase):
+    """D. Partial source failure -> valid observation + bounded issue."""
+
+    def test_partial_source_failure(self) -> None:
+        """One valid + one malformed source -> PARTIAL, both persisted."""
+        request = ResearchRequest(
+            manufacturer_part_number="BCM957608-P2200GQF00",
+            description="Test SSD",
+        )
+        run = ResearchRun.objects.create_from_request(request)
+
+        payload = {
+            "Ingram": {
+                "sourceName": "Ingram",
+                "vendorPartNumber": "BCM957608-P2200GQF00",
+                "pricing": {
+                    "customerPrice": "2120.00",
+                    "currencyCode": "USD",
+                },
+                "availability": {"available": True, "Avl_Quantity": 10},
+            },
+            "CDW": {
+                "sourceName": "CDW",
+                "manufacturerPartNumber": "BCM957608-P2200GQF00",
+                "price": "not_a_number",
+                "currencyCode": "USD",
+                "inventoryStatus": {"stockStatus": "InStock"},
+            },
+        }
+        mock_response = MagicMock()
+        mock_response.read.return_value = json.dumps(payload).encode("utf-8")
+        mock_opener = MagicMock()
+        mock_opener.open.return_value = mock_response
+
+        with patch.dict(os.environ, {
+            "PI_VENDOR_LOOKUP_BASE_URL": "http://vendor.internal/api",
+        }):
+            mock_search = MagicMock()
+            mock_search.search.return_value = MagicMock(results=())
+
+            with patch(
+                "product_intelligence.providers.serper."
+                "SerperSearchProvider.from_environment",
+                return_value=mock_search,
+            ), patch(
+                "product_intelligence.providers.internal_vendor."
+                "_get_vendor_opener",
+                return_value=mock_opener,
+            ):
+                from product_intelligence.execution import execute_research_run
+                result = execute_research_run(str(run.id))
+
+                run.refresh_from_db()
+                assert run.current_state == ResearchRunState.COMPLETED
+
+                snapshot = ResearchSupplementSnapshot.objects.get(run=run)
+                vcr = snapshot.payload["vendor_commercial_result"]
+                # PARTIAL status (one valid + one malformed)
+                assert vcr["lookup_status"] == "PARTIAL"
+                # Valid observation persisted
+                assert len(vcr["observations"]) >= 1
+                assert vcr["observations"][0]["source_name"] == "Ingram"
+                # Bounded issue persisted (no raw text)
+                assert len(vcr["source_issues"]) >= 1
+
+
+class Test4DBProgrammingError(TestCase):
+    """F. Programming error -> catastrophic boundary, run FAILED."""
+
+    def test_programming_error_fails_run(self) -> None:
+        """RuntimeError from adapter -> FAILED run, no supplement."""
+        request = ResearchRequest(
+            manufacturer_part_number="BCM957608-P2200GQF00",
+            description="Test SSD",
+        )
+        run = ResearchRun.objects.create_from_request(request)
+
+        mock_response = MagicMock()
+        mock_response.read.return_value = json.dumps({
+            "Ingram": {
+                "sourceName": "Ingram",
+                "vendorPartNumber": "BCM957608-P2200GQF00",
+                "pricing": {
+                    "customerPrice": "2120.00",
+                    "currencyCode": "USD",
+                },
+                "availability": {"available": True},
+            },
+        }).encode("utf-8")
+        mock_opener = MagicMock()
+        mock_opener.open.return_value = mock_response
+
+        with patch.dict(os.environ, {
+            "PI_VENDOR_LOOKUP_BASE_URL": "http://vendor.internal/api",
+        }):
+            mock_search = MagicMock()
+            mock_search.search.return_value = MagicMock(results=())
+
+            with patch(
+                "product_intelligence.providers.serper."
+                "SerperSearchProvider.from_environment",
+                return_value=mock_search,
+            ), patch(
+                "product_intelligence.providers.internal_vendor."
+                "_get_vendor_opener",
+                return_value=mock_opener,
+            ), patch(
+                "product_intelligence.providers.internal_vendor."
+                "_identify_and_map_source",
+                side_effect=RuntimeError("injected programming defect"),
+            ):
+                from product_intelligence.execution import execute_research_run
+                from product_intelligence.execution.orchestration import (
+                    ExecutionError,
+                )
+                with pytest.raises(ExecutionError):
+                    execute_research_run(str(run.id))
+
+                # Run is FAILED (not COMPLETED)
+                run.refresh_from_db()
+                assert run.current_state == ResearchRunState.FAILED
+
+                # No supplement snapshot persisted
+                assert not ResearchSupplementSnapshot.objects.filter(
+                    run=run
+                ).exists()
+
+                # No price snapshot (catastrophic before final publication)
+                assert not PriceIntelligenceSnapshot.objects.filter(
+                    run=run
+                ).exists()
+
+
+class Test4DBCodecError(TestCase):
+    """G. Codec error -> no silently COMPLETED run."""
+
+    def test_codec_error_fails_run(self) -> None:
+        """SupplementCodecError -> run not silently COMPLETED."""
+        request = ResearchRequest(
+            manufacturer_part_number="BCM957608-P2200GQF00",
+            description="Test SSD",
+        )
+        run = ResearchRun.objects.create_from_request(request)
+
+        mock_response = MagicMock()
+        mock_response.read.return_value = json.dumps({
+            "Ingram": {
+                "sourceName": "Ingram",
+                "vendorPartNumber": "BCM957608-P2200GQF00",
+                "pricing": {
+                    "customerPrice": "2120.00",
+                    "currencyCode": "USD",
+                },
+                "availability": {"available": True},
+            },
+        }).encode("utf-8")
+        mock_opener = MagicMock()
+        mock_opener.open.return_value = mock_response
+
+        with patch.dict(os.environ, {
+            "PI_VENDOR_LOOKUP_BASE_URL": "http://vendor.internal/api",
+        }):
+            mock_search = MagicMock()
+            mock_search.search.return_value = MagicMock(results=())
+
+            with patch(
+                "product_intelligence.providers.serper."
+                "SerperSearchProvider.from_environment",
+                return_value=mock_search,
+            ), patch(
+                "product_intelligence.providers.internal_vendor."
+                "_get_vendor_opener",
+                return_value=mock_opener,
+            ), patch(
+                "product_intelligence.research.commercial_supplement_codec."
+                "encode_research_supplement_result",
+                side_effect=Exception("codec failure"),
+            ):
+                from product_intelligence.execution import execute_research_run
+                from product_intelligence.execution.orchestration import (
+                    ExecutionError,
+                )
+                with pytest.raises(ExecutionError):
+                    execute_research_run(str(run.id))
+
+                # Run FAILED (codec error hits outer catastrophic boundary)
+                run.refresh_from_db()
+                assert run.current_state == ResearchRunState.FAILED
+
+                # No supplement snapshot persisted
+                assert not ResearchSupplementSnapshot.objects.filter(
+                    run=run
+                ).exists()
+
+
+class Test4DBPersistenceError(TestCase):
+    """H. Persistence error -> atomic rollback, no half-publication."""
+
+    def test_persistence_error_rolls_back(self) -> None:
+        """SupplementSnapshot.create fails -> PriceIntelligenceSnapshot rolled back."""
+        request = ResearchRequest(
+            manufacturer_part_number="BCM957608-P2200GQF00",
+            description="Test SSD",
+        )
+        run = ResearchRun.objects.create_from_request(request)
+
+        mock_response = MagicMock()
+        mock_response.read.return_value = json.dumps({
+            "Ingram": {
+                "sourceName": "Ingram",
+                "vendorPartNumber": "BCM957608-P2200GQF00",
+                "pricing": {
+                    "customerPrice": "2120.00",
+                    "currencyCode": "USD",
+                },
+                "availability": {"available": True},
+            },
+        }).encode("utf-8")
+        mock_opener = MagicMock()
+        mock_opener.open.return_value = mock_response
+
+        with patch.dict(os.environ, {
+            "PI_VENDOR_LOOKUP_BASE_URL": "http://vendor.internal/api",
+        }):
+            mock_search = MagicMock()
+            mock_search.search.return_value = MagicMock(results=())
+
+            with patch(
+                "product_intelligence.providers.serper."
+                "SerperSearchProvider.from_environment",
+                return_value=mock_search,
+            ), patch(
+                "product_intelligence.providers.internal_vendor."
+                "_get_vendor_opener",
+                return_value=mock_opener,
+            ), patch(
+                "product_intelligence.runs.models."
+                "ResearchSupplementSnapshot.objects.create",
+                side_effect=Exception("persistence failure"),
+            ):
+                from product_intelligence.execution import execute_research_run
+                from product_intelligence.execution.orchestration import (
+                    ExecutionError,
+                )
+                with pytest.raises(ExecutionError):
+                    execute_research_run(str(run.id))
+
+                # Run FAILED
+                run.refresh_from_db()
+                assert run.current_state == ResearchRunState.FAILED
+
+                # Neither snapshot persisted (atomic rollback)
+                assert not PriceIntelligenceSnapshot.objects.filter(
+                    run=run
+                ).exists()
+                assert not ResearchSupplementSnapshot.objects.filter(
+                    run=run
+                ).exists()
+
+
+class Test4DBSearchIndependence(TestCase):
+    """I. Vendor does NOT suppress public search (strengthened)."""
+
+    def test_vendor_and_search_both_execute(self) -> None:
+        """Both search and vendor lookup execute independently."""
+        request = ResearchRequest(
+            manufacturer_part_number="BCM957608-P2200GQF00",
+            description="Test SSD",
+        )
+        run = ResearchRun.objects.create_from_request(request)
+
+        payload = {
+            "Ingram": {
+                "sourceName": "Ingram",
+                "vendorPartNumber": "BCM957608-P2200GQF00",
+                "pricing": {
+                    "customerPrice": "2120.00",
+                    "currencyCode": "USD",
+                },
+                "availability": {"available": True, "Avl_Quantity": 10},
+            },
+        }
+        mock_response = MagicMock()
+        mock_response.read.return_value = json.dumps(payload).encode("utf-8")
+        mock_opener = MagicMock()
+        mock_opener.open.return_value = mock_response
+
+        with patch.dict(os.environ, {
+            "PI_VENDOR_LOOKUP_BASE_URL": "http://vendor.internal/api",
+        }):
+            mock_search = MagicMock()
+            mock_search.search.return_value = MagicMock(results=())
+
+            with patch(
+                "product_intelligence.providers.serper."
+                "SerperSearchProvider.from_environment",
+                return_value=mock_search,
+            ), patch(
+                "product_intelligence.providers.internal_vendor."
+                "_get_vendor_opener",
+                return_value=mock_opener,
+            ):
+                from product_intelligence.execution import execute_research_run
+                result = execute_research_run(str(run.id))
+
+                # Both search AND vendor were called
+                assert mock_search.search.call_count == 1
+                assert mock_opener.open.call_count == 1
+
+                # ExecutionResult stats derived only from public research
+                assert result.search_result_count == 0  # empty search results
+                assert result.fetch_success_count == 0
+                assert result.extract_observation_count == 0
+                assert result.accepted_assessment_count == 0
+
+                # Supplement persisted independently
+                assert ResearchSupplementSnapshot.objects.filter(
+                    run=run
+                ).exists()
+
+
+class Test4DBMachinePriceStrengthened(TestCase):
+    """J. Machine Price -> Vendor creates ZERO additional 4A buckets (strengthened)."""
+
+    def test_vendor_data_absent_from_price_snapshot(self) -> None:
+        """PriceIntelligenceSnapshot decoded through real codec has no vendor data."""
+        from product_intelligence.research.price_result_codec import (
+            decode_price_aggregation_result,
+        )
+
+        request = ResearchRequest(
+            manufacturer_part_number="BCM957608-P2200GQF00",
+            description="Test SSD",
+        )
+        run = ResearchRun.objects.create_from_request(request)
+
+        payload = {
+            "Ingram": {
+                "sourceName": "Ingram",
+                "vendorPartNumber": "BCM957608-P2200GQF00",
+                "pricing": {
+                    "customerPrice": "2120.00",
+                    "currencyCode": "USD",
+                },
+                "availability": {"available": True, "Avl_Quantity": 10},
+            },
+        }
+        mock_response = MagicMock()
+        mock_response.read.return_value = json.dumps(payload).encode("utf-8")
+        mock_opener = MagicMock()
+        mock_opener.open.return_value = mock_response
+
+        with patch.dict(os.environ, {
+            "PI_VENDOR_LOOKUP_BASE_URL": "http://vendor.internal/api",
+        }):
+            mock_search = MagicMock()
+            mock_search.search.return_value = MagicMock(results=())
+
+            with patch(
+                "product_intelligence.providers.serper."
+                "SerperSearchProvider.from_environment",
+                return_value=mock_search,
+            ), patch(
+                "product_intelligence.providers.internal_vendor."
+                "_get_vendor_opener",
+                return_value=mock_opener,
+            ):
+                from product_intelligence.execution import execute_research_run
+                result = execute_research_run(str(run.id))
+
+                # Decode PriceIntelligenceSnapshot through real codec
+                assert result.snapshot is not None
+                decoded = decode_price_aggregation_result(
+                    result.snapshot.payload,
+                    schema_version=result.snapshot.schema_version,
+                )
+
+                # No vendor data in the decoded aggregation result
+                assert not hasattr(decoded, 'vendor_commercial_result')
+
+                # Bucket count is from public research only
+                assert len(decoded.buckets) == 0  # no public listings
+
+
+class Test4DBSemanticIsolation(TestCase):
+    """K. Vendor rows not in semantic input (strengthened)."""
+
+    def test_semantic_eval_before_vendor_lookup(self) -> None:
+        """Semantic evaluation occurs BEFORE vendor lookup.
+
+        Prove by call order that vendor observations cannot be semantic input.
+        """
+        from product_intelligence.runs.models import AiAssistedReviewCandidate
+
+        request = ResearchRequest(
+            manufacturer_part_number="BCM957608-P2200GQF00",
+            description="Test SSD",
+        )
+        run = ResearchRun.objects.create_from_request(request)
+
+        payload = {
+            "Ingram": {
+                "sourceName": "Ingram",
+                "vendorPartNumber": "BCM957608-P2200GQF00",
+                "pricing": {
+                    "customerPrice": "2120.00",
+                    "currencyCode": "USD",
+                },
+                "availability": {"available": True, "Avl_Quantity": 10},
+            },
+        }
+        mock_response = MagicMock()
+        mock_response.read.return_value = json.dumps(payload).encode("utf-8")
+        mock_opener = MagicMock()
+        mock_opener.open.return_value = mock_response
+
+        call_order: list[str] = []
+
+        def track_semantic(*a, **kw):
+            call_order.append("semantic")
+            return []
+
+        def track_vendor(*a, **kw):
+            call_order.append("vendor")
+            return mock_opener
+
+        with patch.dict(os.environ, {
+            "PI_VENDOR_LOOKUP_BASE_URL": "http://vendor.internal/api",
+        }):
+            mock_search = MagicMock()
+            mock_search.search.return_value = MagicMock(results=())
+
+            with patch(
+                "product_intelligence.providers.serper."
+                "SerperSearchProvider.from_environment",
+                return_value=mock_search,
+            ), patch(
+                "product_intelligence.execution.orchestration."
+                "evaluate_semantic_matches",
+                side_effect=track_semantic,
+            ), patch(
+                "product_intelligence.providers.internal_vendor."
+                "_get_vendor_opener",
+                side_effect=track_vendor,
+            ):
+                from product_intelligence.execution import execute_research_run
+                execute_research_run(str(run.id))
+
+                # Semantic evaluated BEFORE vendor lookup
+                assert call_order == ["semantic", "vendor"], (
+                    f"Expected semantic before vendor, got {call_order}"
+                )
+
+
+class Test4DBComparableIsolation(TestCase):
+    """L. Comparable pipeline does not consume vendor commercial data."""
+
+    def test_comparable_imports_no_vendor_contracts(self) -> None:
+        """Comparable execution/scoring imports no vendor commercial symbols."""
+        import ast
+        from pathlib import Path
+
+        repo_root = Path(__file__).resolve().parents[2]
+        execution_root = repo_root / "product_intelligence" / "execution"
+
+        forbidden_modules = {
+            "product_intelligence.research.commercial_supplement_codec",
+            "product_intelligence.providers.commercial",
+            "product_intelligence.providers.internal_vendor",
+        }
+        forbidden_strings = {
+            "ResearchSupplementSnapshot",
+            "commercial_supplement_codec",
+            "providers.commercial",
+            "providers.internal_vendor",
+            "CommercialSourceCandidate",
+            "CommercialSourceIssue",
+        }
+
+        comparable_files = [
+            execution_root / "comparable_discovery.py",
+            execution_root / "comparable_research.py",
+            execution_root / "comparable_research_authority.py",
+            execution_root / "comparable_runtime.py",
+            execution_root / "comparable_similarity.py",
+        ]
+
+        for filepath in comparable_files:
+            if not filepath.exists():
+                continue
+            source = filepath.read_text(encoding="utf-8")
+            # Check imports
+            tree = ast.parse(source)
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ImportFrom) and node.module:
+                    if node.module in forbidden_modules:
+                        pytest.fail(
+                            f"{filepath.name} imports {node.module}; "
+                            "comparable pipeline must not import vendor contracts"
+                        )
+            # Check string references
+            for token in forbidden_strings:
+                if token in source:
+                    # Allow in comments/docstrings about isolation
+                    for line in source.splitlines():
+                        stripped = line.strip()
+                        if token in stripped and not stripped.startswith("#"):
+                            pytest.fail(
+                                f"{filepath.name} references {token}; "
+                                "comparable pipeline must not consume vendor data"
+                            )

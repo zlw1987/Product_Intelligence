@@ -29,6 +29,10 @@ from decimal import Decimal
 
 import pytest
 
+from product_intelligence.providers.commercial import (
+    CommercialAvailability,
+    CommercialPriceBasis,
+)
 from product_intelligence.research.commercial_supplement_codec import (
     ResearchSupplementResult,
     SupplementCodecError,
@@ -878,4 +882,110 @@ class TestEncodeSideValidation:
                 note_kind=None,
                 brand_new=True,
                 brand_new_basis="VENDOR_API_POLICY",
+            )
+
+
+# ---------------------------------------------------------------------------
+# Issue detail controlled vocabulary
+# ---------------------------------------------------------------------------
+
+
+class TestIssueDetailControlledVocabulary:
+    """Prove SupplementSourceIssue.detail is restricted to controlled constants."""
+
+    def test_detail_none_allowed(self) -> None:
+        """detail=None is always allowed."""
+        issue = SupplementSourceIssue(
+            source_name="Ingram",
+            outcome="NOT_FOUND",
+            detail=None,
+        )
+        assert issue.detail is None
+
+    def test_detail_vendor_mpn_mismatch_allowed(self) -> None:
+        """detail='vendor_mpn_mismatch' is the only non-None allowed value."""
+        issue = SupplementSourceIssue(
+            source_name="CDW",
+            outcome="MPN_MISMATCH",
+            detail="vendor_mpn_mismatch",
+        )
+        assert issue.detail == "vendor_mpn_mismatch"
+
+    def test_arbitrary_detail_rejected_in_domain_object(self) -> None:
+        """Arbitrary free-form detail is rejected at construction."""
+        with pytest.raises(ValueError, match="detail must be"):
+            SupplementSourceIssue(
+                source_name="Ingram",
+                outcome="MALFORMED_SECTION",
+                detail="some arbitrary free text from the vendor",
+            )
+
+    def test_arbitrary_detail_rejected_on_decode(self) -> None:
+        """Arbitrary free-form detail rejected during codec decode."""
+        payload = {
+            "schema_version": 1,
+            "vendor_commercial_result": {
+                "lookup_status": "SUCCESS",
+                "retrieved_at": None,
+                "observations": [],
+                "source_issues": [
+                    {
+                        "source_name": "Ingram",
+                        "outcome": "MALFORMED_SECTION",
+                        "detail": "raw upstream error: connection reset by peer",
+                    },
+                ],
+            },
+        }
+        with pytest.raises(SupplementCodecError, match="invalid detail"):
+            decode_research_supplement_result(payload)
+
+
+class TestProviderContractNoBrandNew:
+    """Prove CommercialSourceCandidate carries NO brand-new business-policy."""
+
+    def test_provider_candidate_no_brand_new(self) -> None:
+        """CommercialSourceCandidate has no brand_new field."""
+        from product_intelligence.providers.commercial import (
+            CommercialSourceCandidate,
+        )
+        c = CommercialSourceCandidate(
+            source_name="Ingram",
+            explicit_candidate_mpn="ABC123",
+            price_amount=Decimal("100.00"),
+            currency_code="USD",
+            availability=CommercialAvailability.IN_STOCK,
+            price_basis=CommercialPriceBasis.CUSTOMER_PRICE,
+        )
+        assert not hasattr(c, 'brand_new')
+        assert not hasattr(c, 'brand_new_basis')
+
+    def test_provider_candidate_decimal_is_finite(self) -> None:
+        """Provider contract enforces finite Decimal price."""
+        from product_intelligence.providers.commercial import (
+            CommercialSourceCandidate,
+        )
+        with pytest.raises(ValueError, match="finite"):
+            CommercialSourceCandidate(
+                source_name="Ingram",
+                explicit_candidate_mpn="ABC123",
+                price_amount=Decimal("NaN"),
+                currency_code="USD",
+                availability=CommercialAvailability.IN_STOCK,
+                price_basis=CommercialPriceBasis.CUSTOMER_PRICE,
+            )
+
+    def test_provider_candidate_no_float_price(self) -> None:
+        """Binary float rejected at provider contract."""
+        from product_intelligence.providers.commercial import (
+            CommercialSourceCandidate,
+        )
+        with pytest.raises(TypeError, match="Decimal"):
+            CommercialSourceCandidate(
+                source_name="Ingram",
+                explicit_candidate_mpn="ABC123",
+                price_amount=100.00,  # type: ignore[arg-type]
+                currency_code="USD",
+                availability=CommercialAvailability.IN_STOCK,
+                price_basis=CommercialPriceBasis.CUSTOMER_PRICE,
             )

@@ -579,3 +579,36 @@ def test_http_pdf_imports_no_third_party_dependency() -> None:
     )
 
     assert json.loads(result.stdout.strip().splitlines()[-1]) == []
+
+
+# --------------------------------------------------------------------------
+# PRODUCT-INTEL.4D-B: commercial-source vendor-token guard
+# --------------------------------------------------------------------------
+
+# The provider-neutral commercial boundary must not name any concrete vendor.
+# Vendor names belong only in the adapter (internal_vendor.py) and in docs.
+_COMMERCIAL_VENDOR_TOKENS = [
+    "ingram",
+    "cdw",
+    "synnex",
+]
+
+
+def test_commercial_boundary_names_no_concrete_vendor() -> None:
+    """The generic commercial boundary must not name concrete vendors.
+
+    commercial.py defines the provider-neutral contract for any commercial
+    source. Concrete vendor names (Ingram, CDW, Synnex) belong only in
+    the adapter module (internal_vendor.py) and in canonical documentation.
+    """
+    commercial_path = PROVIDERS_ROOT / "commercial.py"
+    assert commercial_path.exists(), commercial_path
+    source = commercial_path.read_text(encoding="utf-8")
+    source_lower = source.lower()
+
+    found = [tok for tok in _COMMERCIAL_VENDOR_TOKENS if tok in source_lower]
+    assert not found, (
+        f"commercial.py references concrete vendors {found}; the generic "
+        "commercial boundary must stay provider-neutral. Vendor names belong "
+        "only in the adapter (internal_vendor.py) and in canonical docs."
+    )

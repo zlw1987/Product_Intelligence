@@ -29,8 +29,8 @@ HUMAN-REVIEW Human Review for AI-Assisted Matches APPROVED/FROZEN;
 
 **NEXT: PRODUCT-INTEL.4D (Customer Quote Research Expansion)**
 
-4D-PRE is the first 4D sub-phase. 4D-PRE produces evidence only — no
-production code changes. No 4D production implementation yet.
+4D is partially implemented. 4D-PRE and 4D-A are approved and frozen.
+4D-B is implemented and pending final review. 4D-C and 4D-D are planned.
 
 ```
 4D-PRE  Preferred Source Feasibility Audit  (evidence only) — APPROVED / FROZEN

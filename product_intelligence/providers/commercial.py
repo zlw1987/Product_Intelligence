@@ -1,9 +1,9 @@
 """Provider-neutral commercial-source boundary (PRODUCT-INTEL.4D-B).
 
 This module defines the generic contracts for structured commercial
-observations from internal vendor APIs. It is **not** search — a commercial
-lookup takes an exact MPN and returns structured pricing/availability
-observations, not discovered URLs.
+observations from a structured commercial provider. It is **not** search
+— a commercial lookup takes an exact MPN and returns structured
+pricing/availability observations, not discovered URLs.
 
 The boundary is:
 * provider-neutral
@@ -15,7 +15,7 @@ The boundary is:
 * credential-free
 * configuration-free
 
-Vendor-shaped payloads are interpreted in adapter modules. The contracts
+Source-shaped payloads are interpreted in adapter modules. The contracts
 here carry only the normalized commercial fields needed downstream.
 
 What this boundary is *not*
@@ -34,6 +34,11 @@ deterministic identity authority, semantic authority, or comparable scoring.
 **It is not evidence storage.** Nothing here is persisted. The payload
 schema for persistence is owned by the codec layer.
 
+**It does not carry business-policy conclusions.** Brand-new status is a
+customer/business-policy determination that applies only after frozen 2A
+has successfully identity-bound the vendor observation to the requested
+product. The provider observes; business policy applies later.
+
 Commercial observation
 ----------------------
 
@@ -44,15 +49,14 @@ is provider-neutral: no source-specific nested dict reaches consumers.
 ``CommercialAvailability`` is a narrow controlled vocabulary:
 IN_STOCK, OUT_OF_STOCK, UNKNOWN.
 
-``CommercialPriceBasis`` records whether customer-price or retail-price
-was used, so a downstream consumer can distinguish them.
+``CommercialPriceBasis`` records which price was used, so a downstream
+consumer can distinguish them.
 
-Brand-new status
-----------------
+Monetary values
+---------------
 
-A successful vendor-commercial observation is brand new by customer
-business policy (``VENDOR_API_POLICY``). This is NOT evidence that the
-vendor published condition=NEW. The policy provenance is explicit.
+All monetary values use ``Decimal`` (exact), never binary float.
+Prices must be finite and nonnegative.
 
 Sensitive data
 --------------
@@ -169,22 +173,24 @@ class CommercialSourceCandidate:
     vendor dict, no session/account metadata, no source-specific nested
     structure reaches consumers.
 
-    All monetary values use ``Decimal``, never binary float.
+    All monetary values use ``Decimal`` (exact), never binary float.
+    Price must be finite and nonnegative.
+
+    Brand-new business policy is NOT carried here. It is a
+    customer/business-policy conclusion that applies only after frozen 2A
+    has successfully identity-bound the observation to the requested
+    product. See SupplementSourceObservation for the bound result.
 
     Attributes:
-        source_name: Human-readable source identifier (e.g. "Ingram",
-            "CDW", "Synnex EU").
+        source_name: Human-readable source identifier.
         explicit_candidate_mpn: The MPN the source published for this
             product. Used for frozen 2A identity binding.
-        price_amount: The commercial price as a Decimal.
-        currency_code: ISO 4217 currency code (e.g. "USD", "EUR").
+        price_amount: The commercial price as a Decimal (finite, nonnegative).
+        currency_code: ISO 4217 currency code.
         availability: Normalized availability state.
-        quantity: Optional supplemental quantity integer.
-        price_basis: Which price basis was used (customer, retail fallback,
-            list).
+        quantity: Optional supplemental quantity integer (nonnegative).
+        price_basis: Which price basis was used.
         note_kind: Optional bounded approved note meaning.
-        brand_new: True when vendor policy applies.
-        brand_new_basis: Policy basis for brand-new status.
     """
 
     source_name: str
@@ -195,8 +201,6 @@ class CommercialSourceCandidate:
     price_basis: CommercialPriceBasis
     note_kind: CommercialNoteKind | None = None
     quantity: int | None = None
-    brand_new: bool = True
-    brand_new_basis: str = "VENDOR_API_POLICY"
 
     def __post_init__(self) -> None:
         # source_name
@@ -218,11 +222,15 @@ class CommercialSourceCandidate:
             )
         object.__setattr__(self, "explicit_candidate_mpn", mpn)
 
-        # price_amount — Decimal only
+        # price_amount — Decimal only, finite, nonnegative
         if not isinstance(self.price_amount, Decimal):
             raise TypeError(
                 f"price_amount must be a Decimal, got "
                 f"{type(self.price_amount).__name__}"
+            )
+        if not self.price_amount.is_finite():
+            raise ValueError(
+                "price_amount must be finite; NaN/Infinity rejected"
             )
         if self.price_amount < 0:
             raise ValueError("price_amount must not be negative")
@@ -261,26 +269,15 @@ class CommercialSourceCandidate:
                 f"{type(self.note_kind).__name__}"
             )
 
-        # quantity
+        # quantity — int only, bool rejected, nonnegative
         if self.quantity is not None:
-            if not isinstance(self.quantity, int):
+            if type(self.quantity) is not int:
                 raise TypeError(
                     f"quantity must be an int or None, got "
                     f"{type(self.quantity).__name__}"
                 )
             if self.quantity < 0:
                 raise ValueError("quantity must not be negative")
-
-        # brand_new
-        if not isinstance(self.brand_new, bool):
-            raise TypeError(
-                f"brand_new must be a bool, got {type(self.brand_new).__name__}"
-            )
-
-        # brand_new_basis
-        if not isinstance(self.brand_new_basis, str) or not self.brand_new_basis.strip():
-            raise ValueError("brand_new_basis must be a non-empty string")
-        object.__setattr__(self, "brand_new_basis", self.brand_new_basis.strip())
 
 
 # ---------------------------------------------------------------------------
@@ -292,15 +289,17 @@ class CommercialSourceCandidate:
 class CommercialSourceIssue:
     """A bounded record of why one source section did not produce a candidate.
 
+    The provider layer does not carry arbitrary detail text. The ``outcome``
+    enum provides the bounded classification. Any additional detail is
+    added at the orchestration layer after frozen-2A binding.
+
     Attributes:
         source_name: The source that failed or was not found.
         outcome: The bounded outcome classification.
-        detail: Optional bounded detail explanation (never raw payload text).
     """
 
     source_name: str
     outcome: SourceOutcome
-    detail: str | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.source_name, str) or not self.source_name.strip():
@@ -312,10 +311,6 @@ class CommercialSourceIssue:
                 f"outcome must be a SourceOutcome, got "
                 f"{type(self.outcome).__name__}"
             )
-
-        if self.detail is not None:
-            if not isinstance(self.detail, str):
-                raise TypeError("detail must be a string or None")
 
 
 # ---------------------------------------------------------------------------

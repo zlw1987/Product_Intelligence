@@ -24,7 +24,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
-from math import isfinite
 from typing import Any
 
 
@@ -119,10 +118,10 @@ class SupplementSourceObservation:
                 f"got {self.vendor_mpn_match_type!r}"
             )
 
-        # price_amount — Decimal only, finite only
+        # price_amount — Decimal only, finite, nonnegative
         if not isinstance(self.price_amount, Decimal):
             raise TypeError("price_amount must be a Decimal")
-        if not isfinite(float(self.price_amount)):
+        if not self.price_amount.is_finite():
             raise ValueError("price_amount must be finite; NaN/Infinity rejected")
         if self.price_amount < 0:
             raise ValueError("price_amount must not be negative")
@@ -170,11 +169,23 @@ class SupplementSourceObservation:
 
 @dataclass(frozen=True)
 class SupplementSourceIssue:
-    """One per-source issue in the supplemental result."""
+    """One per-source issue in the supplemental result.
+
+    For V1, ``detail`` is restricted to a controlled vocabulary:
+
+    - ``None`` — no additional detail
+    - ``"vendor_mpn_mismatch"`` — vendor's explicit MPN did not match
+      the requested MPN after frozen-2A binding
+
+    Arbitrary free text is rejected.
+    """
 
     source_name: str
     outcome: str
     detail: str | None
+
+    # V1 controlled detail vocabulary
+    _ALLOWED_DETAILS: frozenset[str] = frozenset({"vendor_mpn_mismatch"})
 
     def __post_init__(self) -> None:
         if not isinstance(self.source_name, str) or not self.source_name.strip():
@@ -183,8 +194,14 @@ class SupplementSourceIssue:
         if self.outcome not in SupplementSourceOutcome.ALL:
             raise ValueError(f"invalid outcome: {self.outcome!r}")
 
-        if self.detail is not None and not isinstance(self.detail, str):
-            raise TypeError("detail must be a string or None")
+        if self.detail is not None:
+            if not isinstance(self.detail, str):
+                raise TypeError("detail must be a string or None")
+            if self.detail not in self._ALLOWED_DETAILS:
+                raise ValueError(
+                    f"detail must be None or one of {self._ALLOWED_DETAILS}, "
+                    f"got {self.detail!r}"
+                )
 
 
 @dataclass(frozen=True)
@@ -325,7 +342,7 @@ def _encode_decimal(value: Decimal) -> str:
         raise SupplementCodecError(
             f"Cannot encode non-Decimal value: {type(value).__name__}"
         )
-    if not isfinite(float(value)):
+    if not value.is_finite():
         raise SupplementCodecError(
             f"Cannot encode non-finite Decimal: {value}"
         )
@@ -355,7 +372,7 @@ def _decode_decimal(value: Any, field_name: str) -> Decimal:
             f"{field_name} is not a valid decimal: {value!r}"
         ) from exc
     # Reject NaN/Infinity that Decimal might parse
-    if not isfinite(float(result)):
+    if not result.is_finite():
         raise SupplementCodecError(
             f"{field_name} is non-finite: {value!r}"
         )
@@ -599,10 +616,22 @@ def decode_research_supplement_result(
                 f"invalid outcome in source_issues[{idx}]: {outcome!r}"
             )
 
+        # Validate detail against V1 controlled vocabulary
+        detail_raw = issue_raw["detail"]
+        if detail_raw is not None:
+            if not isinstance(detail_raw, str):
+                raise SupplementCodecError(
+                    f"detail in source_issues[{idx}] must be a string or null"
+                )
+            if detail_raw not in SupplementSourceIssue._ALLOWED_DETAILS:
+                raise SupplementCodecError(
+                    f"invalid detail in source_issues[{idx}]: {detail_raw!r}"
+                )
+
         source_issues.append(SupplementSourceIssue(
             source_name=issue_raw["source_name"],
             outcome=outcome,
-            detail=issue_raw["detail"],
+            detail=detail_raw,
         ))
 
     return ResearchSupplementResult(

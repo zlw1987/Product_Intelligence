@@ -84,8 +84,18 @@ class TestCommercialSourceCandidate:
         assert c.price_amount == Decimal("100.00")
         assert c.currency_code == "USD"
         assert c.availability == CommercialAvailability.IN_STOCK
-        assert c.brand_new is True
-        assert c.brand_new_basis == "VENDOR_API_POLICY"
+        # Provider boundary carries NO brand-new business-policy fields
+        assert not hasattr(c, 'brand_new')
+        assert not hasattr(c, 'brand_new_basis')
+
+    def test_price_must_be_finite(self) -> None:
+        """Non-finite Decimal (NaN/Infinity) rejected at provider boundary."""
+        with pytest.raises(ValueError, match="finite"):
+            self._make_candidate(price_amount=Decimal("NaN"))
+
+    def test_price_infinity_rejected(self) -> None:
+        with pytest.raises(ValueError, match="finite"):
+            self._make_candidate(price_amount=Decimal("Infinity"))
 
     def test_decimal_price_only(self) -> None:
         c = self._make_candidate(price_amount=Decimal("1234.56"))
@@ -168,25 +178,21 @@ class TestCommercialSourceCandidate:
         with pytest.raises(TypeError, match="CommercialNoteKind"):
             self._make_candidate(note_kind="arbitrary")  # type: ignore[arg-type]
 
-    def test_brand_new_default_true(self) -> None:
+    def test_no_brand_new_business_policy(self) -> None:
+        """Provider contract carries NO brand-new business-policy fields.
+
+        Brand-new is a customer/business-policy conclusion that applies
+        ONLY after frozen 2A has successfully identity-bound the vendor
+        observation to the requested product.
+        """
         c = self._make_candidate()
-        assert c.brand_new is True
+        assert not hasattr(c, 'brand_new')
+        assert not hasattr(c, 'brand_new_basis')
 
-    def test_brand_new_basis_default(self) -> None:
-        c = self._make_candidate()
-        assert c.brand_new_basis == "VENDOR_API_POLICY"
-
-    def test_brand_new_basis_stripped(self) -> None:
-        c = self._make_candidate(brand_new_basis="  VENDOR_API_POLICY  ")
-        assert c.brand_new_basis == "VENDOR_API_POLICY"
-
-    def test_empty_brand_new_basis_rejected(self) -> None:
-        with pytest.raises(ValueError, match="brand_new_basis"):
-            self._make_candidate(brand_new_basis="")
-
-    def test_non_bool_brand_new_rejected(self) -> None:
-        with pytest.raises(TypeError, match="bool"):
-            self._make_candidate(brand_new="true")  # type: ignore[arg-type]
+    def test_quantity_bool_rejected(self) -> None:
+        """bool is NOT a valid integer quantity."""
+        with pytest.raises(TypeError, match="int"):
+            self._make_candidate(quantity=True)  # type: ignore[arg-type]
 
 
 # ---------------------------------------------------------------------------
@@ -199,18 +205,18 @@ class TestCommercialSourceIssue:
         issue = CommercialSourceIssue(
             source_name="Ingram",
             outcome=SourceOutcome.NOT_FOUND,
-            detail="MPN not found",
         )
         assert issue.source_name == "Ingram"
         assert issue.outcome == SourceOutcome.NOT_FOUND
-        assert issue.detail == "MPN not found"
 
-    def test_detail_optional(self) -> None:
+    def test_no_detail_field(self) -> None:
+        """Provider-layer issue carries no arbitrary detail text."""
         issue = CommercialSourceIssue(
             source_name="CDW",
             outcome=SourceOutcome.MALFORMED_SECTION,
         )
-        assert issue.detail is None
+        # detail is not a field on the provider boundary
+        assert not hasattr(issue, 'detail')
 
     def test_source_name_stripped(self) -> None:
         issue = CommercialSourceIssue(

@@ -509,11 +509,13 @@ def execute_research_run(
     except Exception as exc:
         # Any other unexpected exception from _execute_claimed_run or atomic publication
         # is catastrophic. Terminalize the still-RUNNING run to FAILED, then wrap and raise.
+        # Log only bounded info (class name, run ID); never raw exception text.
         logger.error(
-            "Unexpected execution failure for run %s: %s", run_id, exc, exc_info=True
+            "Unexpected execution failure for run %s (class=%s)",
+            run_id, type(exc).__name__,
         )
         _terminalize_run(claimed_run)
-        raise ExecutionError(f"Execution failed unexpectedly: {exc}") from exc
+        raise ExecutionError(f"Execution failed unexpectedly") from exc
 
 
 def _create_review_candidates(
@@ -961,7 +963,6 @@ def _try_vendor_commercial_lookup(
     )
     from product_intelligence.research.commercial_supplement_codec import (
         ResearchSupplementResult,
-        SupplementCodecError,
         SupplementSourceIssue,
         VendorCommercialResult,
         SupplementSourceObservation,
@@ -971,17 +972,11 @@ def _try_vendor_commercial_lookup(
     # Build lookup query from the request's canonical MPN
     query = CommercialLookupQuery(mpn=request.manufacturer_part_number)
 
-    # Execute the single Vendor API call
+    # Execute the single Vendor API call.
+    # Programming / configuration errors propagate to the outer
+    # catastrophic boundary in execute_research_run. No broad catch here.
     adapter = InternalVendorAdapter()
-    try:
-        response = adapter.lookup(query)
-    except Exception as exc:
-        # Programming / configuration error — propagate to catastrophic boundary
-        logger.error(
-            "Vendor adapter programming error for run %s: %s",
-            claimed_run.id, exc, exc_info=True,
-        )
-        raise
+    response = adapter.lookup(query)
 
     # Filter candidates through frozen 2A identity binding
     bound_observations: list[SupplementSourceObservation] = []
@@ -993,7 +988,10 @@ def _try_vendor_commercial_lookup(
             candidate.explicit_candidate_mpn,
         )
         if assessment.match_type.value in ("EXACT", "NORMALIZED_EXACT"):
-            # Identity-bound — include in supplemental result
+            # Identity-bound — apply business policy.
+            # Brand New is a business-policy conclusion that applies ONLY
+            # after frozen 2A has successfully identity-bound the vendor
+            # observation to the requested product.
             bound_observations.append(SupplementSourceObservation(
                 source_name=candidate.source_name,
                 explicit_candidate_mpn=candidate.explicit_candidate_mpn,
@@ -1004,8 +1002,8 @@ def _try_vendor_commercial_lookup(
                 price_basis=candidate.price_basis.value,
                 quantity=candidate.quantity,
                 note_kind=candidate.note_kind.value if candidate.note_kind else None,
-                brand_new=candidate.brand_new,
-                brand_new_basis=candidate.brand_new_basis,
+                brand_new=True,
+                brand_new_basis="VENDOR_API_POLICY",
             ))
         else:
             # MPN mismatch — bounded detail only, never raw provider text
@@ -1015,13 +1013,13 @@ def _try_vendor_commercial_lookup(
                 detail="vendor_mpn_mismatch",
             ))
 
-    # Copy issues from the original response — detail is already bounded
-    # by the adapter (never raw/free-form provider error text)
+    # Copy issues from the original response.
+    # Provider-layer issues carry bounded outcome only (no arbitrary detail).
     for issue in response.issues:
         bound_issues.append(SupplementSourceIssue(
             source_name=issue.source_name,
             outcome=issue.outcome.value,
-            detail=issue.detail,  # adapter provides bounded detail or None
+            detail=None,
         ))
 
     # Determine final lookup status
@@ -1044,12 +1042,9 @@ def _try_vendor_commercial_lookup(
             ),
         )
         encoded = encode_research_supplement_result(supplement_result)
-    except SupplementCodecError as exc:
-        # Codec error — propagate (programming/contract defect)
-        logger.error(
-            "Supplement codec error for run %s: %s",
-            claimed_run.id, exc, exc_info=True,
-        )
+    except SupplementCodecError:
+        # Codec error — propagate (programming/contract defect).
+        # No raw exception text in logs.
         raise
 
     return encoded

@@ -15,8 +15,8 @@ Tests cover:
 * Vendor result does not create semantic ACCEPTED identity
 * Vendor result does not enter comparable scoring
 * Vendor result does not affect public ExecutionResult statistics
-* Brand new policy: bound Vendor API row => brand_new=True
-* Brand new basis exactly VENDOR_API_POLICY
+* Provider candidate carries NO brand-new business-policy field
+* Brand new applied only after frozen-2A binding (codec layer)
 * No fabricated NormalizedCondition.NEW
 * Identity binding: exact MPN -> commercial row
 * Normalized-exact MPN -> commercial row
@@ -92,21 +92,12 @@ class TestIdentityBinding:
 
 
 class TestBrandNewPolicy:
-    def test_default_brand_new_true(self) -> None:
-        """Vendor API candidate defaults to brand_new=True."""
-        c = CommercialSourceCandidate(
-            source_name="Ingram",
-            explicit_candidate_mpn="ABC123",
-            price_amount=Decimal("100.00"),
-            currency_code="USD",
-            availability=CommercialAvailability.IN_STOCK,
-            price_basis=CommercialPriceBasis.CUSTOMER_PRICE,
-        )
-        assert c.brand_new is True
-        assert c.brand_new_basis == "VENDOR_API_POLICY"
+    def test_provider_candidate_no_brand_new_field(self) -> None:
+        """Provider candidate carries NO brand-new business-policy field.
 
-    def test_brand_new_basis_not_condition_evidence(self) -> None:
-        """brand_new_basis is policy provenance, not source condition."""
+        Brand new is applied at the orchestration/codec layer AFTER frozen-2A
+        binding. The provider adapter observes; business policy applies later.
+        """
         c = CommercialSourceCandidate(
             source_name="Ingram",
             explicit_candidate_mpn="ABC123",
@@ -115,10 +106,35 @@ class TestBrandNewPolicy:
             availability=CommercialAvailability.IN_STOCK,
             price_basis=CommercialPriceBasis.CUSTOMER_PRICE,
         )
-        # There is no condition field on the candidate
+        assert not hasattr(c, "brand_new")
+        assert not hasattr(c, "brand_new_basis")
+        # There is no condition field on the candidate either
         assert not hasattr(c, "condition")
-        # brand_new_basis explicitly states the policy
-        assert c.brand_new_basis == "VENDOR_API_POLICY"
+
+    def test_brand_new_applied_at_codec_after_binding(self) -> None:
+        """Brand new is set at the codec/orchestration layer after 2A binding.
+
+        Prove by checking the codec's SupplementSourceObservation carries
+        brand_new=True with VENDOR_API_POLICY basis.
+        """
+        from product_intelligence.research.commercial_supplement_codec import (
+            SupplementSourceObservation,
+        )
+        obs = SupplementSourceObservation(
+            source_name="Ingram",
+            explicit_candidate_mpn="ABC123",
+            vendor_mpn_match_type="EXACT",
+            price_amount=Decimal("100.00"),
+            currency_code="USD",
+            availability="IN_STOCK",
+            price_basis="CUSTOMER_PRICE",
+            quantity=None,
+            note_kind=None,
+            brand_new=True,
+            brand_new_basis="VENDOR_API_POLICY",
+        )
+        assert obs.brand_new is True
+        assert obs.brand_new_basis == "VENDOR_API_POLICY"
 
 
 # ---------------------------------------------------------------------------
