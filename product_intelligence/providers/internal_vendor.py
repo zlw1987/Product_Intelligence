@@ -278,59 +278,71 @@ def _safe_decimal(value: Any, default: Decimal | None = None) -> Decimal | None:
     """Parse a value as exact Decimal, return default on failure.
 
     Accepted:
-    - Decimal (returned as-is)
-    - int (converted to Decimal)
-    - numeric string (parsed as Decimal)
+    - Decimal (finite, returned as-is)
+    - int (exact type, converted to Decimal)
+    - numeric string (parsed as Decimal, require finite)
 
     Rejected (returns default):
+    - bool (explicit type reject; Decimal(True) == Decimal("1"))
     - float (binary float must never traverse a monetary value)
-    - bool
     - None
     - NaN / Infinity (even as strings, after Decimal construction)
+    - list / dict / arbitrary object
     """
     if value is None:
+        return default
+    # Explicitly reject bool — Decimal(True) == Decimal("1") which would
+    # allow an external boolean to become a valid commercial price of 1.
+    if type(value) is bool:
         return default
     # Explicitly reject binary float — must never become monetary value
     if isinstance(value, float):
         return default
-    # Accept Decimal directly
+    # Accept Decimal directly (must be finite)
     if isinstance(value, Decimal):
-        return value
-    try:
-        result = Decimal(value)
-        if not result.is_finite():
+        if not value.is_finite():
             return default
-        return result
-    except (InvalidOperation, ValueError, TypeError):
-        return default
+        return value
+    # Accept exact int (type check excludes bool which is subclass of int)
+    if type(value) is int:
+        return Decimal(value)
+    # Accept numeric string only
+    if isinstance(value, str):
+        try:
+            result = Decimal(value)
+            if not result.is_finite():
+                return default
+            return result
+        except (InvalidOperation, ValueError):
+            return default
+    # Everything else (list, dict, arbitrary object) -> reject
+    return default
 
 
 def _safe_int(value: Any, default: int | None = None) -> int | None:
     """Parse a value as an exact non-fractional int, return default on failure.
 
-    Accept only representations that are truly integral.
+    Explicit type allowlist — no generic int() coercion on arbitrary types.
 
     Accepted:
-    - int (returned as-is)
-    - Decimal that equals its integral value (converted exactly)
+    - int (exact type, >= 0)
+    - Decimal (finite, mathematically integral, >= 0, converted exactly)
 
     Rejected (returns default):
-    - bool (exact type check; isinstance(value, bool) before int check)
-    - float (never accepted)
+    - bool (exact type check)
+    - float (never accepted; int(3.7) == 3 is silent truncation)
     - Decimal fraction (e.g. Decimal("3.7") — must NOT truncate)
     - negative int
-    - string that is not a strict integer
+    - string (no documented Vendor API evidence for string quantities)
     - None
-
-    Decimal fraction: Decimal("3.7") -> int(Decimal("3.7")) == 3 (silent truncation).
-    This function REJECTS fractional Decimal rather than truncating.
+    - list / dict / arbitrary object
     """
     if value is None:
         return default
     # Exact bool check before int — bool is subclass of int
     if type(value) is bool:
         return default
-    # Accept int directly
+    # Accept int directly (type excludes bool)
     if type(value) is int:
         if value < 0:
             return default
@@ -346,14 +358,9 @@ def _safe_int(value: Any, default: int | None = None) -> int | None:
         if int_val < 0:
             return default
         return int_val
-    try:
-        int_val = int(value)
-        # Reject negative
-        if int_val < 0:
-            return default
-        return int_val
-    except (ValueError, TypeError):
-        return default
+    # No generic int(value) fallback — explicit type allowlist only.
+    # Float, str, list, dict, arbitrary objects all rejected.
+    return default
 
 
 def _safe_bool(value: Any) -> bool | None:

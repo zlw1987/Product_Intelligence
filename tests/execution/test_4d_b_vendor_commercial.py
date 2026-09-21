@@ -932,14 +932,14 @@ class Test4DBMachinePriceStrengthened(TestCase):
 class Test4DBSemanticIsolation(TestCase):
     """K. Vendor rows not in semantic input (strengthened)."""
 
-    def test_semantic_eval_before_vendor_lookup_with_input_inspection(self) -> None:
-        """Semantic evaluation occurs BEFORE vendor lookup.
 
-        Two-part proof:
+    def test_semantic_eval_before_vendor_lookup_with_input_inspection(self) -> None:
+        """Semantic evaluation occurs BEFORE vendor lookup, with NON-EMPTY input.
+
+        Three-part proof:
         1. Call order: semantic -> vendor
-        2. Semantic input tuple excludes all vendor-derived objects
-           (no CommercialSourceCandidate, no SupplementSourceObservation,
-            no ResearchSupplementSnapshot, no vendor source label)
+        2. Semantic input is NON-EMPTY (at least one ListingIdentityAssessment)
+        3. Every item is a ListingIdentityAssessment (no vendor-derived objects)
         """
         from product_intelligence.runs.models import AiAssistedReviewCandidate
         from product_intelligence.providers.commercial import (
@@ -951,6 +951,24 @@ class Test4DBSemanticIsolation(TestCase):
             ResearchSupplementResult,
         )
         from product_intelligence.runs.models import ResearchSupplementSnapshot
+        from product_intelligence.research.matching import (
+            ListingIdentityAssessment,
+            EvidenceSource,
+            IdentityRejectionReason,
+        )
+        from product_intelligence.research.normalization import (
+            NormalizedListingObservation,
+            NormalizedAvailability,
+            NormalizedCondition,
+        )
+        from product_intelligence.research.listings import (
+            ListingObservation,
+            ExtractionMethod,
+        )
+        from product_intelligence.domain.enums import EvidenceDecision, IdentityMatchType
+        from product_intelligence.execution.orchestration import (
+            _UrlProcessingResult,
+        )
 
         request = ResearchRequest(
             manufacturer_part_number="BCM957608-P2200GQF00",
@@ -986,11 +1004,65 @@ class Test4DBSemanticIsolation(TestCase):
             call_order.append("vendor")
             return mock_opener
 
+        # Build a real ListingIdentityAssessment from a public listing
+        # to prove semantic evaluation receives NON-EMPTY input.
+        listing_observation = ListingObservation(
+            source_url="https://example-retail.com/bcm-ssd",
+            extraction_method=ExtractionMethod.META,
+            product_title="Broadcom BCM957608 Network Adapter",
+            manufacturer_part_number_text=None,
+            sku_text=None,
+            brand_text=None,
+            price_text=None,
+            currency_text=None,
+            availability_text="In Stock",
+            condition_text=None,
+            seller_text=None,
+        )
+        normalized_listing = NormalizedListingObservation(
+            observation=listing_observation,
+            price_amount=None,
+            currency_code=None,
+            availability=NormalizedAvailability.UNKNOWN,
+            condition=NormalizedCondition.UNKNOWN,
+            seller_name=None,
+            normalization_issues=(),
+        )
+        public_assessment = ListingIdentityAssessment(
+            normalized_listing=normalized_listing,
+            requested_part_number="BCM957608-P2200GQF00",
+            candidate_part_number_raw="",
+            candidate_part_number_compared="",
+            candidate_evidence_source=EvidenceSource.NONE,
+            match_type=IdentityMatchType.UNKNOWN,
+            decision=EvidenceDecision.REJECTED,
+            rejection_reason=IdentityRejectionReason.NO_EXPLICIT_MPN_EVIDENCE,
+        )
+
+        # Mock _process_candidate_url to return a real assessment
+        # so the pipeline produces non-empty semantic input.
+        def mock_process_url(**kwargs):
+            return _UrlProcessingResult(
+                assessments=[public_assessment],
+                fetch_succeeded=True,
+                extract_observation_count=1,
+            )
+
         with patch.dict(os.environ, {
             "PI_VENDOR_LOOKUP_BASE_URL": "http://vendor.internal/api",
         }):
+            # Search returns ONE result so the pipeline produces assessments
             mock_search = MagicMock()
-            mock_search.search.return_value = MagicMock(results=())
+            mock_search.search.return_value = MagicMock(results=(
+                MagicMock(
+                    source_url="https://example-retail.com/bcm-ssd",
+                    title="Broadcom BCM957608 Network Adapter",
+                    snippet="Network adapter",
+                    price_hint_text=None,
+                    part_number_hint=None,
+                    raw_reference=None,
+                ),
+            ))
 
             with patch(
                 "product_intelligence.providers.serper."
@@ -1000,6 +1072,10 @@ class Test4DBSemanticIsolation(TestCase):
                 "product_intelligence.execution.orchestration."
                 "evaluate_semantic_matches",
                 side_effect=track_semantic,
+            ), patch(
+                "product_intelligence.execution.orchestration."
+                "_process_candidate_url",
+                side_effect=mock_process_url,
             ), patch(
                 "product_intelligence.providers.internal_vendor."
                 "_get_vendor_opener",
@@ -1013,33 +1089,29 @@ class Test4DBSemanticIsolation(TestCase):
                     f"Expected semantic before vendor, got {call_order}"
                 )
 
-                # Part 2: inspect actual semantic input — no vendor objects
-                # evaluate_semantic_matches signature:
-                #   (request, assessments, evidence_writer, runtime=None)
+                # Part 2: semantic input is NON-EMPTY
                 assert len(captured_semantic_args) == 1
                 args, kw = captured_semantic_args[0]
                 # args[0]=request, args[1]=assessments, args[2]=evidence_writer
-                if 'assessments' in kw:
-                    assessments_arg = kw['assessments']
+                if "assessments" in kw:
+                    assessments_arg = kw["assessments"]
                 elif len(args) >= 2:
                     assessments_arg = args[1]
                 else:
                     assessments_arg = ()
 
-                # Semantic input (assessments) is a sequence of
-                # ListingIdentityAssessment objects. Verify the type of the
-                # first argument (request) is ResearchRequest (not vendor-derived).
-                # Vendor data is bound AFTER semantic in the pipeline.
-                if len(args) >= 1:
-                    from product_intelligence.domain import ResearchRequest as RR
-                    assert isinstance(args[0], RR), (
-                        "First semantic arg must be ResearchRequest"
-                    )
+                # CRITICAL: at least one assessment reached semantic evaluation
+                assert len(assessments_arg) >= 1, (
+                    f"Semantic input must be non-empty, got {len(assessments_arg)} items"
+                )
 
-                # Every item in semantic input must be a ListingIdentityAssessment.
-                # No CommercialSourceCandidate, no SupplementSourceObservation,
-                # no ResearchSupplementSnapshot.
+                # Part 3: every item is a ListingIdentityAssessment
+                # No vendor-derived objects in semantic input
                 for item in assessments_arg:
+                    assert isinstance(item, ListingIdentityAssessment), (
+                        f"Semantic input item must be ListingIdentityAssessment, "
+                        f"got {type(item).__name__}"
+                    )
                     assert not isinstance(item, CommercialSourceCandidate), (
                         "Semantic input must not contain CommercialSourceCandidate"
                     )
@@ -1049,6 +1121,9 @@ class Test4DBSemanticIsolation(TestCase):
                     assert not isinstance(item, SupplementSourceObservation), (
                         "Semantic input must not contain SupplementSourceObservation"
                     )
+                    assert not isinstance(item, ResearchSupplementSnapshot), (
+                        "Semantic input must not contain ResearchSupplementSnapshot"
+                    )
                     # Check attributes for vendor source labels
                     item_str = str(item)
                     assert "Ingram" not in item_str, (
@@ -1056,6 +1131,13 @@ class Test4DBSemanticIsolation(TestCase):
                     )
                     assert "CDW" not in item_str
                     assert "Synnex" not in item_str
+
+                # Verify first arg is ResearchRequest (not vendor-derived)
+                if len(args) >= 1:
+                    from product_intelligence.domain import ResearchRequest as RR
+                    assert isinstance(args[0], RR), (
+                        "First semantic arg must be ResearchRequest"
+                    )
 
 
 class Test4DBComparableIsolation(TestCase):

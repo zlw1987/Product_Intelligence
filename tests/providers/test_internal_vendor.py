@@ -2227,3 +2227,329 @@ class TestOpenerRegisteredRedirectDispatch:
         assert len(bare_handlers) == 0, (
             "Default HTTPRedirectHandler must not be active"
         )
+
+
+# ---------------------------------------------------------------------------
+# FU4: Money Bool Rejection
+# ---------------------------------------------------------------------------
+
+
+class TestSafeDecimalBoolRejection:
+    """FU4 #1: bool must be explicitly rejected by _safe_decimal.
+
+    Decimal(True) == Decimal("1"), so an external "customerPrice": true
+    must NOT become a valid commercial price of 1.
+    """
+
+    def test_safe_decimal_true_is_none(self) -> None:
+        """_safe_decimal(True) returns None, not Decimal("1")."""
+        from product_intelligence.providers.internal_vendor import _safe_decimal
+        result = _safe_decimal(True)
+        assert result is None
+
+    def test_safe_decimal_false_is_none(self) -> None:
+        """_safe_decimal(False) returns None, not Decimal("0")."""
+        from product_intelligence.providers.internal_vendor import _safe_decimal
+        result = _safe_decimal(False)
+        assert result is None
+
+    def test_ingram_customer_price_bool_is_malformed(self) -> None:
+        """Ingram customerPrice=True -> MALFORMED_SECTION."""
+        section = {
+            "sourceName": "Ingram",
+            "vendorPartNumber": "BCM957608-P2200GQF00",
+            "pricing": {
+                "customerPrice": True,  # bool, not a number
+                "currencyCode": "USD",
+            },
+            "availability": {"available": True, "Avl_Quantity": 10},
+        }
+        result = _map_ingram(section)
+        assert isinstance(result, CommercialSourceIssue)
+        assert result.outcome == SourceOutcome.MALFORMED_SECTION
+
+    def test_ingram_customer_price_false_is_malformed(self) -> None:
+        """Ingram customerPrice=False -> MALFORMED_SECTION."""
+        section = {
+            "sourceName": "Ingram",
+            "vendorPartNumber": "BCM957608-P2200GQF00",
+            "pricing": {
+                "customerPrice": False,  # bool, not a number
+                "currencyCode": "USD",
+            },
+            "availability": {"available": True},
+        }
+        result = _map_ingram(section)
+        assert isinstance(result, CommercialSourceIssue)
+        assert result.outcome == SourceOutcome.MALFORMED_SECTION
+
+    def test_cdw_price_bool_true_is_malformed(self) -> None:
+        """CDW price=True -> MALFORMED_SECTION."""
+        section = {
+            "sourceName": "CDW",
+            "manufacturerPartNumber": "BCM957608-P2200GQF00",
+            "price": True,  # bool
+            "currencyCode": "USD",
+            "inventoryStatus": {"stockStatus": "InStock"},
+        }
+        result = _map_cdw(section)
+        assert isinstance(result, CommercialSourceIssue)
+        assert result.outcome == SourceOutcome.MALFORMED_SECTION
+
+    def test_cdw_price_bool_false_is_malformed(self) -> None:
+        """CDW price=False -> MALFORMED_SECTION."""
+        section = {
+            "sourceName": "CDW",
+            "manufacturerPartNumber": "BCM957608-P2200GQF00",
+            "price": False,  # bool
+            "currencyCode": "USD",
+            "inventoryStatus": {"stockStatus": "InStock"},
+        }
+        result = _map_cdw(section)
+        assert isinstance(result, CommercialSourceIssue)
+        assert result.outcome == SourceOutcome.MALFORMED_SECTION
+
+    def test_synnex_unit_price_bool_true_is_malformed(self) -> None:
+        """Synnex EU UnitPriceAmount=True -> MALFORMED_SECTION."""
+        section = {
+            "sourceName": "Synnex EU",
+            "OnlineCheck": {
+                "Header": {"CurrencyCode": "EUR"},
+                "Item": {
+                    "ManufacturerItemIdentifier": "BCM957608-P2200GQF00",
+                    "UnitPriceAmount": True,  # bool
+                    "AvailabilityTotal": 10,
+                },
+            },
+        }
+        result = _map_synnex_eu(section)
+        assert isinstance(result, CommercialSourceIssue)
+        assert result.outcome == SourceOutcome.MALFORMED_SECTION
+
+    def test_valid_decimal_path_still_works(self) -> None:
+        """Valid Decimal/int/numeric-string paths remain correct."""
+        from product_intelligence.providers.internal_vendor import _safe_decimal
+        assert _safe_decimal(Decimal("100.50")) == Decimal("100.50")
+        assert _safe_decimal(42) == Decimal("42")
+        assert _safe_decimal("99.99") == Decimal("99.99")
+
+    def test_decimal_nan_still_rejected(self) -> None:
+        """Decimal NaN remains rejected."""
+        from product_intelligence.providers.internal_vendor import _safe_decimal
+        result = _safe_decimal(Decimal("NaN"))
+        assert result is None
+
+    def test_decimal_infinity_still_rejected(self) -> None:
+        """Decimal Infinity remains rejected."""
+        from product_intelligence.providers.internal_vendor import _safe_decimal
+        result = _safe_decimal(Decimal("Infinity"))
+        assert result is None
+
+    def test_list_dict_rejected(self) -> None:
+        """List and dict are rejected by _safe_decimal."""
+        from product_intelligence.providers.internal_vendor import _safe_decimal
+        assert _safe_decimal([100]) is None
+        assert _safe_decimal({"value": 100}) is None
+
+
+# ---------------------------------------------------------------------------
+# FU4: Quantity Float Truncation
+# ---------------------------------------------------------------------------
+
+
+class TestSafeIntFloatRejection:
+    """FU4 #2: float must be rejected by _safe_int (no truncation)."""
+
+    def test_safe_int_float_3_7_is_none(self) -> None:
+        """_safe_int(3.7) is None, not 3 (no truncation)."""
+        from product_intelligence.providers.internal_vendor import _safe_int
+        result = _safe_int(3.7)
+        assert result is None
+
+    def test_safe_int_float_3_0_is_none(self) -> None:
+        """_safe_int(3.0) is None (float even if mathematically integral)."""
+        from product_intelligence.providers.internal_vendor import _safe_int
+        result = _safe_int(3.0)
+        assert result is None
+
+    def test_safe_int_float_zero_is_none(self) -> None:
+        """_safe_int(0.0) is None."""
+        from product_intelligence.providers.internal_vendor import _safe_int
+        result = _safe_int(0.0)
+        assert result is None
+
+    def test_ingram_float_quantity_rejected(self) -> None:
+        """Ingram float quantity is never truncated."""
+        section = {
+            "sourceName": "Ingram",
+            "vendorPartNumber": "BCM957608-P2200GQF00",
+            "pricing": {
+                "customerPrice": "100.00",
+                "currencyCode": "USD",
+            },
+            "availability": {"available": True, "Avl_Quantity": 3.7},
+        }
+        result = _map_ingram(section)
+        assert isinstance(result, CommercialSourceCandidate)
+        assert result.quantity is None
+
+    def test_cdw_float_quantity_rejected(self) -> None:
+        """CDW float quantity is never truncated."""
+        section = {
+            "sourceName": "CDW",
+            "manufacturerPartNumber": "BCM957608-P2200GQF00",
+            "price": "1999.99",
+            "currencyCode": "USD",
+            "inventoryStatus": {
+                "stockStatus": "InStock",
+                "Avl_Quantity": 8.5,
+            },
+        }
+        result = _map_cdw(section)
+        assert isinstance(result, CommercialSourceCandidate)
+        assert result.quantity is None
+
+    def test_synnex_float_quantity_rejected(self) -> None:
+        """Synnex float quantity is never truncated."""
+        section = {
+            "sourceName": "Synnex EU",
+            "OnlineCheck": {
+                "Header": {"CurrencyCode": "EUR"},
+                "Item": {
+                    "ManufacturerItemIdentifier": "BCM957608-P2200GQF00",
+                    "UnitPriceAmount": "100.00",
+                    "AvailabilityTotal": 2.9,
+                },
+            },
+        }
+        result = _map_synnex_eu(section)
+        assert isinstance(result, CommercialSourceCandidate)
+        assert result.quantity is None
+
+    def test_safe_int_decimal_fractional_rejected(self) -> None:
+        """Decimal("3.7") is still rejected by _safe_int."""
+        from product_intelligence.providers.internal_vendor import _safe_int
+        result = _safe_int(Decimal("3.7"))
+        assert result is None
+
+    def test_safe_int_decimal_integral_accepted(self) -> None:
+        """Decimal("3") is still accepted by _safe_int."""
+        from product_intelligence.providers.internal_vendor import _safe_int
+        result = _safe_int(Decimal("3"))
+        assert result == 3
+
+    def test_safe_int_bool_rejected(self) -> None:
+        """bool is still rejected by _safe_int."""
+        from product_intelligence.providers.internal_vendor import _safe_int
+        assert _safe_int(True) is None
+        assert _safe_int(False) is None
+
+    def test_safe_int_negative_rejected(self) -> None:
+        """negative int is still rejected by _safe_int."""
+        from product_intelligence.providers.internal_vendor import _safe_int
+        assert _safe_int(-5) is None
+
+    def test_safe_int_string_rejected(self) -> None:
+        """string is rejected by _safe_int (no documented evidence needed)."""
+        from product_intelligence.providers.internal_vendor import _safe_int
+        assert _safe_int("42") is None
+        assert _safe_int("3.0") is None
+
+    def test_safe_int_list_rejected(self) -> None:
+        """list is rejected by _safe_int."""
+        from product_intelligence.providers.internal_vendor import _safe_int
+        assert _safe_int([42]) is None
+
+    def test_safe_int_dict_rejected(self) -> None:
+        """dict is rejected by _safe_int."""
+        from product_intelligence.providers.internal_vendor import _safe_int
+        assert _safe_int({"qty": 42}) is None
+
+
+# ---------------------------------------------------------------------------
+# FU4: OpenerDirector Dispatch Test
+# ---------------------------------------------------------------------------
+
+
+class TestOpenerDirectorRedirectDispatch:
+    """FU4 #3: Redirect refusal via actual OpenerDirector dispatcher."""
+
+    def test_opener_dispatches_302_through_no_redirect_handler(self) -> None:
+        """The constructed opener's error dispatcher routes 302 to _NoRedirectHandler.
+
+        This exercises the ACTUAL OpenerDirector.dispatch path via
+        opener.error("http", ...), not a direct handler method call.
+        """
+        from product_intelligence.providers.internal_vendor import (
+            _build_vendor_opener,
+            _NoRedirectHandler,
+        )
+        from urllib.request import Request
+
+        opener = _build_vendor_opener()
+
+        # Verify _NoRedirectHandler is in handlers (precondition)
+        custom_handlers = [
+            h for h in opener.handlers
+            if isinstance(h, _NoRedirectHandler)
+        ]
+        assert len(custom_handlers) == 1
+
+        # Build the mocked HTTPError with 302 status
+        # We invoke opener.error("http", req, fp, code, msg, headers)
+        # which is the internal dispatch path.
+        req = Request("http://vendor.internal/api?partno=ABC")
+
+        # Create a mock file-like object for the response body
+        mock_fp = MagicMock()
+
+        # Create mock headers (HTTPMessage-like)
+        from http.client import HTTPMessage
+        mock_headers = HTTPMessage()
+        mock_headers["Location"] = "http://evil-redirect.com/new"
+
+        with pytest.raises(HTTPError) as exc_info:
+            # This calls the OpenerDirector's error dispatch machinery:
+            # handle_error["http"][302] -> _NoRedirectHandler.http_error_302
+            opener.error("http", req, mock_fp, 302, "Found", mock_headers)
+
+        assert exc_info.value.code == 302
+        assert "Redirect refused" in str(exc_info.value)
+
+    def test_opener_dispatches_307_through_no_redirect_handler(self) -> None:
+        """OpenerDirector dispatches 307 redirect through _NoRedirectHandler."""
+        from product_intelligence.providers.internal_vendor import (
+            _build_vendor_opener,
+        )
+        from urllib.request import Request
+        from http.client import HTTPMessage
+
+        opener = _build_vendor_opener()
+        req = Request("http://vendor.internal/api?partno=ABC")
+        mock_fp = MagicMock()
+        mock_headers = HTTPMessage()
+
+        with pytest.raises(HTTPError) as exc_info:
+            opener.error("http", req, mock_fp, 307, "Temporary Redirect", mock_headers)
+
+        assert exc_info.value.code == 307
+        assert "Redirect refused" in str(exc_info.value)
+
+    def test_opener_dispatches_301_through_no_redirect_handler(self) -> None:
+        """OpenerDirector dispatches 301 redirect through _NoRedirectHandler."""
+        from product_intelligence.providers.internal_vendor import (
+            _build_vendor_opener,
+        )
+        from urllib.request import Request
+        from http.client import HTTPMessage
+
+        opener = _build_vendor_opener()
+        req = Request("http://vendor.internal/api?partno=ABC")
+        mock_fp = MagicMock()
+        mock_headers = HTTPMessage()
+
+        with pytest.raises(HTTPError) as exc_info:
+            opener.error("http", req, mock_fp, 301, "Moved Permanently", mock_headers)
+
+        assert exc_info.value.code == 301
+        assert "Redirect refused" in str(exc_info.value)
