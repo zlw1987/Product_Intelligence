@@ -253,7 +253,7 @@ def test_the_provider_layer_adds_no_model_and_no_migration() -> None:
 
     assert not list(PROVIDERS_ROOT.rglob("models.py"))
     assert not list(PROVIDERS_ROOT.rglob("migrations"))
-    expected = {"runs.ResearchRun", "runs.PriceIntelligenceSnapshot", "runs.ExecutionEvidenceRecord", "runs.AiAssistedReviewCandidate", "runs.ComparableResearchExecution", "runs.ResearchSupplementSnapshot"}
+    expected = {"runs.ResearchRun", "runs.PriceIntelligenceSnapshot", "runs.ExecutionEvidenceRecord", "runs.AiAssistedReviewCandidate", "runs.ComparableResearchExecution", "runs.ResearchSupplementSnapshot", "runs.ResearchFxSnapshot"}
     assert {model._meta.label for model in apps.get_models()} == expected
 
 
@@ -301,6 +301,7 @@ def test_only_the_expected_adapter_modules_exist() -> None:
     4D-A adds the direct-source boundary (`direct_source.py`, `directmacro.py`)
     and the preferred-source config resolver.
     4D-B adds the commercial-source boundary (`commercial.py`, `internal_vendor.py`).
+    4D-C-A adds the FX boundary (`fx.py`).
     Recorded fixtures live under `tests/fixtures/providers/serper/`, not here
     — the provider package itself stores no test data.
     """
@@ -310,6 +311,7 @@ def test_only_the_expected_adapter_modules_exist() -> None:
         "direct_source.py",
         "directmacro.py",
         "document.py",
+        "fx.py",
         "http_page.py",
         "http_pdf.py",
         "internal_vendor.py",

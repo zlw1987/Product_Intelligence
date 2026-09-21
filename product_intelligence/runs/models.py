@@ -1200,3 +1200,83 @@ class ResearchSupplementSnapshot(models.Model):
 
     def __str__(self) -> str:
         return f"ResearchSupplementSnapshot {self.run_id} (v{self.schema_version})"
+
+
+# ---------------------------------------------------------------------------
+# ResearchFxSnapshot — 4D-C-A
+# ---------------------------------------------------------------------------
+
+
+class ResearchFxSnapshot(models.Model):
+    """A persisted, versioned FX-evidence snapshot for one ResearchRun.
+
+    PRODUCT-INTEL.4D-C-A.
+
+    The snapshot is **storage, not interpretation**. It holds opaque JSON
+    (``schema_version`` + ``payload``) plus a creation timestamp. Encoding
+    and decoding happen in the research-layer codec
+    (``research/fx_codec.py``), not here.
+
+    This model stores official FX reference-rate evidence (e.g. ECB daily
+    rates) used to compute USD-equivalent display values for a run.
+    It does NOT modify PriceIntelligenceSnapshot, nor does its data enter
+    Machine Price, Reviewed Price, or deterministic identity authority.
+
+    FX evidence is DISPLAY-SUPPLEMENTAL only. The original source price
+    amount and currency remain authoritative.
+
+    Identity
+    --------
+
+    The primary key is the ``ResearchRun`` UUID via a ``OneToOneField``.
+    There is at most one FX snapshot per run. If FX evidence was not
+    obtained (provider failure, network error), this row is absent.
+
+    ``schema_version``
+        The codec version that produced ``payload``. The only supported
+        version is 1.
+
+    ``payload``
+        A ``JSONField`` holding the codec-encoded FX observation.
+        The schema is owned by the codec, not the model.
+
+    ``created_at``
+        When the snapshot row was persisted.
+
+    Cascade behavior:
+        Deleting the ResearchRun cascades to this snapshot.
+    """
+
+    run = models.OneToOneField(
+        ResearchRun,
+        on_delete=models.CASCADE,
+        primary_key=True,
+        related_name="research_fx_snapshot",
+        help_text="The research run this FX snapshot belongs to.",
+    )
+
+    schema_version = models.PositiveSmallIntegerField(
+        help_text="Codec version that produced the payload. Initial supported "
+        "value is 1.",
+    )
+
+    payload = models.JSONField(
+        help_text="Versioned codec-encoded FX observation.",
+    )
+
+    created_at = models.DateTimeField(
+        default=timezone.now,
+        editable=False,
+        help_text="When this snapshot record was persisted.",
+    )
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(schema_version__gte=1),
+                name="research_fx_snapshot_schema_version_gte_1",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"ResearchFxSnapshot {self.run_id} (v{self.schema_version})"

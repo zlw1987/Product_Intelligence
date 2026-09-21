@@ -98,6 +98,7 @@ class TestComparableResearchExecutionFields(TestCase):
             "execution_evidence",
             "ai_assisted_review_candidates",
             "research_supplement_snapshot",  # 4D-B: supplement snapshot
+            "research_fx_snapshot",  # 4D-C-A: FX snapshot
         }
         actual = {f.name for f in ResearchRun._meta.get_fields()}
         assert actual == expected

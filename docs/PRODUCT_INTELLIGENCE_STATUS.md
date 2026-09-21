@@ -30,17 +30,22 @@ HUMAN-REVIEW Human Review for AI-Assisted Matches APPROVED/FROZEN;
 **NEXT: PRODUCT-INTEL.4D (Customer Quote Research Expansion)**
 
 4D is partially implemented. 4D-PRE and 4D-A are approved and frozen.
-4D-B is implemented and pending final review. 4D-C and 4D-D are planned.
+4D-B is approved and frozen. 4D-C-A is implemented and pending final review.
+4D-C (browser rendering) and 4D-D are planned.
 
 ```
 4D-PRE  Preferred Source Feasibility Audit  (evidence only) — APPROVED / FROZEN
 4D-A    Source Acquisition Optimization — APPROVED / FROZEN
-4D-B    Internal Vendor Commercial Evidence  **IMPLEMENTED / PENDING FINAL REVIEW**
-4D-C    Compact Quote Summary
+4D-B    Internal Vendor Commercial Evidence  — APPROVED / FROZEN
+4D-C-A  ECB FX + Compact Quote Projection Foundation — IMPLEMENTED / PENDING FINAL REVIEW
+4D-C    Compact Quote Summary (browser rendering — later, after security gate)
 4D-D    Micron Packaging Alias Retrieval
 ```
 
-**4D-B: Internal Vendor Commercial Evidence — IMPLEMENTED / PENDING FINAL REVIEW**
+**PRODUCT-INTEL.4D-B — APPROVED / FROZEN**
+
+Frozen SHA: c74c90b0590d1c393419d94a1c107bfe93f7143c
+Frozen test baseline: 4299 collected
 
 Internal Vendor API integrated as supplemental commercial evidence.
 Key facts:
@@ -57,6 +62,23 @@ Key facts:
 - 4D-C security gate (trusted network/VPN) remains unresolved and must be
   verified before 4D-C renders commercial pricing
 - Sensitive metadata (SessionId, BuyerAccountId, SystemId) stripped by allowlist
+
+**PRODUCT-INTEL.4D-C-A — IMPLEMENTED / PENDING FINAL REVIEW**
+
+ECB FX evidence persistence + Decimal-only USD-equivalent calculation +
+deterministic compact quote-summary projection + historical-report replay.
+Key facts:
+- ECB FX provider: `providers/fx.py` (provider-neutral boundary + ECB adapter)
+- FX persistence: `runs.ResearchFxSnapshot` (migration 0009)
+- FX codec: `research/fx_codec.py` (V1)
+- FX mathematics: `research/fx_math.py` (pure Decimal-only, ECB formula)
+- Compact quote projection: `research/compact_quote.py` (data contract + tests)
+- **NO browser HTML exposure** — 4D-C-A does NOT render vendor commercial prices
+- **NO authority expansion** — FX and projection do NOT enter Machine Price,
+  Reviewed Price, semantic authority, or comparable scoring
+- Historical replay: zero live FX calls, zero live Vendor API calls
+- USD Equivalent is DISPLAY-SUPPLEMENTAL only
+- ECB formula: USD Equivalent = amount_C / rate_C * rate_USD
 
 Semantic qualification is APPROVED AND FROZEN:
 - Semantic qualification corpus, prompt v1.1, evaluator mathematics,
@@ -167,8 +189,9 @@ FU3B wires the frozen FU3A semantic runtime into real research execution:
 | PILOT-RELEASE-1 | Internal pilot deployment | **DEPLOYED / ACCEPTED** |
 | 4D-PRE | Preferred Source Feasibility Audit | Implemented (evidence only, frozen) |
 | 4D-A | Source Acquisition Optimization | Implemented (frozen) |
-| 4D-B | Internal Vendor Commercial Evidence | Implemented / Pending Final Review |
-| 4D-C | Compact Quote Summary | Planned |
+| 4D-B | Internal Vendor Commercial Evidence | **Implemented (approved / frozen)** |
+| 4D-C-A | ECB FX + Compact Quote Projection Foundation | **Implemented / Pending Final Review** |
+| 4D-C | Compact Quote Summary (browser rendering) | Planned (security gate pending) |
 | 4D-D | Micron Packaging Alias Retrieval | Planned |
 | 4C-A | Execution ownership/lifecycle/evidence primitives | Implemented (frozen) |
 | 4C-B | Backend research execution | Implemented (frozen) |
@@ -254,10 +277,15 @@ FU3B wires the frozen FU3A semantic runtime into real research execution:
 | HTTP PDF Fetcher (6D) | `providers/http_pdf.py` | **Implemented (approved / frozen)**
 | Datasheet Table Interpretation (6D) | `research/enterprise_ssd_datasheet.py` | **Implemented (approved / frozen)**
 | Specification Enrichment Execution (6D) | `execution/specification_enrichment.py` | **Implemented (approved / frozen)**
-| Commercial Source Boundary (4D-B) | `providers/commercial.py` | **Implemented (pending final review)**
-| Internal Vendor Adapter (4D-B) | `providers/internal_vendor.py` | **Implemented (pending final review)**
-| Supplemental Snapshot Model (4D-B) | `runs/models.py` (ResearchSupplementSnapshot) | **Implemented (pending final review)**
-| Supplemental Codec (4D-B) | `research/commercial_supplement_codec.py` | **Implemented (pending final review)**
+| Commercial Source Boundary (4D-B) | `providers/commercial.py` | **Implemented (approved / frozen)** |
+| Internal Vendor Adapter (4D-B) | `providers/internal_vendor.py` | **Implemented (approved / frozen)** |
+| Supplemental Snapshot Model (4D-B) | `runs/models.py` (ResearchSupplementSnapshot) | **Implemented (approved / frozen)** |
+| Supplemental Codec (4D-B) | `research/commercial_supplement_codec.py` | **Implemented (approved / frozen)** |
+| ECB FX Provider (4D-C-A) | `providers/fx.py` | **Implemented (pending final review)** |
+| FX Snapshot Model (4D-C-A) | `runs/models.py` (ResearchFxSnapshot) | **Implemented (pending final review)** |
+| FX Codec (4D-C-A) | `research/fx_codec.py` | **Implemented (pending final review)** |
+| FX Mathematics (4D-C-A) | `research/fx_math.py` | **Implemented (pending final review)** |
+| Compact Quote Projection (4D-C-A) | `research/compact_quote.py` | **Implemented (pending final review)** |
 
 ## Research orchestration
 

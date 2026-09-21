@@ -103,6 +103,21 @@ def test_normalization_and_aggregation_may_use_decimal() -> None:
     if supplement_codec_module.exists():
         allowed_decimal.add(supplement_codec_module)
 
+    # 4D-C-A FX codec uses Decimal for rate encoding
+    fx_codec_module = RESEARCH_ROOT / "fx_codec.py"
+    if fx_codec_module.exists():
+        allowed_decimal.add(fx_codec_module)
+
+    # 4D-C-A FX math uses Decimal for conversion arithmetic
+    fx_math_module = RESEARCH_ROOT / "fx_math.py"
+    if fx_math_module.exists():
+        allowed_decimal.add(fx_math_module)
+
+    # 4D-C-A compact quote projection uses Decimal for price amounts
+    compact_quote_module = RESEARCH_ROOT / "compact_quote.py"
+    if compact_quote_module.exists():
+        allowed_decimal.add(compact_quote_module)
+
     for path in _python_files(RESEARCH_ROOT):
         if path in allowed_decimal:
             continue
@@ -111,8 +126,9 @@ def test_normalization_and_aggregation_may_use_decimal() -> None:
             f"{path.name} imports decimal; only normalization.py, "
             "aggregation.py, price_result_codec.py, specifications.py, "
             "enterprise_ssd.py, enterprise_ssd_similarity.py, "
-            "comparable_result_codec.py, and comparable_research_results.py "
-            "may use Decimal"
+            "comparable_result_codec.py, comparable_research_results.py, "
+            "commercial_supplement_codec.py, fx_codec.py, fx_math.py, "
+            "and compact_quote.py may use Decimal"
         )
 
 

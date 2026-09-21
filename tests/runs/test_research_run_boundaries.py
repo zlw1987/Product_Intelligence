@@ -55,6 +55,7 @@ EXPECTED_FIELDS = {
     "execution_evidence",  # 4C-A: reverse FK to execution evidence records
     "ai_assisted_review_candidates",  # HUMAN-REVIEW: reverse FK to review candidates
     "research_supplement_snapshot",  # 4D-B: reverse OneToOne from supplement snapshot
+    "research_fx_snapshot",  # 4D-C-A: reverse OneToOne from FX snapshot
 }
 
 # The exact fields on PriceIntelligenceSnapshot (4B).
@@ -315,6 +316,7 @@ def test_the_evaluation_corpus_is_not_persisted() -> None:
         "runs.AiAssistedReviewCandidate",  # HUMAN-REVIEW
         "runs.ComparableResearchExecution",  # 7C-A
         "runs.ResearchSupplementSnapshot",  # 4D-B
+        "runs.ResearchFxSnapshot",  # 4D-C-A
     }
     assert model_labels == expected
 
