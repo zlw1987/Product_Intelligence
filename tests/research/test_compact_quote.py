@@ -649,3 +649,290 @@ class TestAuthorityIsolation:
         )
         assert row.price_amount == original_amount
         assert row.price_currency == original_currency.upper()
+
+
+# ---------------------------------------------------------------------------
+# Authority-safe projection tests (FU1 corrective)
+# ---------------------------------------------------------------------------
+
+
+class _FakeObservation:
+    """Minimal mock of SupplementSourceObservation for vendor API tests."""
+
+    def __init__(self, **kwargs):
+        self.source_name = kwargs.get("source_name", "Ingram")
+        self.explicit_candidate_mpn = kwargs.get(
+            "explicit_candidate_mpn", "TEST-MPN"
+        )
+        self.vendor_mpn_match_type = kwargs.get("vendor_mpn_match_type", "EXACT")
+        self.price_amount = kwargs.get("price_amount", Decimal("1000"))
+        self.currency_code = kwargs.get("currency_code", "USD")
+        self.availability = kwargs.get("availability", "IN_STOCK")
+        self.price_basis = kwargs.get("price_basis", "LIST_PRICE")
+        self.quantity = kwargs.get("quantity", 1)
+        self.note_kind = kwargs.get("note_kind")
+        self.brand_new = kwargs.get("brand_new", True)
+        self.brand_new_basis = kwargs.get("brand_new_basis", "VENDOR_API_POLICY")
+
+
+class _FakeAssessment:
+    """Minimal mock of ListingIdentityAssessment for public listing tests."""
+
+    def __init__(self, decision, price_amount=None, currency_code=None,
+                 condition=None, availability=None, source_url=None):
+        from product_intelligence.domain.enums import EvidenceDecision
+        self.decision = decision
+        self.normalized_listing = _FakeNormalizedListing(
+            price_amount=price_amount,
+            currency_code=currency_code,
+            condition=condition,
+            availability=availability,
+            source_url=source_url or "https://example.com/product",
+        )
+
+
+class _FakeNormalizedListing:
+    """Minimal mock of NormalizedListingObservation."""
+
+    def __init__(self, price_amount=None, currency_code=None,
+                 condition=None, availability=None, source_url=None):
+        self.price_amount = price_amount
+        self.currency_code = currency_code
+        self.condition = condition
+        self.availability = availability
+        self.observation = _FakeRawObservation(
+            source_url=source_url or "https://example.com/product",
+        )
+
+
+class _FakeRawObservation:
+    """Minimal mock of ListingObservation."""
+
+    def __init__(self, source_url=None):
+        self.source_url = source_url or "https://example.com/product"
+
+
+from product_intelligence.research.compact_quote import (
+    CompactQuoteProjectionError,
+    project_vendor_api_row,
+    project_public_listing_row,
+)
+
+
+class TestProjectVendorApiRowAuthority:
+    """Authority-safe vendor API projection requires frozen 4D-B contract."""
+
+    def test_valid_4d_b_observation_projects(self) -> None:
+        """A proper 4D-B observation with EXACT match and brand_new=True
+        produces a valid vendor API quote row."""
+        obs = _FakeObservation(
+            source_name="Ingram Micro",
+            vendor_mpn_match_type="EXACT",
+            brand_new=True,
+            brand_new_basis="VENDOR_API_POLICY",
+            price_amount=Decimal("2023.27"),
+            currency_code="USD",
+            availability="IN_STOCK",
+        )
+        row = project_vendor_api_row(obs)
+        assert row.source_type == "VENDOR_API"
+        assert row.brand_new == "Yes"
+        assert row.source == "Ingram"
+
+    def test_normalized_exact_match_projects(self) -> None:
+        """NORMALIZED_EXACT match type also projects."""
+        obs = _FakeObservation(
+            vendor_mpn_match_type="NORMALIZED_EXACT",
+            brand_new=True,
+            brand_new_basis="VENDOR_API_POLICY",
+        )
+        row = project_vendor_api_row(obs)
+        assert row.source_type == "VENDOR_API"
+
+    def test_partial_match_rejected(self) -> None:
+        """PARTIAL match type cannot become a vendor API quote row."""
+        obs = _FakeObservation(
+            vendor_mpn_match_type="PARTIAL",
+            brand_new=True,
+            brand_new_basis="VENDOR_API_POLICY",
+        )
+        with pytest.raises(CompactQuoteProjectionError, match="match"):
+            project_vendor_api_row(obs)
+
+    def test_brand_new_false_rejected(self) -> None:
+        """brand_new=False cannot produce a valid vendor API quote row.
+
+        Under the frozen 4D-B policy, a usable bound Vendor API observation
+        has brand_new=True (VENDOR_API_POLICY). If it doesn't satisfy this,
+        it is not projected."""
+        obs = _FakeObservation(
+            vendor_mpn_match_type="EXACT",
+            brand_new=False,
+            brand_new_basis="VENDOR_API_POLICY",
+        )
+        with pytest.raises(CompactQuoteProjectionError, match="brand_new"):
+            project_vendor_api_row(obs)
+
+    def test_wrong_brand_new_basis_rejected(self) -> None:
+        """brand_new_basis other than VENDOR_API_POLICY is rejected."""
+        obs = _FakeObservation(
+            vendor_mpn_match_type="EXACT",
+            brand_new=True,
+            brand_new_basis="SOME_OTHER_BASIS",
+        )
+        with pytest.raises(CompactQuoteProjectionError, match="VENDOR_API_POLICY"):
+            project_vendor_api_row(obs)
+
+    def test_unknown_match_rejected(self) -> None:
+        """UNKNOWN match type cannot become a vendor API quote row."""
+        obs = _FakeObservation(
+            vendor_mpn_match_type="UNKNOWN",
+            brand_new=True,
+            brand_new_basis="VENDOR_API_POLICY",
+        )
+        with pytest.raises(CompactQuoteProjectionError, match="match"):
+            project_vendor_api_row(obs)
+
+    def test_missing_attributes_rejected(self) -> None:
+        """An object missing required 4D-B attributes is rejected."""
+        class BadObject:
+            pass
+        with pytest.raises(CompactQuoteProjectionError, match="missing attributes"):
+            project_vendor_api_row(BadObject())
+
+
+class TestProjectPublicListingRowAuthority:
+    """Authority-safe public listing projection requires ACCEPTED assessment."""
+
+    def test_accepted_assessment_projects(self) -> None:
+        """An ACCEPTED assessment with valid price produces a row."""
+        from product_intelligence.domain.enums import EvidenceDecision
+        assessment = _FakeAssessment(
+            decision=EvidenceDecision.ACCEPTED,
+            price_amount=Decimal("2500.00"),
+            currency_code="USD",
+            condition="NEW",
+            availability="IN_STOCK",
+            source_url="https://example.com/product",
+        )
+        row = project_public_listing_row(assessment)
+        assert row.source_type == "PUBLIC_LISTING"
+        assert row.brand_new == "Yes"
+        assert row.price_amount == Decimal("2500.00")
+
+    def test_rejected_assessment_cannot_project(self) -> None:
+        """A REJECTED assessment cannot become a compact public price row.
+
+        This is the KEY negative test: a deterministic REJECTED
+        ListingIdentityAssessment must NOT appear as a compact public
+        price row.
+        """
+        from product_intelligence.domain.enums import EvidenceDecision
+        assessment = _FakeAssessment(
+            decision=EvidenceDecision.REJECTED,
+            price_amount=Decimal("1500.00"),
+            currency_code="USD",
+            condition="NEW",
+            availability="IN_STOCK",
+        )
+        with pytest.raises(CompactQuoteProjectionError, match="ACCEPTED"):
+            project_public_listing_row(assessment)
+
+    def test_undecided_assessment_cannot_project(self) -> None:
+        """An UNDECIDED assessment cannot become a compact row."""
+        from product_intelligence.domain.enums import EvidenceDecision
+        assessment = _FakeAssessment(
+            decision=EvidenceDecision.UNDECIDED,
+            price_amount=Decimal("1500.00"),
+            currency_code="USD",
+            condition="NEW",
+        )
+        with pytest.raises(CompactQuoteProjectionError, match="ACCEPTED"):
+            project_public_listing_row(assessment)
+
+    def test_no_price_cannot_project(self) -> None:
+        """An ACCEPTED assessment with no price cannot project."""
+        from product_intelligence.domain.enums import EvidenceDecision
+        assessment = _FakeAssessment(
+            decision=EvidenceDecision.ACCEPTED,
+            price_amount=None,
+            currency_code="USD",
+        )
+        with pytest.raises(CompactQuoteProjectionError, match="price_amount"):
+            project_public_listing_row(assessment)
+
+    def test_no_currency_cannot_project(self) -> None:
+        """An ACCEPTED assessment with no currency cannot project."""
+        from product_intelligence.domain.enums import EvidenceDecision
+        assessment = _FakeAssessment(
+            decision=EvidenceDecision.ACCEPTED,
+            price_amount=Decimal("1000"),
+            currency_code=None,
+        )
+        with pytest.raises(CompactQuoteProjectionError, match="currency_code"):
+            project_public_listing_row(assessment)
+
+    def test_used_condition_stays_no(self) -> None:
+        """USED condition maps to brand_new=No."""
+        from product_intelligence.domain.enums import EvidenceDecision
+        assessment = _FakeAssessment(
+            decision=EvidenceDecision.ACCEPTED,
+            price_amount=Decimal("1800.00"),
+            currency_code="USD",
+            condition="USED",
+        )
+        row = project_public_listing_row(assessment)
+        assert row.brand_new == "No"
+
+    def test_refurbished_condition_stays_no(self) -> None:
+        """REFURBISHED condition maps to brand_new=No."""
+        from product_intelligence.domain.enums import EvidenceDecision
+        assessment = _FakeAssessment(
+            decision=EvidenceDecision.ACCEPTED,
+            price_amount=Decimal("1500.00"),
+            currency_code="USD",
+            condition="REFURBISHED",
+        )
+        row = project_public_listing_row(assessment)
+        assert row.brand_new == "No"
+
+
+class TestNegativeRejectedPublicEvidence:
+    """Negative tests: rejected/non-reportable public evidence cannot
+    become compact quote rows."""
+
+    def test_rejected_no_mpn_cannot_project(self) -> None:
+        """A REJECTED assessment with NO_EXPLICIT_MPN_EVIDENCE cannot project."""
+        from product_intelligence.domain.enums import EvidenceDecision
+        assessment = _FakeAssessment(
+            decision=EvidenceDecision.REJECTED,
+            price_amount=Decimal("2000.00"),
+            currency_code="EUR",
+            condition="NEW",
+            availability="IN_STOCK",
+        )
+        with pytest.raises(CompactQuoteProjectionError):
+            project_public_listing_row(assessment)
+
+    def test_arbitrary_scalars_cannot_establish_authority(self) -> None:
+        """Passing arbitrary raw scalars through the authority-safe
+        builder is rejected — the authority-safe API requires a typed
+        authority-bearing input."""
+        # The raw builder (build_public_listing_row) exists for internal use
+        # but the authority-safe entry point (project_public_listing_row)
+        # requires a proper assessment object.
+        # Prove that the authority-safe path rejects non-authority inputs.
+        class ArbitraryScalars:
+            decision = "SOME_RANDOM_VALUE"  # Not ACCEPTED
+            normalized_listing = None
+
+        with pytest.raises(CompactQuoteProjectionError):
+            project_public_listing_row(ArbitraryScalars())
+
+    def test_none_decision_cannot_project(self) -> None:
+        """An assessment with no decision attribute is rejected."""
+        class NoDecision:
+            normalized_listing = None
+
+        with pytest.raises(CompactQuoteProjectionError, match="decision"):
+            project_public_listing_row(NoDecision())

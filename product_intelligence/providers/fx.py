@@ -435,10 +435,11 @@ class EcbFxProvider:
             raise FxNetworkError(
                 f"ECB request timed out after {self._timeout}s"
             ) from exc
-        except Exception as exc:
-            raise FxNetworkError(
-                f"ECB request failed: {type(exc).__name__}"
-            ) from exc
+        # NOTE: No broad `except Exception` here. Programming defects
+        # (TypeError, ValueError, AssertionError, OSError subclasses that are
+        # not URLError) must propagate according to normal execution safety
+        # semantics. Only the bounded transport exception taxonomy above is
+        # classified as a supplemental FX provider failure.
 
         # Bounded response size check
         if len(body_bytes) > self._max_response_bytes:

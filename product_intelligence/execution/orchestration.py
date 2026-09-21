@@ -57,6 +57,7 @@ from product_intelligence.runs.execution_claims import ClaimExecutionFailed
 from product_intelligence.runs.models import (
     AiAssistedReviewCandidate,
     PriceIntelligenceSnapshot,
+    ResearchFxSnapshot,
     ResearchRun,
     ResearchSupplementSnapshot,
 )
@@ -349,6 +350,7 @@ def execute_research_run(
     *,
     search_provider: SearchProvider | None = None,
     page_fetcher: PageFetcher | None = None,
+    fx_provider: object | None = None,
 ) -> ExecutionResult:
     """Execute research for one ResearchRun.
 
@@ -363,7 +365,9 @@ def execute_research_run(
     7. Assesses identity against the request
     8. Aggregates accepted listings by currency/condition
     9. Encodes and persists the price result
-    10. Transitions the run to COMPLETED or FAILED
+    10. Fetches FX rates if non-USD reportable currencies exist (4D-C-A)
+    11. Persists FX evidence alongside price result
+    12. Transitions the run to COMPLETED or FAILED
 
     Parameters
     ----------
@@ -375,6 +379,11 @@ def execute_research_run(
         A direct-sufficient run requires no SERPER_API_KEY.
     page_fetcher : PageFetcher, optional
         The page fetcher to use. Defaults to HttpPageFetcher.
+    fx_provider : FxProvider, optional
+        FX rate provider for currency conversion evidence (4D-C-A).
+        If None and non-USD currencies require conversion, an EcbFxProvider
+        is constructed. If all reportable prices are USD, no FX call is made
+        regardless of whether an fx_provider is injected.
 
     Returns
     -------
@@ -457,6 +466,22 @@ def execute_research_run(
                 claimed_run, request,
             )
 
+        # ================================================================
+        # 4D-C-A: FX rate evidence fetch (supplemental, display-only)
+        # After public aggregation and vendor lookup, but BEFORE atomic
+        # final publication. At most ONE FX provider call per run.
+        # FX evidence does NOT affect Machine Price, Reviewed Price,
+        # deterministic identity, or any existing pipeline statistics.
+        # USD-only runs require ZERO ECB calls.
+        # FX failure is NONFATAL — run still completes.
+        # ================================================================
+        fx_payload: dict | None = None
+        fx_payload = _try_fetch_fx_rates(
+            claimed_run,
+            aggregation_result,
+            fx_provider,
+        )
+
         with transaction.atomic():
             # Create the snapshot
             snapshot = PriceIntelligenceSnapshot.objects.create(
@@ -478,6 +503,14 @@ def execute_research_run(
                     run=claimed_run,
                     schema_version=1,
                     payload=supplement_payload,
+                )
+
+            # 4D-C-A: Persist FX snapshot if FX evidence was obtained
+            if fx_payload is not None:
+                ResearchFxSnapshot.objects.create(
+                    run=claimed_run,
+                    schema_version=1,
+                    payload=fx_payload,
                 )
 
             # Transition to COMPLETED
@@ -1048,3 +1081,137 @@ def _try_vendor_commercial_lookup(
         raise
 
     return encoded
+
+
+# ---------------------------------------------------------------
+# 4D-C-A: FX rate evidence fetch (supplemental, display-only)
+# ---------------------------------------------------------------
+
+
+def _get_required_fx_currencies(
+    aggregation_result: PriceAggregationResult,
+) -> frozenset[str]:
+    """Determine which non-USD currencies need FX evidence.
+
+    Inspects the aggregation result's price buckets to find currencies
+    that require conversion to USD for display.
+
+    Rules:
+    * USD-only runs return empty set (ZERO ECB calls)
+    * Each non-USD bucket currency is included
+    * USD is always included so ECB formula can compute equivalents
+    * Excluded listings (NO_COMPARABLE_CURRENCY etc.) do NOT count
+    * Only ACCEPTED bucket currencies are reportable
+
+    Returns a frozenset of currency codes that must be fetched.
+    Empty frozenset means no FX call is needed.
+    """
+    non_usd_currencies: set[str] = set()
+    for bucket in aggregation_result.buckets:
+        if bucket.currency_code.upper() != "USD":
+            non_usd_currencies.add(bucket.currency_code.upper())
+
+    if not non_usd_currencies:
+        return frozenset()
+
+    # USD is required for the conversion formula
+    # (amount_C / rate_C * rate_USD)
+    required = non_usd_currencies | {"USD"}
+    return frozenset(required)
+
+
+def _try_fetch_fx_rates(
+    claimed_run: ResearchRun,
+    aggregation_result: PriceAggregationResult,
+    fx_provider: object | None,
+) -> dict | None:
+    """Try to fetch FX rate evidence for the completed aggregation.
+
+    Returns an encoded FX payload dict if FX evidence was obtained,
+    or None if FX evidence was not needed or not obtained.
+
+    Rules:
+    * USD-only runs: returns None immediately (zero ECB calls)
+    * Non-USD currencies: at most ONE FX provider fetch
+    * FX failure (network, parse, timeout): NONFATAL, returns None
+    * Programming/contract defects: propagate (NOT silently caught)
+    * FX evidence remains DISPLAY-SUPPLEMENTAL
+
+    Parameters
+    ----------
+    claimed_run : ResearchRun
+        The run being finalized.
+    aggregation_result : PriceAggregationResult
+        The completed aggregation with price buckets.
+    fx_provider : FxProvider | None
+        Injected FX provider, or None for default EcbFxProvider.
+
+    Returns
+    -------
+    dict | None
+        Encoded FX payload for persistence, or None.
+    """
+    # Determine which currencies need FX rates
+    required_currencies = _get_required_fx_currencies(aggregation_result)
+
+    # USD-only run — no FX call needed
+    if not required_currencies:
+        logger.info(
+            "Run %s: all reportable prices are USD; "
+            "no FX rate fetch required.",
+            claimed_run.id,
+        )
+        return None
+
+    # Resolve the provider
+    if fx_provider is None:
+        from product_intelligence.providers.fx import EcbFxProvider
+        fx_provider = EcbFxProvider()
+
+    # At most ONE FX provider fetch per run
+    from product_intelligence.providers.fx import FxProviderError
+    try:
+        observation_set = fx_provider.fetch_rates(
+            requested_currencies=required_currencies,
+        )
+    except FxProviderError as exc:
+        # Bounded FX provider failure (FxNetworkError / FxParseError).
+        # NONFATAL — FX is display-supplemental only.
+        # The original source amount/currency remain authoritative.
+        # USD Equivalent will be "Unavailable" for affected currencies.
+        logger.info(
+            "FX rate fetch failed for run %s (class=%s); "
+            "USD Equivalent will be unavailable for non-USD currencies.",
+            claimed_run.id, type(exc).__name__,
+        )
+        return None
+    # NOTE: Any exception other than FxProviderError is a programming /
+    # contract defect (TypeError, ValueError, AssertionError, etc.) and
+    # MUST NOT be silently downgraded to a supplemental FX failure.
+    # It propagates to the outer catastrophic boundary.
+
+    # Encode the observation through the V1 FX codec
+    try:
+        from product_intelligence.research.fx_codec import (
+            encode_fx_observation,
+        )
+        fx_payload = encode_fx_observation(
+            provider_id=observation_set.provider_id,
+            observation_date=observation_set.observation_date,
+            base_currency=observation_set.base_currency,
+            rates=observation_set.rates,
+            retrieved_at=observation_set.retrieved_at,
+        )
+    except Exception as exc:
+        # Codec error — programming/contract defect, NOT a provider failure.
+        # Do NOT silently downgrade.
+        raise
+
+    logger.info(
+        "FX rates fetched for run %s: %d currencies (%s)",
+        claimed_run.id,
+        len(required_currencies),
+        ", ".join(sorted(required_currencies)),
+    )
+
+    return fx_payload

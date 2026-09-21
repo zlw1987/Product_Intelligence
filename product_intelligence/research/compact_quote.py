@@ -14,6 +14,7 @@ What this module does:
 * Compute USD Equivalent from persisted FX evidence
 * Apply source-label conventions
 * Preserve original source price amount and currency
+* Enforce authority-safe projection (rejected evidence cannot become a row)
 
 What this module does NOT do:
 * Render HTML or any browser-visible format
@@ -491,3 +492,207 @@ def build_compact_quote_projection(
     """
     all_rows = vendor_rows + public_rows
     return CompactQuoteProjection(rows=all_rows)
+
+
+# ---------------------------------------------------------------------------
+# Authority-safe projection functions (FU1 corrective)
+# ---------------------------------------------------------------------------
+
+class CompactQuoteProjectionError(Exception):
+    """Authority-safe compact projection error.
+
+    Raised when an input does not satisfy the frozen authority contract
+    required to produce a quote row.
+    """
+    pass
+
+
+def project_vendor_api_row(
+    observation: object,
+    fx_snapshot: FxObservationSnapshot | None = None,
+) -> CompactQuoteRow:
+    """Build one CompactQuoteRow from a decoded 4D-B SupplementSourceObservation.
+
+    This is the authority-safe entry point for Vendor API rows. It accepts
+    ONLY a properly decoded ``SupplementSourceObservation`` from the 4D-B
+    codec and enforces the frozen usable-observation contract:
+
+    * ``vendor_mpn_match_type`` must be ``EXACT`` or ``NORMALIZED_EXACT``
+    * ``brand_new`` must be ``True``
+    * ``brand_new_basis`` must be exactly ``VENDOR_API_POLICY``
+
+    If the observation does not satisfy the frozen contract, this function
+    raises ``CompactQuoteProjectionError`` — it does NOT silently produce
+    a row with ``brand_new=False``.
+
+    Args:
+        observation: A ``SupplementSourceObservation`` decoded from
+            ``decode_research_supplement_result()``. Must carry frozen
+            4D-B authority provenance.
+        fx_snapshot: Persisted FX observation for USD conversion.
+
+    Returns:
+        A CompactQuoteRow with the display values.
+
+    Raises:
+        CompactQuoteProjectionError: If the observation does not satisfy
+            the frozen 4D-B usable-observation contract.
+    """
+    # Validate the observation type by structural attributes.
+    # We do not import SupplementSourceObservation here (research must not
+    # import from providers), but we validate the exact attribute set.
+    required_attrs = {
+        "source_name", "explicit_candidate_mpn", "vendor_mpn_match_type",
+        "price_amount", "currency_code", "availability", "price_basis",
+        "quantity", "note_kind", "brand_new", "brand_new_basis",
+    }
+    obs_attrs = set(dir(observation))
+    missing = required_attrs - obs_attrs
+    if missing:
+        raise CompactQuoteProjectionError(
+            f"Vendor API projection requires a frozen 4D-B "
+            f"SupplementSourceObservation; missing attributes: "
+            f"{sorted(missing)}"
+        )
+
+    # Enforce frozen 4D-B usable-observation contract
+    match_type = getattr(observation, "vendor_mpn_match_type", None)
+    if match_type not in ("EXACT", "NORMALIZED_EXACT"):
+        raise CompactQuoteProjectionError(
+            f"Vendor API projection requires EXACT or NORMALIZED_EXACT "
+            f"match; got {match_type!r}. The frozen 4D-B identity-binding "
+            f"contract was not satisfied."
+        )
+
+    brand_new = getattr(observation, "brand_new", None)
+    if brand_new is not True:
+        raise CompactQuoteProjectionError(
+            f"Vendor API projection requires brand_new=True "
+            f"(VENDOR_API_POLICY); got {brand_new!r}. The frozen 4D-B "
+            f"usable-observation contract was not satisfied."
+        )
+
+    brand_new_basis = getattr(observation, "brand_new_basis", None)
+    if brand_new_basis != "VENDOR_API_POLICY":
+        raise CompactQuoteProjectionError(
+            f"Vendor API projection requires brand_new_basis="
+            f"VENDOR_API_POLICY; got {brand_new_basis!r}. The frozen "
+            f"4D-B policy contract was not satisfied."
+        )
+
+    # All authority checks passed — project the row
+    source_name = getattr(observation, "source_name", "")
+    price_amount = getattr(observation, "price_amount", None)
+    currency_code = getattr(observation, "currency_code", "")
+    availability = getattr(observation, "availability", "UNKNOWN")
+    note_kind = getattr(observation, "note_kind", None)
+
+    return build_vendor_api_row(
+        source_name=source_name,
+        price_amount=price_amount,
+        currency_code=currency_code,
+        availability=availability,
+        brand_new=True,
+        note=note_kind,
+        fx_snapshot=fx_snapshot,
+    )
+
+
+def project_public_listing_row(
+    assessment: object,
+    fx_snapshot: FxObservationSnapshot | None = None,
+) -> CompactQuoteRow:
+    """Build one CompactQuoteRow from a reportable ListingIdentityAssessment.
+
+    This is the authority-safe entry point for public listing rows. It accepts
+    ONLY a ``ListingIdentityAssessment`` that carries frozen authority:
+
+    * ``decision`` must be ``ACCEPTED`` (from frozen 3C matching + 4A aggregation)
+    * The assessment's normalized listing must carry a valid price and currency
+
+    If the assessment is REJECTED, UNDECIDED, or lacks reportable price data,
+    this function raises ``CompactQuoteProjectionError``.
+
+    A deterministic REJECTED ListingIdentityAssessment cannot appear as a
+    compact public price row.
+
+    Args:
+        assessment: A ``ListingIdentityAssessment`` from the aggregation
+            result's assessments tuple. Must carry frozen 3C/4A authority.
+        fx_snapshot: Persisted FX observation for USD conversion.
+
+    Returns:
+        A CompactQuoteRow with the display values.
+
+    Raises:
+        CompactQuoteProjectionError: If the assessment does not represent
+            a reportable public listing (REJECTED, no price, no currency).
+    """
+    # Validate the assessment carries authority
+    decision = getattr(assessment, "decision", None)
+    if decision is None:
+        raise CompactQuoteProjectionError(
+            "Public listing projection requires a ListingIdentityAssessment "
+            "with a decision attribute."
+        )
+
+    # Only ACCEPTED assessments are reportable
+    # Get the decision's name/value — it may be an enum or a string
+    decision_value = (
+        decision.value if hasattr(decision, "value") else str(decision)
+    )
+    if decision_value != "ACCEPTED":
+        raise CompactQuoteProjectionError(
+            f"Public listing projection requires ACCEPTED decision; "
+            f"got {decision_value!r}. Rejected/non-reportable evidence "
+            f"cannot become a compact quote row."
+        )
+
+    # Navigate to the normalized listing
+    normalized_listing = getattr(assessment, "normalized_listing", None)
+    if normalized_listing is None:
+        raise CompactQuoteProjectionError(
+            "Public listing projection requires a normalized_listing."
+        )
+
+    # Extract reportable fields from the normalized listing
+    price_amount = getattr(normalized_listing, "price_amount", None)
+    currency_code = getattr(normalized_listing, "currency_code", None)
+    condition = getattr(normalized_listing, "condition", None)
+    availability = getattr(normalized_listing, "availability", None)
+
+    # Price is required for a reportable row
+    if price_amount is None:
+        raise CompactQuoteProjectionError(
+            "Public listing projection requires a price_amount. "
+            "No price = not reportable."
+        )
+
+    # Currency is required
+    if currency_code is None:
+        raise CompactQuoteProjectionError(
+            "Public listing projection requires a currency_code. "
+            "No currency = not reportable."
+        )
+
+    # Source info from the raw observation
+    observation = getattr(normalized_listing, "observation", None)
+    source_name = getattr(observation, "source_url", "") if observation else ""
+    # Try to derive a source label from URL
+    if source_name:
+        # Extract hostname as source label
+        try:
+            from urllib.parse import urlparse
+            parsed = urlparse(source_name)
+            source_name = parsed.hostname or parsed.netloc or "Unknown Source"
+        except Exception:
+            source_name = "Unknown Source"
+
+    return build_public_listing_row(
+        source_name=source_name,
+        price_amount=price_amount,
+        currency_code=currency_code,
+        availability=availability or "UNKNOWN",
+        condition=condition or "UNKNOWN",
+        fx_snapshot=fx_snapshot,
+    )

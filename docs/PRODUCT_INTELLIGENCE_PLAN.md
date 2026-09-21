@@ -34,8 +34,8 @@ web execution/retry integration, FU3A/FU3B implement semantic qualification
 and semantic execution integration, and HUMAN-REVIEW implements human review
 for AI-assisted semantic matches. The web form creates a run, triggers
 execution synchronously, and redirects to the report with the full result.
-Remaining future work: structured API (5A). 4D-B (Internal Vendor Commercial
-Evidence) is IMPLEMENTED/PENDING FINAL REVIEW. 4D-C/D remain planned.
+Remaining future work: structured API (5A). 4D-B is APPROVED/FROZEN.
+4D-C-A is IMPLEMENTED/PENDING FINAL REVIEW. 4D-C/D remain planned.
 
 ## 2. Problem statement
 
@@ -2687,10 +2687,11 @@ PRODUCT-INTEL.PILOT-RELEASE-1  Internal pilot deployment          DEPLOYED / ACC
 
 ----- PILOT DEPLOYED / ACCEPTED — NEXT: 4D -----
 
-PRODUCT-INTEL.4D-PRE  Preferred Source Feasibility Audit         PLANNED
-PRODUCT-INTEL.4D-A    Source Acquisition Optimization            PLANNED
-PRODUCT-INTEL.4D-B    Internal Vendor Commercial Evidence        PLANNED
-PRODUCT-INTEL.4D-C    Compact Quote Summary                      PLANNED
+PRODUCT-INTEL.4D-PRE  Preferred Source Feasibility Audit         APPROVED / FROZEN
+PRODUCT-INTEL.4D-A    Source Acquisition Optimization            APPROVED / FROZEN
+PRODUCT-INTEL.4D-B    Internal Vendor Commercial Evidence        APPROVED / FROZEN
+PRODUCT-INTEL.4D-C-A  ECB FX + Compact Quote Projection          IMPLEMENTED / PENDING FINAL REVIEW
+PRODUCT-INTEL.4D-C    Compact Quote Summary (browser rendering)  PLANNED
 PRODUCT-INTEL.4D-D    Micron Packaging Alias Retrieval           PLANNED
 
 ----- PRODUCT-INTEL.4D — Customer Quote Research Expansion -----
@@ -4108,8 +4109,12 @@ This canonical plan does not duplicate that operational snapshot.
 
 4D-PRE — APPROVED / FROZEN (Preferred Source Feasibility Audit, evidence only)
 4D-A — APPROVED / FROZEN (Source Acquisition Optimization)
-4D-B — IMPLEMENTED / PENDING FINAL REVIEW (Internal Vendor Commercial Evidence)
-4D-C — PLANNED (Compact Quote Summary)
+4D-B — APPROVED / FROZEN (Internal Vendor Commercial Evidence)
+     Frozen SHA: c74c90b0590d1c393419d94a1c107bfe93f7143c
+     Frozen baseline: 4299 collected
+4D-C-A — IMPLEMENTED / PENDING FINAL REVIEW
+         (ECB FX + Compact Quote Projection Foundation)
+4D-C — PLANNED (Compact Quote Summary — browser rendering, later, after security gate)
 4D-D — PLANNED (Micron Packaging Alias Retrieval)
 
 Note: 4D-C security gate (trusted network/VPN access control) remains
