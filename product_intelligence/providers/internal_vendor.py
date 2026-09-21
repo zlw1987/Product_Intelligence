@@ -19,7 +19,7 @@ Key constraints:
 * Bounded timeout (10s)
 * Bounded response size (1 MiB)
 * NO redirects followed (refuse 30x entirely)
-* NO ambient proxy (dedicated opener, no ProxyHandler)
+* no ambient proxy; explicit empty ProxyHandler({}) disables environment proxy routing
 * URL-encode the canonical requested MPN
 * GET only
 * JSON response (Decimal-aware parse for monetary values)

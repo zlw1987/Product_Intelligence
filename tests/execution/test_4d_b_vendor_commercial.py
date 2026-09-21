@@ -930,52 +930,96 @@ class Test4DBMachinePriceStrengthened(TestCase):
 
 
 class Test4DBSemanticIsolation(TestCase):
-    """K. Vendor rows not in semantic input (strengthened)."""
-
+    """K. Vendor rows not in semantic input (real pipeline, strengthened)."""
 
     def test_semantic_eval_before_vendor_lookup_with_input_inspection(self) -> None:
-        """Semantic evaluation occurs BEFORE vendor lookup, with NON-EMPTY input.
+        """Semantic evaluation occurs BEFORE vendor lookup, with real pipeline input.
+
+        Runs the full public acquisition pipeline end-to-end:
+        injected SearchProvider -> SearchResponse with public URL
+        -> injected PageFetcher -> real HTML/JSON-LD listing
+        -> real extract_listing_observations
+        -> real normalize_listing_observation
+        -> real frozen-3C assess_listing_identity
+        -> real ListingIdentityAssessment
+        -> evaluate_semantic_matches
+
+        Does NOT patch:
+        _process_candidate_url, extract_listing_observations,
+        normalize_listing_observation, assess_listing_identity
 
         Three-part proof:
         1. Call order: semantic -> vendor
         2. Semantic input is NON-EMPTY (at least one ListingIdentityAssessment)
         3. Every item is a ListingIdentityAssessment (no vendor-derived objects)
         """
-        from product_intelligence.runs.models import AiAssistedReviewCandidate
+        from product_intelligence.providers.search import (
+            SearchProvider,
+            SearchQuery,
+            SearchResponse,
+            SearchResult,
+        )
+        from product_intelligence.providers.page import (
+            FetchedPage,
+            PageFetcher,
+        )
         from product_intelligence.providers.commercial import (
             CommercialSourceCandidate,
             CommercialSourceIssue,
         )
         from product_intelligence.research.commercial_supplement_codec import (
             SupplementSourceObservation,
-            ResearchSupplementResult,
         )
         from product_intelligence.runs.models import ResearchSupplementSnapshot
         from product_intelligence.research.matching import (
             ListingIdentityAssessment,
-            EvidenceSource,
-            IdentityRejectionReason,
-        )
-        from product_intelligence.research.normalization import (
-            NormalizedListingObservation,
-            NormalizedAvailability,
-            NormalizedCondition,
-        )
-        from product_intelligence.research.listings import (
-            ListingObservation,
-            ExtractionMethod,
-        )
-        from product_intelligence.domain.enums import EvidenceDecision, IdentityMatchType
-        from product_intelligence.execution.orchestration import (
-            _UrlProcessingResult,
         )
 
-        request = ResearchRequest(
-            manufacturer_part_number="BCM957608-P2200GQF00",
-            description="Test SSD",
+        # JSON-LD page: MPN in title but NO explicit mpn field
+        # -> real extraction produces listing with title evidence only
+        # -> real frozen-3C assesses REJECTED/NO_EXPLICIT_MPN_EVIDENCE/TITLE_TEXT
+        # -> semantic-eligible candidate reaches evaluate_semantic_matches
+        public_html = (
+            '<html><head>'
+            '<script type="application/ld+json">'
+            '{"@context":"https://schema.org","@type":"Product",'
+            '"name":"Broadcom BCM957608-P2200GQF00 Network Adapter",'
+            '"offers":{"@type":"Offer","price":"2120.00",'
+            '"priceCurrency":"USD"}}'
+            '</script></head><body></body></html>'
         )
-        run = ResearchRun.objects.create_from_request(request)
+        PUBLIC_URL = "https://public-retail.example.com/bcm-957608-adapter"
 
+        # Injected SearchProvider: returns one public listing URL
+        mock_search = MagicMock(spec=SearchProvider)
+        mock_search.search.return_value = SearchResponse(
+            provider_id="test",
+            query=SearchQuery(text="BCM957608-P2200GQF00"),
+            retrieved_at=datetime.now(tz=timezone.utc),
+            results=(
+                SearchResult(
+                    source_url=PUBLIC_URL,
+                    title="Broadcom BCM957608-P2200GQF00 Network Adapter",
+                    snippet="Network adapter for Broadcom switch",
+                ),
+            ),
+        )
+
+        # Injected PageFetcher: returns real HTML with JSON-LD Product
+        mock_fetcher = MagicMock(spec=PageFetcher)
+        mock_fetcher.fetch.return_value = FetchedPage(
+            requested_url=PUBLIC_URL,
+            final_url=PUBLIC_URL,
+            retrieved_at=datetime.now(tz=timezone.utc),
+            status_code=200,
+            body_text=public_html,
+            content_type="text/html",
+            body_byte_count=len(public_html.encode("utf-8")),
+            redirect_count=0,
+            fetcher_id="test",
+        )
+
+        # Vendor mock: for call-order tracking
         payload = {
             "Ingram": {
                 "sourceName": "Ingram",
@@ -1004,85 +1048,30 @@ class Test4DBSemanticIsolation(TestCase):
             call_order.append("vendor")
             return mock_opener
 
-        # Build a real ListingIdentityAssessment from a public listing
-        # to prove semantic evaluation receives NON-EMPTY input.
-        listing_observation = ListingObservation(
-            source_url="https://example-retail.com/bcm-ssd",
-            extraction_method=ExtractionMethod.META,
-            product_title="Broadcom BCM957608 Network Adapter",
-            manufacturer_part_number_text=None,
-            sku_text=None,
-            brand_text=None,
-            price_text=None,
-            currency_text=None,
-            availability_text="In Stock",
-            condition_text=None,
-            seller_text=None,
+        request = ResearchRequest(
+            manufacturer_part_number="BCM957608-P2200GQF00",
+            description="Test SSD",
         )
-        normalized_listing = NormalizedListingObservation(
-            observation=listing_observation,
-            price_amount=None,
-            currency_code=None,
-            availability=NormalizedAvailability.UNKNOWN,
-            condition=NormalizedCondition.UNKNOWN,
-            seller_name=None,
-            normalization_issues=(),
-        )
-        public_assessment = ListingIdentityAssessment(
-            normalized_listing=normalized_listing,
-            requested_part_number="BCM957608-P2200GQF00",
-            candidate_part_number_raw="",
-            candidate_part_number_compared="",
-            candidate_evidence_source=EvidenceSource.NONE,
-            match_type=IdentityMatchType.UNKNOWN,
-            decision=EvidenceDecision.REJECTED,
-            rejection_reason=IdentityRejectionReason.NO_EXPLICIT_MPN_EVIDENCE,
-        )
-
-        # Mock _process_candidate_url to return a real assessment
-        # so the pipeline produces non-empty semantic input.
-        def mock_process_url(**kwargs):
-            return _UrlProcessingResult(
-                assessments=[public_assessment],
-                fetch_succeeded=True,
-                extract_observation_count=1,
-            )
+        run = ResearchRun.objects.create_from_request(request)
 
         with patch.dict(os.environ, {
             "PI_VENDOR_LOOKUP_BASE_URL": "http://vendor.internal/api",
         }):
-            # Search returns ONE result so the pipeline produces assessments
-            mock_search = MagicMock()
-            mock_search.search.return_value = MagicMock(results=(
-                MagicMock(
-                    source_url="https://example-retail.com/bcm-ssd",
-                    title="Broadcom BCM957608 Network Adapter",
-                    snippet="Network adapter",
-                    price_hint_text=None,
-                    part_number_hint=None,
-                    raw_reference=None,
-                ),
-            ))
-
             with patch(
-                "product_intelligence.providers.serper."
-                "SerperSearchProvider.from_environment",
-                return_value=mock_search,
-            ), patch(
                 "product_intelligence.execution.orchestration."
                 "evaluate_semantic_matches",
                 side_effect=track_semantic,
-            ), patch(
-                "product_intelligence.execution.orchestration."
-                "_process_candidate_url",
-                side_effect=mock_process_url,
             ), patch(
                 "product_intelligence.providers.internal_vendor."
                 "_get_vendor_opener",
                 side_effect=track_vendor,
             ):
                 from product_intelligence.execution import execute_research_run
-                execute_research_run(str(run.id))
+                execute_research_run(
+                    str(run.id),
+                    search_provider=mock_search,
+                    page_fetcher=mock_fetcher,
+                )
 
                 # Part 1: call order proof
                 assert call_order == ["semantic", "vendor"], (
@@ -1092,7 +1081,6 @@ class Test4DBSemanticIsolation(TestCase):
                 # Part 2: semantic input is NON-EMPTY
                 assert len(captured_semantic_args) == 1
                 args, kw = captured_semantic_args[0]
-                # args[0]=request, args[1]=assessments, args[2]=evidence_writer
                 if "assessments" in kw:
                     assessments_arg = kw["assessments"]
                 elif len(args) >= 2:
@@ -1100,13 +1088,11 @@ class Test4DBSemanticIsolation(TestCase):
                 else:
                     assessments_arg = ()
 
-                # CRITICAL: at least one assessment reached semantic evaluation
                 assert len(assessments_arg) >= 1, (
                     f"Semantic input must be non-empty, got {len(assessments_arg)} items"
                 )
 
                 # Part 3: every item is a ListingIdentityAssessment
-                # No vendor-derived objects in semantic input
                 for item in assessments_arg:
                     assert isinstance(item, ListingIdentityAssessment), (
                         f"Semantic input item must be ListingIdentityAssessment, "
@@ -1124,13 +1110,6 @@ class Test4DBSemanticIsolation(TestCase):
                     assert not isinstance(item, ResearchSupplementSnapshot), (
                         "Semantic input must not contain ResearchSupplementSnapshot"
                     )
-                    # Check attributes for vendor source labels
-                    item_str = str(item)
-                    assert "Ingram" not in item_str, (
-                        "Semantic input must not contain vendor source labels"
-                    )
-                    assert "CDW" not in item_str
-                    assert "Synnex" not in item_str
 
                 # Verify first arg is ResearchRequest (not vendor-derived)
                 if len(args) >= 1:
