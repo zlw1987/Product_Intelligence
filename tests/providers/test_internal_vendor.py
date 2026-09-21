@@ -1483,3 +1483,747 @@ class TestRawJSONDecimalLiteral:
         # The JSON number 2120.12345678901234567890 is parsed by json.loads
         # with parse_float=Decimal, which preserves full precision.
         assert candidate.price_amount == Decimal("2120.12345678901234567890")
+
+
+# ---------------------------------------------------------------------------
+# FU3: External Data Type Safety Tests
+# ---------------------------------------------------------------------------
+
+
+class TestMPNTypeSafety:
+    """FU3 #1: Non-string MPN must be MALFORMED_SECTION, never coerced."""
+
+    # Ingram: vendorPartNumber
+    def test_ingram_mpn_int_is_malformed(self) -> None:
+        section = {
+            "sourceName": "Ingram",
+            "vendorPartNumber": 12345,  # int, not string
+            "pricing": {
+                "customerPrice": "100.00",
+                "currencyCode": "USD",
+            },
+            "availability": {"available": True, "Avl_Quantity": 5},
+        }
+        result = _map_ingram(section)
+        assert isinstance(result, CommercialSourceIssue)
+        assert result.outcome == SourceOutcome.MALFORMED_SECTION
+
+    def test_ingram_mpn_dict_is_malformed(self) -> None:
+        section = {
+            "sourceName": "Ingram",
+            "vendorPartNumber": {"value": "ABC123"},  # dict, not string
+            "pricing": {
+                "customerPrice": "100.00",
+                "currencyCode": "USD",
+            },
+            "availability": {"available": True},
+        }
+        result = _map_ingram(section)
+        assert isinstance(result, CommercialSourceIssue)
+        assert result.outcome == SourceOutcome.MALFORMED_SECTION
+
+    def test_ingram_mpn_list_is_malformed(self) -> None:
+        section = {
+            "sourceName": "Ingram",
+            "vendorPartNumber": ["ABC123"],  # list, not string
+            "pricing": {
+                "customerPrice": "100.00",
+                "currencyCode": "USD",
+            },
+            "availability": {"available": True},
+        }
+        result = _map_ingram(section)
+        assert isinstance(result, CommercialSourceIssue)
+        assert result.outcome == SourceOutcome.MALFORMED_SECTION
+
+    def test_ingram_mpn_empty_string_is_missing(self) -> None:
+        section = {
+            "sourceName": "Ingram",
+            "vendorPartNumber": "",  # empty string
+            "pricing": {
+                "customerPrice": "100.00",
+                "currencyCode": "USD",
+            },
+            "availability": {"available": True},
+        }
+        result = _map_ingram(section)
+        assert isinstance(result, CommercialSourceIssue)
+        assert result.outcome == SourceOutcome.MISSING_EXPLICIT_MPN
+
+    def test_ingram_mpn_whitespace_only_is_missing(self) -> None:
+        section = {
+            "sourceName": "Ingram",
+            "vendorPartNumber": "   ",  # whitespace only
+            "pricing": {
+                "customerPrice": "100.00",
+                "currencyCode": "USD",
+            },
+            "availability": {"available": True},
+        }
+        result = _map_ingram(section)
+        assert isinstance(result, CommercialSourceIssue)
+        assert result.outcome == SourceOutcome.MISSING_EXPLICIT_MPN
+
+    def test_ingram_mpn_valid_string_works(self) -> None:
+        section = {
+            "sourceName": "Ingram",
+            "vendorPartNumber": "BCM957608-P2200GQF00",
+            "pricing": {
+                "customerPrice": "100.00",
+                "currencyCode": "USD",
+            },
+            "availability": {"available": True},
+        }
+        result = _map_ingram(section)
+        assert isinstance(result, CommercialSourceCandidate)
+        assert result.explicit_candidate_mpn == "BCM957608-P2200GQF00"
+
+    # CDW: manufacturerPartNumber
+    def test_cdw_mpn_int_is_malformed(self) -> None:
+        section = {
+            "sourceName": "CDW",
+            "manufacturerPartNumber": 99999,  # int, not string
+            "price": "1999.99",
+            "currencyCode": "USD",
+            "inventoryStatus": {"stockStatus": "InStock"},
+        }
+        result = _map_cdw(section)
+        assert isinstance(result, CommercialSourceIssue)
+        assert result.outcome == SourceOutcome.MALFORMED_SECTION
+
+    def test_cdw_mpn_dict_is_malformed(self) -> None:
+        section = {
+            "sourceName": "CDW",
+            "manufacturerPartNumber": {"mpn": "ABC"},  # dict, not string
+            "price": "1999.99",
+            "currencyCode": "USD",
+            "inventoryStatus": {"stockStatus": "InStock"},
+        }
+        result = _map_cdw(section)
+        assert isinstance(result, CommercialSourceIssue)
+        assert result.outcome == SourceOutcome.MALFORMED_SECTION
+
+    def test_cdw_mpn_list_is_malformed(self) -> None:
+        section = {
+            "sourceName": "CDW",
+            "manufacturerPartNumber": ["ABC123"],  # list
+            "price": "1999.99",
+            "currencyCode": "USD",
+            "inventoryStatus": {"stockStatus": "InStock"},
+        }
+        result = _map_cdw(section)
+        assert isinstance(result, CommercialSourceIssue)
+        assert result.outcome == SourceOutcome.MALFORMED_SECTION
+
+    def test_cdw_mpn_empty_string_is_missing(self) -> None:
+        section = {
+            "sourceName": "CDW",
+            "manufacturerPartNumber": "",
+            "price": "1999.99",
+            "currencyCode": "USD",
+            "inventoryStatus": {"stockStatus": "InStock"},
+        }
+        result = _map_cdw(section)
+        assert isinstance(result, CommercialSourceIssue)
+        assert result.outcome == SourceOutcome.MISSING_EXPLICIT_MPN
+
+    def test_cdw_mpn_valid_string_works(self) -> None:
+        section = {
+            "sourceName": "CDW",
+            "manufacturerPartNumber": "BCM957608-P2200GQF00",
+            "price": "1999.99",
+            "currencyCode": "USD",
+            "inventoryStatus": {"stockStatus": "InStock"},
+        }
+        result = _map_cdw(section)
+        assert isinstance(result, CommercialSourceCandidate)
+        assert result.explicit_candidate_mpn == "BCM957608-P2200GQF00"
+
+    # Synnex EU: OnlineCheck.Item.ManufacturerItemIdentifier
+    def test_synnex_mpn_int_is_malformed(self) -> None:
+        section = {
+            "sourceName": "Synnex EU",
+            "OnlineCheck": {
+                "Header": {"CurrencyCode": "EUR"},
+                "Item": {
+                    "ManufacturerItemIdentifier": 12345,  # int
+                    "UnitPriceAmount": "100.00",
+                    "AvailabilityTotal": 10,
+                },
+            },
+        }
+        result = _map_synnex_eu(section)
+        assert isinstance(result, CommercialSourceIssue)
+        assert result.outcome == SourceOutcome.MALFORMED_SECTION
+
+    def test_synnex_mpn_dict_is_malformed(self) -> None:
+        section = {
+            "sourceName": "Synnex EU",
+            "OnlineCheck": {
+                "Header": {"CurrencyCode": "EUR"},
+                "Item": {
+                    "ManufacturerItemIdentifier": {"id": "ABC"},  # dict
+                    "UnitPriceAmount": "100.00",
+                    "AvailabilityTotal": 10,
+                },
+            },
+        }
+        result = _map_synnex_eu(section)
+        assert isinstance(result, CommercialSourceIssue)
+        assert result.outcome == SourceOutcome.MALFORMED_SECTION
+
+    def test_synnex_mpn_empty_string_is_missing(self) -> None:
+        section = {
+            "sourceName": "Synnex EU",
+            "OnlineCheck": {
+                "Header": {"CurrencyCode": "EUR"},
+                "Item": {
+                    "ManufacturerItemIdentifier": "",
+                    "UnitPriceAmount": "100.00",
+                    "AvailabilityTotal": 10,
+                },
+            },
+        }
+        result = _map_synnex_eu(section)
+        assert isinstance(result, CommercialSourceIssue)
+        assert result.outcome == SourceOutcome.MISSING_EXPLICIT_MPN
+
+    def test_synnex_mpn_valid_string_works(self) -> None:
+        section = {
+            "sourceName": "Synnex EU",
+            "OnlineCheck": {
+                "Header": {"CurrencyCode": "EUR"},
+                "Item": {
+                    "ManufacturerItemIdentifier": "BCM957608-P2200GQF00",
+                    "UnitPriceAmount": "100.00",
+                    "AvailabilityTotal": 10,
+                },
+            },
+        }
+        result = _map_synnex_eu(section)
+        assert isinstance(result, CommercialSourceCandidate)
+        assert result.explicit_candidate_mpn == "BCM957608-P2200GQF00"
+
+    def test_malformed_mpn_in_one_source_does_not_destroy_valid_sibling(self) -> None:
+        """Malformed MPN in CDW does not destroy valid Ingram candidate."""
+        payload = {
+            "Ingram": {
+                "sourceName": "Ingram",
+                "vendorPartNumber": "BCM957608-P2200GQF00",
+                "pricing": {
+                    "customerPrice": "2120.00",
+                    "currencyCode": "USD",
+                },
+                "availability": {"available": True, "Avl_Quantity": 10},
+            },
+            "CDW": {
+                "sourceName": "CDW",
+                "manufacturerPartNumber": 12345,  # int MPN = MALFORMED
+                "price": "1999.99",
+                "currencyCode": "USD",
+                "inventoryStatus": {"stockStatus": "InStock"},
+            },
+        }
+        sections = []
+        for key, value in payload.items():
+            if isinstance(value, dict):
+                section = dict(value)
+                if "sourceName" not in section and key in frozenset(
+                    {"Ingram", "CDW", "Synnex EU", "Unknown"}
+                ):
+                    section["sourceName"] = key
+                sections.append(section)
+
+        results = []
+        from product_intelligence.providers.internal_vendor import (
+            _identify_and_map_source,
+        )
+        for section in sections:
+            results.append(_identify_and_map_source(section))
+
+        candidates = [r for r in results if isinstance(r, CommercialSourceCandidate)]
+        issues = [r for r in results if isinstance(r, CommercialSourceIssue)]
+        assert len(candidates) == 1
+        assert candidates[0].source_name == "Ingram"
+        assert len(issues) == 1
+        assert issues[0].source_name == "CDW"
+        assert issues[0].outcome == SourceOutcome.MALFORMED_SECTION
+
+
+class TestQuantityNoTruncation:
+    """FU3 #2: Fractional Decimal quantity must NEVER be truncated."""
+
+    def test_ingram_fractional_quantity_rejected(self) -> None:
+        """Ingram: Decimal('3.7') -> quantity is NOT 3 (no truncation)."""
+        section = {
+            "sourceName": "Ingram",
+            "vendorPartNumber": "BCM957608-P2200GQF00",
+            "pricing": {
+                "customerPrice": "100.00",
+                "currencyCode": "USD",
+            },
+            "availability": {"available": True, "Avl_Quantity": Decimal("3.7")},
+        }
+        result = _map_ingram(section)
+        assert isinstance(result, CommercialSourceCandidate)
+        # Must NOT be truncated to 3
+        assert result.quantity is None or result.quantity != 3
+        # Since _safe_int returns None for fractional, quantity should be None
+        assert result.quantity is None
+
+    def test_ingram_exact_int_quantity_accepted(self) -> None:
+        section = {
+            "sourceName": "Ingram",
+            "vendorPartNumber": "BCM957608-P2200GQF00",
+            "pricing": {
+                "customerPrice": "100.00",
+                "currencyCode": "USD",
+            },
+            "availability": {"available": True, "Avl_Quantity": Decimal("3")},
+        }
+        result = _map_ingram(section)
+        assert isinstance(result, CommercialSourceCandidate)
+        assert result.quantity == 3
+
+    def test_ingram_negative_quantity_rejected(self) -> None:
+        section = {
+            "sourceName": "Ingram",
+            "vendorPartNumber": "BCM957608-P2200GQF00",
+            "pricing": {
+                "customerPrice": "100.00",
+                "currencyCode": "USD",
+            },
+            "availability": {"available": True, "Avl_Quantity": -5},
+        }
+        result = _map_ingram(section)
+        assert isinstance(result, CommercialSourceCandidate)
+        # Negative already rejected by _safe_int; caller clears it
+        assert result.quantity is None
+
+    def test_cdw_fractional_quantity_rejected(self) -> None:
+        """CDW: Decimal('8.5') -> quantity is NOT 8 (no truncation)."""
+        section = {
+            "sourceName": "CDW",
+            "manufacturerPartNumber": "BCM957608-P2200GQF00",
+            "price": "1999.99",
+            "currencyCode": "USD",
+            "inventoryStatus": {
+                "stockStatus": "InStock",
+                "Avl_Quantity": Decimal("8.5"),
+            },
+        }
+        result = _map_cdw(section)
+        assert isinstance(result, CommercialSourceCandidate)
+        # Must NOT be truncated to 8
+        assert result.quantity is None or result.quantity != 8
+        assert result.quantity is None
+
+    def test_cdw_exact_int_quantity_accepted(self) -> None:
+        section = {
+            "sourceName": "CDW",
+            "manufacturerPartNumber": "BCM957608-P2200GQF00",
+            "price": "1999.99",
+            "currencyCode": "USD",
+            "inventoryStatus": {"stockStatus": "InStock", "Avl_Quantity": 48},
+        }
+        result = _map_cdw(section)
+        assert isinstance(result, CommercialSourceCandidate)
+        assert result.quantity == 48
+
+    def test_cdw_bool_quantity_rejected(self) -> None:
+        section = {
+            "sourceName": "CDW",
+            "manufacturerPartNumber": "BCM957608-P2200GQF00",
+            "price": "1999.99",
+            "currencyCode": "USD",
+            "inventoryStatus": {"stockStatus": "InStock", "Avl_Quantity": True},
+        }
+        result = _map_cdw(section)
+        assert isinstance(result, CommercialSourceCandidate)
+        assert result.quantity is None
+
+    def test_synnex_fractional_quantity_rejected(self) -> None:
+        """Synnex: Decimal('2.9') -> quantity is NOT 2 (no truncation)."""
+        section = {
+            "sourceName": "Synnex EU",
+            "OnlineCheck": {
+                "Header": {"CurrencyCode": "EUR"},
+                "Item": {
+                    "ManufacturerItemIdentifier": "BCM957608-P2200GQF00",
+                    "UnitPriceAmount": "100.00",
+                    "AvailabilityTotal": Decimal("2.9"),
+                },
+            },
+        }
+        result = _map_synnex_eu(section)
+        assert isinstance(result, CommercialSourceCandidate)
+        # Must NOT be truncated to 2
+        assert result.quantity is None or result.quantity != 2
+        assert result.quantity is None
+
+    def test_synnex_exact_int_quantity_accepted(self) -> None:
+        section = {
+            "sourceName": "Synnex EU",
+            "OnlineCheck": {
+                "Header": {"CurrencyCode": "EUR"},
+                "Item": {
+                    "ManufacturerItemIdentifier": "BCM957608-P2200GQF00",
+                    "UnitPriceAmount": "100.00",
+                    "AvailabilityTotal": 30,
+                },
+            },
+        }
+        result = _map_synnex_eu(section)
+        assert isinstance(result, CommercialSourceCandidate)
+        assert result.quantity == 30
+
+    def test_safe_int_fractional_decimal_returns_none(self) -> None:
+        """_safe_int with Decimal('3.7') returns None, not 3."""
+        from product_intelligence.providers.internal_vendor import _safe_int
+        result = _safe_int(Decimal("3.7"))
+        assert result is None
+
+    def test_safe_int_exact_decimal_returns_int(self) -> None:
+        from product_intelligence.providers.internal_vendor import _safe_int
+        result = _safe_int(Decimal("3"))
+        assert result == 3
+
+    def test_safe_int_negative_int_returns_none(self) -> None:
+        from product_intelligence.providers.internal_vendor import _safe_int
+        result = _safe_int(-5)
+        assert result is None
+
+    def test_safe_int_bool_returns_none(self) -> None:
+        from product_intelligence.providers.internal_vendor import _safe_int
+        assert _safe_int(True) is None
+        assert _safe_int(False) is None
+
+
+class TestSynnexCurrencyTypeSafety:
+    """FU3 #3: Synnex currency must be str, never raise AttributeError."""
+
+    def test_synnex_currency_int_is_malformed(self) -> None:
+        section = {
+            "sourceName": "Synnex EU",
+            "OnlineCheck": {
+                "Header": {"CurrencyCode": 123},  # int, not string
+                "Item": {
+                    "ManufacturerItemIdentifier": "BCM957608-P2200GQF00",
+                    "UnitPriceAmount": "100.00",
+                    "AvailabilityTotal": 10,
+                },
+            },
+        }
+        result = _map_synnex_eu(section)
+        assert isinstance(result, CommercialSourceIssue)
+        assert result.outcome == SourceOutcome.MALFORMED_SECTION
+
+    def test_synnex_currency_list_is_malformed(self) -> None:
+        section = {
+            "sourceName": "Synnex EU",
+            "OnlineCheck": {
+                "Header": {"CurrencyCode": ["EUR"]},  # list
+                "Item": {
+                    "ManufacturerItemIdentifier": "BCM957608-P2200GQF00",
+                    "UnitPriceAmount": "100.00",
+                    "AvailabilityTotal": 10,
+                },
+            },
+        }
+        result = _map_synnex_eu(section)
+        assert isinstance(result, CommercialSourceIssue)
+        assert result.outcome == SourceOutcome.MALFORMED_SECTION
+
+    def test_synnex_currency_missing_is_malformed(self) -> None:
+        section = {
+            "sourceName": "Synnex EU",
+            "OnlineCheck": {
+                "Header": {},  # no CurrencyCode
+                "Item": {
+                    "ManufacturerItemIdentifier": "BCM957608-P2200GQF00",
+                    "UnitPriceAmount": "100.00",
+                    "AvailabilityTotal": 10,
+                },
+            },
+        }
+        result = _map_synnex_eu(section)
+        assert isinstance(result, CommercialSourceIssue)
+        assert result.outcome == SourceOutcome.MALFORMED_SECTION
+
+    def test_synnex_currency_valid_works(self) -> None:
+        section = {
+            "sourceName": "Synnex EU",
+            "OnlineCheck": {
+                "Header": {"CurrencyCode": " EUR "},  # whitespace, will strip
+                "Item": {
+                    "ManufacturerItemIdentifier": "BCM957608-P2200GQF00",
+                    "UnitPriceAmount": "100.00",
+                    "AvailabilityTotal": 10,
+                },
+            },
+        }
+        result = _map_synnex_eu(section)
+        assert isinstance(result, CommercialSourceCandidate)
+        assert result.currency_code == "EUR"
+
+    def test_synnex_currency_empty_string_is_malformed(self) -> None:
+        section = {
+            "sourceName": "Synnex EU",
+            "OnlineCheck": {
+                "Header": {"CurrencyCode": ""},  # empty string
+                "Item": {
+                    "ManufacturerItemIdentifier": "BCM957608-P2200GQF00",
+                    "UnitPriceAmount": "100.00",
+                    "AvailabilityTotal": 10,
+                },
+            },
+        }
+        result = _map_synnex_eu(section)
+        assert isinstance(result, CommercialSourceIssue)
+        assert result.outcome == SourceOutcome.MALFORMED_SECTION
+
+    def test_valid_cdw_plus_malformed_synnex_currency_survives(self) -> None:
+        """Valid CDW + malformed Synnex currency -> CDW survives."""
+        payload = {
+            "CDW": {
+                "sourceName": "CDW",
+                "manufacturerPartNumber": "BCM957608-P2200GQF00",
+                "price": "1999.99",
+                "currencyCode": "USD",
+                "inventoryStatus": {"stockStatus": "InStock", "Avl_Quantity": 50},
+            },
+            "Synnex EU": {
+                "sourceName": "Synnex EU",
+                "OnlineCheck": {
+                    "Header": {"CurrencyCode": 999},  # malformed int
+                    "Item": {
+                        "ManufacturerItemIdentifier": "BCM957608-P2200GQF00",
+                        "UnitPriceAmount": "1800.00",
+                        "AvailabilityTotal": 20,
+                    },
+                },
+            },
+        }
+        sections = []
+        for key, value in payload.items():
+            if isinstance(value, dict):
+                section = dict(value)
+                if "sourceName" not in section and key in frozenset(
+                    {"Ingram", "CDW", "Synnex EU", "Unknown"}
+                ):
+                    section["sourceName"] = key
+                sections.append(section)
+
+        results = []
+        from product_intelligence.providers.internal_vendor import (
+            _identify_and_map_source,
+        )
+        for section in sections:
+            results.append(_identify_and_map_source(section))
+
+        candidates = [r for r in results if isinstance(r, CommercialSourceCandidate)]
+        issues = [r for r in results if isinstance(r, CommercialSourceIssue)]
+        assert len(candidates) == 1
+        assert candidates[0].source_name == "CDW"
+        assert len(issues) == 1
+        assert issues[0].source_name == "Synnex EU"
+        assert issues[0].outcome == SourceOutcome.MALFORMED_SECTION
+
+
+class TestJSONConstantRejection:
+    """FU3 #4: NaN/Infinity JSON constants rejected at parse boundary."""
+
+    def test_nan_json_rejected(self) -> None:
+        """JSON body with NaN -> FAILED, no candidate."""
+        adapter = InternalVendorAdapter()
+        adapter._base_url = "http://example.com/vendor"
+        adapter._validated = True
+        query = CommercialLookupQuery(mpn="BCM957608-P2200GQF00")
+
+        raw_json = b'{"Ingram": {"sourceName": "Ingram", "vendorPartNumber": "ABC", "pricing": {"customerPrice": NaN, "currencyCode": "USD"}, "availability": {"available": true}}}'
+
+        mock_response = MagicMock()
+        mock_response.read.return_value = raw_json
+
+        with patch(
+            "product_intelligence.providers.internal_vendor."
+            "_get_vendor_opener"
+        ) as mock_get_opener:
+            mock_opener = MagicMock()
+            mock_opener.open.return_value = mock_response
+            mock_get_opener.return_value = mock_opener
+
+            response = adapter.lookup(query)
+
+        assert response.status == LookupStatus.FAILED
+        assert len(response.candidates) == 0
+        assert len(response.issues) == 0
+
+    def test_infinity_json_rejected(self) -> None:
+        """JSON body with Infinity -> FAILED, no candidate."""
+        adapter = InternalVendorAdapter()
+        adapter._base_url = "http://example.com/vendor"
+        adapter._validated = True
+        query = CommercialLookupQuery(mpn="BCM957608-P2200GQF00")
+
+        raw_json = b'{"Ingram": {"sourceName": "Ingram", "vendorPartNumber": "ABC", "pricing": {"customerPrice": Infinity, "currencyCode": "USD"}, "availability": {"available": true}}}'
+
+        mock_response = MagicMock()
+        mock_response.read.return_value = raw_json
+
+        with patch(
+            "product_intelligence.providers.internal_vendor."
+            "_get_vendor_opener"
+        ) as mock_get_opener:
+            mock_opener = MagicMock()
+            mock_opener.open.return_value = mock_response
+            mock_get_opener.return_value = mock_opener
+
+            response = adapter.lookup(query)
+
+        assert response.status == LookupStatus.FAILED
+        assert len(response.candidates) == 0
+
+    def test_negative_infinity_json_rejected(self) -> None:
+        """JSON body with -Infinity -> FAILED, no candidate."""
+        adapter = InternalVendorAdapter()
+        adapter._base_url = "http://example.com/vendor"
+        adapter._validated = True
+        query = CommercialLookupQuery(mpn="BCM957608-P2200GQF00")
+
+        raw_json = b'{"Ingram": {"sourceName": "Ingram", "vendorPartNumber": "ABC", "pricing": {"customerPrice": -Infinity, "currencyCode": "USD"}, "availability": {"available": true}}}'
+
+        mock_response = MagicMock()
+        mock_response.read.return_value = raw_json
+
+        with patch(
+            "product_intelligence.providers.internal_vendor."
+            "_get_vendor_opener"
+        ) as mock_get_opener:
+            mock_opener = MagicMock()
+            mock_opener.open.return_value = mock_response
+            mock_get_opener.return_value = mock_opener
+
+            response = adapter.lookup(query)
+
+        assert response.status == LookupStatus.FAILED
+        assert len(response.candidates) == 0
+
+
+class TestSafeDecimalNoFloat:
+    """FU3 #5: _safe_decimal rejects binary float."""
+
+    def test_safe_decimal_rejects_float(self) -> None:
+        from product_intelligence.providers.internal_vendor import _safe_decimal
+        result = _safe_decimal(100.99)
+        assert result is None
+
+    def test_safe_decimal_accepts_decimal(self) -> None:
+        from product_intelligence.providers.internal_vendor import _safe_decimal
+        result = _safe_decimal(Decimal("100.99"))
+        assert result == Decimal("100.99")
+
+    def test_safe_decimal_accepts_numeric_string(self) -> None:
+        from product_intelligence.providers.internal_vendor import _safe_decimal
+        result = _safe_decimal("100.99")
+        assert result == Decimal("100.99")
+
+    def test_safe_decimal_rejects_nan_string(self) -> None:
+        from product_intelligence.providers.internal_vendor import _safe_decimal
+        result = _safe_decimal("NaN")
+        assert result is None
+
+    def test_safe_decimal_rejects_infinity_string(self) -> None:
+        from product_intelligence.providers.internal_vendor import _safe_decimal
+        result = _safe_decimal("Infinity")
+        assert result is None
+
+    def test_mapper_float_price_is_malformed(self) -> None:
+        """Ingram: float price -> MALFORMED_SECTION."""
+        section = {
+            "sourceName": "Ingram",
+            "vendorPartNumber": "BCM957608-P2200GQF00",
+            "pricing": {
+                "customerPrice": 100.99,  # binary float, not Decimal
+                "currencyCode": "USD",
+            },
+            "availability": {"available": True},
+        }
+        result = _map_ingram(section)
+        assert isinstance(result, CommercialSourceIssue)
+        assert result.outcome == SourceOutcome.MALFORMED_SECTION
+
+
+class TestOpenerRegisteredRedirectDispatch:
+    """FU3 #6: Redirect refusal exercises registered opener dispatch."""
+
+    def test_redirect_handler_registered_in_opener_error_dispatch(self) -> None:
+        """Redirect refusal handler is registered in opener's error dispatch table.
+
+        The opener is built with build_opener(_NoRedirectHandler()), so the
+        handler's methods are registered in handle_error. This test verifies
+        the handler is registered AND exercises its registered http_error_302
+        method directly (which is the method the dispatcher invokes).
+        """
+        from product_intelligence.providers.internal_vendor import (
+            _get_vendor_opener,
+            _NoRedirectHandler,
+        )
+        from urllib.error import HTTPError
+
+        opener = _get_vendor_opener()
+
+        # Verify the handler is registered in handle_error dispatch
+        assert "http" in opener.handle_error, (
+            "Opener must have registered http error dispatch via add_handler"
+        )
+
+        # Find the _NoRedirectHandler instance in the opener
+        custom_handlers = [
+            h for h in opener.handlers
+            if isinstance(h, _NoRedirectHandler)
+        ]
+        assert len(custom_handlers) == 1, (
+            "Opener must have exactly one _NoRedirectHandler"
+        )
+        handler = custom_handlers[0]
+
+        # Exercise the registered method directly (as the dispatcher would)
+        mock_req = MagicMock()
+        mock_req.full_url = "http://vendor.internal/api?partno=ABC"
+        mock_fp = MagicMock()
+        mock_headers = MagicMock()
+
+        with pytest.raises(HTTPError) as exc_info:
+            # This is what the registered dispatcher calls for a 302
+            handler.http_error_302(
+                mock_req, mock_fp, 302, "Found", mock_headers
+            )
+
+        assert "Redirect refused" in str(exc_info.value)
+
+        # Also verify 307 and 308 are refused
+        with pytest.raises(HTTPError):
+            handler.http_error_307(
+                mock_req, mock_fp, 307, "Temporary Redirect", mock_headers
+            )
+        with pytest.raises(HTTPError):
+            handler.http_error_308(
+                mock_req, mock_fp, 308, "Permanent Redirect", mock_headers
+            )
+
+    def test_no_bare_http_redirect_handler_registered(self) -> None:
+        """Bare HTTPRedirectHandler is not registered (type check, not subclass)."""
+        from product_intelligence.providers.internal_vendor import _get_vendor_opener
+        from urllib.request import HTTPRedirectHandler
+
+        opener = _get_vendor_opener()
+
+        # Verify no bare HTTPRedirectHandler (exact type() check, not isinstance)
+        bare_handlers = [
+            h for h in opener.handlers
+            if type(h) is HTTPRedirectHandler
+        ]
+        assert len(bare_handlers) == 0, (
+            "Default HTTPRedirectHandler must not be active"
+        )

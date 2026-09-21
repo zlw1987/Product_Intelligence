@@ -241,33 +241,117 @@ def _build_lookup_url(base_url: str, mpn: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# JSON parse constants (non-standard)
+# ---------------------------------------------------------------------------
+
+
+class _InvalidVendorJsonConstant(ValueError):
+    """Raised when a non-standard JSON constant (NaN/Infinity) is encountered.
+
+    This is a bounded external-data exception. It is NOT a programming error
+    and does NOT log the raw token or payload.
+    """
+
+    pass
+
+
+def _reject_json_constant(token: str) -> None:
+    """Reject non-standard JSON constants at parse boundary.
+
+    Python's json.loads accepts NaN, Infinity, -Infinity by default.
+    This callback raises a bounded exception instead.
+
+    Raises:
+        _InvalidVendorJsonConstant: always, for any non-standard constant token.
+    """
+    raise _InvalidVendorJsonConstant(
+        f"Non-standard JSON constant rejected: {token!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
 # Safe value helpers
 # ---------------------------------------------------------------------------
 
 
 def _safe_decimal(value: Any, default: Decimal | None = None) -> Decimal | None:
-    """Parse a value as Decimal, return default on failure."""
+    """Parse a value as exact Decimal, return default on failure.
+
+    Accepted:
+    - Decimal (returned as-is)
+    - int (converted to Decimal)
+    - numeric string (parsed as Decimal)
+
+    Rejected (returns default):
+    - float (binary float must never traverse a monetary value)
+    - bool
+    - None
+    - NaN / Infinity (even as strings, after Decimal construction)
+    """
     if value is None:
         return default
+    # Explicitly reject binary float — must never become monetary value
+    if isinstance(value, float):
+        return default
+    # Accept Decimal directly
+    if isinstance(value, Decimal):
+        return value
     try:
-        return Decimal(str(value))
+        result = Decimal(value)
+        if not result.is_finite():
+            return default
+        return result
     except (InvalidOperation, ValueError, TypeError):
         return default
 
 
 def _safe_int(value: Any, default: int | None = None) -> int | None:
-    """Parse a value as int, return default on failure.
+    """Parse a value as an exact non-fractional int, return default on failure.
 
-    bool is NOT an integer quantity — rejected by exact type check.
-    Negative values are returned as-is; the caller maps to MALFORMED.
+    Accept only representations that are truly integral.
+
+    Accepted:
+    - int (returned as-is)
+    - Decimal that equals its integral value (converted exactly)
+
+    Rejected (returns default):
+    - bool (exact type check; isinstance(value, bool) before int check)
+    - float (never accepted)
+    - Decimal fraction (e.g. Decimal("3.7") — must NOT truncate)
+    - negative int
+    - string that is not a strict integer
+    - None
+
+    Decimal fraction: Decimal("3.7") -> int(Decimal("3.7")) == 3 (silent truncation).
+    This function REJECTS fractional Decimal rather than truncating.
     """
     if value is None:
         return default
-    if isinstance(value, bool):
-        # bool is subclass of int but is NOT a valid quantity
+    # Exact bool check before int — bool is subclass of int
+    if type(value) is bool:
         return default
+    # Accept int directly
+    if type(value) is int:
+        if value < 0:
+            return default
+        return value
+    # Decimal: must be finite and equal to its integral value
+    if isinstance(value, Decimal):
+        if not value.is_finite():
+            return default
+        if value != value.to_integral_value():
+            # Fractional (e.g. 3.7 != 4) — reject, do NOT truncate
+            return default
+        int_val = int(value)
+        if int_val < 0:
+            return default
+        return int_val
     try:
-        return int(value)
+        int_val = int(value)
+        # Reject negative
+        if int_val < 0:
+            return default
+        return int_val
     except (ValueError, TypeError):
         return default
 
@@ -309,8 +393,18 @@ def _map_ingram(source_section: dict[str, Any]) -> CommercialSourceCandidate | C
 
 
     # Explicit MPN (required)
+    # Type check FIRST: non-string type is MALFORMED, not MISSING
+    # But None / absent -> MISSING (no value at all)
     vendor_mpn = source_section.get("vendorPartNumber")
-    if not vendor_mpn or not str(vendor_mpn).strip():
+    if vendor_mpn is None:
+        return CommercialSourceIssue(
+            source_name=source_name,
+            outcome=SourceOutcome.MISSING_EXPLICIT_MPN)
+    if not isinstance(vendor_mpn, str):
+        return CommercialSourceIssue(
+            source_name=source_name,
+            outcome=SourceOutcome.MALFORMED_SECTION)
+    if not vendor_mpn or not vendor_mpn.strip():
         return CommercialSourceIssue(
             source_name=source_name,
             outcome=SourceOutcome.MISSING_EXPLICIT_MPN)
@@ -364,10 +458,7 @@ def _map_ingram(source_section: dict[str, Any]) -> CommercialSourceCandidate | C
     else:
         available = _safe_bool(availability_section.get("available"))
         qty_raw = availability_section.get("Avl_Quantity")
-        quantity = _safe_int(qty_raw)
-        # Negative quantity -> discard (not valid)
-        if quantity is not None and quantity < 0:
-            quantity = None
+        quantity = _safe_int(qty_raw)  # negative already rejected by _safe_int
 
         if available is True and quantity is not None and quantity > 0:
             availability = CommercialAvailability.IN_STOCK
@@ -425,8 +516,18 @@ def _map_cdw(source_section: dict[str, Any]) -> CommercialSourceCandidate | Comm
 
 
     # Explicit MPN (required)
+    # Type check FIRST: non-string type is MALFORMED, not MISSING
+    # But None / absent -> MISSING (no value at all)
     vendor_mpn = source_section.get("manufacturerPartNumber")
-    if not vendor_mpn or not str(vendor_mpn).strip():
+    if vendor_mpn is None:
+        return CommercialSourceIssue(
+            source_name=source_name,
+            outcome=SourceOutcome.MISSING_EXPLICIT_MPN)
+    if not isinstance(vendor_mpn, str):
+        return CommercialSourceIssue(
+            source_name=source_name,
+            outcome=SourceOutcome.MALFORMED_SECTION)
+    if not vendor_mpn or not vendor_mpn.strip():
         return CommercialSourceIssue(
             source_name=source_name,
             outcome=SourceOutcome.MISSING_EXPLICIT_MPN)
@@ -459,10 +560,7 @@ def _map_cdw(source_section: dict[str, Any]) -> CommercialSourceCandidate | Comm
     else:
         stock_status = ""
 
-    quantity = _safe_int(qty_raw)
-    # Negative quantity -> discard
-    if quantity is not None and quantity < 0:
-        quantity = None
+    quantity = _safe_int(qty_raw)  # negative already rejected by _safe_int
 
     if stock_status == "InStock":
         if quantity is not None and quantity == 0:
@@ -479,7 +577,7 @@ def _map_cdw(source_section: dict[str, Any]) -> CommercialSourceCandidate | Comm
 
     return CommercialSourceCandidate(
         source_name=source_name,
-        explicit_candidate_mpn=str(vendor_mpn).strip(),
+        explicit_candidate_mpn=vendor_mpn.strip(),
         price_amount=price,
         currency_code=currency,
         availability=availability,
@@ -552,15 +650,29 @@ def _map_synnex_eu(source_section: dict[str, Any]) -> CommercialSourceCandidate 
 
 
     # Currency from Header (allowlisted field only)
+    # Type check: must be str, nonempty after strip
     header = online_check.get("Header")
+    currency: str | None = None
     if isinstance(header, dict):
-        currency = header.get("CurrencyCode", "")
-    else:
-        currency = ""
+        currency = header.get("CurrencyCode")
+    if not isinstance(currency, str) or not currency.strip():
+        return CommercialSourceIssue(
+            source_name=source_name,
+            outcome=SourceOutcome.MALFORMED_SECTION)
 
-    # Explicit MPN
+    # Explicit MPN (required)
+    # Type check FIRST: non-string type is MALFORMED, not MISSING
+    # But None / absent -> MISSING (no value at all)
     vendor_mpn = item.get("ManufacturerItemIdentifier")
-    if not vendor_mpn or not str(vendor_mpn).strip():
+    if vendor_mpn is None:
+        return CommercialSourceIssue(
+            source_name=source_name,
+            outcome=SourceOutcome.MISSING_EXPLICIT_MPN)
+    if not isinstance(vendor_mpn, str):
+        return CommercialSourceIssue(
+            source_name=source_name,
+            outcome=SourceOutcome.MALFORMED_SECTION)
+    if not vendor_mpn or not vendor_mpn.strip():
         return CommercialSourceIssue(
             source_name=source_name,
             outcome=SourceOutcome.MISSING_EXPLICIT_MPN)
@@ -603,12 +715,8 @@ def _map_synnex_eu(source_section: dict[str, Any]) -> CommercialSourceCandidate 
         # "not maintained" already handled above
         # All other free-form note text is dropped
 
-    # Currency — must be str and nonempty
-    currency_val = currency.strip().upper() if currency else ""
-    if not currency_val:
-        return CommercialSourceIssue(
-            source_name=source_name,
-            outcome=SourceOutcome.MALFORMED_SECTION)
+    # Currency — already validated as non-None str above
+    currency_val = currency.strip().upper()  # type: ignore[union-attr]
 
 
     return CommercialSourceCandidate(
@@ -754,11 +862,19 @@ class InternalVendorAdapter:
 
         # Parse JSON with Decimal for exact monetary values.
         # parse_float=Decimal preserves precision; no binary float conversion.
+        # parse_constant=_reject_json_constant rejects NaN/Infinity/-Infinity.
         try:
             body_text = body_bytes.decode("utf-8")
-            payload = json.loads(body_text, parse_float=Decimal)
-        except (json.JSONDecodeError, UnicodeDecodeError, InvalidOperation) as exc:
-            # InvalidOperation catches non-standard JSON constants like NaN
+            payload = json.loads(
+                body_text,
+                parse_float=Decimal,
+                parse_constant=_reject_json_constant,
+            )
+        except (
+            json.JSONDecodeError,
+            UnicodeDecodeError,
+            _InvalidVendorJsonConstant,
+        ) as exc:
             logger.warning(
                 "Vendor API response JSON parse failed for MPN %s",
                 query.mpn,

@@ -4104,10 +4104,16 @@ This canonical plan does not duplicate that operational snapshot.
 
 ## 26. Customer Quote Research Expansion — 4D Phase Architecture
 
-**Status: IMPLEMENTED / PENDING FINAL REVIEW.**
+**Status: PARTIALLY IMPLEMENTED**
 
-PILOT-RELEASE-1 is deployed and accepted. 4D is the next roadmap phase.
-4D-PRE is the first 4D sub-phase and produces no production changes.
+4D-PRE — APPROVED / FROZEN (Preferred Source Feasibility Audit, evidence only)
+4D-A — APPROVED / FROZEN (Source Acquisition Optimization)
+4D-B — IMPLEMENTED / PENDING FINAL REVIEW (Internal Vendor Commercial Evidence)
+4D-C — PLANNED (Compact Quote Summary)
+4D-D — PLANNED (Micron Packaging Alias Retrieval)
+
+Note: 4D-C security gate (trusted network/VPN access control) remains
+unresolved. Report UUID is not access control.
 
 ### 26.0 Overview
 

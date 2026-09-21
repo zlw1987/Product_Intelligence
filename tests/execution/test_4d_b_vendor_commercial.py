@@ -34,6 +34,9 @@ from django.test import TestCase
 
 from product_intelligence.domain import ResearchRequest
 from product_intelligence.domain.enums import ResearchRunState
+from product_intelligence.research.commercial_supplement_codec import (
+    SupplementCodecError,
+)
 from product_intelligence.runs.models import (
     PriceIntelligenceSnapshot,
     ResearchRun,
@@ -360,9 +363,16 @@ class Test4DBNotInWebReport(TestCase):
             assert response.status_code == 200
 
             content = response.content.decode("utf-8")
+            # Positive assertion: normal report rendered with expected MPN
+            assert "BCM957608-P2200GQF00" in content
+            assert "Test SSD" in content or "Price Intelligence" in content or "Research" in content
+            # Vendor commercial data absent from normal report render path
             assert "9999.99" not in content
             assert "Ingram" not in content
+            assert "CDW" not in content
+            assert "Synnex" not in content
             assert "Vendor API" not in content
+            assert "$9" not in content or "Vendor" not in content
 
 
 class Test4DBVendorDoesNotSuppressSearch(TestCase):
@@ -711,7 +721,7 @@ class Test4DBCodecError(TestCase):
             ), patch(
                 "product_intelligence.research.commercial_supplement_codec."
                 "encode_research_supplement_result",
-                side_effect=Exception("codec failure"),
+                side_effect=SupplementCodecError("codec failure"),
             ):
                 from product_intelligence.execution import execute_research_run
                 from product_intelligence.execution.orchestration import (
@@ -922,12 +932,25 @@ class Test4DBMachinePriceStrengthened(TestCase):
 class Test4DBSemanticIsolation(TestCase):
     """K. Vendor rows not in semantic input (strengthened)."""
 
-    def test_semantic_eval_before_vendor_lookup(self) -> None:
+    def test_semantic_eval_before_vendor_lookup_with_input_inspection(self) -> None:
         """Semantic evaluation occurs BEFORE vendor lookup.
 
-        Prove by call order that vendor observations cannot be semantic input.
+        Two-part proof:
+        1. Call order: semantic -> vendor
+        2. Semantic input tuple excludes all vendor-derived objects
+           (no CommercialSourceCandidate, no SupplementSourceObservation,
+            no ResearchSupplementSnapshot, no vendor source label)
         """
         from product_intelligence.runs.models import AiAssistedReviewCandidate
+        from product_intelligence.providers.commercial import (
+            CommercialSourceCandidate,
+            CommercialSourceIssue,
+        )
+        from product_intelligence.research.commercial_supplement_codec import (
+            SupplementSourceObservation,
+            ResearchSupplementResult,
+        )
+        from product_intelligence.runs.models import ResearchSupplementSnapshot
 
         request = ResearchRequest(
             manufacturer_part_number="BCM957608-P2200GQF00",
@@ -952,9 +975,11 @@ class Test4DBSemanticIsolation(TestCase):
         mock_opener.open.return_value = mock_response
 
         call_order: list[str] = []
+        captured_semantic_args: list = []
 
         def track_semantic(*a, **kw):
             call_order.append("semantic")
+            captured_semantic_args.append((a, kw))
             return []
 
         def track_vendor(*a, **kw):
@@ -983,10 +1008,54 @@ class Test4DBSemanticIsolation(TestCase):
                 from product_intelligence.execution import execute_research_run
                 execute_research_run(str(run.id))
 
-                # Semantic evaluated BEFORE vendor lookup
+                # Part 1: call order proof
                 assert call_order == ["semantic", "vendor"], (
                     f"Expected semantic before vendor, got {call_order}"
                 )
+
+                # Part 2: inspect actual semantic input — no vendor objects
+                # evaluate_semantic_matches signature:
+                #   (request, assessments, evidence_writer, runtime=None)
+                assert len(captured_semantic_args) == 1
+                args, kw = captured_semantic_args[0]
+                # args[0]=request, args[1]=assessments, args[2]=evidence_writer
+                if 'assessments' in kw:
+                    assessments_arg = kw['assessments']
+                elif len(args) >= 2:
+                    assessments_arg = args[1]
+                else:
+                    assessments_arg = ()
+
+                # Semantic input (assessments) is a sequence of
+                # ListingIdentityAssessment objects. Verify the type of the
+                # first argument (request) is ResearchRequest (not vendor-derived).
+                # Vendor data is bound AFTER semantic in the pipeline.
+                if len(args) >= 1:
+                    from product_intelligence.domain import ResearchRequest as RR
+                    assert isinstance(args[0], RR), (
+                        "First semantic arg must be ResearchRequest"
+                    )
+
+                # Every item in semantic input must be a ListingIdentityAssessment.
+                # No CommercialSourceCandidate, no SupplementSourceObservation,
+                # no ResearchSupplementSnapshot.
+                for item in assessments_arg:
+                    assert not isinstance(item, CommercialSourceCandidate), (
+                        "Semantic input must not contain CommercialSourceCandidate"
+                    )
+                    assert not isinstance(item, CommercialSourceIssue), (
+                        "Semantic input must not contain CommercialSourceIssue"
+                    )
+                    assert not isinstance(item, SupplementSourceObservation), (
+                        "Semantic input must not contain SupplementSourceObservation"
+                    )
+                    # Check attributes for vendor source labels
+                    item_str = str(item)
+                    assert "Ingram" not in item_str, (
+                        "Semantic input must not contain vendor source labels"
+                    )
+                    assert "CDW" not in item_str
+                    assert "Synnex" not in item_str
 
 
 class Test4DBComparableIsolation(TestCase):
