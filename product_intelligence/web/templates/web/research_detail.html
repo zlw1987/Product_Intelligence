@@ -73,6 +73,56 @@
   </form>
 {% endif %}
 
+{% if compact_quote or compact_quote_unavailable %}
+<h2>Compact quote summary</h2>
+
+{% if compact_quote %}
+  {% if not vendor_commercial_access_allowed %}
+    <p class="notice">
+      Internal commercial pricing is unavailable for this connection.
+    </p>
+  {% endif %}
+  {% if compact_quote.rows %}
+    <div class="spec-table-wrapper">
+      <table class="spec-table">
+        <thead>
+          <tr>
+            <th>Source</th>
+            <th>Price</th>
+            <th>USD Equivalent</th>
+            <th>Inventory</th>
+            <th>Brand New</th>
+            <th>Note</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in compact_quote.rows %}
+          <tr>
+            <td>
+              {% if row.source_url_safe %}
+                <a href="{{ row.source_url }}">{{ row.source_display }}</a>
+              {% else %}
+                {{ row.source_display }}
+              {% endif %}
+            </td>
+            <td>{{ row.price }}</td>
+            <td>{{ row.usd_equivalent }}</td>
+            <td>{{ row.inventory }}</td>
+            <td>{{ row.brand_new }}</td>
+            <td>{{ row.note }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="notice">No compact quote evidence is available.</p>
+  {% endif %}
+{% elif compact_quote_unavailable %}
+  <p class="notice">Compact quote summary unavailable.</p>
+{% endif %}
+{% endif %}
+
 <h2>Price intelligence</h2>
 
 {% if snapshot_error %}

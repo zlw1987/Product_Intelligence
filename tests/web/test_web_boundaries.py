@@ -76,6 +76,17 @@ ALLOWED_RESEARCH_IMPORTS: dict[str, set[str]] = {
     "product_intelligence.research.identity": {
         "compare_part_numbers",  # 7C-C: frozen 2A binding validation
     },
+    "product_intelligence.research.compact_quote": {
+        "CompactQuoteProjection",  # 4D-C: display-only presentation consumes projection contract
+        "CompactQuoteRow",  # 4D-C: display-only presentation consumes row contract
+        "CompactQuoteProjectionError",  # 4D-C: fail-closed catch in views
+    },
+    "product_intelligence.research.commercial_supplement_codec": {
+        "SupplementCodecError",  # 4D-C: fail-closed catch in views (authorized path)
+    },
+    "product_intelligence.research.fx_codec": {
+        "FxCodecError",  # 4D-C: fail-closed catch in views (persisted FX artifact)
+    },
 }
 
 ALLOWED_EXECUTION_IMPORTS: set[str] = {
@@ -83,6 +94,8 @@ ALLOWED_EXECUTION_IMPORTS: set[str] = {
     "ExecutionError",
     "ComparableResearchExecutionError",
     "execute_comparable_research_with_default_providers",
+    "replay_compact_quote_projection",  # 4D-C: authorized-path historical replay
+    "replay_public_compact_quote_projection",  # 4D-C: denied-path public-only replay
 }
 
 
@@ -577,6 +590,108 @@ def test_comparable_presentation_does_not_import_compare_part_numbers() -> None:
         if isinstance(node, ast.Import):
             for alias in node.names:
                 assert "compare_part_numbers" not in alias.name
+
+
+# ---------------------------------------------------------------------------
+# 4D-C: compact_quote_presentation display-only boundary
+# ---------------------------------------------------------------------------
+
+
+def _compact_quote_presentation_path() -> Path:
+    return WEB_ROOT / "compact_quote_presentation.py"
+
+
+def test_compact_quote_presentation_exists() -> None:
+    """Guard against the display-only module silently disappearing."""
+    assert _compact_quote_presentation_path().is_file()
+
+
+def test_compact_quote_presentation_imports_no_runs() -> None:
+    """compact_quote_presentation.py must not import runs."""
+    source = _compact_quote_presentation_path().read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module:
+            assert not node.module.startswith("product_intelligence.runs"), (
+                f"compact_quote_presentation imports {node.module}; must not import runs."
+            )
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                assert not alias.name.startswith("product_intelligence.runs"), (
+                    f"compact_quote_presentation imports {alias.name}; must not import runs."
+                )
+
+
+def test_compact_quote_presentation_imports_no_execution() -> None:
+    """compact_quote_presentation.py must not import execution."""
+    source = _compact_quote_presentation_path().read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module:
+            assert not node.module.startswith("product_intelligence.execution"), (
+                f"compact_quote_presentation imports {node.module}; must not import execution."
+            )
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                assert not alias.name.startswith("product_intelligence.execution"), (
+                    f"compact_quote_presentation imports {alias.name}; must not import execution."
+                )
+
+
+def test_compact_quote_presentation_imports_no_providers() -> None:
+    """compact_quote_presentation.py must not import providers."""
+    source = _compact_quote_presentation_path().read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module:
+            assert not node.module.startswith("product_intelligence.providers"), (
+                f"compact_quote_presentation imports {node.module}; must not import providers."
+            )
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                assert not alias.name.startswith("product_intelligence.providers"), (
+                    f"compact_quote_presentation imports {alias.name}; must not import providers."
+                )
+
+
+def test_compact_quote_presentation_imports_no_django_orm() -> None:
+    """compact_quote_presentation.py must not import Django ORM modules."""
+    source = _compact_quote_presentation_path().read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    forbidden_modules = {
+        "django.db",
+        "django.db.models",
+        "django.contrib",
+    }
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module:
+            for forbidden in forbidden_modules:
+                assert not node.module.startswith(forbidden), (
+                    f"compact_quote_presentation imports {node.module}; must not import Django ORM."
+                )
+
+
+def test_compact_quote_presentation_reuses_url_safety_helper() -> None:
+    """compact_quote_presentation.py must reuse presentation._is_safe_href_url
+    and must not define its own URL-safety logic."""
+    source = _compact_quote_presentation_path().read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    reused = False
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.ImportFrom)
+            and node.level == 1
+            and node.module == "presentation"
+        ):
+            imported = {alias.name for alias in node.names}
+            if "_is_safe_href_url" in imported:
+                reused = True
+    assert reused, (
+        "compact_quote_presentation must import _is_safe_href_url from the "
+        "existing presentation module rather than duplicating URL-safety logic."
+    )
+    # No duplicated safety predicate may be defined in this module.
+    assert "def _is_safe_href_url" not in source
 
 
 def test_views_may_import_compare_part_numbers() -> None:

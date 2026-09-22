@@ -21,6 +21,7 @@ from logging import getLogger
 
 import uuid
 
+from django.core.exceptions import ObjectDoesNotExist
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
@@ -34,6 +35,8 @@ from product_intelligence.execution import (
     ExecutionError,
     execute_comparable_research_with_default_providers,
     execute_research_run,
+    replay_compact_quote_projection,
+    replay_public_compact_quote_projection,
 )
 from product_intelligence.runs import (
     ClaimExecutionFailed,
@@ -63,8 +66,18 @@ from product_intelligence.research.comparable_result_codec import (
     ComparableResultCodecError,
     decode_comparable_result,
 )
+from product_intelligence.research.compact_quote import (
+    CompactQuoteProjectionError,
+)
+from product_intelligence.research.commercial_supplement_codec import (
+    SupplementCodecError,
+)
+from product_intelligence.research.fx_codec import FxCodecError
 from .comparable_presentation import (
     build_comparable_result_presentation,
+)
+from .compact_quote_presentation import (
+    build_compact_quote_presentation,
 )
 
 
@@ -412,6 +425,70 @@ def research_detail(request: HttpRequest, run_id: uuid.UUID) -> HttpResponse:
     # --- Transient comparable error flag ---
     comparable_start_error = request.GET.get("comparable_start_error") == "1"
 
+    # --- PRODUCT-INTEL.4D-C: Compact quote summary (browser rendering) ---
+    #
+    # The security decision is made server-side BEFORE any vendor
+    # supplemental artifact is read, decoded, or projected:
+    #
+    # * ALLOWED (vendor_commercial_access_allowed is True):
+    #     the frozen 4D-C-A historical replay
+    #     (replay_compact_quote_projection) builds the complete
+    #     projection. It may read PriceIntelligenceSnapshot,
+    #     ResearchFxSnapshot, and ResearchSupplementSnapshot, and it
+    #     performs ZERO live provider/network/semantic work. Its
+    #     fail-closed behavior remains binding: a malformed vendor
+    #     supplemental artifact, a malformed FX artifact, or a
+    #     projection authority defect produces no partial compact
+    #     summary. There is NO silent fallback to public-only rows.
+    # * DENIED (False):
+    #     the new public-only replay
+    #     (replay_public_compact_quote_projection) builds a
+    #     PUBLIC_LISTING-only projection from the already
+    #     provenance-validated PriceAggregationResult plus persisted
+    #     FX evidence. It NEVER reads ResearchSupplementSnapshot and
+    #     NEVER decodes the commercial supplement codec.
+    #
+    # The compact summary is constructed only when the existing price
+    # snapshot decoded and passed the request-provenance check
+    # (decoded_result is not None). Otherwise the existing report error
+    # behavior is preserved and no compact table is rendered.
+    vendor_commercial_access_allowed = vendor_price_access_allowed(request)
+
+    compact_quote = None
+    compact_quote_unavailable = False
+
+    if decoded_result is not None:
+        try:
+            if vendor_commercial_access_allowed:
+                replay = replay_compact_quote_projection(str(run.id))
+            else:
+                replay = replay_public_compact_quote_projection(
+                    run=run,
+                    price_result=decoded_result,
+                )
+            projection = replay.projection
+            compact_quote = build_compact_quote_presentation(
+                projection=projection,
+                price_result=decoded_result,
+            )
+        except (
+            CompactQuoteProjectionError,
+            PriceResultCodecError,
+            SupplementCodecError,
+            FxCodecError,
+            ObjectDoesNotExist,
+        ) as exc:
+            # Expected persisted-artifact / projection failures only.
+            # Programming errors (e.g. RuntimeError) propagate and are
+            # never converted into "unavailable".
+            logger.warning(
+                "Compact quote summary unavailable for run %s: %s",
+                run.id,
+                exc,
+            )
+            compact_quote = None
+            compact_quote_unavailable = True
+
     # --- Comparable research child + decoded result ---
     comparable_child = _select_comparable_child(run)
     comparable_presentation = None
@@ -457,10 +534,17 @@ def research_detail(request: HttpRequest, run_id: uuid.UUID) -> HttpResponse:
         "comparable_decode_error": comparable_decode_error,
         "comparable_binding_error": comparable_binding_error,
         "comparable_start_error": comparable_start_error,
-        # PRODUCT-INTEL.4D-C-SEC: server-side network access authorization for
-        # vendor commercial price visibility.  Boolean only — no raw payload,
+        # PRODUCT-INTEL.4D-C: display-only compact quote rows assembled
+        # server-side. On the DENIED branch the projection contains no
+        # vendor rows at all — this context value never carries vendor
+        # commercial data for an unauthorized connection.
+        "compact_quote": compact_quote,
+        "compact_quote_unavailable": compact_quote_unavailable,
+        # PRODUCT-INTEL.4D-C-SEC: server-side network access authorization
+        # for vendor commercial price visibility.  Boolean only — no raw payload,
         # no vendor rows, no sensitive metadata projected into template context.
-        "vendor_commercial_access_allowed": vendor_price_access_allowed(request),
+        # Used for neutral messaging only, never as the row-hiding mechanism.
+        "vendor_commercial_access_allowed": vendor_commercial_access_allowed,
     }
 
     return render(request, "web/research_detail.html", context)

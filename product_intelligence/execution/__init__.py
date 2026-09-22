@@ -69,6 +69,14 @@ from product_intelligence.execution.comparable_runtime import (
     execute_comparable_research_with_default_providers,
 )
 
+from product_intelligence.execution.compact_quote_replay import (
+    replay_compact_quote_projection,
+)
+
+from product_intelligence.execution.compact_quote_public_replay import (
+    replay_public_compact_quote_projection,
+)
+
 __all__ = [
     "ComparableCandidateDiscoveryResult",
     "ComparableCandidateSourceOutcome",
@@ -86,4 +94,6 @@ __all__ = [
     "execute_comparable_research_with_default_providers",
     "execute_research_run",
     "research_enterprise_ssd_specifications",
+    "replay_compact_quote_projection",
+    "replay_public_compact_quote_projection",
 ]

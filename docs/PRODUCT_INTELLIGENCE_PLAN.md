@@ -35,7 +35,8 @@ and semantic execution integration, and HUMAN-REVIEW implements human review
 for AI-assisted semantic matches. The web form creates a run, triggers
 execution synchronously, and redirects to the report with the full result.
 Remaining future work: structured API (5A). 4D-B is APPROVED/FROZEN.
-4D-C-A is IMPLEMENTED/PENDING FINAL REVIEW. 4D-C/D remain planned.
+4D-C-A is APPROVED/FROZEN. 4D-C-SEC is APPROVED/FROZEN.
+4D-C is IMPLEMENTED/PENDING FINAL REVIEW. 4D-D remains planned.
 
 ## 2. Problem statement
 
@@ -2416,9 +2417,13 @@ human review confirm/reject/undo) and ordinary output escaping is applied to
 untrusted intake text.
 
 Status: `APPROVED / PLANNED` for §19 security practices. 4D-C-SEC is
-`IMPLEMENTED / PENDING FINAL REVIEW`.
+`APPROVED / FROZEN` (SHA 75bfbe3d1b4a8abc12d655cc903298f08e06a8f0,
+frozen baseline 4693 collected).
 
 ### 4D-C-SEC — Vendor Commercial Price Access Gate (PRODUCT-INTEL.4D-C-SEC)
+
+**APPROVED / FROZEN.** Frozen SHA: 75bfbe3d1b4a8abc12d655cc903298f08e06a8f0.
+Frozen test baseline: 4693 collected.
 
 **Intent:** Establish a server-side network access gate before vendor
 commercial prices may be rendered in the browser. This protects internal
@@ -2483,10 +2488,14 @@ a separately reviewed trusted-proxy contract (§26.6).
 | IP outside all networks | DENY |
 | IP inside at least one network | ALLOW |
 
-**4D-C browser rendering is BLOCKED on this gate.** Until 4D-C-SEC is
-approved, no vendor commercial prices, raw payloads, or sensitive metadata
-may be projected into the browser context. The access gate authorization
-boolean is the only new output into the template context at this phase.
+**4D-C browser rendering is gated on this approval.** 4D-C-SEC is now
+approved and frozen; PRODUCT-INTEL.4D-C implements the browser rendering
+behind this gate. The security branch is server-side and occurs before any
+vendor supplemental artifact access: ALLOWED requests use the frozen 4D-C-A
+historical replay (complete projection); DENIED requests use a public-only
+replay that never reads ResearchSupplementSnapshot. The authorization boolean
+may remain in the template context for neutral messaging, but denied context
+contains no vendor rows — the boolean is never the row-hiding mechanism.
 
 **Implementation location:** `product_intelligence/web/commercial_access.py`.
 Not in `research/`, `providers/`, or `domain/` — this is HTTP request
@@ -2764,8 +2773,9 @@ PRODUCT-INTEL.PILOT-RELEASE-1  Internal pilot deployment          DEPLOYED / ACC
 PRODUCT-INTEL.4D-PRE  Preferred Source Feasibility Audit         APPROVED / FROZEN
 PRODUCT-INTEL.4D-A    Source Acquisition Optimization            APPROVED / FROZEN
 PRODUCT-INTEL.4D-B    Internal Vendor Commercial Evidence        APPROVED / FROZEN
-PRODUCT-INTEL.4D-C-A  ECB FX + Compact Quote Projection          IMPLEMENTED / PENDING FINAL REVIEW
-PRODUCT-INTEL.4D-C    Compact Quote Summary (browser rendering)  PLANNED
+PRODUCT-INTEL.4D-C-A  ECB FX + Compact Quote Projection          APPROVED / FROZEN
+PRODUCT-INTEL.4D-C-SEC Vendor Commercial Price Access Gate        APPROVED / FROZEN
+PRODUCT-INTEL.4D-C    Compact Quote Summary (browser rendering)  IMPLEMENTED / PENDING FINAL REVIEW
 PRODUCT-INTEL.4D-D    Micron Packaging Alias Retrieval           PLANNED
 
 ----- PRODUCT-INTEL.4D — Customer Quote Research Expansion -----
@@ -4186,13 +4196,18 @@ This canonical plan does not duplicate that operational snapshot.
 4D-B — APPROVED / FROZEN (Internal Vendor Commercial Evidence)
      Frozen SHA: c74c90b0590d1c393419d94a1c107bfe93f7143c
      Frozen baseline: 4299 collected
-4D-C-A — IMPLEMENTED / PENDING FINAL REVIEW
-         (ECB FX + Compact Quote Projection Foundation)
-4D-C — PLANNED (Compact Quote Summary — browser rendering, later, after security gate)
+4D-C-A — APPROVED / FROZEN (ECB FX + Compact Quote Projection Foundation)
+     Frozen SHA: 059ade96ff2141684b973e576adcc91a10094707
+     Frozen baseline: 4582 collected
+4D-C-SEC — APPROVED / FROZEN (Vendor Commercial Price Access Gate)
+     Frozen SHA: 75bfbe3d1b4a8abc12d655cc903298f08e06a8f0
+     Frozen baseline: 4693 collected
+4D-C — IMPLEMENTED / PENDING FINAL REVIEW (Compact Quote Summary — browser rendering)
 4D-D — PLANNED (Micron Packaging Alias Retrieval)
 
-Note: 4D-C security gate (trusted network/VPN access control) remains
-unresolved. Report UUID is not access control.
+Note: 4D-C security gate (trusted network/VPN access control) is resolved by
+the frozen 4D-C-SEC REMOTE_ADDR-only access policy. Report UUID is not access
+control.
 
 ### 26.0 Overview
 
@@ -4443,6 +4458,14 @@ never access control.
 
 ### 26.4 4D-C — Compact Quote Summary
 
+**Status: IMPLEMENTED / PENDING FINAL REVIEW (PRODUCT-INTEL.4D-C).**
+Implemented behind the frozen 4D-C-SEC gate: server-side security branch in
+`research_detail` selects the frozen 4D-C-A authorized replay (ALLOWED) or
+the new public-only replay (DENIED — never reads ResearchSupplementSnapshot)
+before any vendor supplemental artifact access; display-only presentation in
+`web/compact_quote_presentation.py` renders the table below near the top of
+the report, reusing `presentation._is_safe_href_url` for public source links.
+
 **Intent:** Add a compact customer-facing table near the top of Price
 Intelligence.
 
@@ -4531,7 +4554,8 @@ address source.
 
 ### 26.6 4D-C-SEC — Vendor Commercial Price Access Gate
 
-**IMPLEMENTED / PENDING FINAL REVIEW** (PRODUCT-INTEL.4D-C-SEC).
+**APPROVED / FROZEN** (PRODUCT-INTEL.4D-C-SEC; SHA
+75bfbe3d1b4a8abc12d655cc903298f08e06a8f0, frozen baseline 4693 collected).
 
 A server-side network access gate prevents vendor commercial price visibility
 until a trusted-corporate-network / VPN / approved-subnet access condition is
@@ -4549,7 +4573,8 @@ satisfied. See §19 for the binding security contract.
 - `product_intelligence/web/commercial_access.py` — HTTP request authorization
   at the presentation boundary; not in `research/`, `providers/`, or `domain/`
 - Full application authentication deferred to 8C
-- 4D-C browser rendering is BLOCKED on this gate (§26.4)
+- 4D-C browser rendering implemented behind this gate (§26.4): server-side
+  security branch before vendor supplemental artifact access
 
 ### 26.7 4D-D — Micron Packaging Alias Retrieval
 

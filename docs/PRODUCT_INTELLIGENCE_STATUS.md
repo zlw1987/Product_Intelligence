@@ -30,16 +30,16 @@ HUMAN-REVIEW Human Review for AI-Assisted Matches APPROVED/FROZEN;
 **NEXT: PRODUCT-INTEL.4D (Customer Quote Research Expansion)**
 
 4D is partially implemented. 4D-PRE and 4D-A are approved and frozen.
-4D-B is approved and frozen. 4D-C-A is APPROVED / FROZEN. 4D-C-SEC is implemented and pending final review.
-4D-C (browser rendering) and 4D-D are planned.
+4D-B is approved and frozen. 4D-C-A is APPROVED / FROZEN. 4D-C-SEC is APPROVED / FROZEN.
+4D-C (browser rendering) is IMPLEMENTED / PENDING FINAL REVIEW. 4D-D is planned.
 
 ```
 4D-PRE  Preferred Source Feasibility Audit  (evidence only) — APPROVED / FROZEN
 4D-A    Source Acquisition Optimization — APPROVED / FROZEN
 4D-B    Internal Vendor Commercial Evidence  — APPROVED / FROZEN
 4D-C-A  ECB FX + Compact Quote Projection Foundation — APPROVED / FROZEN
-4D-C-SEC Vendor Commercial Price Access Gate — IMPLEMENTED / PENDING FINAL REVIEW
-4D-C    Compact Quote Summary (browser rendering — BLOCKED on 4D-C-SEC approval)
+4D-C-SEC Vendor Commercial Price Access Gate — APPROVED / FROZEN
+4D-C    Compact Quote Summary (browser rendering) — IMPLEMENTED / PENDING FINAL REVIEW
 4D-D    Micron Packaging Alias Retrieval
 ```
 
@@ -60,10 +60,9 @@ Key facts:
 - **NO web exposure** — 4D-B does NOT render vendor commercial prices
 - **NO authority expansion** — vendor evidence does NOT enter Machine Price,
   Reviewed Price, semantic authority, or comparable scoring
-- 4D-C security gate (trusted network/VPN) remains unresolved and must be
-  verified before 4D-C renders commercial pricing
 - Sensitive metadata (SessionId, BuyerAccountId, SystemId) stripped by allowlist
-- 4D-C-SEC access gate now implemented; 4D-C browser rendering blocked until approved
+- 4D-C security gate resolved by frozen 4D-C-SEC REMOTE_ADDR-only access policy;
+  4D-C browser rendering implemented (PRODUCT-INTEL.4D-C, pending final review)
 
 **PRODUCT-INTEL.4D-C-A — APPROVED / FROZEN**
 
@@ -83,7 +82,10 @@ Key facts:
 - Semantic qualification APPROVED AND FROZEN (prompt v1.1, corpus, thresholds)
 - Primary route: amax/nemotron-3-super; Fallback route: vllm-262k/Qwen3.6-27B-262K
 
-**PRODUCT-INTEL.4D-C-SEC — IMPLEMENTED / PENDING FINAL REVIEW**
+**PRODUCT-INTEL.4D-C-SEC — APPROVED / FROZEN**
+
+Frozen SHA: 75bfbe3d1b4a8abc12d655cc903298f08e06a8f0
+Frozen test baseline: 4693 collected
 
 4D-C-SEC establishes the server-side network access gate. Key facts:
 - Configuration: `PI_VENDOR_PRICE_ALLOWED_CIDRS` (environment variable)
@@ -105,13 +107,70 @@ Key facts:
 - No changes to research/, providers/, or domain/ layers
 - Views integration: `research_detail()` passes `vendor_commercial_access_allowed`
   boolean to template context — NO raw payload, NO vendor rows, NO sensitive metadata
-- 4D-C browser rendering remains BLOCKED on this gate
+- 4D-C browser rendering implemented (PRODUCT-INTEL.4D-C), pending final review;
+  the server-side security branch selects authorized full replay vs denied
+  public-only replay before any vendor supplemental artifact access
 - Full application authentication deferred to 8C
 - **NO authority expansion** — FX and projection do NOT enter Machine Price,
   Reviewed Price, semantic authority, or comparable scoring
 - Historical replay: zero live FX calls, zero live Vendor API calls
 - USD Equivalent is DISPLAY-SUPPLEMENTAL only
 - ECB formula: USD Equivalent = amount_C / rate_C * rate_USD
+
+**PRODUCT-INTEL.4D-C — IMPLEMENTED / PENDING FINAL REVIEW**
+
+Compact Quote Browser Rendering. Frozen prerequisites: 4D-C-A (SHA
+059ade96ff2141684b973e576adcc91a10094707, 4582 collected) and 4D-C-SEC
+(SHA 75bfbe3d1b4a8abc12d655cc903298f08e06a8f0, 4693 collected). Key facts:
+- Server-side security branch in `research_detail()` occurs BEFORE any
+  Vendor supplemental artifact is read, decoded, or projected
+- ALLOWED: frozen 4D-C-A `replay_compact_quote_projection(str(run.id))`
+  (complete projection; may read PriceIntelligenceSnapshot,
+  ResearchFxSnapshot, ResearchSupplementSnapshot; zero live provider /
+  network / semantic work; fail-closed behavior unchanged)
+- DENIED: new public-only bounded read-side service
+  `execution/compact_quote_public_replay.py` —
+  `replay_public_compact_quote_projection`: PUBLIC_LISTING rows only via
+  frozen `project_public_rows` + persisted FX evidence; NEVER reads
+  ResearchSupplementSnapshot and never imports/calls vendor API,
+  search, page, semantic, or ECB live provider paths
+- Compact summary is built only when the existing
+  PriceIntelligenceSnapshot decoded AND passed the existing request
+  provenance check (`decoded.request == run.to_research_request()`);
+  otherwise existing report error behavior is preserved
+- New display-only web module `web/compact_quote_presentation.py`:
+  vendor source labels `Ingram (Vendor API)` / `CDW (Vendor API)` /
+  `Synnex EU (Vendor API)` (suffix appended once, never duplicated);
+  public sources display hostname with leading `www.` stripped and the
+  full SAFE source URL (from the paired frozen 4A bucket-member
+  assessment, deterministic iteration order) as the link target via the
+  reused `presentation._is_safe_href_url` helper; vendor rows never
+  receive a URL; mapping mismatch fails closed (no guessed links)
+- Template context never contains Vendor rows on the denied path — the
+  `vendor_commercial_access_allowed` boolean is used only for the
+  neutral notice, never as the row-hiding mechanism
+- "Compact quote summary" table (Source / Price / USD Equivalent /
+  Inventory / Brand New / Note) rendered near the top of the report,
+  before the detailed Price Intelligence audit/evidence sections;
+  existing sections untouched (additive only)
+- No-data states: "No compact quote evidence is available." (zero rows)
+  and "Compact quote summary unavailable." (expected persisted-artifact
+  / projection failure only; programming errors propagate)
+- REMOTE_ADDR-only authorization preserved (4D-C-SEC frozen policy);
+  no forwarded-header logic added
+- NO authority expansion: Vendor rows remain SUPPLEMENTAL DISPLAY ONLY
+  (not Machine Price, Reviewed Price, deterministic/semantic identity,
+  or comparable scoring); public compact rows derive only from frozen
+  4A bucket membership; excluded listings never enter compact rows
+- Web execution allowlist extended ONLY with
+  `replay_compact_quote_projection` and
+  `replay_public_compact_quote_projection` (public package API);
+  web research allowlist extended ONLY with
+  `compact_quote.{CompactQuoteProjection, CompactQuoteRow,
+  CompactQuoteProjectionError}`, `fx_codec.FxCodecError`,
+  `commercial_supplement_codec.SupplementCodecError`
+- Frozen 4D-C-A `replay_compact_quote_projection()` behavior unchanged;
+  the new service is additive
 
 Semantic qualification is APPROVED AND FROZEN:
 - Semantic qualification corpus, prompt v1.1, evaluator mathematics,
@@ -224,7 +283,8 @@ FU3B wires the frozen FU3A semantic runtime into real research execution:
 | 4D-A | Source Acquisition Optimization | Implemented (frozen) |
 | 4D-B | Internal Vendor Commercial Evidence | **Implemented (approved / frozen)** |
 | 4D-C-A | ECB FX + Compact Quote Projection Foundation | **IMPLEMENTED / APPROVED / FROZEN** |
-| 4D-C | Compact Quote Summary (browser rendering) | Planned (blocked on 4D-C-SEC approval) |
+| 4D-C-SEC | Vendor Commercial Price Access Gate | **IMPLEMENTED / APPROVED / FROZEN** |
+| 4D-C | Compact Quote Summary (browser rendering) | **IMPLEMENTED / PENDING FINAL REVIEW** |
 | 4D-D | Micron Packaging Alias Retrieval | Planned |
 | 4C-A | Execution ownership/lifecycle/evidence primitives | Implemented (frozen) |
 | 4C-B | Backend research execution | Implemented (frozen) |
@@ -319,7 +379,9 @@ FU3B wires the frozen FU3A semantic runtime into real research execution:
 | FX Codec (4D-C-A) | `research/fx_codec.py` | **Implemented (approved / frozen)** |
 | FX Mathematics (4D-C-A) | `research/fx_math.py` | **Implemented (approved / frozen)** |
 | Compact Quote Projection (4D-C-A) | `research/compact_quote.py` | **Implemented (approved / frozen)** |
-| Commercial Price Access Gate (4D-C-SEC) | `web/commercial_access.py` | **Implemented (pending final review)** |
+| Commercial Price Access Gate (4D-C-SEC) | `web/commercial_access.py` | **Implemented (approved / frozen)** |
+| Compact Quote Public Replay (4D-C) | `execution/compact_quote_public_replay.py` | **Implemented (pending final review)** |
+| Compact Quote Browser Presentation (4D-C) | `web/compact_quote_presentation.py` | **Implemented (pending final review)** |
 
 ## Research orchestration
 
