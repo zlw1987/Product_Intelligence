@@ -480,6 +480,7 @@ def execute_research_run(
             claimed_run,
             aggregation_result,
             fx_provider,
+            supplemental_payload=supplement_payload,
         )
 
         with transaction.atomic():
@@ -505,13 +506,17 @@ def execute_research_run(
                     payload=supplement_payload,
                 )
 
-            # 4D-C-A: Persist FX snapshot if FX evidence was obtained
+                # 4D-C-A: Persist FX snapshot if FX evidence was obtained
             if fx_payload is not None:
                 ResearchFxSnapshot.objects.create(
                     run=claimed_run,
                     schema_version=1,
                     payload=fx_payload,
                 )
+
+            # Commit the entire publication atomically
+            # All three rows (snapshot + optional supplement + optional FX)
+            # are persisted together or not at all
 
             # Transition to COMPLETED
             completed_run = complete_execution(
@@ -1090,26 +1095,69 @@ def _try_vendor_commercial_lookup(
 
 def _get_required_fx_currencies(
     aggregation_result: PriceAggregationResult,
+    supplemental_payload: dict | None = None,
 ) -> frozenset[str]:
     """Determine which non-USD currencies need FX evidence.
 
-    Inspects the aggregation result's price buckets to find currencies
-    that require conversion to USD for display.
+    Inspects BOTH:
+    A. The public PriceAggregationResult buckets (frozen 4A)
+    B. The 4D-B supplemental result's usable Vendor API observations
+
+    Only USABLE vendor observations count (not source_issues, mismatches,
+    malformed sections, or other non-usable vendor observations).
 
     Rules:
     * USD-only runs return empty set (ZERO ECB calls)
-    * Each non-USD bucket currency is included
+    * Each non-USD bucket currency is included (from public buckets)
+    * Each non-USD currency from usable vendor observations is included
     * USD is always included so ECB formula can compute equivalents
     * Excluded listings (NO_COMPARABLE_CURRENCY etc.) do NOT count
-    * Only ACCEPTED bucket currencies are reportable
+    * Only ACCEPTED bucket currencies are reportable (public)
+    * Only USABLE vendor observations are reportable (vendor)
 
     Returns a frozenset of currency codes that must be fetched.
     Empty frozenset means no FX call is needed.
     """
     non_usd_currencies: set[str] = set()
+
+    # A. Include currencies from public 4A price buckets
     for bucket in aggregation_result.buckets:
         if bucket.currency_code.upper() != "USD":
             non_usd_currencies.add(bucket.currency_code.upper())
+
+    # B. Include currencies from usable 4D-B Vendor API observations
+    # Only USABLE observations count: outcome == "USABLE" with valid currency.
+    #
+    # BLOCKER 3 (FU2): supplemental_payload is not None only when it was
+    # successfully produced by the canonical 4D-B encoder in the same execution.
+    # A non-None payload that fails to decode is a programming/data-integrity
+    # defect and MUST propagate — it cannot be silently converted to "no
+    # vendor currencies."
+    #
+    # Valid empty states (no vendor currencies):
+    #   supplemental_payload is None -> no vendor data
+    #   supplemental_payload is valid but has zero usable observations -> no currencies
+    #   supplemental_payload has only USD observations -> no non-USD currencies
+    #
+    # Defect states (MUST propagate):
+    #   malformed dict (not valid encoded payload)
+    #   codec version violation (unknown schema_version)
+    #   contract violation (missing required fields)
+    #   unexpected structure (malformed supplement result)
+    if supplemental_payload is not None:
+        from product_intelligence.research.commercial_supplement_codec import (
+            decode_research_supplement_result,
+        )
+        # No bare except: any decode failure propagates.
+        # This is an internal programming/data-integrity defect, not
+        # a graceful empty-state.
+        supplement_result = decode_research_supplement_result(supplemental_payload)
+
+        for obs in supplement_result.vendor_commercial_result.observations:
+            # Usable observation: has a valid currency code
+            currency = obs.currency_code.strip().upper()
+            if currency and currency != "USD":
+                non_usd_currencies.add(currency)
 
     if not non_usd_currencies:
         return frozenset()
@@ -1124,6 +1172,7 @@ def _try_fetch_fx_rates(
     claimed_run: ResearchRun,
     aggregation_result: PriceAggregationResult,
     fx_provider: object | None,
+    supplemental_payload: dict | None = None,
 ) -> dict | None:
     """Try to fetch FX rate evidence for the completed aggregation.
 
@@ -1132,7 +1181,9 @@ def _try_fetch_fx_rates(
 
     Rules:
     * USD-only runs: returns None immediately (zero ECB calls)
-    * Non-USD currencies: at most ONE FX provider fetch
+    * Non-USD currencies from public buckets: included in FX call
+    * Non-USD currencies from usable vendor observations: included in FX call
+    * At most ONE FX provider fetch
     * FX failure (network, parse, timeout): NONFATAL, returns None
     * Programming/contract defects: propagate (NOT silently caught)
     * FX evidence remains DISPLAY-SUPPLEMENTAL
@@ -1145,6 +1196,8 @@ def _try_fetch_fx_rates(
         The completed aggregation with price buckets.
     fx_provider : FxProvider | None
         Injected FX provider, or None for default EcbFxProvider.
+    supplemental_payload : dict | None
+        Encoded 4D-B supplemental payload for vendor currency discovery.
 
     Returns
     -------
@@ -1152,7 +1205,11 @@ def _try_fetch_fx_rates(
         Encoded FX payload for persistence, or None.
     """
     # Determine which currencies need FX rates
-    required_currencies = _get_required_fx_currencies(aggregation_result)
+    # Considers both public buckets AND usable vendor observations
+    required_currencies = _get_required_fx_currencies(
+        aggregation_result,
+        supplemental_payload=supplemental_payload,
+    )
 
     # USD-only run — no FX call needed
     if not required_currencies:
