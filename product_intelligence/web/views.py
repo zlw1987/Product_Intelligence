@@ -1,6 +1,7 @@
-"""Standalone intake and report views (PRODUCT-INTEL.1B, extended 4B, 4C-C, PILOT-RELEASE-1).
+"""Standalone intake and report views (PRODUCT-INTEL.1B, extended 4B, 4C-C, 4D-C-SEC, PILOT-RELEASE-1).
 
-PILOT-RELEASE-1 adds the /healthz operational health endpoint.
+PRODUCT-INTEL.4D-C-SEC adds vendor_commercial_access_allowed boolean to the
+research detail context, evaluated server-side from REMOTE_ADDR-only policy.
 
 Two views, and between them the whole browser workflow:
 
@@ -48,6 +49,8 @@ from product_intelligence.runs.models import (
     PriceIntelligenceSnapshot,
     ResearchRun,
 )
+
+from product_intelligence.web.commercial_access import vendor_price_access_allowed
 
 from .forms import ResearchRequestForm
 from .presentation import build_report_presentation
@@ -454,6 +457,10 @@ def research_detail(request: HttpRequest, run_id: uuid.UUID) -> HttpResponse:
         "comparable_decode_error": comparable_decode_error,
         "comparable_binding_error": comparable_binding_error,
         "comparable_start_error": comparable_start_error,
+        # PRODUCT-INTEL.4D-C-SEC: server-side network access authorization for
+        # vendor commercial price visibility.  Boolean only — no raw payload,
+        # no vendor rows, no sensitive metadata projected into template context.
+        "vendor_commercial_access_allowed": vendor_price_access_allowed(request),
     }
 
     return render(request, "web/research_detail.html", context)

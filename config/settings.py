@@ -119,3 +119,13 @@ USE_TZ = True
 STATIC_URL = "static/"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# PRODUCT-INTEL.4D-C-SEC: Vendor commercial price network access gate.
+# Comma-separated CIDR notation (e.g. "10.0.0.0/8,192.168.50.0/24").
+# Absent or blank -> DENY all vendor commercial price visibility (fail-closed).
+# This setting controls presentation-layer access only; it does not introduce
+# authentication, sessions, user models, or modify any research logic.
+PI_VENDOR_PRICE_ALLOWED_CIDRS = os.environ.get("PI_VENDOR_PRICE_ALLOWED_CIDRS")
+if PI_VENDOR_PRICE_ALLOWED_CIDRS is not None and not PI_VENDOR_PRICE_ALLOWED_CIDRS.strip():
+    # Treat blank string as unset — explicit blank still denies.
+    PI_VENDOR_PRICE_ALLOWED_CIDRS = None

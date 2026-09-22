@@ -2415,10 +2415,84 @@ longer UUID would change nothing. CSRF protection is enabled on all POST write e
 human review confirm/reject/undo) and ordinary output escaping is applied to
 untrusted intake text.
 
-Status: `APPROVED / PLANNED`. `IMPLEMENTED` today as: no secrets in the
-repository, environment-sourced Django settings, an unguessable run identifier
-that is explicitly not a permission check, CSRF protection on all POST write
-endpoints, and untrusted intake text rendered escaped and never marked safe.
+Status: `APPROVED / PLANNED` for §19 security practices. 4D-C-SEC is
+`IMPLEMENTED / PENDING FINAL REVIEW`.
+
+### 4D-C-SEC — Vendor Commercial Price Access Gate (PRODUCT-INTEL.4D-C-SEC)
+
+**Intent:** Establish a server-side network access gate before vendor
+commercial prices may be rendered in the browser. This protects internal
+commercial vendor price visibility. It does not grant identity authority,
+pricing authority, or modify any research logic.
+
+**Configuration:**
+
+```
+PI_VENDOR_PRICE_ALLOWED_CIDRS
+```
+
+Example deployment value (never hardcoded):
+
+```
+10.0.0.0/8,192.168.50.0/24,172.16.8.0/21
+```
+
+The deployment value belongs in the server environment, not source code.
+Absence or blank means **DENY** (fail-closed default).
+
+**Accepted client-address source:**
+
+```
+request.META["REMOTE_ADDR"]
+```
+
+The following are explicitly NOT trusted:
+
+```
+X-Forwarded-For
+HTTP_X_FORWARDED_FOR
+X-Real-IP
+HTTP_X_REAL_IP
+Forwarded
+query parameters
+cookies
+Host header
+report UUID
+arbitrary request headers
+```
+
+No proxy-aware client IP handling is implemented. A future deployment that
+introduces a reverse proxy and needs forwarded-client-IP processing requires
+a separately reviewed trusted-proxy contract (§26.6).
+
+**CIDR semantics:**
+
+- IPv4 and IPv6 supported
+- Comma-separated, whitespace tolerated around entries
+- Empty entries between commas are ignored safely
+- One malformed entry -> entire configuration fails-closed (deny all)
+
+**Decision table:**
+
+| Condition | Result |
+|---|---|
+| No configured CIDRs | DENY |
+| Malformed CIDR config | DENY |
+| Missing REMOTE_ADDR | DENY |
+| Invalid REMOTE_ADDR | DENY |
+| IP outside all networks | DENY |
+| IP inside at least one network | ALLOW |
+
+**4D-C browser rendering is BLOCKED on this gate.** Until 4D-C-SEC is
+approved, no vendor commercial prices, raw payloads, or sensitive metadata
+may be projected into the browser context. The access gate authorization
+boolean is the only new output into the template context at this phase.
+
+**Implementation location:** `product_intelligence/web/commercial_access.py`.
+Not in `research/`, `providers/`, or `domain/` — this is HTTP request
+authorization at the presentation boundary, not research semantics.
+
+Full application authentication is deferred to 8C.
 
 ## 20. Testing strategy
 
@@ -4448,7 +4522,36 @@ conversion lookup.
 **Non-USD source rows:** use only persisted FX evidence. Zero live FX network
 calls on historical report GET.
 
-### 26.6 4D-D — Micron Packaging Alias Retrieval
+**Note:** Future deployments that introduce a reverse proxy and need
+forwarded-client-IP processing (e.g., X-Forwarded-For or X-Real-IP) must
+design and document a trusted-proxy contract. This is a separate security
+design beyond the current REMOTE_ADDR-only policy. Until such a contract is
+approved and implemented, only `REMOTE_ADDR` is the authoritative client
+address source.
+
+### 26.6 4D-C-SEC — Vendor Commercial Price Access Gate
+
+**IMPLEMENTED / PENDING FINAL REVIEW** (PRODUCT-INTEL.4D-C-SEC).
+
+A server-side network access gate prevents vendor commercial price visibility
+until a trusted-corporate-network / VPN / approved-subnet access condition is
+satisfied. See §19 for the binding security contract.
+
+**Security contract:**
+- `PI_VENDOR_PRICE_ALLOWED_CIDRS` — comma-separated CIDR notation (IPv4/IPv6)
+- Absent or blank → DENY (fail-closed)
+- Only `request.META["REMOTE_ADDR"]` is the accepted client-address source
+- X-Forwarded-For, X-Real-IP, Forwarded, query params, cookies, Host header,
+  report UUID are all explicitly rejected
+- Malformed CIDR → entire configuration fails closed (deny all)
+- No authentication or session system introduced
+- No identity authority or pricing authority change
+- `product_intelligence/web/commercial_access.py` — HTTP request authorization
+  at the presentation boundary; not in `research/`, `providers/`, or `domain/`
+- Full application authentication deferred to 8C
+- 4D-C browser rendering is BLOCKED on this gate (§26.4)
+
+### 26.7 4D-D — Micron Packaging Alias Retrieval
 
 **Customer requirement:**
 
@@ -4504,7 +4607,7 @@ It may generate retrieval aliases:
 If a later phase wants these variants to enter authoritative pricing, that
 requires independent evidence-backed validation.
 
-### 26.7 Deferred items for 4D
+### 26.8 Deferred items for 4D
 
 The following are NOT pulled into 4D unless already documented as future:
 
