@@ -11,7 +11,10 @@ This module tests product_intelligence.web.commercial_access:
 
 from __future__ import annotations
 
+import ast
 import ipaddress
+import re
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
@@ -21,6 +24,17 @@ from product_intelligence.web.commercial_access import (
     _parse_allowed_cidrs,
     vendor_price_access_allowed,
 )
+
+
+def _live_boundary_boom(*args, **kwargs):
+    """Sentinel for the zero-live-work test: any call to a live
+    provider/network/semantic boundary during a historical report GET is a
+    contract violation and must fail fast with RuntimeError.
+    """
+    raise RuntimeError(
+        "live provider/network/semantic boundary touched during "
+        "historical report GET — zero-live-work contract violated"
+    )
 
 
 # ============================================================================
@@ -73,7 +87,11 @@ class TestParseAllowedCidrs:
         assert result == (ipaddress.IPv4Network("192.168.1.1/32"),)
 
     def test_single_host_without_prefix(self) -> None:
-        """A bare IP address without /prefix is accepted (strict=False)."""
+        """A bare IP address without /prefix resolves to the /32 exact host.
+
+        Under strict=True this is narrower, not broader: a bare IP has no
+        host bits set, so it is accepted as the /32 (or /128) host network.
+        """
         result = _parse_allowed_cidrs("10.1.2.3")
         assert result == (ipaddress.IPv4Network("10.1.2.3/32"),)
 
@@ -163,14 +181,58 @@ class TestParseAllowedCidrs:
         result = _parse_allowed_cidrs("10.0.0.0/8")
         assert type(result) is tuple
 
-    # --- strict=False semantics ---
+    # --- strict=True network semantics (fail-closed configuration) ---
+    #
+    # An authorization allowlist must never silently broaden: an entry with
+    # host bits set is a configuration error, not a network to normalize.
 
-    def test_host_address_in_network_prefix_accepted(self) -> None:
-        """With strict=False, 192.168.1.128/24 is accepted (not raised)."""
-        result = _parse_allowed_cidrs("192.168.1.128/24")
-        assert len(result) == 1
-        # ipaddress normalizes it to the network address
-        assert result[0] == ipaddress.IPv4Network("192.168.1.0/24")
+    def test_ipv4_host_bit_cidr_rejected(self) -> None:
+        """192.168.1.128/24 has host bits set: must be rejected.
+
+        strict=False would silently normalize it to 192.168.1.0/24,
+        broadening authorization. The parser must fail closed instead.
+        """
+        with pytest.raises(
+            CommercialPriceAccessConfigurationError, match="192.168.1.128/24"
+        ):
+            _parse_allowed_cidrs("192.168.1.128/24")
+
+    def test_ipv4_broadening_prefix_with_host_bits_rejected(self) -> None:
+        """10.1.2.3/8 would normalize to 10.0.0.0/8 — a massive broadening.
+
+        Must be a configuration error, never silently widened.
+        """
+        with pytest.raises(
+            CommercialPriceAccessConfigurationError, match="10.1.2.3/8"
+        ):
+            _parse_allowed_cidrs("10.1.2.3/8")
+
+    def test_ipv6_host_bit_cidr_rejected(self) -> None:
+        """An IPv6 network with host bits set must be rejected.
+
+        2001:db8::1/32 has host bits set within the /32 prefix; it must not
+        be normalized to 2001:db8::/32.
+        """
+        with pytest.raises(
+            CommercialPriceAccessConfigurationError, match="2001:db8::1/32"
+        ):
+            _parse_allowed_cidrs("2001:db8::1/32")
+
+    def test_ipv6_canonical_network_accepted(self) -> None:
+        """A canonical IPv6 network (no host bits set) is valid."""
+        result = _parse_allowed_cidrs("2001:db8::/32")
+        assert result == (ipaddress.IPv6Network("2001:db8::/32"),)
+
+    def test_ipv6_exact_host_network_accepted(self) -> None:
+        """An IPv6 /128 exact host is valid."""
+        result = _parse_allowed_cidrs("2001:db8::abcd/128")
+        assert result == (ipaddress.IPv6Network("2001:db8::abcd/128"),)
+
+    def test_ipv4_canonical_networks_and_hosts_accepted(self) -> None:
+        """Canonical IPv4 networks and exact hosts remain valid."""
+        for cidr in ("10.0.0.0/8", "192.168.1.0/24", "192.168.1.100/32"):
+            result = _parse_allowed_cidrs(cidr)
+            assert result == (ipaddress.ip_network(cidr),)
 
 
 # ============================================================================
@@ -491,6 +553,68 @@ class TestVendorPriceAccessAllowed:
             request, allowed_cidrs="10.0.0.0/8,not-valid"
         ) is False
 
+    # --- Noncanonical (host bits set) CIDR configuration -> DENY ---
+    #
+    # CommercialPriceAccessConfigurationError on any entry means the ENTIRE
+    # configuration is rejected and every client address is denied.
+    # No noncanonical network may be auto-widened at the public gate.
+
+    def test_host_bit_cidr_configuration_denies_access(self) -> None:
+        """192.168.1.128/24 is noncanonical: the whole config is rejected.
+
+        A REMOTE_ADDR inside the would-be-normalized 192.168.1.0/24 must
+        still be denied.
+        """
+        request = MagicMock()
+        request.META = {"REMOTE_ADDR": "192.168.1.5"}
+        assert vendor_price_access_allowed(
+            request, allowed_cidrs="192.168.1.128/24"
+        ) is False
+
+    def test_host_bit_cidr_does_not_broaden_authorized_range(self) -> None:
+        """An IP in the normalized network of a rejected entry is denied.
+
+        Proves the gate did not silently widen 192.168.1.128/24 to
+        192.168.1.0/24.
+        """
+        request = MagicMock()
+        request.META = {"REMOTE_ADDR": "192.168.1.200"}
+        assert vendor_price_access_allowed(
+            request, allowed_cidrs="192.168.1.128/24"
+        ) is False
+
+    def test_broadening_prefix_configuration_denies_all(self) -> None:
+        """10.1.2.3/8 must not be widened to 10.0.0.0/8.
+
+        Even a REMOTE_ADDR inside 10.0.0.0/8 is denied because the entry
+        is noncanonical and the entire configuration fails closed.
+        """
+        request = MagicMock()
+        request.META = {"REMOTE_ADDR": "10.0.0.1"}
+        assert vendor_price_access_allowed(
+            request, allowed_cidrs="10.1.2.3/8"
+        ) is False
+
+    def test_host_bit_ipv6_cidr_configuration_denies_access(self) -> None:
+        """An IPv6 entry with host bits set rejects the whole config."""
+        request = MagicMock()
+        request.META = {"REMOTE_ADDR": "2001:db8::5"}
+        assert vendor_price_access_allowed(
+            request, allowed_cidrs="2001:db8::1/32"
+        ) is False
+
+    def test_mixed_valid_and_noncanonical_cidr_denies(self) -> None:
+        """One valid + one noncanonical (host bits set) entry -> deny all.
+
+        The valid 10.0.0.0/8 must not survive alongside a rejected
+        entry: the entire configuration fails closed.
+        """
+        request = MagicMock()
+        request.META = {"REMOTE_ADDR": "10.0.0.1"}
+        assert vendor_price_access_allowed(
+            request, allowed_cidrs="10.0.0.0/8,192.168.1.128/24"
+        ) is False
+
     # --- Django settings integration ---
 
     def test_reads_from_django_settings(self) -> None:
@@ -630,23 +754,123 @@ class TestModuleInvariants:
         assert len(result) == 2
         assert ipaddress.IPv4Network("10.0.0.0/8") in result
 
-    def test_no_hardcoded_cidrs_in_source(self) -> None:
-        """No customer subnet should be hardcoded in the source code."""
-        import product_intelligence.web.commercial_access as mod
-        source = open(mod.__file__).read()
-        # Check that no /24, /16, /8, etc. private network is hardcoded
-        # as a default value (not in comments or docstrings)
-        # We check the actual code, not docstrings
-        import ast
-        tree = ast.parse(source)
+    # Detector helpers for the hardcoded-network guard. The guard's goal:
+    # production executable configuration must not contain a hardcoded
+    # allowed customer network. Docstrings/comments may carry documentation
+    # examples; executable string constants (assignments, defaults, return
+    # values, call arguments) may not.
+
+    _IPV4_NETWORK_RE = re.compile(
+        r"(?<![\d.])\d{1,3}(?:\.\d{1,3}){3}/\d{1,2}(?!\d)"
+    )
+    _IPV6_NETWORK_RE = re.compile(
+        r"(?i)(?:[0-9a-f]{0,4}:){1,7}[0-9a-f]{0,4}/\d{1,3}(?!\d)"
+    )
+
+    @staticmethod
+    def _executable_string_constants(
+        tree: ast.AST,
+    ) -> list[tuple[int, str]]:
+        """Collect (lineno, value) of string constants in executable code.
+
+        Docstrings — the first statement of a module, class, or function
+        body — are excluded, so documentation examples do not trip the
+        guard. Every other string constant (assignments, defaults,
+        returns, call arguments, f-string static parts) is executable
+        configuration surface.
+        """
+        docstring_ids: set[int] = set()
+        for node in ast.walk(tree):
+            if isinstance(
+                node,
+                (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef),
+            ):
+                body = node.body
+                if (
+                    body
+                    and isinstance(body[0], ast.Expr)
+                    and isinstance(body[0].value, ast.Constant)
+                    and isinstance(body[0].value.value, str)
+                ):
+                    docstring_ids.add(id(body[0].value))
+
+        found: list[tuple[int, str]] = []
         for node in ast.walk(tree):
             if isinstance(node, ast.Constant) and isinstance(node.value, str):
-                # Check for CIDR-like patterns in string constants
-                if "/" in node.value and any(
-                    c.isdigit() for c in node.value
-                ):
-                    # Allow the example in docstrings but not in code assignments
-                    pass  # Docstring examples are acceptable
+                if id(node) in docstring_ids:
+                    continue
+                found.append((node.lineno, node.value))
+        return found
+
+    @classmethod
+    def _contains_network_literal(cls, value: str) -> bool:
+        """True if value contains an IPv4 or IPv6 network literal."""
+        return (
+            cls._IPV4_NETWORK_RE.search(value) is not None
+            or cls._IPV6_NETWORK_RE.search(value) is not None
+        )
+
+    def _guarded_source_files(self) -> tuple[Path, Path]:
+        """The production files where a hardcoded allowed network could live:
+        the access-gate module and the Django settings default.
+        """
+        import product_intelligence.web.commercial_access as mod
+
+        gate = Path(mod.__file__).resolve()
+        settings = gate.parents[2] / "config" / "settings.py"
+        return gate, settings
+
+    def test_no_hardcoded_cidrs_in_source(self) -> None:
+        """No executable production code may hardcode an allowed customer
+        network.
+
+        The allowed CIDR list belongs in the server environment
+        (PI_VENDOR_PRICE_ALLOWED_CIDRS). Documentation examples in
+        docstrings or comments are permitted; any executable string
+        constant containing a network literal is a regression.
+        """
+        for path in self._guarded_source_files():
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            for lineno, value in self._executable_string_constants(tree):
+                assert not self._contains_network_literal(value), (
+                    f"{path}:{lineno} hardcodes a network literal in "
+                    f"executable code: {value!r}. Allowed customer "
+                    "networks must come from the "
+                    "PI_VENDOR_PRICE_ALLOWED_CIDRS environment, never "
+                    "from source."
+                )
+
+    def test_hardcoded_cidr_detector_controls(self) -> None:
+        """Non-vacuity proof for the hardcoded-network detector.
+
+        The detector must actually catch executable network literals
+        (positive controls) and must not flag documentation examples
+        (negative controls). If a positive control fails, the guard is
+        vacuous; if a negative control fails, the guard is broken.
+        """
+
+        def detects(source: str) -> bool:
+            tree = ast.parse(source)
+            return any(
+                self._contains_network_literal(value)
+                for _, value in self._executable_string_constants(tree)
+            )
+
+        # Positive controls: executable literals are detected.
+        assert detects('DEFAULT = "10.0.0.0/8"')
+        assert detects('def f():\n    return "192.168.50.0/24"')
+        assert detects('ALLOWED = "fd00::/8,2001:db8::/32"')
+        assert detects('x = "192.168.1.128/24"')
+
+        # Negative controls: docstring examples are NOT flagged.
+        assert not detects(
+            'def f():\n    """Example: 10.0.0.0/8,192.168.50.0/24."""\n'
+            "    return None"
+        )
+        assert not detects('"""Module example: fd00::/8"""')
+
+        # Negative control: unrelated executable strings are NOT flagged.
+        assert not detects('SETTING = "PI_VENDOR_PRICE_ALLOWED_CIDRS"')
 
     def test_remote_addr_only_in_source(self) -> None:
         """The module must reference REMOTE_ADDR and NOT forwarded headers."""
@@ -1272,13 +1496,285 @@ class TestVendorPriceNoLeak:
             # shown in the report. We do NOT assert SENTINEL-MPN-001 is absent
             # in the general HTML - it is the run's own MPN, not vendor data.
 
-    def test_no_vendor_api_call_in_view(self) -> None:
-        "The research_detail view must not call any Vendor API."
+# ============================================================================
+# BLOCKER 2 (real) — zero-live-work historical report GET, fail-fast armed
+# ============================================================================
+
+
+class TestZeroLiveWorkHistoricalReport:
+    """Prove that GET /research/<uuid> performs ZERO live provider,
+    network, or semantic work.
+
+    The real research-detail route is executed with Django's test client
+    while every live boundary in the system is armed with a RuntimeError
+    sentinel: touching any armed boundary fails the test immediately.
+
+    The run carries BOTH a decoded PriceIntelligenceSnapshot (real
+    historical report content that must render) AND a
+    ResearchSupplementSnapshot with the sentinel vendor price (commercial
+    data that must exist in the database yet be neither re-fetched live nor
+    leaked into HTML).
+
+    An HTTP 200 alone would not prove this (a provider could still have
+    been called); the armed sentinels make any live work fail fast.
+    """
+
+    SENTINEL_PRICE = "91827.43"
+
+    def _create_historical_run(self) -> "ResearchRun":
+        """Create a run with a real historical price snapshot plus a vendor
+        supplement snapshot containing the sentinel commercial price.
+        """
+        from datetime import datetime, timezone
+        from decimal import Decimal
+
+        from product_intelligence.domain import ResearchRequest
+        from product_intelligence.domain.enums import (
+            ConfidenceLevel,
+            EvidenceDecision,
+            IdentityMatchType,
+            VerificationStatus,
+        )
+        from product_intelligence.research import (
+            ListingIdentityAssessment,
+            ListingObservation,
+            PriceAggregateBucket,
+            PriceAggregationResult,
+            encode_price_aggregation_result,
+        )
+        from product_intelligence.research.commercial_supplement_codec import (
+            ResearchSupplementResult,
+            SupplementAvailability,
+            SupplementLookupStatus,
+            SupplementPriceBasis,
+            SupplementSourceObservation,
+            VendorCommercialResult,
+            encode_research_supplement_result,
+        )
+        from product_intelligence.research.listings import ExtractionMethod
+        from product_intelligence.research.matching import EvidenceSource
+        from product_intelligence.research.normalization import (
+            NormalizedAvailability,
+            NormalizedCondition,
+            NormalizedListingObservation,
+        )
+        from product_intelligence.runs.models import (
+            PriceIntelligenceSnapshot,
+            ResearchRun,
+            ResearchSupplementSnapshot,
+        )
+
+        mpn = "ZERO-LIVE-MPN-42"
+        run = ResearchRun.objects.create_from_request(
+            ResearchRequest(
+                manufacturer_part_number=mpn,
+                description="Zero-live work historical report test",
+            ),
+        )
+
+        # --- Historical price intelligence snapshot (real report content) ---
+        obs = ListingObservation(
+            source_url="https://example.com/ssd-1tb",
+            extraction_method=ExtractionMethod.JSON_LD,
+            product_title="Samsung 980 PRO 1TB",
+            manufacturer_part_number_text=mpn,
+            sku_text="SSD-980-1T",
+            brand_text="Samsung",
+            price_text="$109.99",
+            currency_text="USD",
+            availability_text="In Stock",
+            condition_text="New",
+            seller_text="Example Store",
+            offer_url_text=None,
+            raw_reference="https://example.com/ssd-1tb",
+        )
+        norm = NormalizedListingObservation(
+            observation=obs,
+            price_amount=Decimal("109.99"),
+            currency_code="USD",
+            availability=NormalizedAvailability.IN_STOCK,
+            condition=NormalizedCondition.NEW,
+            seller_name="Example Store",
+            normalization_issues=(),
+        )
+        assess = ListingIdentityAssessment(
+            normalized_listing=norm,
+            requested_part_number=mpn,
+            candidate_part_number_raw=mpn,
+            candidate_part_number_compared=mpn,
+            candidate_evidence_source=EvidenceSource.EXPLICIT_MPN_FIELD,
+            match_type=IdentityMatchType.EXACT,
+            decision=EvidenceDecision.ACCEPTED,
+            rejection_reason=None,
+        )
+        result = PriceAggregationResult(
+            request=run.to_research_request(),
+            assessments=(assess,),
+            exclusions=(),
+            buckets=(
+                PriceAggregateBucket(
+                    currency_code="USD",
+                    condition=NormalizedCondition.NEW,
+                    assessments=(assess,),
+                    count=1,
+                    low=Decimal("109.99"),
+                    median=Decimal("109.99"),
+                    high=Decimal("109.99"),
+                    market_range_low=None,
+                    market_range_high=None,
+                    confidence=ConfidenceLevel.LOW,
+                ),
+            ),
+            verification_status=VerificationStatus.VERIFIED,
+        )
+        PriceIntelligenceSnapshot.objects.create(
+            run=run,
+            schema_version=1,
+            payload=encode_price_aggregation_result(result),
+        )
+
+        # --- Vendor supplement snapshot (commercial price exists in DB) ---
+        supplement = ResearchSupplementResult(
+            vendor_commercial_result=VendorCommercialResult(
+                lookup_status=SupplementLookupStatus.SUCCESS,
+                retrieved_at=datetime(
+                    2025, 1, 15, 12, 0, 0, tzinfo=timezone.utc
+                ),
+                observations=(
+                    SupplementSourceObservation(
+                        source_name="INTERNAL_VENDOR",
+                        explicit_candidate_mpn=mpn,
+                        vendor_mpn_match_type="EXACT",
+                        price_amount=Decimal(self.SENTINEL_PRICE),
+                        currency_code="USD",
+                        availability=SupplementAvailability.IN_STOCK,
+                        price_basis=SupplementPriceBasis.CUSTOMER_PRICE,
+                        quantity=None,
+                        note_kind=None,
+                        brand_new=True,
+                        brand_new_basis="VENDOR_API_POLICY",
+                    ),
+                ),
+                source_issues=(),
+            ),
+        )
+        ResearchSupplementSnapshot.objects.create(
+            run=run,
+            schema_version=1,
+            payload=encode_research_supplement_result(supplement),
+        )
+
+        return run
+
+    @staticmethod
+    def _armed_live_boundaries():
+        """Arm every live provider/network/semantic boundary with the
+        RuntimeError sentinel.
+
+        Patched boundaries (exact repository symbols):
+        - SerperSearchProvider.search            (search provider)
+        - HttpPageFetcher.fetch                  (page fetch provider)
+        - InternalVendorAdapter.lookup           (Vendor commercial API)
+        - EcbFxProvider.__init__                 (FX provider construction)
+        - EcbFxProvider.fetch_rates              (FX live fetch)
+        - SemanticRuntime.evaluate               (semantic runtime entry)
+        - semantic_integration.evaluate_semantic_matches (semantic
+          evaluation entry point)
+        - urllib.request.urlopen                 (raw stdlib HTTP)
+        - urllib.request.OpenerDirector.open     (opener-based HTTP used by
+          http_page / internal_vendor)
+        """
+        from contextlib import contextmanager
+        import urllib.request
         from unittest.mock import patch
+        from product_intelligence.execution import semantic_integration
+        from product_intelligence.providers.fx import EcbFxProvider
+        from product_intelligence.providers.http_page import HttpPageFetcher
+        from product_intelligence.providers.internal_vendor import (
+            InternalVendorAdapter,
+        )
+        from product_intelligence.providers.serper import SerperSearchProvider
+        from product_intelligence.semantic.runtime import SemanticRuntime
+
+        @contextmanager
+        def _armed():
+            with (
+                patch.object(
+                    SerperSearchProvider, "search", _live_boundary_boom
+                ),
+                patch.object(
+                    HttpPageFetcher, "fetch", _live_boundary_boom
+                ),
+                patch.object(
+                    InternalVendorAdapter, "lookup", _live_boundary_boom
+                ),
+                patch.object(
+                    EcbFxProvider, "__init__", _live_boundary_boom
+                ),
+                patch.object(
+                    EcbFxProvider, "fetch_rates", _live_boundary_boom
+                ),
+                patch.object(
+                    SemanticRuntime, "evaluate", _live_boundary_boom
+                ),
+                patch.object(
+                    semantic_integration,
+                    "evaluate_semantic_matches",
+                    _live_boundary_boom,
+                ),
+                patch(
+                    "urllib.request.urlopen", _live_boundary_boom
+                ),
+                patch(
+                    "urllib.request.OpenerDirector.open",
+                    _live_boundary_boom,
+                ),
+            ):
+                yield
+
+        return _armed()
+
+    def _assert_live_boundaries_are_armed(self) -> None:
+        """Non-vacuity proof: every armed sentinel must actually raise
+        RuntimeError when touched. If a sentinel were inert, the zero-live
+        proof would be meaningless.
+        """
+        import urllib.request
+        from product_intelligence.execution import semantic_integration
+        from product_intelligence.providers.fx import EcbFxProvider
+        from product_intelligence.providers.http_page import HttpPageFetcher
+        from product_intelligence.providers.internal_vendor import (
+            InternalVendorAdapter,
+        )
+        from product_intelligence.providers.serper import SerperSearchProvider
+        from product_intelligence.semantic.runtime import SemanticRuntime
+
+        armed = (
+            lambda: SerperSearchProvider.search(None),
+            lambda: HttpPageFetcher.fetch(None),
+            lambda: InternalVendorAdapter.lookup(None),
+            lambda: EcbFxProvider.__init__(None),
+            lambda: EcbFxProvider.fetch_rates(None),
+            lambda: SemanticRuntime.evaluate(None),
+            lambda: semantic_integration.evaluate_semantic_matches(
+                None, (), None
+            ),
+            lambda: urllib.request.urlopen("http://127.0.0.1/"),
+        )
+        for touch in armed:
+            with pytest.raises(RuntimeError, match="live provider/network"):
+                touch()
+
+    def test_zero_live_work_on_allowed_historical_report_get(self) -> None:
+        ("Authorized GET /research/<uuid> renders the historical report and "
+        "evaluates commercial access with zero live work — no armed "
+        "boundary may be touched.")
+        from unittest.mock import patch
+
         from django.test import Client
         from django.urls import reverse
 
-        run = self._create_run_with_sentinel_supplement()
+        run = self._create_historical_run()
         url = reverse("research-detail", kwargs={"run_id": run.id})
 
         mock_settings = type("Settings", (), {
@@ -1288,9 +1784,51 @@ class TestVendorPriceNoLeak:
         with patch(
             "product_intelligence.web.commercial_access._django_settings",
             mock_settings,
-        ):
+        ), self._armed_live_boundaries():
+            self._assert_live_boundaries_are_armed()
+
             client = Client()
             response = client.get(url, REMOTE_ADDR="10.0.0.1")
 
+            # The real route executed and succeeded.
             assert response.status_code == 200
-            assert b"INTERNAL_SERVER_ERROR" not in response.content.upper()
+            assert response.context is not None
+            # Commercial access gate evaluated to allowed.
+            assert response.context["vendor_commercial_access_allowed"] is True
+            # The historical report really rendered (not an empty/error
+            # page): the run's MPN is shown in the report header.
+            assert run.manufacturer_part_number.encode() in response.content
+            # The vendor price present in the DB never leaked into HTML.
+            assert self.SENTINEL_PRICE.encode() not in response.content
+
+    def test_zero_live_work_on_denied_historical_report_get(self) -> None:
+        ("Denied GET /research/<uuid> also performs zero live work — the "
+        "gate's deny path must not trigger any provider, network, or "
+        "semantic call.")
+        from unittest.mock import patch
+
+        from django.test import Client
+        from django.urls import reverse
+
+        run = self._create_historical_run()
+        url = reverse("research-detail", kwargs={"run_id": run.id})
+
+        mock_settings = type("Settings", (), {
+            "PI_VENDOR_PRICE_ALLOWED_CIDRS": "10.0.0.0/8"
+        })()
+
+        with patch(
+            "product_intelligence.web.commercial_access._django_settings",
+            mock_settings,
+        ), self._armed_live_boundaries():
+            self._assert_live_boundaries_are_armed()
+
+            client = Client()
+            # 192.0.2.0/24 is TEST-NET-1 (RFC 5737) — never assigned, denied.
+            response = client.get(url, REMOTE_ADDR="192.0.2.1")
+
+            assert response.status_code == 200
+            assert response.context is not None
+            assert response.context["vendor_commercial_access_allowed"] is False
+            assert run.manufacturer_part_number.encode() in response.content
+            assert self.SENTINEL_PRICE.encode() not in response.content

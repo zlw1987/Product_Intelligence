@@ -10,6 +10,10 @@ Key invariants:
 - REMOTE_ADDR is the ONLY accepted client-address source
 - Forwarded headers (X-Forwarded-For, X-Real-IP, etc.) are NEVER trusted
 - Malformed CIDR configuration -> DENY (fail-closed)
+- Noncanonical CIDR configuration (host bits set) -> DENY (fail-closed).
+  Entries are parsed with strict=True: an entry such as 192.168.1.128/24
+  is a configuration error, never silently normalized to 192.168.1.0/24,
+  because normalization would broaden the authorization allowlist.
 - No identity authority, pricing authority, or research logic changes
 
 This is HTTP request authorization / presentation visibility policy.
@@ -48,8 +52,18 @@ def _parse_allowed_cidrs(cidrs: str | None) -> tuple[ipaddress.IPv4Network | ipa
 
     Raises:
         CommercialPriceAccessConfigurationError: If any non-empty entry is
-            malformed CIDR notation. Fail-closed: malformed config must not
-            broaden access.
+            not a strict, canonical network. Fail-closed: a malformed or
+            noncanonical entry (e.g. an IPv4/IPv6 network with host bits
+            set) must never be silently normalized, because normalization
+            would broaden the authorization allowlist.
+
+    Network semantics (strict=True):
+        - "10.0.0.0/8", "192.168.1.0/24", canonical IPv6 networks: valid.
+        - "192.168.1.100/32", IPv6 "/128": valid exact host.
+        - A bare IP without a prefix resolves to the /32 or /128 exact
+          host network (narrower, not broader): valid.
+        - "192.168.1.128/24", "10.1.2.3/8", or any entry with host bits
+          set: configuration error.
     """
     if not cidrs or not cidrs.strip():
         return ()
@@ -63,11 +77,15 @@ def _parse_allowed_cidrs(cidrs: str | None) -> tuple[ipaddress.IPv4Network | ipa
             continue
 
         try:
-            network = ipaddress.ip_network(entry, strict=False)
+            # strict=True: the entry must already be a canonical network
+            # address (or a bare IP, which resolves to /32 or /128).
+            # Host bits set is rejected, never normalized, because
+            # normalization would silently broaden the allowlist.
+            network = ipaddress.ip_network(entry, strict=True)
         except ValueError as exc:
             raise CommercialPriceAccessConfigurationError(
-                f"Malformed CIDR in vendor price access configuration: "
-                f"{entry!r}. Access denied."
+                f"Malformed or noncanonical CIDR in vendor price access "
+                f"configuration: {entry!r} ({exc}). Access denied."
             ) from exc
 
         networks.append(network)
@@ -100,7 +118,8 @@ def vendor_price_access_allowed(
 
     Decision table:
     1. No configured allowed CIDRs (None or blank) -> False
-    2. Malformed CIDR configuration -> False (fail-closed)
+    2. Malformed or noncanonical (host bits set) CIDR configuration ->
+       False (fail-closed, entire configuration rejected)
     3. Missing REMOTE_ADDR -> False
     4. Invalid/unparseable REMOTE_ADDR -> False
     5. Valid REMOTE_ADDR outside all configured networks -> False
