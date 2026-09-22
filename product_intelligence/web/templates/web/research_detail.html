@@ -109,7 +109,7 @@
             <td>{{ row.usd_equivalent }}</td>
             <td>{{ row.inventory }}</td>
             <td>{{ row.brand_new }}</td>
-            <td>{{ row.note }}</td>
+            <td>{{ row.note|default_if_none:"" }}</td>
           </tr>
           {% endfor %}
         </tbody>

@@ -36,6 +36,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from datetime import date, datetime, timezone
 from decimal import Decimal
+from html.parser import HTMLParser
 from unittest.mock import patch
 
 import pytest
@@ -386,13 +387,75 @@ def _assert_armed_boundaries_raise() -> None:
     for touch in (
         lambda: urllib.request.urlopen("http://127.0.0.1/"),
         lambda: EcbFxProvider.__init__(None),
+        lambda: EcbFxProvider.fetch_rates(None),
         lambda: InternalVendorAdapter.lookup(None),
         lambda: SerperSearchProvider.search(None),
         lambda: HttpPageFetcher.fetch(None),
         lambda: SemanticRuntime.evaluate(None),
+        lambda: semantic_integration.evaluate_semantic_matches(),
     ):
         with pytest.raises(RuntimeError, match="live provider/network"):
             touch()
+
+
+class _CompactTableRowParser(HTMLParser):
+    """Extract the cell texts of every <tr> in the compact quote table.
+
+    Scopes rendering assertions to the actual table rows/cells of the
+    rendered "Compact quote summary" section — never to the whole page
+    (unrelated sections may legitimately contain other text).
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.in_table = False
+        self.in_row = False
+        self.in_cell = False
+        self._cell_text = ""
+        self._current_row: list[str] = []
+        self.rows: list[list[str]] = []
+
+    def handle_starttag(self, tag, attrs) -> None:
+        if tag == "table":
+            self.in_table = True
+        elif tag == "tr" and self.in_table:
+            self.in_row = True
+            self._current_row = []
+        elif tag in ("td", "th") and self.in_row:
+            self.in_cell = True
+            self._cell_text = ""
+
+    def handle_endtag(self, tag) -> None:
+        if tag == "table":
+            self.in_table = False
+            self.in_row = False
+        elif tag == "tr" and self.in_row:
+            self.in_row = False
+            self.rows.append(self._current_row)
+        elif tag in ("td", "th") and self.in_cell:
+            self.in_cell = False
+            self._current_row.append(self._cell_text.strip())
+
+    def handle_data(self, data) -> None:
+        if self.in_cell:
+            self._cell_text += data
+
+
+def _compact_table_rows(html: str) -> list[list[str]]:
+    """Parse the cell texts of the rendered compact quote table.
+
+    Only the section between the "Compact quote summary" heading and the
+    next top-level "Price intelligence" heading is parsed, so the
+    assertions are narrowly scoped to the compact table rows/cells.
+    """
+    section_start = html.index("<h2>Compact quote summary</h2>")
+    section_end = html.index("<h2>Price intelligence</h2>")
+    section = html[section_start:section_end]
+    assert '<table class="spec-table">' in section
+    parser = _CompactTableRowParser()
+    parser.feed(section)
+    assert parser.rows, "compact quote table rows not found"
+    return parser.rows
 
 
 @contextmanager
@@ -561,6 +624,107 @@ class TestAuthorizedVendorTable:
         assert response.context["vendor_commercial_access_allowed"] is True
         rows = _compact_rows(response)
         assert any("(Vendor API)" in r.source_display for r in rows)
+
+
+# ---------------------------------------------------------------------------
+# FU1: NOTE NONE must render BLANK (never the literal text "None")
+# ---------------------------------------------------------------------------
+
+
+class TestNoteCellNoneRendersBlank:
+    def test_none_note_cell_blank_real_note_still_renders(self) -> None:
+        """End-to-end through the real GET /research/<uuid> with an
+        authorized REMOTE_ADDR.
+
+        The persisted run carries (default fixture):
+        * an Ingram Vendor row with note=None
+        * a CDW Vendor row with note=None (OUT_OF_STOCK display note is
+          None because availability maps cleanly)
+        * a Synnex EU Vendor row with the real bounded note NO_RETURNS
+        * one public row
+
+        Proves, in the rendered Compact Quote table (parsed row/cell,
+        narrowly scoped):
+        1. the Ingram Note cell is empty
+        2. the literal text "None" does NOT appear in that Note cell
+          (nor anywhere in the compact table section)
+        3. the Synnex real note still renders
+        4. no Vendor/security behavior changes (context rows and labels
+           exactly as before)
+        """
+        run = _create_quote_run(mpn="NOTE-NONE-FU1-MPN")
+        url = _detail_url(run)
+        with patch(
+            "product_intelligence.web.commercial_access._django_settings",
+            _mock_settings(),
+        ):
+            response = _get(Client(), url, ALLOWED_ADDR)
+
+        assert response.status_code == 200
+        html = response.content.decode()
+
+        # --- Frozen CompactQuoteRow semantics unchanged in context ---
+        rows = _compact_rows(response)
+        assert [r.source_display for r in rows] == [
+            "Ingram (Vendor API)",
+            "CDW (Vendor API)",
+            "Synnex EU (Vendor API)",
+            "example.com",
+        ]
+        assert rows[0].note is None          # Ingram: real Python None
+        assert rows[1].note is None          # CDW: real Python None
+        assert rows[2].note == "NO_RETURNS"  # Synnex EU: real bounded note
+
+        # --- Parse the actually rendered compact quote table ---
+        table_rows = _compact_table_rows(html)
+        # First row is the header: Source / Price / USD Equivalent /
+        # Inventory / Brand New / Note
+        assert table_rows[0] == [
+            "Source", "Price", "USD Equivalent", "Inventory",
+            "Brand New", "Note",
+        ]
+        data_rows = table_rows[1:]
+        assert [r[0] for r in data_rows] == [
+            "Ingram (Vendor API)",
+            "CDW (Vendor API)",
+            "Synnex EU (Vendor API)",
+            "example.com",
+        ]
+
+        # 1 + 2. Ingram row: the Note cell (last column) is EMPTY and the
+        # literal text "None" does not appear in it.
+        ingram_row = data_rows[0]
+        assert len(ingram_row) == 6
+        assert ingram_row[5] == ""
+        assert "None" not in ingram_row[5]
+
+        # CDW row: also a real None note -> also blank
+        assert data_rows[1][5] == ""
+
+        # The literal "None" does not appear anywhere in the compact
+        # quote table section (narrowly scoped, not whole page).
+        section_start = html.index("<h2>Compact quote summary</h2>")
+        section_end = html.index("<h2>Price intelligence</h2>")
+        assert "None" not in html[section_start:section_end]
+
+        # 3. Synnex real bounded note still renders in its Note cell
+        synnex_row = data_rows[2]
+        assert len(synnex_row) == 6
+        assert synnex_row[5] == "NO_RETURNS"
+
+        # 4. No Vendor/security behavior changes: remaining columns of
+        # the vendor rows render exactly as the frozen display contract.
+        assert ingram_row[1] == "$2,023.27 USD"
+        assert ingram_row[2] == "$2,023.27 USD"
+        assert ingram_row[3] == "In Stock"
+        assert ingram_row[4] == "Yes"
+        assert synnex_row[1] == "\u20ac1,705.35 EUR"
+        assert synnex_row[2] == "$1,864.629690 USD"
+        assert data_rows[3][1] == "\u20ac1,500.00 EUR"
+        assert "(Vendor API) (Vendor API)" not in html
+        assert html.count("Ingram (Vendor API)") == 1
+        assert html.count("CDW (Vendor API)") == 1
+        assert html.count("Synnex EU (Vendor API)") == 1
 
 
 # ---------------------------------------------------------------------------
