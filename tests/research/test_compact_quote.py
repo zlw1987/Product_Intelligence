@@ -736,6 +736,7 @@ from product_intelligence.research.compact_quote import (
     CompactQuoteProjectionError,
     project_vendor_api_row,
 )
+from product_intelligence.research.aggregation import aggregate_listing_prices, PriceAggregationExclusionReason
 
 
 class TestProjectVendorApiRowAuthority:
@@ -1263,23 +1264,38 @@ class TestProjectPublicRowsAuthority:
             project_public_rows(fake_result)  # type: ignore
 
     def test_rejected_assessment_not_in_bucket_means_no_row(self) -> None:
-        """BLOCKER 1: A REJECTED assessment is not placed in any bucket
-        by frozen 4A aggregation — it produces no row.
+        """BLOCKER 2 (FU3): REAL REJECTED assessment excluded by frozen 4A -> no row.
 
-        This is proved by the fact that our test result with only
-        ACCEPTED assessments in buckets produces rows; a REJECTED
-        assessment is excluded by 4A before any projection happens.
+        A real ListingIdentityAssessment with decision=REJECTED, passed
+        through the frozen aggregate_listing_prices() function, lands in
+        result.exclusions (not result.buckets), and produces no projection row.
+
+        This tests the authority location — the test proves 4A placed the
+        assessment in exclusions, not that an empty tuple produces an empty tuple.
         """
+        from product_intelligence.domain import ResearchRequest
+
         rejected = _make_real_listing_identity_assessment(
             decision_value="REJECTED",
             price_amount=Decimal("1500.00"),
             currency_code="USD",
             condition="NEW",
         )
-        # A result with ONLY a REJECTED assessment (not in any bucket)
-        # produces zero rows
-        result = _make_price_aggregation_result([])
-        assert result.buckets == ()  # No buckets — REJECTED is excluded
+        request = ResearchRequest(
+            manufacturer_part_number="TEST-MPN",
+            description="Test Product",
+        )
+
+        # Pass through the frozen 4A aggregate — this is the authority source
+        result = aggregate_listing_prices(request, (rejected,))
+
+        # The REJECTED assessment must be in exclusions (not buckets)
+        assert result.buckets == ()  # No bucket — REJECTED never enters a bucket
+        assert len(result.exclusions) == 1
+        assert result.exclusions[0].assessment is rejected
+        assert result.exclusions[0].reason is PriceAggregationExclusionReason.IDENTITY_NOT_ACCEPTED
+
+        # project_public_rows reads only buckets — exclusion means no row
         rows = project_public_rows(result)
         assert rows == ()
 
@@ -1311,70 +1327,163 @@ class TestProjectPublicRowsAuthority:
             _project_one_public_listing_row(_DuckTypedFakeAssessment(), None)
 
     def test_scalar_builders_cannot_establish_reportability(self) -> None:
-        """BLOCKER 2 KEY NEGATIVE: Private _build_public_listing_row and
-        _build_vendor_api_row accept raw scalars but cannot establish
-        reportability.
+        """BLOCKER 2 (FU3): Public/private API proof — private helpers exist,
+        old public helpers do not, and scalar/row inputs are rejected.
 
-        These are formatting helpers ONLY. They accept any scalars and
-        produce CompactQuoteRow objects, but those rows do not carry
-        frozen authority. A row produced by a scalar builder cannot
-        be used where a reportable row is required.
+        Corrected wording: The production design uses PRIVATE _build_* helpers.
+        This test proves the supported PUBLIC authority surface instead:
 
-        Proof: The scalar builders accept None for normalized_listing
-        (no authority path) and produce output anyway — but that output
-        is display-only, not authority-bearing.
+        1. Old public build_public_listing_row does not exist
+        2. Old public build_vendor_api_row does not exist
+        3. Supported public projection requires PriceAggregationResult
+        4. Passing CompactQuoteRow or arbitrary scalars to project_public_rows
+           is rejected (CompactQuoteRow is not a PriceAggregationResult)
+
+        The mere existence of a raw CompactQuoteRow is not proof that it is
+        authority-bearing. Private helper formatting coverage is verified
+        separately (TestBuildPublicListingRow, TestBuildVendorApiRow).
         """
-        from product_intelligence.research.compact_quote import (
-            _build_public_listing_row,
-            _build_vendor_api_row,
-        )
+        import product_intelligence.research.compact_quote as cq
+        source = open(cq.__file__).read()
 
-        # _build_public_listing_row accepts raw scalars — but the result
-        # has source_type=PUBLIC_LISTING, which requires authority check
-        row = _build_public_listing_row(
+        # Old public helpers do NOT exist — they were made private
+        assert "def build_public_listing_row(" not in source
+        assert "def build_vendor_api_row(" not in source
+
+        # Private helpers exist (they are still imported by test modules)
+        assert hasattr(cq, "_build_public_listing_row")
+        assert hasattr(cq, "_build_vendor_api_row")
+
+        # The only supported public projection entry points are:
+        # project_public_rows(price_result: PriceAggregationResult, ...)
+        # project_vendor_api_row(observation: SupplementSourceObservation, ...)
+        # Both require specific frozen types, not arbitrary scalars.
+
+        # Passing a CompactQuoteRow to project_public_rows raises
+        # CompactQuoteProjectionError — CompactQuoteRow is not PriceAggregationResult
+        row = cq._build_public_listing_row(
             source_name="Test",
             price_amount=Decimal("1000"),
             currency_code="USD",
             availability="IN_STOCK",
             condition="NEW",
         )
-        # The row is a CompactQuoteRow but was built WITHOUT any
-        # ListingIdentityAssessment — it cannot be used as a reportable
-        # public listing row because there is no authority chain.
-        # The only authority-safe public projection path is project_public_rows.
-        assert row.source_type == "PUBLIC_LISTING"
-        # This is a display-only row, not an authority-bearing one.
-        # The public projection API (project_public_rows) would reject
-        # any attempt to pass this as a bucket member.
+        with pytest.raises(CompactQuoteProjectionError, match="PriceAggregationResult"):
+            project_public_rows(row)  # type: ignore — CompactQuoteRow is not PriceAggregationResult
 
     def test_unknown_condition_assessment_not_in_bucket_produces_no_row(self) -> None:
-        """BLOCKER 1 KEY NEGATIVE: An assessment with UNKNOWN condition
-        is placed in exclusions by frozen 4A — it is NOT placed in any bucket.
+        """BLOCKER 2 (FU3): REAL UNKNOWN_CONDITION assessment excluded by frozen 4A.
 
-        Therefore project_public_rows (which reads only buckets[*].assessments)
-        never sees UNKNOWN-condition assessments and produces zero rows for them.
+        A real ListingIdentityAssessment with ACCEPTED identity but
+        condition=UNKNOWN, passed through the frozen aggregate_listing_prices(),
+        lands in result.exclusions (not result.buckets) with reason
+        UNKNOWN_CONDITION, and produces no projection row.
 
-        Proof: _make_price_aggregation_result([]) with empty buckets list.
-        The assessment would be in exclusions. Our result has zero buckets,
-        so project_public_rows returns ().
+        This tests the authority location — the test proves 4A excluded the
+        assessment, not that an empty result produces an empty tuple.
         """
-        result = _make_price_aggregation_result([])
+        from product_intelligence.domain import ResearchRequest
+        from product_intelligence.research.normalization import NormalizedCondition
+
+        # Build a real assessment with ACCEPTED identity but UNKNOWN condition
+        unknown_condition_assessment = _make_real_listing_identity_assessment(
+            decision_value="ACCEPTED",
+            price_amount=Decimal("2000.00"),
+            currency_code="USD",
+            condition="UNKNOWN",  # UNKNOWN condition — excluded by 4A
+        )
+
+        request = ResearchRequest(
+            manufacturer_part_number="TEST-MPN",
+            description="Test Product",
+        )
+
+        # Pass through the frozen 4A aggregate
+        result = aggregate_listing_prices(request, (unknown_condition_assessment,))
+
+        # The UNKNOWN_CONDITION assessment must be in exclusions
+        assert len(result.exclusions) == 1
+        assert result.exclusions[0].assessment is unknown_condition_assessment
+        assert result.exclusions[0].reason is PriceAggregationExclusionReason.UNKNOWN_CONDITION
+
+        # No bucket (UNKNOWN condition is excluded from buckets per 4A)
         assert result.buckets == ()
+
+        # project_public_rows reads only buckets — exclusion means no row
         rows = project_public_rows(result)
         assert rows == ()
 
     def test_exclusion_not_in_bucket_produces_no_row(self) -> None:
-        """BLOCKER 1 KEY NEGATIVE: An assessment in price_result.exclusions
-        is not in any bucket and produces no row.
+        """BLOCKER 2 (FU3): Real excluded assessment -> no bucket membership -> no row.
 
-        This is the authoritative proof that authority is READ from
-        bucket membership, not re-derived. project_public_rows iterates
-        only buckets, never exclusions.
+        An assessment that lands in result.exclusions (not result.buckets)
+        through the frozen aggregate_listing_prices() is not in any bucket
+        and project_public_rows produces no row for it.
+
+        This tests the actual authority path: an exclusion cannot be
+        projected because bucket membership is the only authority source.
         """
-        # Build a result with an empty bucket and no assessment in any bucket.
-        # This represents the case where an assessment was excluded.
-        result = _make_price_aggregation_result([])
-        assert result.buckets == ()
+        from product_intelligence.domain import ResearchRequest
+
+        # Create an ACCEPTED assessment with NO numeric price — this goes
+        # to exclusions for NO_NUMERIC_PRICE
+        no_price_assessment = _make_real_listing_identity_assessment(
+            decision_value="ACCEPTED",
+            price_amount=None,  # No price — excluded by 4A
+            currency_code="USD",
+            condition="NEW",
+        )
+
+        request = ResearchRequest(
+            manufacturer_part_number="TEST-MPN",
+            description="Test Product",
+        )
+
+        result = aggregate_listing_prices(request, (no_price_assessment,))
+
+        # The assessment is in exclusions, not in any bucket
+        assert len(result.exclusions) == 1
+        assert result.exclusions[0].assessment is no_price_assessment
+        assert result.exclusions[0].reason is PriceAggregationExclusionReason.NO_NUMERIC_PRICE
+        assert result.buckets == ()  # No bucket — excluded
 
         rows = project_public_rows(result)
         assert rows == ()
+
+
+class TestStandaloneAssessmentRejection:
+    """STANDALONE ASSESSMENT NEGATIVE — BLOCKER 2 (FU3).
+
+    A standalone ListingIdentityAssessment is not a PriceAggregationResult.
+    It cannot establish reportability because there is no authority binding
+    to frozen 4A bucket membership.
+
+    project_public_rows requires a PriceAggregationResult (the frozen 4A
+    output that carries bucket/exclusion provenance). Passing a bare
+    ListingIdentityAssessment must raise CompactQuoteProjectionError.
+    """
+
+    def test_standalone_listing_identity_assessment_rejected(self) -> None:
+        """BLOCKER 2 (FU3): A standalone ListingIdentityAssessment
+        passed to project_public_rows raises CompactQuoteProjectionError.
+
+        A bare ListingIdentityAssessment is not a PriceAggregationResult
+        and cannot establish reportability. The authority-safe API requires
+        the frozen 4A output that carries bucket membership provenance.
+
+        This uses a REAL ListingIdentityAssessment (not a fake class)
+        to prove the contract.
+        """
+        # Build a real ListingIdentityAssessment (not in any result)
+        standalone_assessment = _make_real_listing_identity_assessment(
+            decision_value="ACCEPTED",
+            price_amount=Decimal("2500.00"),
+            currency_code="USD",
+            condition="NEW",
+        )
+
+        # Passing it directly to project_public_rows is rejected —
+        # a standalone assessment is not a PriceAggregationResult and
+        # cannot establish reportability.
+        with pytest.raises(CompactQuoteProjectionError, match="PriceAggregationResult"):
+            project_public_rows(standalone_assessment)

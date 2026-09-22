@@ -1,4 +1,25 @@
-"""Tests for historical FX replay contract (PRODUCT-INTEL.4D-C-A / FU2).
+"""Tests for historical FX replay contract (PRODUCT-INTEL.4D-C-A / FU2/FU3).
+
+FU2:
+* Historical projection/report preparation causes ZERO live FX calls
+* ZERO live Vendor API calls
+* Persisted observation reproduces USD Equivalent
+* Zero SearchProvider calls
+* Zero PageFetcher calls
+* Zero semantic model calls
+
+BLOCKER 4 (FU2): FX execution tests are non-vacuous.
+BLOCKER 5 (FU2): Historical replay entry point + zero-live-call tests.
+BLOCKER 1 (FU2): Public listing projection requires actual 4A bucket membership
+  (verified via project_public_rows, not standalone assessment projection).
+
+FU3:
+* BLOCKER 1 (FU3): Historical replay is FAIL-CLOSED. Once a canonical
+  artifact exists, any codec failure, authority-contract failure, projection
+  failure, or programming error MUST propagate. Partial projections due to
+  silent exception swallowing are eliminated.
+* BLOCKER 2 (FU3): Authority negative tests use real frozen 4A aggregate
+  output, not vacuous empty-tuple assertions.
 
 Proves that:
 * Historical projection/report preparation causes ZERO live FX calls
@@ -306,3 +327,10 @@ class TestPersistedObservationReproducesUsdEquivalent:
         assert rows[0].price_amount == Decimal("1500.00")
         assert rows[0].price_currency == "EUR"
         assert rows[0].usd_equivalent_amount == Decimal("1500.00") * Decimal("1.0934")
+
+
+
+# BLOCKER 1 (FU3) fail-closed tests live in a separate module.
+from tests.research.test_historical_replay_blocker1_fu3 import (
+    TestHistoricalReplayFailClosed,
+)

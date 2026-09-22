@@ -143,33 +143,32 @@ def replay_compact_quote_projection(
     # project_public_rows reads price_result.buckets[*].assessments as the
     # frozen 4A authority source. An assessment not in any bucket cannot
     # be projected.
-    try:
-        public_rows = project_public_rows(
-            decoded_price,
-            fx_snapshot=fx_snapshot,
-        )
-    except Exception as exc:
-        warnings.append(
-            f"Public row projection failed: {exc}"
-        )
-        public_rows = ()
+    # BLOCKER 1 (FU3): Fail-closed — any projection failure propagates.
+    # Optional artifact absence (no FX, no supplemental) is valid.
+    # But codec failure, authority-contract failure, projection failure,
+    # programming error, or unexpected exception from project_public_rows
+    # MUST propagate — the replay does NOT silently return a partial
+    # projection.
+    public_rows = project_public_rows(
+        decoded_price,
+        fx_snapshot=fx_snapshot,
+    )
 
     # Project vendor API rows from supplemental result
     # Only usable observations (EXACT/NORMALIZED_EXACT, brand_new=True)
     # can become rows
+    # BLOCKER 1 (FU3): Fail-closed — any vendor row projection failure
+    # propagates. A decoded SupplementSourceObservation that violates the
+    # reportability policy fails the replay rather than disappearing into
+    # warnings.
     vendor_rows: list[CompactQuoteRow] = []
     if supplemental_result is not None:
         for obs in supplemental_result.vendor_commercial_result.observations:
-            try:
-                row = project_vendor_api_row(
-                    obs,
-                    fx_snapshot=fx_snapshot,
-                )
-                vendor_rows.append(row)
-            except Exception as exc:
-                warnings.append(
-                    f"Vendor row projection failed for {obs.source_name}: {exc}"
-                )
+            row = project_vendor_api_row(
+                obs,
+                fx_snapshot=fx_snapshot,
+            )
+            vendor_rows.append(row)
 
     # Combine: vendor rows first, then public rows
     projection = CompactQuoteProjection(rows=tuple(vendor_rows) + public_rows)
