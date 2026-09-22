@@ -290,6 +290,9 @@ class TestHistoricalReplayFailClosed:
         from product_intelligence.research.price_result_codec import (
             encode_price_aggregation_result,
         )
+        from product_intelligence.research.commercial_supplement_codec import (
+            SupplementCodecError,
+        )
 
         price_result = _build_real_price_result()
         encoded_price = encode_price_aggregation_result(price_result)
@@ -310,18 +313,15 @@ class TestHistoricalReplayFailClosed:
 
         run_id = str(run.id)
 
-        with pytest.raises(Exception) as exc_info:
+        with pytest.raises(SupplementCodecError):
             replay_compact_quote_projection(run_id)
-
-        err_str = str(exc_info.value).lower()
-        assert any(
-            k in err_str
-            for k in ["json", "decode", "expecting", "character", "schema", "unexpected"]
-        ), f"Expected decode/codec error, got: {exc_info.value}"
 
     def test_malformed_price_payload_propagates(self) -> None:
         """BLOCKER 1 (FU3): Malformed price payload propagates codec error."""
         from product_intelligence.runs.models import PriceIntelligenceSnapshot
+        from product_intelligence.research.price_result_codec import (
+            PriceResultCodecError,
+        )
 
         run = _create_completed_run()
         # Malformed price payload — invalid top-level structure that
@@ -334,14 +334,8 @@ class TestHistoricalReplayFailClosed:
 
         run_id = str(run.id)
 
-        with pytest.raises(Exception) as exc_info:
+        with pytest.raises(PriceResultCodecError):
             replay_compact_quote_projection(run_id)
-
-        err_str = str(exc_info.value).lower()
-        assert any(
-            k in err_str
-            for k in ["json", "decode", "expecting", "character", "schema", "unexpected"]
-        ), f"Expected decode/codec error, got: {exc_info.value}"
 
     def test_non_reportable_observation_projection_error_propagates(self) -> None:
         """BLOCKER 1 (FU3): Non-reportable SupplementSourceObservation fails replay."""

@@ -330,7 +330,5 @@ class TestPersistedObservationReproducesUsdEquivalent:
 
 
 
-# BLOCKER 1 (FU3) fail-closed tests live in a separate module.
-from tests.research.test_historical_replay_blocker1_fu3 import (
-    TestHistoricalReplayFailClosed,
-)
+# BLOCKER 1 (FU3) fail-closed tests are in test_historical_replay_blocker1_fu3.py
+# (pytest-discoverable, collected directly without re-export)
