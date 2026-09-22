@@ -31,7 +31,8 @@ HUMAN-REVIEW Human Review for AI-Assisted Matches APPROVED/FROZEN;
 
 4D is partially implemented. 4D-PRE and 4D-A are approved and frozen.
 4D-B is approved and frozen. 4D-C-A is APPROVED / FROZEN. 4D-C-SEC is APPROVED / FROZEN.
-4D-C (browser rendering) is IMPLEMENTED / PENDING FINAL REVIEW. 4D-D is planned.
+4D-C (browser rendering) is APPROVED / FROZEN. 4D-D is planned (authority
+evidence under review).
 
 ```
 4D-PRE  Preferred Source Feasibility Audit  (evidence only) — APPROVED / FROZEN
@@ -39,8 +40,8 @@ HUMAN-REVIEW Human Review for AI-Assisted Matches APPROVED/FROZEN;
 4D-B    Internal Vendor Commercial Evidence  — APPROVED / FROZEN
 4D-C-A  ECB FX + Compact Quote Projection Foundation — APPROVED / FROZEN
 4D-C-SEC Vendor Commercial Price Access Gate — APPROVED / FROZEN
-4D-C    Compact Quote Summary (browser rendering) — IMPLEMENTED / PENDING FINAL REVIEW
-4D-D    Micron Packaging Alias Retrieval
+4D-C    Compact Quote Summary (browser rendering) — APPROVED / FROZEN
+4D-D    Micron Packaging Alias Retrieval — PLANNED / AUTHORITY EVIDENCE UNDER REVIEW
 ```
 
 **PRODUCT-INTEL.4D-B — APPROVED / FROZEN**
@@ -62,7 +63,7 @@ Key facts:
   Reviewed Price, semantic authority, or comparable scoring
 - Sensitive metadata (SessionId, BuyerAccountId, SystemId) stripped by allowlist
 - 4D-C security gate resolved by frozen 4D-C-SEC REMOTE_ADDR-only access policy;
-  4D-C browser rendering implemented (PRODUCT-INTEL.4D-C, pending final review)
+  4D-C browser rendering implemented (PRODUCT-INTEL.4D-C, approved / frozen)
 
 **PRODUCT-INTEL.4D-C-A — APPROVED / FROZEN**
 
@@ -107,7 +108,7 @@ Frozen test baseline: 4693 collected
 - No changes to research/, providers/, or domain/ layers
 - Views integration: `research_detail()` passes `vendor_commercial_access_allowed`
   boolean to template context — NO raw payload, NO vendor rows, NO sensitive metadata
-- 4D-C browser rendering implemented (PRODUCT-INTEL.4D-C), pending final review;
+- 4D-C browser rendering implemented (PRODUCT-INTEL.4D-C), approved / frozen;
   the server-side security branch selects authorized full replay vs denied
   public-only replay before any vendor supplemental artifact access
 - Full application authentication deferred to 8C
@@ -117,7 +118,10 @@ Frozen test baseline: 4693 collected
 - USD Equivalent is DISPLAY-SUPPLEMENTAL only
 - ECB formula: USD Equivalent = amount_C / rate_C * rate_USD
 
-**PRODUCT-INTEL.4D-C — IMPLEMENTED / PENDING FINAL REVIEW**
+**PRODUCT-INTEL.4D-C — APPROVED / FROZEN**
+
+Frozen SHA: 4592b8966b703dfd6a72c3067d7b191314ff2968
+Frozen test baseline: 4766 collected
 
 Compact Quote Browser Rendering. Frozen prerequisites: 4D-C-A (SHA
 059ade96ff2141684b973e576adcc91a10094707, 4582 collected) and 4D-C-SEC
@@ -284,8 +288,8 @@ FU3B wires the frozen FU3A semantic runtime into real research execution:
 | 4D-B | Internal Vendor Commercial Evidence | **Implemented (approved / frozen)** |
 | 4D-C-A | ECB FX + Compact Quote Projection Foundation | **IMPLEMENTED / APPROVED / FROZEN** |
 | 4D-C-SEC | Vendor Commercial Price Access Gate | **IMPLEMENTED / APPROVED / FROZEN** |
-| 4D-C | Compact Quote Summary (browser rendering) | **IMPLEMENTED / PENDING FINAL REVIEW** |
-| 4D-D | Micron Packaging Alias Retrieval | Planned |
+| 4D-C | Compact Quote Summary (browser rendering) | **IMPLEMENTED / APPROVED / FROZEN** |
+| 4D-D | Micron Packaging Alias Retrieval | Planned / authority evidence under review |
 | 4C-A | Execution ownership/lifecycle/evidence primitives | Implemented (frozen) |
 | 4C-B | Backend research execution | Implemented (frozen) |
 | 4C-B-FU | Exact duplicate deduplication | Implemented (frozen) |
@@ -380,8 +384,8 @@ FU3B wires the frozen FU3A semantic runtime into real research execution:
 | FX Mathematics (4D-C-A) | `research/fx_math.py` | **Implemented (approved / frozen)** |
 | Compact Quote Projection (4D-C-A) | `research/compact_quote.py` | **Implemented (approved / frozen)** |
 | Commercial Price Access Gate (4D-C-SEC) | `web/commercial_access.py` | **Implemented (approved / frozen)** |
-| Compact Quote Public Replay (4D-C) | `execution/compact_quote_public_replay.py` | **Implemented (pending final review)** |
-| Compact Quote Browser Presentation (4D-C) | `web/compact_quote_presentation.py` | **Implemented (pending final review)** |
+| Compact Quote Public Replay (4D-C) | `execution/compact_quote_public_replay.py` | **Implemented (approved / frozen)** |
+| Compact Quote Browser Presentation (4D-C) | `web/compact_quote_presentation.py` | **Implemented (approved / frozen)** |
 
 ## Research orchestration
 

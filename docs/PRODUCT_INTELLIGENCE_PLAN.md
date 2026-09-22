@@ -36,7 +36,8 @@ for AI-assisted semantic matches. The web form creates a run, triggers
 execution synchronously, and redirects to the report with the full result.
 Remaining future work: structured API (5A). 4D-B is APPROVED/FROZEN.
 4D-C-A is APPROVED/FROZEN. 4D-C-SEC is APPROVED/FROZEN.
-4D-C is IMPLEMENTED/PENDING FINAL REVIEW. 4D-D remains planned.
+4D-C is APPROVED/FROZEN. 4D-D remains planned (authority evidence under
+review).
 
 ## 2. Problem statement
 
@@ -2775,8 +2776,8 @@ PRODUCT-INTEL.4D-A    Source Acquisition Optimization            APPROVED / FROZ
 PRODUCT-INTEL.4D-B    Internal Vendor Commercial Evidence        APPROVED / FROZEN
 PRODUCT-INTEL.4D-C-A  ECB FX + Compact Quote Projection          APPROVED / FROZEN
 PRODUCT-INTEL.4D-C-SEC Vendor Commercial Price Access Gate        APPROVED / FROZEN
-PRODUCT-INTEL.4D-C    Compact Quote Summary (browser rendering)  IMPLEMENTED / PENDING FINAL REVIEW
-PRODUCT-INTEL.4D-D    Micron Packaging Alias Retrieval           PLANNED
+PRODUCT-INTEL.4D-C    Compact Quote Summary (browser rendering)  APPROVED / FROZEN
+PRODUCT-INTEL.4D-D    Micron Packaging Alias Retrieval           PLANNED / AUTHORITY EVIDENCE UNDER REVIEW
 
 ----- PRODUCT-INTEL.4D — Customer Quote Research Expansion -----
 
@@ -4202,8 +4203,10 @@ This canonical plan does not duplicate that operational snapshot.
 4D-C-SEC — APPROVED / FROZEN (Vendor Commercial Price Access Gate)
      Frozen SHA: 75bfbe3d1b4a8abc12d655cc903298f08e06a8f0
      Frozen baseline: 4693 collected
-4D-C — IMPLEMENTED / PENDING FINAL REVIEW (Compact Quote Summary — browser rendering)
-4D-D — PLANNED (Micron Packaging Alias Retrieval)
+4D-C — APPROVED / FROZEN (Compact Quote Summary — browser rendering)
+     Frozen SHA: 4592b8966b703dfd6a72c3067d7b191314ff2968
+     Frozen baseline: 4766 collected
+4D-D — PLANNED / AUTHORITY EVIDENCE UNDER REVIEW (Micron Packaging Alias Retrieval)
 
 Note: 4D-C security gate (trusted network/VPN access control) is resolved by
 the frozen 4D-C-SEC REMOTE_ADDR-only access policy. Report UUID is not access
@@ -4458,7 +4461,8 @@ never access control.
 
 ### 26.4 4D-C — Compact Quote Summary
 
-**Status: IMPLEMENTED / PENDING FINAL REVIEW (PRODUCT-INTEL.4D-C).**
+**Status: APPROVED / FROZEN (PRODUCT-INTEL.4D-C; frozen SHA
+4592b8966b703dfd6a72c3067d7b191314ff2968, frozen baseline 4766 collected).**
 Implemented behind the frozen 4D-C-SEC gate: server-side security branch in
 `research_detail` selects the frozen 4D-C-A authorized replay (ALLOWED) or
 the new public-only replay (DENIED — never reads ResearchSupplementSnapshot)
