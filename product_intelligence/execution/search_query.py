@@ -7,6 +7,9 @@ from __future__ import annotations
 
 from product_intelligence.domain import ResearchRequest
 from product_intelligence.providers.search import SearchQuery
+from product_intelligence.research.micron_packaging_alias import (
+    MicronPackagingAliasRelation,
+)
 
 
 def build_search_query(request: ResearchRequest) -> SearchQuery:
@@ -40,5 +43,57 @@ def build_search_query(request: ResearchRequest) -> SearchQuery:
     else:
         # Only description exists
         query_text = description
+
+    return SearchQuery(text=query_text)
+
+
+def build_alias_expanded_search_query(
+    request: ResearchRequest,
+    relation: MicronPackagingAliasRelation,
+) -> SearchQuery:
+    """Build ONE alias-expanded search query for an established 4D-D relation.
+
+    Additive to ``build_search_query`` (which is unchanged): the requested
+    MPN remains the primary quoted term, followed by the established
+    relation's alias identifiers (the family members other than the
+    requested form, in deterministic relation order) as quoted recall terms,
+    followed by the description context in the ordinary shape.
+
+    The aliases are a CUSTOMER-DEFINED retrieval relation (retrieval
+    recall only). This builder generates a query string; it grants no
+    identity, category, manufacturer, or pricing authority, and it must
+    only ever be called with an ESTABLISHED relation (one per run, at most
+    one search call total).
+
+    Raises ``TypeError``/``ValueError`` on a non-relation argument or a
+    relation whose requested form does not bind this request — a
+    programming defect, not a bounded authority outcome.
+    """
+    if not isinstance(relation, MicronPackagingAliasRelation):
+        raise TypeError(
+            "relation must be a MicronPackagingAliasRelation, got "
+            f"{type(relation).__name__}"
+        )
+    mpn = request.manufacturer_part_number
+    if not mpn:
+        raise ValueError(
+            "an alias-expanded query requires the request's MPN; an "
+            "established relation always binds one"
+        )
+    if relation.requested_mpn != mpn:
+        raise ValueError(
+            "the relation does not bind this request's MPN; an "
+            "alias-expanded query must use the request's own established "
+            "relation"
+        )
+
+    terms = [f'"{mpn}"']
+    for alias in relation.aliases:
+        terms.append(f'"{alias}"')
+    query_text = " ".join(terms)
+
+    description = request.description
+    if description:
+        query_text = f"{query_text} {description}"
 
     return SearchQuery(text=query_text)

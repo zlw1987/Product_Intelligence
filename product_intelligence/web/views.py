@@ -50,6 +50,7 @@ from product_intelligence.runs.models import (
     ComparableResearchExecution,
     ComparableResearchState,
     PriceIntelligenceSnapshot,
+    ResearchMicronAliasSnapshot,
     ResearchRun,
 )
 
@@ -73,11 +74,18 @@ from product_intelligence.research.commercial_supplement_codec import (
     SupplementCodecError,
 )
 from product_intelligence.research.fx_codec import FxCodecError
+from product_intelligence.research.micron_alias_codec import (
+    MicronAliasCodecError,
+    decode_micron_alias_snapshot,
+)
 from .comparable_presentation import (
     build_comparable_result_presentation,
 )
 from .compact_quote_presentation import (
     build_compact_quote_presentation,
+)
+from .micron_alias_presentation import (
+    build_micron_alias_presentation,
 )
 
 
@@ -489,6 +497,55 @@ def research_detail(request: HttpRequest, run_id: uuid.UUID) -> HttpResponse:
             compact_quote = None
             compact_quote_unavailable = True
 
+    # --- PRODUCT-INTEL.4D-D: Micron packaging alias audit (historical) ---
+    #
+    # The historical report uses ONLY the persisted alias snapshot:
+    # zero live Micron / search / vendor / FX / semantic / generic
+    # network work. The alias section is display-only retrieval
+    # provenance; its data never enters Machine Price, Reviewed Price,
+    # Compact Quote, or Comparable presentation.
+    #
+    # Fail-closed: a malformed persisted alias artifact (codec error,
+    # unsupported version, or request-provenance mismatch) renders NO
+    # alias data at all — no partial rows, no live reacquisition — and
+    # the existing main report remains usable. Programming defects
+    # propagate (they are never converted into "unavailable").
+    micron_alias = None
+    micron_alias_unavailable = False
+
+    try:
+        alias_snapshot = run.research_micron_alias_snapshot
+    except ResearchMicronAliasSnapshot.DoesNotExist:
+        alias_snapshot = None
+
+    if alias_snapshot is not None:
+        try:
+            alias_decoded = decode_micron_alias_snapshot(
+                alias_snapshot.payload,
+                schema_version=alias_snapshot.schema_version,
+            )
+        except MicronAliasCodecError as exc:
+            logger.warning(
+                "Micron alias snapshot unavailable for run %s: %s",
+                run.id,
+                exc,
+            )
+            micron_alias_unavailable = True
+        else:
+            # --- Request provenance check (mirrors the price snapshot) ---
+            if alias_decoded.request != run.to_research_request():
+                logger.warning(
+                    "Micron alias snapshot does not match this research "
+                    "request for run %s; rendering no alias data.",
+                    run.id,
+                )
+                micron_alias_unavailable = True
+            else:
+                micron_alias = build_micron_alias_presentation(
+                    alias_decoded,
+                    decoded_result,
+                )
+
     # --- Comparable research child + decoded result ---
     comparable_child = _select_comparable_child(run)
     comparable_presentation = None
@@ -545,6 +602,12 @@ def research_detail(request: HttpRequest, run_id: uuid.UUID) -> HttpResponse:
         # no vendor rows, no sensitive metadata projected into template context.
         # Used for neutral messaging only, never as the row-hiding mechanism.
         "vendor_commercial_access_allowed": vendor_commercial_access_allowed,
+        # PRODUCT-INTEL.4D-D: display-only Micron packaging alias audit,
+        # built exclusively from the persisted alias snapshot (zero live
+        # work). None means "no alias snapshot for this run"; the
+        # unavailable flag means "persisted artifact failed closed".
+        "micron_alias": micron_alias,
+        "micron_alias_unavailable": micron_alias_unavailable,
     }
 
     return render(request, "web/research_detail.html", context)

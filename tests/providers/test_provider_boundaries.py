@@ -253,7 +253,7 @@ def test_the_provider_layer_adds_no_model_and_no_migration() -> None:
 
     assert not list(PROVIDERS_ROOT.rglob("models.py"))
     assert not list(PROVIDERS_ROOT.rglob("migrations"))
-    expected = {"runs.ResearchRun", "runs.PriceIntelligenceSnapshot", "runs.ExecutionEvidenceRecord", "runs.AiAssistedReviewCandidate", "runs.ComparableResearchExecution", "runs.ResearchSupplementSnapshot", "runs.ResearchFxSnapshot"}
+    expected = {"runs.ResearchRun", "runs.PriceIntelligenceSnapshot", "runs.ExecutionEvidenceRecord", "runs.AiAssistedReviewCandidate", "runs.ComparableResearchExecution", "runs.ResearchSupplementSnapshot", "runs.ResearchFxSnapshot", "runs.ResearchMicronAliasSnapshot"}
     assert {model._meta.label for model in apps.get_models()} == expected
 
 

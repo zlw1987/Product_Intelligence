@@ -30,13 +30,16 @@ from typing import TYPE_CHECKING
 from django.db import transaction
 
 from product_intelligence.domain import ResearchRequest
-from product_intelligence.domain.enums import ResearchRunState
+from product_intelligence.domain.enums import EvidenceDecision, ResearchRunState
 from product_intelligence.domain.evidence import (
     ExecutionDetailCode,
     ExecutionOutcome,
     ExecutionStage,
 )
 from product_intelligence.execution.aggregation import aggregate_prices
+from product_intelligence.execution.micron_alias_authority import (
+    acquire_micron_alias_eligibility,
+)
 from product_intelligence.execution.semantic_integration import (
     AiAssistedMatchResult,
     evaluate_semantic_matches,
@@ -46,18 +49,26 @@ from product_intelligence.execution.evidence_writer import ExecutionEvidenceWrit
 from product_intelligence.execution import matching as _matching
 from product_intelligence.research.listings import ListingObservation
 from product_intelligence.execution.normalization import normalize_listings
-from product_intelligence.execution.search_query import build_search_query
+from product_intelligence.execution.search_query import (
+    build_alias_expanded_search_query,
+    build_search_query,
+)
 from product_intelligence.providers.http_page import HttpPageFetcher
 from product_intelligence.providers.page import PageFetcher, PageFetchRequest, UnsafeFetchTargetError
 from product_intelligence.providers.search import SearchProvider
 from product_intelligence.research.aggregation import PriceAggregationResult, aggregate_listing_prices
 from product_intelligence.research.identity import compare_part_numbers
+from product_intelligence.research.micron_alias_codec import encode_micron_alias_snapshot
+from product_intelligence.research.micron_packaging_alias import (
+    MicronAliasEligibilityResult,
+)
 from product_intelligence.runs import complete_execution, execution_claims
 from product_intelligence.runs.execution_claims import ClaimExecutionFailed
 from product_intelligence.runs.models import (
     AiAssistedReviewCandidate,
     PriceIntelligenceSnapshot,
     ResearchFxSnapshot,
+    ResearchMicronAliasSnapshot,
     ResearchRun,
     ResearchSupplementSnapshot,
 )
@@ -226,18 +237,49 @@ def _execute_claimed_run(
     # Otherwise: invoke SearchProvider.
     fallback_required = not _has_valid_4a_buckets(request, direct_assessments)
 
+    # 4D-D: the paid-search batch (assessments originating from the ONE
+    # fallback search call) and whether that call used the ESTABLISHED
+    # alias-expanded query. The semantic firewall below partitions on
+    # exactly these.
+    search_batch_assessments: list = []
+    alias_expanded = False
+
     # ---------------------------------------------------------------
     # Step 3: Fallback search (lazy construction)
     # ---------------------------------------------------------------
     if fallback_required:
+        # -----------------------------------------------------------------
+        # 4D-D: Micron packaging-alias eligibility (direct-insufficient
+        # runs with a non-empty MPN only). Direct-sufficient runs perform
+        # zero paid search and zero Micron authority fetch.
+        #
+        # * At most ONE reviewed family-catalog fetch per run.
+        # * The bounded audit (ESTABLISHED or bounded non-established)
+        #   is persisted BEFORE the paid search, so the retrieval
+        #   decision is evidenced on held authority, not after the fact.
+        # * Only an ESTABLISHED result changes the query (to the
+        #   alias-expanded form); every other result keeps the ordinary
+        #   query. There is never a second search.
+        # * A DB/persistence failure here is NOT a bounded authority
+        #   failure: it propagates to the outer catastrophic boundary.
+        # -----------------------------------------------------------------
+        search_query = build_search_query(request)
+        if request.manufacturer_part_number:
+            alias_result = acquire_micron_alias_eligibility(
+                request=request, page_fetcher=page_fetcher
+            )
+            _persist_alias_snapshot(claimed_run, alias_result)
+            if alias_result.is_established:
+                search_query = build_alias_expanded_search_query(
+                    request, alias_result.alias_relation
+                )
+                alias_expanded = True
+
         # Lazy construction: build default Serper only when actually needed.
         # A direct-sufficient run does not require SERPER_API_KEY.
         if search_provider is None:
             from product_intelligence.providers.serper import SerperSearchProvider
             search_provider = SerperSearchProvider.from_environment()
-
-        # Build search query from request
-        search_query = build_search_query(request)
 
         # Call search provider (outside transaction)
         search_response = None
@@ -297,7 +339,8 @@ def _execute_claimed_run(
             if url_result.fetch_succeeded:
                 fetch_success_count += 1
             extract_observation_count += url_result.extract_observation_count
-            total_assessments.extend(url_result.assessments)
+            search_batch_assessments.extend(url_result.assessments)
+        total_assessments.extend(search_batch_assessments)
     else:
         # Direct evidence sufficient — no SEARCH evidence record written.
         logger.info(
@@ -309,8 +352,30 @@ def _execute_claimed_run(
     # ---------------------------------------------------------------
     # Step 4: Semantic integration + final aggregation
     # ---------------------------------------------------------------
+    # 4D-D semantic / human-review firewall:
+    #
+    # When the paid search used the ESTABLISHED alias-expanded query, ALL
+    # non-deterministically-ACCEPTED assessments originating from THAT
+    # search batch are excluded from semantic evaluation — they cannot
+    # produce AI_ASSISTED_MATCH, AiAssistedReviewCandidate, or Reviewed
+    # Price path membership. They REMAIN in total_assessments: frozen 4A
+    # aggregation input and frozen exclusions are unchanged, and the
+    # persisted PriceAggregationResult keeps them. Direct assessments
+    # retain their current frozen semantic behavior; ordinary (non-alias)
+    # paid-search assessments do too. Deterministically ACCEPTED
+    # search-batch assessments (exact requested MPN) keep normal frozen
+    # behavior (they are never semantic-eligible in the first place).
+    if alias_expanded:
+        semantic_input = [
+            *direct_assessments,
+            *(a for a in search_batch_assessments
+              if a.decision is EvidenceDecision.ACCEPTED),
+        ]
+    else:
+        semantic_input = total_assessments
+
     ai_assisted_results = evaluate_semantic_matches(
-        request, total_assessments, evidence_writer,
+        request, semantic_input, evidence_writer,
     )
 
     aggregation_result: PriceAggregationResult
@@ -675,6 +740,31 @@ def _terminalize_run(run: ResearchRun) -> None:
 # ---------------------------------------------------------------
 # 4D-A helper functions: direct acquisition, fallback, URL processing
 # ---------------------------------------------------------------
+
+
+def _persist_alias_snapshot(
+    claimed_run: ResearchRun,
+    alias_result: MicronAliasEligibilityResult,
+) -> None:
+    """Persist the bounded 4D-D alias-authority audit BEFORE the paid search.
+
+    The eligibility audit (ESTABLISHED or bounded non-established) is
+    written as its own pre-search durability step so the retrieval
+    decision — including the ESTABLISHED authority that changes the paid
+    search query — is evidenced on held authority, not reconstructed
+    after the fact. The snapshot carries bounded provenance (URLs,
+    retrieved_at, body SHA-256, status, policy), never the catalog body.
+
+    A DB/persistence failure is NOT a bounded authority failure: it
+    propagates to the outer catastrophic boundary (the run terminalizes
+    to FAILED; the audit is wholly persisted or wholly absent).
+    """
+    payload = encode_micron_alias_snapshot(alias_result)
+    ResearchMicronAliasSnapshot.objects.create(
+        run=claimed_run,
+        schema_version=1,
+        payload=payload,
+    )
 
 
 def _try_direct_acquisition(

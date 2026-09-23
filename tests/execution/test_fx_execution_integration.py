@@ -993,6 +993,7 @@ class TestFxFullPersistenceIntegration:
             return FetchedPage(
                 requested_url=request.url,
                 final_url=request.url,
+                retrieved_at=datetime.now(tz=timezone.utc),
                 status_code=200,
                 body_text=exxact_html,
                 content_type="text/html",

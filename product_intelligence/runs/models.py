@@ -1280,3 +1280,92 @@ class ResearchFxSnapshot(models.Model):
 
     def __str__(self) -> str:
         return f"ResearchFxSnapshot {self.run_id} (v{self.schema_version})"
+
+
+# ---------------------------------------------------------------------------
+# ResearchMicronAliasSnapshot — 4D-D
+# ---------------------------------------------------------------------------
+
+
+class ResearchMicronAliasSnapshot(models.Model):
+    """A persisted, versioned Micron packaging-alias audit for one ResearchRun.
+
+    PRODUCT-INTEL.4D-D.
+
+    The snapshot is **storage, not interpretation**. It holds opaque JSON
+    (``schema_version`` + ``payload``) plus a creation timestamp. Encoding
+    and decoding happen in the research-layer codec
+    (``research/micron_alias_codec.py``), not here.
+
+    This model stores the bounded provenance audit of ONE 4D-D v1
+    alias-authority acquisition for the run (the reviewed Micron 7500 SSD
+    family catalog). It persists ESTABLISHED results and bounded
+    non-established results alike, whenever authority acquisition was
+    performed for a non-empty-MPN run whose direct evidence was
+    insufficient. It carries the body SHA-256, never the catalog body.
+
+    The persisted data is retrieval provenance only. It does NOT modify
+    PriceIntelligenceSnapshot, and its alias relation does NOT enter
+    Machine Price, Reviewed Price, deterministic/semantic identity
+    authority, or comparable scoring. Alias rows are customer-defined
+    retrieval references, not manufacturer-published packaging identity.
+
+    Identity
+    --------
+
+    The primary key is the ``ResearchRun`` UUID via a ``OneToOneField``.
+    There is at most one alias snapshot per run. If authority acquisition
+    was not performed (description-only run, or direct-sufficient run),
+    this row is absent.
+
+    ``schema_version``
+        The codec version that produced ``payload``. The only supported
+        version is 1.
+
+    ``payload``
+        A ``JSONField`` holding the codec-encoded bounded eligibility
+        audit. The schema is owned by the codec, not the model.
+
+    ``created_at``
+        When the snapshot row was persisted. For an ESTABLISHED result
+        this is BEFORE the alias-expanded paid search was issued — the
+        persisted audit is the evidence that the retrieval decision was
+        made on held authority, not after the fact.
+
+    Cascade behavior:
+        Deleting the ResearchRun cascades to this snapshot.
+    """
+
+    run = models.OneToOneField(
+        ResearchRun,
+        on_delete=models.CASCADE,
+        primary_key=True,
+        related_name="research_micron_alias_snapshot",
+        help_text="The research run this alias snapshot belongs to.",
+    )
+
+    schema_version = models.PositiveSmallIntegerField(
+        help_text="Codec version that produced the payload. Initial supported "
+        "value is 1.",
+    )
+
+    payload = models.JSONField(
+        help_text="Versioned codec-encoded bounded alias-authority audit.",
+    )
+
+    created_at = models.DateTimeField(
+        default=timezone.now,
+        editable=False,
+        help_text="When this snapshot record was persisted.",
+    )
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(schema_version__gte=1),
+                name="research_micron_alias_snapshot_schema_version_gte_1",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"ResearchMicronAliasSnapshot {self.run_id} (v{self.schema_version})"

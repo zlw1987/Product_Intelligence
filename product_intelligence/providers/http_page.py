@@ -330,7 +330,16 @@ class HttpPageFetcher:
                 f"request must be a PageFetchRequest, got {type(request).__name__}"
             )
 
-        opener = _build_opener()
+        try:
+            opener = _build_opener()
+        except OSError as exc:
+            # Secure-transport setup (TLS context creation) is a transport
+            # failure like any other: classify it as a bounded fetch failure
+            # rather than letting a raw ssl.SSLError escape the adapter.
+            raise PageFetchError(
+                f"fetch of {request.url!r} failed: secure transport "
+                "unavailable"
+            ) from exc
         current_url = request.url
         redirects = 0
 

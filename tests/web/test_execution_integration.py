@@ -84,9 +84,11 @@ class FakePageFetcher:
     
     pages: dict[str, FetchedPage] = field(default_factory=dict)
     call_count: int = 0
+    requested_urls: list[str] = field(default_factory=list)
     
     def fetch(self, request: PageFetchRequest) -> FetchedPage:
         self.call_count += 1
+        self.requested_urls.append(request.url)
         if request.url in self.pages:
             return self.pages[request.url]
         # Default: return a page with no listings (fusionww access restricted)
@@ -252,8 +254,25 @@ class RealExecutorCompleteIntegrationTest(TestCase):
         # Search was called exactly once
         self.assertEqual(fake_search.call_count, 1)
 
-        # All 5 URLs were fetched
-        self.assertEqual(fake_fetcher.call_count, 5)
+        # All 5 REAL-0001 URLs were fetched exactly once each, plus exactly
+        # one bounded 4D-D alias-authority fetch of the reviewed Micron 7500
+        # catalog URL (one per direct-insufficient non-empty-MPN run; this
+        # fake answers it with the default "Access restricted" page, which
+        # bounds the authority result to PARSE_FAILED — no authority, no
+        # query change).
+        from product_intelligence.research.micron_packaging_alias import (
+            MICRON_7500_REQUESTED_CATALOG_URL,
+        )
+        for fetched_url in page_bodies:
+            self.assertEqual(
+                fake_fetcher.requested_urls.count(fetched_url), 1,
+                f"expected exactly one fetch of {fetched_url}",
+            )
+        self.assertEqual(
+            fake_fetcher.requested_urls.count(MICRON_7500_REQUESTED_CATALOG_URL),
+            1,
+        )
+        self.assertEqual(fake_fetcher.call_count, 6)
 
         # Snapshot exists
         self.assertTrue(

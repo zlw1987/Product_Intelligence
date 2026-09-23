@@ -36,8 +36,9 @@ for AI-assisted semantic matches. The web form creates a run, triggers
 execution synchronously, and redirects to the report with the full result.
 Remaining future work: structured API (5A). 4D-B is APPROVED/FROZEN.
 4D-C-A is APPROVED/FROZEN. 4D-C-SEC is APPROVED/FROZEN.
-4D-C is APPROVED/FROZEN. 4D-D remains planned (authority evidence under
-review).
+4D-C is APPROVED/FROZEN. 4D-D-PRE1 is APPROVED/FROZEN and 4D-D-PRE2 is
+APPROVED/FROZEN (evidence SHA 1cb65a3d6002006af9e1c77906a6de6b5a3fd42c).
+4D-D is IMPLEMENTED / PENDING FINAL REVIEW (v1 scope: Micron 7500 SSD only).
 
 ## 2. Problem statement
 
@@ -2777,7 +2778,7 @@ PRODUCT-INTEL.4D-B    Internal Vendor Commercial Evidence        APPROVED / FROZ
 PRODUCT-INTEL.4D-C-A  ECB FX + Compact Quote Projection          APPROVED / FROZEN
 PRODUCT-INTEL.4D-C-SEC Vendor Commercial Price Access Gate        APPROVED / FROZEN
 PRODUCT-INTEL.4D-C    Compact Quote Summary (browser rendering)  APPROVED / FROZEN
-PRODUCT-INTEL.4D-D    Micron Packaging Alias Retrieval           PLANNED / AUTHORITY EVIDENCE UNDER REVIEW
+PRODUCT-INTEL.4D-D    Micron Packaging Alias Retrieval           IMPLEMENTED / PENDING FINAL REVIEW
 
 ----- PRODUCT-INTEL.4D — Customer Quote Research Expansion -----
 
@@ -4206,7 +4207,12 @@ This canonical plan does not duplicate that operational snapshot.
 4D-C — APPROVED / FROZEN (Compact Quote Summary — browser rendering)
      Frozen SHA: 4592b8966b703dfd6a72c3067d7b191314ff2968
      Frozen baseline: 4766 collected
-4D-D — PLANNED / AUTHORITY EVIDENCE UNDER REVIEW (Micron Packaging Alias Retrieval)
+4D-D-PRE1 — APPROVED / FROZEN (early feasibility review; binding conclusion
+     at the time: NO CURRENT 4D-D ELIGIBILITY AUTHORITY EXISTS)
+4D-D-PRE2 — APPROVED / FROZEN (Micron official authority evidence capture;
+     evidence SHA 1cb65a3d6002006af9e1c77906a6de6b5a3fd42c)
+4D-D — IMPLEMENTED / PENDING FINAL REVIEW (Micron Packaging Alias Retrieval;
+     v1 scope: Micron 7500 SSD ONLY)
 
 Note: 4D-C security gate (trusted network/VPN access control) is resolved by
 the frozen 4D-C-SEC REMOTE_ADDR-only access policy. Report UUID is not access
@@ -4635,6 +4641,70 @@ It may generate retrieval aliases:
 
 If a later phase wants these variants to enter authoritative pricing, that
 requires independent evidence-backed validation.
+
+**4D-D implementation record (IMPLEMENTED / PENDING FINAL REVIEW):**
+
+Implemented against the frozen 4D-D-PRE2 evidence (SHA
+1cb65a3d6002006af9e1c77906a6de6b5a3fd42c). v1 scope is binding: Micron 7500
+SSD ONLY (not generic Micron memory, not DRAM, not any other family or
+suffix set; extension requires additional reviewed authority policies and
+recorded manufacturer evidence).
+
+Authority split as implemented:
+
+```
+Micron catalog (reviewed 4D-D-PRE2 family-catalog endpoint):
+    manufacturer / category / source-published BASE authority
+    (policy id micron-7500-ssd-part-catalog-v1, module-private,
+    no environment/DB/caller injection; category from the matched row's
+    own structured is-ssd == True attribute, never inferred)
+
+customer rule (final uppercase R/T strip; base re-derivation):
+    R/T retrieval relation only (MICRON_PACKAGING_ALIAS)
+    — retrieval recall + clearly labeled reference rows;
+    never identity, never Machine/Reviewed/Compact/Comparable authority;
+    frozen 2A/3C unchanged (family forms are NEVER established under 2A)
+```
+
+Runtime behavior as implemented:
+
+* direct-sufficient runs: zero Micron authority fetch, zero paid search,
+  no alias snapshot;
+* one direct-insufficient run with a non-empty MPN: at most ONE reviewed
+  family-catalog fetch (bounded audit statuses: ESTABLISHED, NO_REQUESTED_MPN,
+  INVALID_LOOKUP_BASE, NO_AUTHORITY_MATCH, AMBIGUOUS_AUTHORITY_MATCH,
+  CATEGORY_NOT_SSD, FETCH_FAILED, SOURCE_REFUSED, HOST_ESCAPED, PARSE_FAILED);
+  the bounded audit is persisted as `ResearchMicronAliasSnapshot` (V1 codec,
+  body SHA-256, never the catalog body) BEFORE the paid search;
+* only ESTABLISHED changes the paid query (requested MPN primary +
+  established aliases as quoted recall terms + ordinary description);
+  at most ONE paid search per run; every other status keeps the ordinary
+  frozen query;
+* semantic firewall: with an ESTABLISHED alias-expanded search, non-ACCEPTED
+  assessments from that search batch are excluded from semantic evaluation
+  (no AI_ASSISTED_MATCH / review candidate / Reviewed Price path membership)
+  while remaining in frozen 4A input and exclusions; direct and ordinary
+  non-alias assessments retain frozen semantic behavior; deterministic exact
+  requested-MPN listings keep normal frozen 4A behavior;
+* historical GET renders the separate "Micron packaging alias evidence"
+  section ONLY from the persisted snapshot (zero live provider / network /
+  semantic work; fail closed on codec error or request-provenance mismatch);
+  alias reference rows are persisted EXCLUDED assessments only;
+* R/T per-part detail endpoints are never fetched (PRE2: Invalid
+  Partnumber / template echo — not authority).
+
+Collection accounting (frozen 4D-C baseline 4766 -> 5052):
+
+| Component | Nodes |
+| --- | --- |
+| Frozen 4D-C baseline | 4766 |
+| Explicit new focused 4D-D test nodes (7 files) | 258 |
+| New explicit 4D-D model-field inventory test (test_research_run_boundaries.py) | 1 |
+| Automatic parameterized expansion (domain +2, providers +4, research identity +8, runs +4, web +9) | 27 |
+| **Final collection** | **5052** |
+
+Not marked APPROVED/FROZEN: freeze follows independent review of the pushed
+commit.
 
 ### 26.8 Deferred items for 4D
 

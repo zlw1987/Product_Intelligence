@@ -123,6 +123,171 @@
 {% endif %}
 {% endif %}
 
+{% if micron_alias or micron_alias_unavailable %}
+<h2>Micron packaging alias evidence</h2>
+
+{% if micron_alias %}
+  <p>
+    <strong>Alias authority status:</strong> {{ micron_alias.status }}
+    {% if micron_alias.established %}
+      (established from the reviewed Micron 7500 SSD family catalog)
+    {% else %}
+      (bounded non-established result; no alias-expanded retrieval was used)
+    {% endif %}
+  </p>
+
+  <div class="spec-table-wrapper">
+    <table class="spec-table">
+      <tbody>
+        <tr>
+          <th>Policy</th>
+          <td>{{ micron_alias.policy_id }}</td>
+        </tr>
+        <tr>
+          <th>Requested MPN</th>
+          <td><code>{{ micron_alias.requested_mpn }}</code></td>
+        </tr>
+        {% if micron_alias.lookup_base_candidate %}
+        <tr>
+          <th>Lookup base candidate</th>
+          <td><code>{{ micron_alias.lookup_base_candidate }}</code></td>
+        </tr>
+        {% endif %}
+        <tr>
+          <th>Manufacturer</th>
+          <td>{% if micron_alias.manufacturer %}{{ micron_alias.manufacturer }}{% else %}<span class="absent">Not established</span>{% endif %}</td>
+        </tr>
+        <tr>
+          <th>Category</th>
+          <td>{% if micron_alias.category %}{{ micron_alias.category }}{% else %}<span class="absent">Not established</span>{% endif %}</td>
+        </tr>
+        <tr>
+          <th>Source</th>
+          <td>{% if micron_alias.source_name %}{{ micron_alias.source_name }}{% else %}<span class="absent">Not fetched</span>{% endif %}</td>
+        </tr>
+        <tr>
+          <th>Requested catalog URL</th>
+          <td>
+            {% if micron_alias.requested_source_url %}
+              {% if micron_alias.requested_source_url_safe %}
+                <a href="{{ micron_alias.requested_source_url }}">{{ micron_alias.requested_source_url }}</a>
+              {% else %}
+                {{ micron_alias.requested_source_url }}
+              {% endif %}
+            {% else %}<span class="absent">Not attempted</span>{% endif %}
+          </td>
+        </tr>
+        <tr>
+          <th>Fetched final URL</th>
+          <td>
+            {% if micron_alias.fetched_final_url %}
+              {% if micron_alias.fetched_final_url_safe %}
+                <a href="{{ micron_alias.fetched_final_url }}">{{ micron_alias.fetched_final_url }}</a>
+              {% else %}
+                {{ micron_alias.fetched_final_url }}
+              {% endif %}
+            {% else %}<span class="absent">Not fetched</span>{% endif %}
+          </td>
+        </tr>
+        <tr>
+          <th>Retrieved at (UTC)</th>
+          <td>{% if micron_alias.retrieved_at %}{{ micron_alias.retrieved_at }}{% else %}<span class="absent">Not fetched</span>{% endif %}</td>
+        </tr>
+        <tr>
+          <th>Matched source-published base MPN</th>
+          <td>{% if micron_alias.matched_base_mpn %}<code>{{ micron_alias.matched_base_mpn }}</code>{% else %}<span class="absent">Not established</span>{% endif %}</td>
+        </tr>
+        <tr>
+          <th>Catalog match type</th>
+          <td>{% if micron_alias.part_number_match_type %}{{ micron_alias.part_number_match_type }}{% else %}<span class="absent">Not established</span>{% endif %}</td>
+        </tr>
+        <tr>
+          <th>SSD category evidence</th>
+          <td>
+            {% if micron_alias.ssd_attr_id %}
+              <code>{{ micron_alias.ssd_attr_id }}</code>
+              = {{ micron_alias.ssd_attr_value }}
+              (display label: {% if micron_alias.ssd_attr_name %}{{ micron_alias.ssd_attr_name }}{% else %}none{% endif %})
+            {% else %}<span class="absent">Not established</span>{% endif %}
+          </td>
+        </tr>
+        <tr>
+          <th>Catalog body SHA-256</th>
+          <td>{% if micron_alias.body_sha256 %}<code>{{ micron_alias.body_sha256 }}</code>{% else %}<span class="absent">Not fetched</span>{% endif %}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  {% if micron_alias.established %}
+    <p>
+      <strong>Customer-defined packaging alias relation:</strong>
+      {% for identifier in micron_alias.alias_identifiers %}
+        <code>{{ identifier }}</code>{% if not forloop.last %} · {% endif %}
+      {% endfor %}
+    </p>
+    <p class="notice">
+      Customer-defined retrieval relation (retrieval recall only).
+      Not manufacturer-published packaging identity.
+    </p>
+
+    <h3>Customer-defined packaging alias reference — excluded from pricing authority</h3>
+    {% if micron_alias.reference_rows %}
+      <div class="spec-table-wrapper">
+        <table class="spec-table">
+          <thead>
+            <tr>
+              <th>Source</th>
+              <th>Published MPN</th>
+              <th>Referenced alias</th>
+              <th>Product title</th>
+              <th>Observed price</th>
+              <th>Deterministic decision</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in micron_alias.reference_rows %}
+            <tr>
+              <td>
+                {% if row.source_url_safe %}
+                  <a href="{{ row.source_url }}">{{ row.source_url }}</a>
+                {% else %}
+                  {{ row.source_url }}
+                {% endif %}
+              </td>
+              <td><code>{{ row.published_candidate_mpn }}</code></td>
+              <td><code>{{ row.referenced_alias }}</code></td>
+              <td>{{ row.product_title|default:"" }}</td>
+              <td>
+                {% if row.normalized_price %}
+                  {{ row.normalized_price }} {{ row.currency_code|default:"" }}
+                {% else %}<span class="absent">—</span>{% endif %}
+              </td>
+              <td>{{ row.decision }}{% if row.rejection_reason %} ({{ row.rejection_reason }}){% endif %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <p class="notice">
+        Customer-defined packaging alias reference — excluded from pricing authority.
+        These listings published a customer-defined alias identifier and are
+        reference evidence only: they are excluded from Machine Price, Reviewed
+        Price, deterministic and semantic identity authority, compact quote,
+        and comparable scoring.
+      </p>
+    {% else %}
+      <p class="notice">
+        No excluded listing in this run published a customer-defined alias
+        identifier.
+      </p>
+    {% endif %}
+  {% endif %}
+{% elif micron_alias_unavailable %}
+  <p class="notice">Micron alias evidence unavailable.</p>
+{% endif %}
+{% endif %}
+
 <h2>Price intelligence</h2>
 
 {% if snapshot_error %}

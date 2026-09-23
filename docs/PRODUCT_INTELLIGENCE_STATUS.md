@@ -31,8 +31,10 @@ HUMAN-REVIEW Human Review for AI-Assisted Matches APPROVED/FROZEN;
 
 4D is partially implemented. 4D-PRE and 4D-A are approved and frozen.
 4D-B is approved and frozen. 4D-C-A is APPROVED / FROZEN. 4D-C-SEC is APPROVED / FROZEN.
-4D-C (browser rendering) is APPROVED / FROZEN. 4D-D is planned (authority
-evidence under review).
+4D-C (browser rendering) is APPROVED / FROZEN. 4D-D-PRE1 is APPROVED / FROZEN.
+4D-D-PRE2 is APPROVED / FROZEN (evidence SHA
+1cb65a3d6002006af9e1c77906a6de6b5a3fd42c). 4D-D is IMPLEMENTED / PENDING
+FINAL REVIEW.
 
 ```
 4D-PRE  Preferred Source Feasibility Audit  (evidence only) — APPROVED / FROZEN
@@ -41,7 +43,9 @@ evidence under review).
 4D-C-A  ECB FX + Compact Quote Projection Foundation — APPROVED / FROZEN
 4D-C-SEC Vendor Commercial Price Access Gate — APPROVED / FROZEN
 4D-C    Compact Quote Summary (browser rendering) — APPROVED / FROZEN
-4D-D    Micron Packaging Alias Retrieval — PLANNED / AUTHORITY EVIDENCE UNDER REVIEW
+4D-D-PRE1 Early 4D-D authority feasibility review — APPROVED / FROZEN
+4D-D-PRE2 Micron official authority evidence capture — APPROVED / FROZEN
+4D-D    Micron Packaging Alias Retrieval — IMPLEMENTED / PENDING FINAL REVIEW
 ```
 
 **PRODUCT-INTEL.4D-B — APPROVED / FROZEN**
@@ -176,6 +180,159 @@ Compact Quote Browser Rendering. Frozen prerequisites: 4D-C-A (SHA
 - Frozen 4D-C-A `replay_compact_quote_projection()` behavior unchanged;
   the new service is additive
 
+**PRODUCT-INTEL.4D-D-PRE1 — APPROVED / FROZEN**
+
+Early 4D-D authority feasibility review. Binding conclusion at the time:
+`NO CURRENT 4D-D ELIGIBILITY AUTHORITY EXISTS` (no reviewed manufacturer
+authority chain available for packaging-alias retrieval; the requirement
+remained customer-ruled and retrieval-only).
+
+**PRODUCT-INTEL.4D-D-PRE2 — APPROVED / FROZEN**
+
+Evidence SHA: 1cb65a3d6002006af9e1c77906a6de6b5a3fd42c
+
+Micron official authority evidence capture (evidence only; no production
+code). Recorded 12 sanitized anonymous-GET fixtures under
+`tests/fixtures/pages/` plus `docs/MICRON_ALIAS_AUTHORITY_EVIDENCE.md`.
+Recommendation: `AUTHORITY_EVIDENCE_SUFFICIENT_FOR_4D_D_SSD_V1`, scoped:
+SSD only; the structured BASE catalog record owns the exact-MPN proof and
+the `is-ssd` category proof; R/T per-part endpoints return
+`Invalid Partnumber` and R/T page metadata is template echo — neither is
+authority; no official R/T packaging-semantic statement exists.
+
+**PRODUCT-INTEL.4D-D — IMPLEMENTED / PENDING FINAL REVIEW**
+
+Micron Packaging Alias Retrieval, v1 scope: **Micron 7500 SSD ONLY** (not
+generic Micron memory, not DRAM, not any other family; extending requires
+additional reviewed authority policies and recorded manufacturer evidence).
+
+Authority split (binding):
+
+```
+Micron catalog (reviewed 4D-D-PRE2 family-catalog endpoint):
+    manufacturer / category / source-published BASE authority
+
+Customer rule (final uppercase R/T strip, base must re-derive):
+    R/T retrieval relation only (MICRON_PACKAGING_ALIAS)
+    — never identity, never pricing authority
+```
+
+Key implementation facts:
+
+- Pure research contracts: `research/micron_packaging_alias.py` — reviewed v1
+  policy constants (policy id `micron-7500-ssd-part-catalog-v1`,
+  manufacturer `Micron`, category `SSD`, exact reviewed catalog URL,
+  approved origin `https://www.micron.com`), deterministic fail-closed
+catalog-record extraction over the recorded fixture shape, `is-ssd == True`
+(category evidence from the matched row's own structured attribute — never
+inferred from description/URL/prefix/model knowledge), customer-rule
+lookup-base derivation (final uppercase R/T only; lowercase and degenerate
+inputs abstain), self-validating `MicronPackagingAliasRelation` and
+`MicronAliasEligibilityResult` (every authority-bearing binding re-derived
+at construction; frozen 2A `compare_part_numbers` used only for catalog-row
+matching and reference labeling — frozen 2A/3C semantics unchanged, family
+forms are NEVER established under 2A), `find_alias_reference` (read-side
+reference labeling against alias identifiers only).
+- Execution authority acquisition: `execution/micron_alias_authority.py` —
+module-private reviewed v1 policy (no environment/DB/caller injection);
+ONE reviewed family-catalog fetch per direct-insufficient non-empty-MPN
+run through the existing PageFetcher protocol; bounded status vocabulary
+(ESTABLISHED / NO_REQUESTED_MPN / INVALID_LOOKUP_BASE / NO_AUTHORITY_MATCH /
+AMBIGUOUS_AUTHORITY_MATCH / CATEGORY_NOT_SSD / FETCH_FAILED / SOURCE_REFUSED /
+HOST_ESCAPED / PARSE_FAILED); origin boundary (scheme downgrade, host
+escape, port change, unparseable all fail closed); classified error types
+propagate to the catastrophic boundary while uncallable fetchers,
+unclassified bare-`Exception` network failures, and non-conforming fetch
+results are bounded `FETCH_FAILED` (mirrors the frozen 4C candidate-fetch
+robustness); R/T detail endpoints are never fetched (not authority).
+- Orchestration wiring (`execution/orchestration.py`, additive): the alias
+  step runs only when fallback search is required AND the request MPN is
+  non-empty; the bounded audit is persisted (its own pre-search durability
+  step) BEFORE the ONE paid search; only an ESTABLISHED result changes the
+  query (to `build_alias_expanded_search_query` — requested MPN primary,
+  established aliases as quoted recall terms, ordinary description shape);
+  every other result keeps the ordinary frozen query; direct-sufficient
+  runs perform zero Micron authority fetch and zero paid search; semantic
+  firewall: with an ESTABLISHED alias-expanded search, non-ACCEPTED
+  assessments from that search batch are excluded from
+  `evaluate_semantic_matches` (no AI_ASSISTED_MATCH / review candidates /
+  Reviewed Price path membership) while remaining in frozen 4A input and
+  exclusions; direct and ordinary non-alias assessments retain frozen
+  semantic behavior; deterministic exact requested-MPN listings keep normal
+  frozen 4A behavior.
+- Persistence: `runs.ResearchMicronAliasSnapshot` (migration 0010) —
+OneToOne per run (absent when acquisition was not performed),
+`schema_version` 1, opaque codec-owned JSON payload, body SHA-256 (never
+the catalog body), cascade with the run.
+- Codec: `research/micron_alias_codec.py` (V1) — strict key sets, rejects
+extra/missing keys and unknown versions, deterministic UTC second
+precision, decode reconstructs the self-validating result so a tampered
+payload cannot re-label a foreign manufacturer/category/URL/origin as v1
+authority (fail closed).
+- Web: `web/micron_alias_presentation.py` (display-only; consumes the
+decoded persisted audit structurally per the frozen web-aggregation import
+boundary) + a separate, clearly labeled "Micron packaging alias evidence"
+section in `web/research_detail.html` rendered ONLY from the persisted
+snapshot on historical GET (zero live Micron / search / vendor / FX /
+semantic / network work, armed-fail-fast proven by
+`tests/web/test_micron_alias_report.py`); alias reference rows are
+persisted EXCLUDED assessments only — separate section, never Compact /
+Machine / Reviewed / Comparable authority; fail-closed on codec error or
+request-provenance mismatch (no partial alias data, main report unaffected).
+- Boundary allowlists extended exactly: web research allowlist gains
+`micron_alias_codec.{MicronAliasCodecError, decode_micron_alias_snapshot}`
+and `micron_packaging_alias.{MicronAliasEligibilityStatus,
+MicronAliasEligibilityResult, find_alias_reference}`; web runs-model import
+guard gains `ResearchMicronAliasSnapshot`; model inventories in
+`test_provider_boundaries.py`, `test_research_identity_boundaries.py`,
+`test_web_boundaries.py`, `test_research_run_boundaries.py`, and
+`test_comparable_research_execution.py` updated to the exact supersets.
+- Final-acceptance hardening (this session, disclosed):
+  `providers/http_page.py` — secure-transport setup failure
+  (`ssl.SSLError` at TLS-context creation, an environmental
+  Windows/Python-3.14 flake) is now classified as the adapter's bounded
+  `PageFetchError` like every other transport failure (previously it
+  escaped the classification); fetch semantics unchanged.
+  `execution/micron_alias_authority.py` — bounded fetch surface completed
+  (uncallable fetcher, unclassified bare-`Exception`, non-conforming fetch
+  result → `FETCH_FAILED`; classified error types still propagate).
+  Frozen test doubles updated where 4D-D's documented pre-search authority
+  fetch is visible to them: 4D-A same-URL dedup proofs are now per-URL
+  (strengthened) and account for the one bounded authority fetch; the
+  FX full-persistence double supplies the `FetchedPage`-required
+  `retrieved_at` it was missing (previously masked by the 4C broad catch —
+  the FX path is now actually exercised); the web REAL-0001 fetch proof is
+  per-URL (strengthened) and accounts for the one bounded authority fetch.
+
+**Final acceptance evidence (this session):**
+
+- Focused 4D-D matrix (7 files): 258 passed.
+- Collection: 4766 (frozen 4D-C baseline) + 258 (explicit new focused 4D-D
+test nodes) + 1 (new explicit 4D-D model-field inventory test in
+`test_research_run_boundaries.py`) + 27 (automatic parameterized expansion
+in existing boundary scans: domain +2, providers +4, research identity +8,
+runs +4, web +9 — one node per new production file per scanning
+parametrize) = **5052** collected. (Correction of an earlier report's
+arithmetic: 5052 − 258 = 4794, not 4785; 4794 = 4766 + 28 where the +28 is
+the 1 explicit inventory test + 27 automatic expansions above.)
+- FINAL full suite (zero deselection, no skip/xfail injection): 5052
+collected, 5042 passed (+39 subtests), 10 failed — exactly 10 of the 11
+fixed Windows/Python-3.14 subprocess-boundary allowlist nodes, each with
+the observed signature `subprocess.Popen -> _winapi.DuplicateHandle ->
+OSError: [WinError 6] The handle is invalid`; 0 skipped, 0 xfailed,
+0 deselected. The 11th allowlist node
+(`tests/domain/test_domain_boundaries.py::test_domain_imports_without_django_network_or_llm_dependencies`)
+passed in the final run (non-deterministic by nature).
+- `python manage.py check`: System check identified no issues (0 silenced).
+- `python manage.py makemigrations --check --dry-run`: No changes detected.
+- Frozen 2A/3C/4A/semantic/HUMAN-REVIEW/vendor-commercial/compact-quote
+files byte-identical to the parent (mechanically verified).
+- Process disclosure: an earlier interrupted 4D-D diagnostic session used
+`--deselect` once (530 passed, 7 deselected — diagnostic boundary run only,
+no test modified); the final acceptance suite used zero deselection.
+- NOT marked APPROVED/FROZEN: final approval/freeze happens only after
+independent review of the pushed commit.
+
 Semantic qualification is APPROVED AND FROZEN:
 - Semantic qualification corpus, prompt v1.1, evaluator mathematics,
   qualification thresholds, expected decisions, and safety gates approved
@@ -289,7 +446,7 @@ FU3B wires the frozen FU3A semantic runtime into real research execution:
 | 4D-C-A | ECB FX + Compact Quote Projection Foundation | **IMPLEMENTED / APPROVED / FROZEN** |
 | 4D-C-SEC | Vendor Commercial Price Access Gate | **IMPLEMENTED / APPROVED / FROZEN** |
 | 4D-C | Compact Quote Summary (browser rendering) | **IMPLEMENTED / APPROVED / FROZEN** |
-| 4D-D | Micron Packaging Alias Retrieval | Planned / authority evidence under review |
+| 4D-D | Micron Packaging Alias Retrieval | Implemented (pending final review; PRE1 + PRE2 frozen) |
 | 4C-A | Execution ownership/lifecycle/evidence primitives | Implemented (frozen) |
 | 4C-B | Backend research execution | Implemented (frozen) |
 | 4C-B-FU | Exact duplicate deduplication | Implemented (frozen) |
@@ -386,6 +543,11 @@ FU3B wires the frozen FU3A semantic runtime into real research execution:
 | Commercial Price Access Gate (4D-C-SEC) | `web/commercial_access.py` | **Implemented (approved / frozen)** |
 | Compact Quote Public Replay (4D-C) | `execution/compact_quote_public_replay.py` | **Implemented (approved / frozen)** |
 | Compact Quote Browser Presentation (4D-C) | `web/compact_quote_presentation.py` | **Implemented (approved / frozen)** |
+| Micron 7500 Packaging Alias Contracts (4D-D) | `research/micron_packaging_alias.py` | Implemented (pending final review) |
+| Micron Alias Snapshot Codec (4D-D) | `research/micron_alias_codec.py` | Implemented (pending final review) |
+| Micron Alias Authority Acquisition (4D-D) | `execution/micron_alias_authority.py` | Implemented (pending final review) |
+| Alias Snapshot Model (4D-D) | `runs/models.py` (ResearchMicronAliasSnapshot) + migration 0010 | Implemented (pending final review) |
+| Alias Browser Presentation (4D-D) | `web/micron_alias_presentation.py` | Implemented (pending final review) |
 
 ## Research orchestration
 
@@ -823,10 +985,11 @@ Corrective pass (final evidence-backed closure):
          no production code changes;
          evidence recorded in docs/PILOT_SOURCE_FEASIBILITY.md
 
-**4D**: PLANNED — Customer Quote Research Expansion;
+**4D**: PARTIALLY IMPLEMENTED — Customer Quote Research Expansion;
        4D-PRE (feasibility audit) -> 4D-A (source optimization) ->
        4D-B (vendor commercial evidence) -> 4D-C (compact quote + FX) ->
-       4D-D (Micron packaging alias);
+       4D-D (Micron packaging alias, IMPLEMENTED / PENDING FINAL REVIEW,
+       v1 scope Micron 7500 SSD only);
        no frozen phase reopened; no frozen boundary weakened;
        4D-B triggers §19 security gate (access control no longer deferrable);
        8C remains formal production-hardening/authentication phase

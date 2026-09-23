@@ -1218,10 +1218,10 @@ class TestDirectAcquisitionExecution:
         </script></head><body></body></html>
         """
 
-        fetch_count = [0]
+        fetch_urls: list[str] = []
 
         def counting_fetch(request: PageFetchRequest) -> FetchedPage:
-            fetch_count[0] += 1
+            fetch_urls.append(request.url)
             return FetchedPage(
                 requested_url=request.url,
                 final_url=request.url,
@@ -1255,8 +1255,17 @@ class TestDirectAcquisitionExecution:
                 page_fetcher=counting_fetcher,
             )
 
-        # URL should be fetched only once (deduplicated)
-        assert fetch_count[0] == 1
+        # The SAME URL is fetched exactly once (deduplicated across direct +
+        # fallback). The one other fetch is the bounded 4D-D alias-authority
+        # fetch of the reviewed Micron 7500 catalog URL (one per
+        # direct-insufficient non-empty-MPN run; this SKU-only body bounds it
+        # to PARSE_FAILED, which grants no authority and changes no query).
+        from product_intelligence.research.micron_packaging_alias import (
+            MICRON_7500_REQUESTED_CATALOG_URL,
+        )
+        assert fetch_urls.count(target_url) == 1
+        assert fetch_urls.count(MICRON_7500_REQUESTED_CATALOG_URL) == 1
+        assert len(fetch_urls) == 2
 
         # Fallback DID occur because SKU-only = zero 4A buckets
         fallback_provider.search.assert_called_once()
@@ -1521,10 +1530,10 @@ class TestSameUrlFetchedOnlyOnce:
         </script></head><body></body></html>
         """
 
-        fetch_count = [0]
+        fetch_urls: list[str] = []
 
         def counting_fetch(request: PageFetchRequest) -> FetchedPage:
-            fetch_count[0] += 1
+            fetch_urls.append(request.url)
             return FetchedPage(
                 requested_url=request.url,
                 final_url=request.url,
@@ -1564,8 +1573,17 @@ class TestSameUrlFetchedOnlyOnce:
                 page_fetcher=counting_fetcher,
             )
 
-        # URL fetched only once (deduplicated across direct + fallback)
-        assert fetch_count[0] == 1
+        # The SAME URL is fetched exactly once (deduplicated across direct +
+        # fallback). The one other fetch is the bounded 4D-D alias-authority
+        # fetch of the reviewed Micron 7500 catalog URL (one per
+        # direct-insufficient non-empty-MPN run; this SKU-only body bounds it
+        # to PARSE_FAILED, which grants no authority and changes no query).
+        from product_intelligence.research.micron_packaging_alias import (
+            MICRON_7500_REQUESTED_CATALOG_URL,
+        )
+        assert fetch_urls.count(target_url) == 1
+        assert fetch_urls.count(MICRON_7500_REQUESTED_CATALOG_URL) == 1
+        assert len(fetch_urls) == 2
 
         # Fallback DID occur (SKU-only = zero 4A buckets)
         fallback_provider.search.assert_called_once()

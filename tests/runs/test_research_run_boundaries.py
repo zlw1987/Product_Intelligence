@@ -56,6 +56,15 @@ EXPECTED_FIELDS = {
     "ai_assisted_review_candidates",  # HUMAN-REVIEW: reverse FK to review candidates
     "research_supplement_snapshot",  # 4D-B: reverse OneToOne from supplement snapshot
     "research_fx_snapshot",  # 4D-C-A: reverse OneToOne from FX snapshot
+    "research_micron_alias_snapshot",  # 4D-D: reverse OneToOne from alias snapshot
+}
+
+# The exact fields on ResearchMicronAliasSnapshot (4D-D).
+EXPECTED_MICRON_ALIAS_SNAPSHOT_FIELDS = {
+    "run",
+    "schema_version",
+    "payload",
+    "created_at",
 }
 
 # The exact fields on PriceIntelligenceSnapshot (4B).
@@ -162,6 +171,16 @@ def test_research_supplement_snapshot_has_exactly_the_approved_fields() -> None:
     assert (
         {field.name for field in ResearchSupplementSnapshot._meta.get_fields()}
         == EXPECTED_SUPPLEMENT_FIELDS
+    )
+
+
+def test_research_micron_alias_snapshot_has_exactly_the_approved_fields() -> None:
+    """4D-D: The alias snapshot has exactly the approved field set."""
+    from product_intelligence.runs.models import ResearchMicronAliasSnapshot
+
+    assert (
+        {field.name for field in ResearchMicronAliasSnapshot._meta.get_fields()}
+        == EXPECTED_MICRON_ALIAS_SNAPSHOT_FIELDS
     )
 
 
@@ -317,6 +336,7 @@ def test_the_evaluation_corpus_is_not_persisted() -> None:
         "runs.ComparableResearchExecution",  # 7C-A
         "runs.ResearchSupplementSnapshot",  # 4D-B
         "runs.ResearchFxSnapshot",  # 4D-C-A
+        "runs.ResearchMicronAliasSnapshot",  # 4D-D
     }
     assert model_labels == expected
 

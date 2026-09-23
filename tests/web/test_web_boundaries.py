@@ -87,6 +87,15 @@ ALLOWED_RESEARCH_IMPORTS: dict[str, set[str]] = {
     "product_intelligence.research.fx_codec": {
         "FxCodecError",  # 4D-C: fail-closed catch in views (persisted FX artifact)
     },
+    "product_intelligence.research.micron_alias_codec": {
+        "MicronAliasCodecError",  # 4D-D: fail-closed catch in views (persisted alias artifact)
+        "decode_micron_alias_snapshot",  # 4D-D: historical report decode only
+    },
+    "product_intelligence.research.micron_packaging_alias": {
+        "MicronAliasEligibilityStatus",  # 4D-D: display-only status vocabulary
+        "MicronAliasEligibilityResult",  # 4D-D: pure display module consumes the persisted-audit contract
+        "find_alias_reference",  # 4D-D: read-side reference labeling (not identity)
+    },
 }
 
 ALLOWED_EXECUTION_IMPORTS: set[str] = {
@@ -249,7 +258,7 @@ def test_the_web_layer_defines_no_model() -> None:
 
     assert not list(WEB_ROOT.rglob("models.py"))
     assert not list(WEB_ROOT.rglob("migrations"))
-    expected = {"runs.ResearchRun", "runs.PriceIntelligenceSnapshot", "runs.ExecutionEvidenceRecord", "runs.AiAssistedReviewCandidate", "runs.ComparableResearchExecution", "runs.ResearchSupplementSnapshot", "runs.ResearchFxSnapshot"}
+    expected = {"runs.ResearchRun", "runs.PriceIntelligenceSnapshot", "runs.ExecutionEvidenceRecord", "runs.AiAssistedReviewCandidate", "runs.ComparableResearchExecution", "runs.ResearchSupplementSnapshot", "runs.ResearchFxSnapshot", "runs.ResearchMicronAliasSnapshot"}
     assert {model._meta.label for model in apps.get_models()} == expected
     assert not apps.get_app_config("web").models
 
@@ -445,7 +454,7 @@ def _runs_import_violation(source: str) -> str | None:
                any other runs.internal submodule
     """
     tree = ast.parse(source)
-    ALLOWED_MODELS_IMPORTS = frozenset({"ResearchRun", "PriceIntelligenceSnapshot", "AiAssistedReviewCandidate", "ComparableResearchExecution", "ComparableResearchState"})
+    ALLOWED_MODELS_IMPORTS = frozenset({"ResearchRun", "PriceIntelligenceSnapshot", "AiAssistedReviewCandidate", "ComparableResearchExecution", "ComparableResearchState", "ResearchMicronAliasSnapshot"})
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom):
             if not node.module or node.level:
