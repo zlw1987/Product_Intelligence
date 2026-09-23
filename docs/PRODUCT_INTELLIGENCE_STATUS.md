@@ -34,7 +34,7 @@ HUMAN-REVIEW Human Review for AI-Assisted Matches APPROVED/FROZEN;
 4D-C (browser rendering) is APPROVED / FROZEN. 4D-D-PRE1 is APPROVED / FROZEN.
 4D-D-PRE2 is APPROVED / FROZEN (evidence SHA
 1cb65a3d6002006af9e1c77906a6de6b5a3fd42c). 4D-D is IMPLEMENTED / PENDING
-FINAL REVIEW.
+FINAL REVIEW (correction pass 4D-D-FU1 implemented, pending review).
 
 ```
 4D-PRE  Preferred Source Feasibility Audit  (evidence only) — APPROVED / FROZEN
@@ -46,6 +46,7 @@ FINAL REVIEW.
 4D-D-PRE1 Early 4D-D authority feasibility review — APPROVED / FROZEN
 4D-D-PRE2 Micron official authority evidence capture — APPROVED / FROZEN
 4D-D    Micron Packaging Alias Retrieval — IMPLEMENTED / PENDING FINAL REVIEW
+4D-D-FU1 Runtime reachability + query-semantics closure — IMPLEMENTED / PENDING FINAL REVIEW
 ```
 
 **PRODUCT-INTEL.4D-B — APPROVED / FROZEN**
@@ -240,19 +241,36 @@ run through the existing PageFetcher protocol; bounded status vocabulary
 (ESTABLISHED / NO_REQUESTED_MPN / INVALID_LOOKUP_BASE / NO_AUTHORITY_MATCH /
 AMBIGUOUS_AUTHORITY_MATCH / CATEGORY_NOT_SSD / FETCH_FAILED / SOURCE_REFUSED /
 HOST_ESCAPED / PARSE_FAILED); origin boundary (scheme downgrade, host
-escape, port change, unparseable all fail closed); classified error types
-propagate to the catastrophic boundary while uncallable fetchers,
-unclassified bare-`Exception` network failures, and non-conforming fetch
-results are bounded `FETCH_FAILED` (mirrors the frozen 4C candidate-fetch
-robustness); R/T detail endpoints are never fetched (not authority).
+escape, port change, unparseable all fail closed); only the expected
+provider classes are downgraded (`PageFetchError` -> FETCH_FAILED,
+`UnsafeFetchTargetError` -> SOURCE_REFUSED) — no broad `Exception` catch
+exists (FU1): a bare `Exception` or `RuntimeError` propagates to the
+catastrophic boundary, and dependency-contract defects (fetcher without a
+callable `fetch`; `fetch` returning a non-`FetchedPage` / contract-invalid
+object) propagate `TypeError` rather than receiving a bounded status;
+R/T detail endpoints are never fetched (not authority).
 - Orchestration wiring (`execution/orchestration.py`, additive): the alias
   step runs only when fallback search is required AND the request MPN is
   non-empty; the bounded audit is persisted (its own pre-search durability
   step) BEFORE the ONE paid search; only an ESTABLISHED result changes the
-  query (to `build_alias_expanded_search_query` — requested MPN primary,
-  established aliases as quoted recall terms, ordinary description shape);
-  every other result keeps the ordinary frozen query; direct-sufficient
-  runs perform zero Micron authority fetch and zero paid search; semantic
+  query (to `build_alias_expanded_search_query` — frozen OR shape: one
+  parenthesized OR group `("REQUESTED" OR "ALIAS1" OR "ALIAS2")`, requested
+  MPN first, established aliases in deterministic relation order, plus the
+  ordinary description; the group alone when there is no description — an
+  AND grouping would require every identifier simultaneously and defeat the
+  recall purpose); every other result keeps the ordinary frozen query;
+  `build_search_query` is unchanged; direct-sufficient runs perform zero
+  Micron authority fetch and zero paid search; default runtime wiring (FU1):
+  with no explicitly injected page fetcher the ordinary candidate fetcher
+  is the frozen HTML-only default `HttpPageFetcher` and the ONE Micron
+  authority fetch uses a lazily created JSON-configured `HttpPageFetcher`
+  (explicit additive `accepted_media_types`/`accept_header` constructor
+  capability; default configuration byte-equivalent to frozen 3A behavior,
+  default `application/json` refusal unchanged) — the reviewed catalog
+  endpoint publishes `application/json;charset=utf-8` (PRE2), so the HTML
+  only default could never reach ESTABLISHED in the real runtime; an
+  explicitly injected fetcher governs the authority fetch as well
+  (deterministic fake-provider tests); semantic
   firewall: with an ESTABLISHED alias-expanded search, non-ACCEPTED
   assessments from that search batch are excluded from
   `evaluate_semantic_matches` (no AI_ASSISTED_MATCH / review candidates /
@@ -292,17 +310,105 @@ guard gains `ResearchMicronAliasSnapshot`; model inventories in
   (`ssl.SSLError` at TLS-context creation, an environmental
   Windows/Python-3.14 flake) is now classified as the adapter's bounded
   `PageFetchError` like every other transport failure (previously it
-  escaped the classification); fetch semantics unchanged.
-  `execution/micron_alias_authority.py` — bounded fetch surface completed
-  (uncallable fetcher, unclassified bare-`Exception`, non-conforming fetch
-  result → `FETCH_FAILED`; classified error types still propagate).
+  escaped the classification); fetch semantics unchanged. Kept in FU1 as a
+  separately tested transport-classification fix (regression: `_build_opener`
+  OSError -> `PageFetchError`; non-OSError programming errors propagate).
   Frozen test doubles updated where 4D-D's documented pre-search authority
   fetch is visible to them: 4D-A same-URL dedup proofs are now per-URL
   (strengthened) and account for the one bounded authority fetch; the
   FX full-persistence double supplies the `FetchedPage`-required
-  `retrieved_at` it was missing (previously masked by the 4C broad catch —
-  the FX path is now actually exercised); the web REAL-0001 fetch proof is
-  per-URL (strengthened) and accounts for the one bounded authority fetch.
+  `retrieved_at` it was missing (the FX path is now actually exercised);
+  the web REAL-0001 fetch proof is per-URL (strengthened) and accounts for
+  the one bounded authority fetch.
+- FU1 corrections (this session, disclosed; supersede the authority-module
+  bounded-surface wording above): the interim 4D-D pass had bounded
+  uncallable fetchers, unclassified bare-`Exception` fetch failures, and
+  non-conforming fetch results to `FETCH_FAILED`; independent review
+  classified these as dependency/programming contract defects, and FU1
+  removes that broad catch entirely (only `PageFetchError` /
+  `UnsafeFetchTargetError` are downgraded; bare `Exception`, `RuntimeError`,
+  non-callable `fetch`, and non-`FetchedPage` returns propagate). Frozen
+  test doubles that relied on the old bounded surface were corrected to
+  contract-conforming `FetchedPage` returns / classified transport errors
+  (4C-B evidence-write tests, 4D-A network-error fetcher, 4C-B credential
+  placeholder fetcher, execution REAL-0001 per-URL fetch proof): intent and
+  assertions preserved, none deleted, renamed, skipped, xfailed, or
+  deselected.
+
+**PRODUCT-INTEL.4D-D-FU1 — IMPLEMENTED / PENDING FINAL REVIEW**
+
+Runtime reachability + query-semantics closure for 4D-D (append-only
+correction on top of the 4D-D implementation commit; the 4D-D scope,
+policy, status vocabulary, persistence, codec, web, and firewall semantics
+are unchanged). Fixes three independently verified source-level acceptance
+blockers:
+
+- BLOCKER 1 — real default runtime reachability: the production authority
+  endpoint returns `Content-Type: application/json;charset=utf-8` (PRE2),
+  but the real default `HttpPageFetcher` accepted exactly `text/html` /
+  `application/xhtml+xml`, so `MICRON_PACKAGING_ALIAS` was unreachable in
+  the real default runtime (authority fetch -> content-type refusal ->
+  FETCH_FAILED -> ordinary query). Fix: ADDITIVE immutable
+  `accepted_media_types` / `accept_header` constructor configuration on the
+  existing `HttpPageFetcher` (no second HTTP/provider abstraction; no
+  browser; no requests/httpx; no cookie/proxy/auth). Default configuration
+  is exactly the frozen 3A behavior (`application/json` still refused by
+  default; the default refusal regression remains). JSON mode accepts
+  exactly `application/json` (parameters and casing ignored) and nothing
+  else, sends `Accept: application/json`, and keeps every SSRF / redirect /
+  credential / timeout / size bound. Default orchestration wiring:
+  `execute_research_run(page_fetcher=None)` now keeps the HTML-only default
+  candidate fetcher and lazily creates the JSON-configured authority
+  fetcher ONLY when fallback search is required AND the request MPN is
+  non-empty (direct-sufficient runs never instantiate or fetch it); an
+  explicitly injected fetcher governs the authority fetch as well (existing
+  deterministic fake-provider tests preserved). Mandatory real-adapter
+  integration: the REAL `HttpPageFetcher` with network internals safely
+  monkeypatched/offline (public DNS fixture + controlled opener returning
+  the PRE2-recorded catalog bytes with the recorded Content-Type) reaches
+  ESTABLISHED for `MTFDKCC3T8TGP-1BK1DABYYR` (matched base
+  `MTFDKCC3T8TGP-1BK1DABYY`, manufacturer Micron, category SSD); the
+  default HTML-only real fetcher refuses the SAME recorded bytes
+  (`PageFetchError` / bounded FETCH_FAILED); the default production wiring
+  end-to-end (`page_fetcher=None`) sends `Accept: application/json` for the
+  catalog, persists ESTABLISHED, and issues exactly ONE paid search.
+- BLOCKER 2 — alias query semantics: `build_alias_expanded_search_query`
+  now emits the FROZEN OR shape `("REQUESTED" OR "ALIAS1" OR "ALIAS2")
+  description` (group alone without a description), requested MPN first,
+  aliases in deterministic relation order, exactly ONE
+  `SearchProvider.search()` call, `build_search_query` unchanged. Exact
+  canonical strings (description `Micron 7500 3.84TB datacenter SSD`):
+
+  ```
+  BASE:  ("MTFDKCC3T8TGP-1BK1DABYY" OR "MTFDKCC3T8TGP-1BK1DABYYR" OR "MTFDKCC3T8TGP-1BK1DABYYT") Micron 7500 3.84TB datacenter SSD
+  BASER: ("MTFDKCC3T8TGP-1BK1DABYYR" OR "MTFDKCC3T8TGP-1BK1DABYY" OR "MTFDKCC3T8TGP-1BK1DABYYT") Micron 7500 3.84TB datacenter SSD
+  BASET: ("MTFDKCC3T8TGP-1BK1DABYYT" OR "MTFDKCC3T8TGP-1BK1DABYY" OR "MTFDKCC3T8TGP-1BK1DABYYR") Micron 7500 3.84TB datacenter SSD
+  ```
+
+- BLOCKER 3 — broad exception catch removed: the authority module no
+  longer contains `except Exception` (in any form). Expected bounded
+  transport failures are the explicit `PageFetchError` (-> FETCH_FAILED) /
+  `UnsafeFetchTargetError` (-> SOURCE_REFUSED) classes; a bare
+  `Exception("programming defect")` and a `RuntimeError` propagate to the
+  catastrophic boundary. Dependency-contract defects (non-callable
+  `fetch`; non-`FetchedPage` / contract-invalid return) propagate
+  `TypeError` and are never given a bounded authority status.
+- HTTP_PAGE opener-OSError change (14981e3): KEPT and now separately
+  regression-tested as a transport-classification fix (`_build_opener`
+  OSError -> bounded `PageFetchError`; non-OSError programming errors
+  still propagate). It does not, and is not claimed to, solve the Micron
+  JSON reachability issue (that is BLOCKER 1).
+
+Production files changed (FU1): `providers/http_page.py` (additive
+media-type capability, defaults unchanged), `execution/orchestration.py`
+(default JSON authority fetcher wiring, additive),
+`execution/micron_alias_authority.py` (broad catch removed; dependency
+contract defects propagate), `execution/search_query.py` (OR query shape in
+`build_alias_expanded_search_query`; `build_search_query` byte-identical).
+
+NOT marked APPROVED/FROZEN: 4D-D remains IMPLEMENTED / PENDING FINAL
+REVIEW; final approval/freeze happens only after independent review of the
+pushed FU1 commit.
 
 **Final acceptance evidence (this session):**
 

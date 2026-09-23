@@ -323,12 +323,16 @@ class TestEligibleFallbackEstablished:
         assert result.run.current_state is ResearchRunState.COMPLETED
         # Exactly one reviewed catalog fetch; no other page fetch.
         assert fetched_urls == [CATALOG_URL]
-        # Exactly one search with the exact deterministic alias-expanded query.
+        # Exactly one search with the exact deterministic alias-expanded
+        # query: one parenthesized OR group (requested MPN first, then the
+        # established aliases in deterministic relation order) plus the
+        # ordinary description. Frozen 4D-D shape — an AND grouping would
+        # require every identifier simultaneously and defeat recall.
         provider.search.assert_called_once()
         sent_query = provider.search.call_args.args[0]
-        expected = " ".join(
-            [f'"{mpn}"'] + [f'"{alias}"' for alias in RELATION_ALIASES[mpn]]
-        ) + " Micron 7500 3.84TB datacenter SSD"
+        quoted = [f'"{mpn}"'] + [f'"{alias}"' for alias in RELATION_ALIASES[mpn]]
+        grouped = "(" + " OR ".join(quoted) + ")"
+        expected = grouped + " Micron 7500 3.84TB datacenter SSD"
         assert sent_query.text == expected
 
         # The bounded alias audit was persisted and is ESTABLISHED.
@@ -390,8 +394,10 @@ class TestEligibleFallbackEstablished:
                 str(run.id), search_provider=provider, page_fetcher=fetcher
             )
         assert seen_queries[0] == seen_queries[1]
+        # Frozen OR shape: requested MPN first, aliases in relation order.
         assert seen_queries[0] == (
-            f'"{BASET}" "{BASE}" "{BASER}" Micron 7500 3.84TB datacenter SSD'
+            f'("{BASET}" OR "{BASE}" OR "{BASER}") '
+            "Micron 7500 3.84TB datacenter SSD"
         )
 
 

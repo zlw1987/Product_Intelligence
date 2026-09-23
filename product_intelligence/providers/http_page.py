@@ -19,7 +19,7 @@ Every fetch is bounded
 | Timeout | 10.0 s per hop | One unresponsive host cannot hold a caller open. |
 | Redirects | 3 | Enough for the ordinary `http->https`, apex-to-`www`, and canonical-slug hops; short enough that a redirect loop ends quickly. |
 | Response size | 5 MiB | Real retail product pages routinely run past 1 MiB of markup. The limit refuses rather than truncates: a document cut mid-tag would be parsed as though it were complete, and a parser reporting fewer listings because bytes went missing is worse than a fetch that failed loudly. |
-| Content type | `text/html`, `application/xhtml+xml` | This fetcher retrieves a document for HTML extraction. A PDF, an image, or a JSON API response is not that, and sniffing past a server's own declaration would be guessing. |
+| Content type | `text/html`, `application/xhtml+xml` (default) | This fetcher retrieves a document for HTML extraction. A PDF, an image, or a JSON API response is not that, and sniffing past a server's own declaration would be guessing. The accepted media types are explicit, immutable constructor configuration (4D-D FU1): the default is exactly the two HTML types above, and a separately configured instance may accept `application/json` for the one reviewed JSON authority endpoint. The special capability is never enabled by default and never sniffs. |
 
 The document only
 -----------------
@@ -121,12 +121,26 @@ DEFAULT_MAX_REDIRECTS = 3
 #: mid-element would be parsed as if it were whole.
 DEFAULT_MAX_RESPONSE_BYTES = 5 * 1024 * 1024
 
-#: The document types this fetcher will accept. Compared against the media type
-#: only, with parameters and casing ignored. Anything else is refused rather
-#: than sniffed.
+#: The document types the DEFAULT fetcher accepts. Compared against the media
+#: type only, with parameters and casing ignored. Anything else is refused
+#: rather than sniffed.
 ACCEPTED_MEDIA_TYPES: frozenset[str] = frozenset(
     {"text/html", "application/xhtml+xml"}
 )
+
+#: The Accept header the DEFAULT fetcher sends. Frozen 3A behavior: the
+#: document types requested are exactly the document types accepted.
+DEFAULT_ACCEPT_HEADER = "text/html,application/xhtml+xml"
+
+#: The ONLY reviewed non-HTML document capability (4D-D FU1). The Micron 7500
+#: family-catalog authority endpoint publishes structured JSON; that single
+#: endpoint is the only reviewed consumer. This set is never a default and is
+#: never sniffed for: a fetcher configured with it accepts exactly
+#: application/json and refuses everything else.
+JSON_ACCEPTED_MEDIA_TYPES: frozenset[str] = frozenset({"application/json"})
+
+#: The Accept header a JSON-configured fetcher sends.
+JSON_ACCEPT_HEADER = "application/json"
 
 #: An honest identifier. Not a browser string, never rotated.
 USER_AGENT = "ProductIntelligenceBot/0.1 (+deterministic listing extraction)"
@@ -293,9 +307,23 @@ class HttpPageFetcher:
     `fetch`.
 
     Every bound is a constructor parameter with a conservative default, so a
-    caller may tighten one. Nothing here lets a caller supply a header, a
-    cookie, a proxy, or a credential: those are not configuration, they are the
-    rules.
+    caller may tighten one. Nothing here lets a caller supply a cookie, a
+    proxy, or a credential: those are not configuration, they are the rules.
+
+    Document-type capability (4D-D FU1): the accepted media types and the
+    corresponding `Accept` header are explicit, immutable constructor
+    configuration. The DEFAULT is exactly the frozen 3A behavior —
+    `text/html` / `application/xhtml+xml` accepted, and
+    `text/html,application/xhtml+xml` requested — so ordinary candidate-page
+    fetching remains HTML-only and `application/json` is still refused by
+    default. The reviewed Micron 7500 family-catalog authority endpoint
+    publishes `application/json`, and the default production runtime configures
+    the authority fetcher explicitly with `JSON_ACCEPTED_MEDIA_TYPES` /
+    `JSON_ACCEPT_HEADER`. A JSON-configured fetcher accepts exactly
+    `application/json` (parameters and casing ignored) and nothing else — the
+    capability does not silently broaden to arbitrary content types, and no
+    other behavior (SSRF checks, redirect validation, credential absence,
+    timeouts, size bounds) differs between configurations.
     """
 
     def __init__(
@@ -305,6 +333,8 @@ class HttpPageFetcher:
         max_redirects: int = DEFAULT_MAX_REDIRECTS,
         max_response_bytes: int = DEFAULT_MAX_RESPONSE_BYTES,
         clock: Callable[[], datetime] = _utc_now,
+        accepted_media_types: frozenset[str] | set[str] | tuple[str, ...] = ACCEPTED_MEDIA_TYPES,
+        accept_header: str = DEFAULT_ACCEPT_HEADER,
     ) -> None:
         if timeout <= 0:
             raise ValueError("timeout must be positive")
@@ -312,11 +342,28 @@ class HttpPageFetcher:
             raise ValueError("max_redirects must not be negative")
         if max_response_bytes <= 0:
             raise ValueError("max_response_bytes must be positive")
+        if not isinstance(accepted_media_types, (frozenset, set, tuple)):
+            raise TypeError(
+                "accepted_media_types must be a set of media type strings, got "
+                f"{type(accepted_media_types).__name__}"
+            )
+        media_types = frozenset(accepted_media_types)
+        if not media_types:
+            raise ValueError("accepted_media_types must not be empty")
+        for media_type in media_types:
+            if not isinstance(media_type, str) or not media_type.strip():
+                raise ValueError(
+                    "accepted_media_types entries must be non-empty strings"
+                )
+        if not isinstance(accept_header, str) or not accept_header.strip():
+            raise ValueError("accept_header must be a non-empty string")
 
         self._timeout = timeout
         self._max_redirects = max_redirects
         self._max_response_bytes = max_response_bytes
         self._clock = clock
+        self._accepted_media_types = media_types
+        self._accept_header = accept_header
 
     def fetch(self, request: PageFetchRequest) -> FetchedPage:
         """Retrieve one document, following at most `max_redirects` hops.
@@ -351,7 +398,7 @@ class HttpPageFetcher:
                 method="GET",
                 headers={
                     "User-Agent": USER_AGENT,
-                    "Accept": "text/html,application/xhtml+xml",
+                    "Accept": self._accept_header,
                     # Bytes counted against the size bound are the bytes that
                     # arrive; no transparent decompression in between.
                     "Accept-Encoding": "identity",
@@ -413,10 +460,16 @@ class HttpPageFetcher:
         """Turn a successful response into a `FetchedPage`, or refuse it."""
         content_type = response.headers.get("Content-Type")
         media_type = _media_type(content_type)
-        if media_type not in ACCEPTED_MEDIA_TYPES:
+        if media_type not in self._accepted_media_types:
+            if self._accepted_media_types == ACCEPTED_MEDIA_TYPES:
+                kind = "HTML documents only"
+            elif self._accepted_media_types == JSON_ACCEPTED_MEDIA_TYPES:
+                kind = "JSON documents only"
+            else:
+                kind = "its configured media types only"
             raise PageFetchError(
                 f"{final_url!r} returned content type {media_type or 'unknown'!r}; "
-                "this fetcher retrieves HTML documents only"
+                f"this fetcher retrieves {kind}"
             )
 
         declared_length = response.headers.get("Content-Length")

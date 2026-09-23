@@ -206,11 +206,20 @@ class TestPostClaimCatastrophicFailureBoundary:
 
         fake_search_provider.search.return_value = response
 
-        # Return valid JSON-LD page
-        fake_page_fetcher.fetch.return_value = MagicMock(
-            body_text=self._make_json_ld_html(),
+        # Return valid JSON-LD page (contract-conforming FetchedPage; the
+        # authority step consumes the same injected fetcher, and 4D-D FU1
+        # requires a FetchedPage return, not a mock stand-in).
+        body = self._make_json_ld_html()
+        fake_page_fetcher.fetch.return_value = FetchedPage(
             requested_url="https://example.com/product",
             final_url="https://example.com/product",
+            retrieved_at=datetime.now(tz=timezone.utc),
+            status_code=200,
+            body_text=body,
+            content_type="text/html",
+            body_byte_count=len(body.encode("utf-8")),
+            redirect_count=0,
+            fetcher_id="test",
         )
 
         with self._patch_evidence_writer_success_failure(ExecutionStage.FETCH):
@@ -269,11 +278,20 @@ class TestPostClaimCatastrophicFailureBoundary:
 
         fake_search_provider.search.return_value = response
 
-        # Return valid JSON-LD page
-        fake_page_fetcher.fetch.return_value = MagicMock(
-            body_text=self._make_json_ld_html(),
+        # Return valid JSON-LD page (contract-conforming FetchedPage; the
+        # authority step consumes the same injected fetcher, and 4D-D FU1
+        # requires a FetchedPage return, not a mock stand-in).
+        body = self._make_json_ld_html()
+        fake_page_fetcher.fetch.return_value = FetchedPage(
             requested_url="https://example.com/product",
             final_url="https://example.com/product",
+            retrieved_at=datetime.now(tz=timezone.utc),
+            status_code=200,
+            body_text=body,
+            content_type="text/html",
+            body_byte_count=len(body.encode("utf-8")),
+            redirect_count=0,
+            fetcher_id="test",
         )
 
         with self._patch_evidence_writer_success_failure(ExecutionStage.EXTRACT):
@@ -343,11 +361,20 @@ class TestPostClaimCatastrophicFailureBoundary:
 
         fake_search_provider.search.return_value = response
 
-        # Return valid JSON-LD page
-        fake_page_fetcher.fetch.return_value = MagicMock(
-            body_text=self._make_json_ld_html(),
+        # Return valid JSON-LD page (contract-conforming FetchedPage; the
+        # authority step consumes the same injected fetcher, and 4D-D FU1
+        # requires a FetchedPage return, not a mock stand-in).
+        body = self._make_json_ld_html()
+        fake_page_fetcher.fetch.return_value = FetchedPage(
             requested_url="https://example.com/product",
             final_url="https://example.com/product",
+            retrieved_at=datetime.now(tz=timezone.utc),
+            status_code=200,
+            body_text=body,
+            content_type="text/html",
+            body_byte_count=len(body.encode("utf-8")),
+            redirect_count=0,
+            fetcher_id="test",
         )
 
         with self._patch_evidence_writer_success_failure(ExecutionStage.NORMALIZE):
@@ -408,11 +435,21 @@ class TestPostClaimCatastrophicFailureBoundary:
 
         fake_search_provider.search.return_value = response
 
-        # Return valid JSON-LD page with matching MPN
-        fake_page_fetcher.fetch.return_value = MagicMock(
-            body_text=self._make_json_ld_html(mpn="MZ-QL23T800"),
+        # Return valid JSON-LD page with matching MPN (contract-conforming
+        # FetchedPage; the authority step consumes the same injected
+        # fetcher, and 4D-D FU1 requires a FetchedPage return, not a mock
+        # stand-in).
+        body = self._make_json_ld_html(mpn="MZ-QL23T800")
+        fake_page_fetcher.fetch.return_value = FetchedPage(
             requested_url="https://example.com/product",
             final_url="https://example.com/product",
+            retrieved_at=datetime.now(tz=timezone.utc),
+            status_code=200,
+            body_text=body,
+            content_type="text/html",
+            body_byte_count=len(body.encode("utf-8")),
+            redirect_count=0,
+            fetcher_id="test",
         )
 
         with self._patch_evidence_writer_success_failure(ExecutionStage.MATCH):
@@ -474,11 +511,20 @@ class TestPostClaimCatastrophicFailureBoundary:
 
         fake_search_provider.search.return_value = response
 
-        # Return valid JSON-LD page
-        fake_page_fetcher.fetch.return_value = MagicMock(
-            body_text=self._make_json_ld_html(),
+        # Return valid JSON-LD page (contract-conforming FetchedPage; the
+        # authority step consumes the same injected fetcher, and 4D-D FU1
+        # requires a FetchedPage return, not a mock stand-in).
+        body = self._make_json_ld_html()
+        fake_page_fetcher.fetch.return_value = FetchedPage(
             requested_url="https://example.com/product",
             final_url="https://example.com/product",
+            retrieved_at=datetime.now(tz=timezone.utc),
+            status_code=200,
+            body_text=body,
+            content_type="text/html",
+            body_byte_count=len(body.encode("utf-8")),
+            redirect_count=0,
+            fetcher_id="test",
         )
 
         with self._patch_evidence_writer_success_failure(ExecutionStage.AGGREGATE):
@@ -911,6 +957,7 @@ class TestSafePageFetchRequestConstruction:
         self,
         research_run: ResearchRun,
         fake_search_provider: MagicMock,
+        fake_page_fetcher: MagicMock,
     ) -> None:
         """Credential-bearing URL is refused -> FETCH/BLOCKED/SAFE_URL_REFUSED."""
         from product_intelligence.providers.search import SearchResult, SearchResponse
@@ -936,7 +983,10 @@ class TestSafePageFetchRequestConstruction:
         result = execute_research_run(
             str(research_run.id),
             search_provider=fake_search_provider,
-            page_fetcher=fake_search_provider,  # Using search provider as placeholder
+            # 4D-D FU1: the authority fetch requires a contract-conforming
+            # page fetcher; a placeholder without a callable fetch is a
+            # dependency defect (TypeError), not a fetch refusal.
+            page_fetcher=fake_page_fetcher,
         )
 
         # The URL should not have been fetched
@@ -1220,10 +1270,19 @@ class TestNormalizeNoPriceExecutionEvidence:
 <body>Product page with no price</body>
 </html>'''
 
-        fetched = MagicMock(spec=FetchedPage)
-        fetched.body_text = html_with_no_price
-        fetched.requested_url = "https://example.com/product"
-        fetched.final_url = "https://example.com/product"
+        # 4D-D FU1: contract-conforming FetchedPage (the injected fetcher is
+        # also the authority fetcher; a mock stand-in is a dependency defect).
+        fetched = FetchedPage(
+            requested_url="https://example.com/product",
+            final_url="https://example.com/product",
+            retrieved_at=datetime.now(tz=timezone.utc),
+            status_code=200,
+            body_text=html_with_no_price,
+            content_type="text/html",
+            body_byte_count=len(html_with_no_price.encode("utf-8")),
+            redirect_count=0,
+            fetcher_id="test",
+        )
 
         fake_page_fetcher.fetch.return_value = fetched
 

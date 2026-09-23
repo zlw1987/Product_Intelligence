@@ -39,12 +39,16 @@ What this module is NOT:
   relation it may carry is a customer-defined retrieval relation, not
   manufacturer-published packaging identity.
 * It does not swallow classified errors. Expected acquisition failures
-  (uncallable fetcher, fetch error, source refusal, non-conforming fetch
-  result, unclassified bare-``Exception`` network failure, host escape,
-  catalog parse failure, missing/ambiguous match, non-SSD category)
-  return a bounded ``MicronAliasEligibilityResult``. Programming/invariant
-  errors (classified error types, contract construction failures, wrong
-  argument types) propagate to the outer catastrophic boundary.
+  (fetch error, source refusal, host escape, catalog parse failure,
+  missing/ambiguous match, non-SSD category) return a bounded
+  ``MicronAliasEligibilityResult``. Programming/invariant errors
+  (classified error types, contract construction failures, wrong argument
+  types, and dependency-contract defects — a page fetcher without a
+  callable ``fetch`` or one that returns a non-``FetchedPage`` / contract
+  invalid object) propagate to the outer catastrophic boundary. No broad
+  ``Exception`` catch exists in this module: only the two expected
+  provider classes, ``PageFetchError`` and its refusal subclass
+  ``UnsafeFetchTargetError``, are downgraded to bounded authority statuses.
 
 v1 SCOPE (binding): Micron 7500 SSD ONLY.
 """
@@ -149,7 +153,12 @@ def acquire_micron_alias_eligibility(
        persisted as missing input.
     2. Fetch the exact reviewed family-catalog URL through the existing
        PageFetcher protocol. Source refusal and fetch failure are
-       bounded (SOURCE_REFUSED / FETCH_FAILED).
+       bounded (SOURCE_REFUSED / FETCH_FAILED). A fetcher dependency that
+       lacks a callable ``fetch``, or that returns a non-``FetchedPage``
+       / contract invalid object, is a programming/contract defect and
+       propagates (``TypeError``); no broad exception is caught here —
+       only the expected provider classes ``UnsafeFetchTargetError`` and
+       ``PageFetchError`` are downgraded to bounded statuses.
     3. Verify the fetched final URL remains inside the reviewed
        ``https://www.micron.com`` origin (HOST_ESCAPED otherwise).
     4. Extract catalog rows (pure deterministic research module;
@@ -239,18 +248,26 @@ def acquire_micron_alias_eligibility(
 
     # Step 2: fetch the reviewed catalog endpoint.
     #
-    # The bounded failure surface mirrors the frozen 4C candidate-fetch
-    # path (_process_candidate_url): a fetcher that cannot perform the
-    # fetch, that raises an unclassified bare ``Exception`` (a network
-    # failure without a specific error class), or that returns a result
-    # that does not conform to the ``FetchedPage`` contract is a bounded
-    # authority loss — ``FETCH_FAILED``, no authority, the run continues
-    # with the ordinary query. Classified error types (concrete
-    # ``Exception`` subclasses) remain programming or environmental
-    # defects and propagate to the outer catastrophic boundary.
+    # The bounded failure surface is exactly the expected provider
+    # classification: ``UnsafeFetchTargetError`` (a destination refusal)
+    # bounds to SOURCE_REFUSED and ``PageFetchError`` (a transport fetch
+    # failure) bounds to FETCH_FAILED. Nothing broader is caught: a
+    # programming/invariant error — including a bare ``Exception`` or a
+    # ``RuntimeError`` — propagates to the outer catastrophic boundary.
+    #
+    # Dependency-contract defects are NOT acquisition failures. A
+    # page_fetcher without a callable ``fetch`` is a wiring/programming
+    # error (TypeError), and a ``fetch`` that returns a non-``FetchedPage``
+    # or a contract-invalid object is likewise (TypeError/ValueError):
+    # such a result carries no verifiable provenance, and silently
+    # treating it as FETCH_FAILED would mask the defect.
     fetch = getattr(page_fetcher, "fetch", None)
     if not callable(fetch):
-        return _fetch_failed()
+        raise TypeError(
+            "page_fetcher must expose a callable fetch(request) method, got "
+            f"{type(page_fetcher).__name__}"
+            + ("" if fetch is None else " whose fetch attribute is not callable")
+        )
     try:
         fetched = fetch(PageFetchRequest(url=policy.requested_source_url))
     except UnsafeFetchTargetError:
@@ -273,33 +290,39 @@ def acquire_micron_alias_eligibility(
         )
     except PageFetchError:
         return _fetch_failed()
-    except Exception as exc:
-        if type(exc) is not Exception:
-            raise
-        return _fetch_failed()
 
     # The result must conform to the FetchedPage contract for its
     # provenance to be trusted at all. A real HttpPageFetcher always
-    # produces a validated FetchedPage, so this is a no-op in production;
-    # a non-conforming result (including one whose provenance fields cannot
-    # even be read) carries no verifiable provenance and can therefore
-    # grant no authority.
-    try:
-        conforming = (
-            isinstance(fetched, FetchedPage)
-            and isinstance(fetched.final_url, str)
-            and isinstance(fetched.body_text, str)
-            and isinstance(fetched.retrieved_at, datetime)
-            and fetched.retrieved_at.tzinfo is not None
-            and fetched.retrieved_at.utcoffset() is not None
+    # produces a validated FetchedPage; anything else is a dependency/
+    # programming contract defect and propagates — it is NOT a bounded
+    # authority status.
+    if not isinstance(fetched, FetchedPage):
+        raise TypeError(
+            "page_fetcher.fetch must return a FetchedPage, got "
+            f"{type(fetched).__name__}"
         )
-    except AttributeError:
-        conforming = False
-    if not conforming:
-        return _fetch_failed()
+    if not isinstance(fetched.final_url, str):
+        raise TypeError(
+            f"FetchedPage.final_url must be a string, got "
+            f"{type(fetched.final_url).__name__}"
+        )
+    if not isinstance(fetched.body_text, str):
+        raise TypeError(
+            f"FetchedPage.body_text must be a string, got "
+            f"{type(fetched.body_text).__name__}"
+        )
+    retrieved_at = fetched.retrieved_at
+    if not isinstance(retrieved_at, datetime):
+        raise TypeError(
+            f"FetchedPage.retrieved_at must be a datetime, got "
+            f"{type(retrieved_at).__name__}"
+        )
+    if retrieved_at.tzinfo is None or retrieved_at.utcoffset() is None:
+        raise ValueError(
+            "FetchedPage.retrieved_at must be timezone-aware"
+        )
 
     fetched_final_url = fetched.final_url
-    retrieved_at = fetched.retrieved_at
 
     # Step 3: origin boundary (a redirect that escapes the reviewed
     # origin is a fail-closed authority loss, not a normal page).

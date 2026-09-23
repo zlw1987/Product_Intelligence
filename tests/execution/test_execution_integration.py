@@ -151,8 +151,38 @@ class TestCanonicalMZQL23T800Integration:
             search_results[4].source_url: fusionww_html,
         }
 
+        requested_urls: list = []
+
         def fake_fetch(request: PageFetchRequest) -> FetchedPage:
-            """Return a real FetchedPage with fixture HTML."""
+            """Return a real FetchedPage with fixture HTML.
+
+            Per-URL (strengthened, 4D-D): the only legitimate URL beyond the
+            five search results is the reviewed Micron 7500 catalog endpoint
+            (the one bounded 4D-D alias-authority fetch); this double serves
+            it a non-catalog HTML page, so the authority pipeline bounds to
+            PARSE_FAILED — no authority, no query change. Anything else is
+            recorded as unexpected and asserted below.
+            """
+            from product_intelligence.research.micron_packaging_alias import (
+                MICRON_7500_REQUESTED_CATALOG_URL,
+            )
+
+            requested_urls.append(request.url)
+            if request.url == MICRON_7500_REQUESTED_CATALOG_URL:
+                catalog_page = (
+                    "<html><head></head><body>no listings</body></html>"
+                )
+                return FetchedPage(
+                    requested_url=request.url,
+                    final_url=request.url,
+                    retrieved_at=datetime.now(tz=timezone.utc),
+                    status_code=200,
+                    body_text=catalog_page,
+                    content_type="text/html",
+                    body_byte_count=len(catalog_page.encode("utf-8")),
+                    redirect_count=0,
+                    fetcher_id="test-fetcher",
+                )
             if request.url not in fetch_results:
                 raise Exception(f"Unexpected URL: {request.url}")
 
@@ -185,6 +215,20 @@ class TestCanonicalMZQL23T800Integration:
 
         # search_result_count == 5
         assert result.search_result_count == 5, f"Expected 5 search results, got {result.search_result_count}"
+
+        # Per-URL fetch proof: exactly the five search-result URLs, plus the
+        # ONE bounded 4D-D alias-authority fetch of the reviewed Micron
+        # 7500 catalog endpoint — and nothing else.
+        from product_intelligence.research.micron_packaging_alias import (
+            MICRON_7500_REQUESTED_CATALOG_URL,
+        )
+
+        assert set(requested_urls) == set(fetch_results) | {
+            MICRON_7500_REQUESTED_CATALOG_URL
+        }, f"Unexpected fetch set: {sorted(requested_urls)}"
+        assert (
+            requested_urls.count(MICRON_7500_REQUESTED_CATALOG_URL) == 1
+        ), "exactly one bounded 4D-D authority fetch"
 
         # fetch_success_count == 5 (all fetches succeeded)
         assert result.fetch_success_count == 5, f"Expected 5 successful fetches, got {result.fetch_success_count}"

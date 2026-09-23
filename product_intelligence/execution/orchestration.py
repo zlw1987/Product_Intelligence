@@ -53,7 +53,11 @@ from product_intelligence.execution.search_query import (
     build_alias_expanded_search_query,
     build_search_query,
 )
-from product_intelligence.providers.http_page import HttpPageFetcher
+from product_intelligence.providers.http_page import (
+    JSON_ACCEPTED_MEDIA_TYPES,
+    JSON_ACCEPT_HEADER,
+    HttpPageFetcher,
+)
 from product_intelligence.providers.page import PageFetcher, PageFetchRequest, UnsafeFetchTargetError
 from product_intelligence.providers.search import SearchProvider
 from product_intelligence.research.aggregation import PriceAggregationResult, aggregate_listing_prices
@@ -147,11 +151,36 @@ class ExecutionError(Exception):
     pass
 
 
+def _default_micron_authority_fetcher() -> HttpPageFetcher:
+    """Lazily create the DEFAULT production Micron authority fetcher (4D-D FU1).
+
+    The reviewed Micron 7500 family-catalog endpoint publishes
+    ``application/json`` (PRE2 recorded evidence: ``Content-Type:
+    application/json;charset=utf-8``), while the ordinary default
+    candidate-page fetcher is HTML-only by frozen 3A design. The real
+    default runtime therefore uses a JSON-configured ``HttpPageFetcher``
+    for the authority fetch ONLY — an explicit, narrow media-type
+    capability on the existing fetcher, not a second HTTP/provider
+    abstraction. All other bounds (SSRF/redirect/credential/timeout/size)
+    are identical to the default fetcher, and the default candidate
+    fetcher is never reconfigured.
+
+    Created lazily, only when authority acquisition is actually reached
+    (fallback search required AND non-empty request MPN); direct-
+    sufficient runs never instantiate it and never fetch the catalog.
+    """
+    return HttpPageFetcher(
+        accepted_media_types=JSON_ACCEPTED_MEDIA_TYPES,
+        accept_header=JSON_ACCEPT_HEADER,
+    )
+
+
 def _execute_claimed_run(
     claimed_run: ResearchRun,
     request: ResearchRequest,
     search_provider: SearchProvider | None,
     page_fetcher: PageFetcher,
+    micron_authority_fetcher: PageFetcher | None = None,
 ) -> tuple[PriceAggregationResult, ExecutionResult]:
     """Execute research for a claimed ResearchRun.
 
@@ -186,7 +215,15 @@ def _execute_claimed_run(
         The search provider to use if fallback is needed. If None, a default
         SerperSearchProvider is constructed lazily (only when fallback fires).
     page_fetcher : PageFetcher
-        The page fetcher to use.
+        The page fetcher to use for ordinary candidate pages.
+    micron_authority_fetcher : PageFetcher, optional
+        4D-D FU1: the fetcher used for the ONE reviewed Micron catalog
+        authority fetch. ``None`` (the real default runtime) means a
+        JSON-configured ``HttpPageFetcher`` is lazily created only when
+        authority acquisition is actually reached. A non-None value means
+        the caller explicitly injected a page fetcher, and that same
+        injection governs the authority fetch (deterministic
+        fake-provider execution tests).
 
     Returns
     -------
@@ -265,8 +302,19 @@ def _execute_claimed_run(
         # -----------------------------------------------------------------
         search_query = build_search_query(request)
         if request.manufacturer_part_number:
+            # 4D-D FU1: the real default runtime must not feed the
+            # reviewed JSON catalog endpoint through the HTML-only default
+            # candidate fetcher. When no page fetcher was explicitly
+            # injected, the authority fetch uses a lazily created
+            # JSON-configured HttpPageFetcher; an explicitly injected
+            # fetcher remains the authority fetcher (test doubles).
+            authority_fetcher = (
+                micron_authority_fetcher
+                if micron_authority_fetcher is not None
+                else _default_micron_authority_fetcher()
+            )
             alias_result = acquire_micron_alias_eligibility(
-                request=request, page_fetcher=page_fetcher
+                request=request, page_fetcher=authority_fetcher
             )
             _persist_alias_snapshot(claimed_run, alias_result)
             if alias_result.is_established:
@@ -443,7 +491,11 @@ def execute_research_run(
         SerperSearchProvider is constructed lazily (only when fallback fires).
         A direct-sufficient run requires no SERPER_API_KEY.
     page_fetcher : PageFetcher, optional
-        The page fetcher to use. Defaults to HttpPageFetcher.
+        The page fetcher to use for ordinary candidate pages. Defaults to
+        the HTML-only ``HttpPageFetcher``. 4D-D FU1: when None, the ONE
+        reviewed Micron JSON catalog authority fetch uses a separately
+        JSON-configured ``HttpPageFetcher`` (lazily created); when a fetcher
+        is explicitly injected, it governs the authority fetch as well.
     fx_provider : FxProvider, optional
         FX rate provider for currency conversion evidence (4D-C-A).
         If None and non-USD currencies require conversion, an EcbFxProvider
@@ -464,7 +516,18 @@ def execute_research_run(
     """
     # Lazy page fetcher default (always needed)
     if page_fetcher is None:
+        # Ordinary candidate-page fetcher: the frozen HTML-only default.
         page_fetcher = HttpPageFetcher()
+        # 4D-D FU1: no explicitly injected fetcher — the reviewed Micron
+        # JSON authority endpoint gets its own JSON-configured fetcher,
+        # created lazily inside _execute_claimed_run only when authority
+        # acquisition is actually reached.
+        micron_authority_fetcher: PageFetcher | None = None
+    else:
+        # Explicitly injected page fetcher: it governs BOTH ordinary
+        # candidate pages and the Micron authority fetch, so existing
+        # deterministic fake-provider execution tests remain possible.
+        micron_authority_fetcher = page_fetcher
     # search_provider is intentionally NOT eagerly constructed.
     # If None, it is constructed lazily inside _execute_claimed_run
     # only when fallback search is actually required.
@@ -505,6 +568,7 @@ def execute_research_run(
             request,
             search_provider,
             page_fetcher,
+            micron_authority_fetcher=micron_authority_fetcher,
         )
 
         # ================================================================

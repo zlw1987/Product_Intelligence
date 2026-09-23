@@ -4676,10 +4676,14 @@ Runtime behavior as implemented:
   CATEGORY_NOT_SSD, FETCH_FAILED, SOURCE_REFUSED, HOST_ESCAPED, PARSE_FAILED);
   the bounded audit is persisted as `ResearchMicronAliasSnapshot` (V1 codec,
   body SHA-256, never the catalog body) BEFORE the paid search;
-* only ESTABLISHED changes the paid query (requested MPN primary +
-  established aliases as quoted recall terms + ordinary description);
-  at most ONE paid search per run; every other status keeps the ordinary
-  frozen query;
+* only ESTABLISHED changes the paid query, and only to the FROZEN OR shape
+  `("REQUESTED" OR "ALIAS1" OR "ALIAS2") description` (the group alone when
+  the request has no description): requested MPN first, established aliases
+  in deterministic relation order, one parenthesized OR group — an AND
+  grouping would require every quoted identifier simultaneously and defeat
+  the recall purpose of alias expansion; at most ONE paid search per run;
+  every other status keeps the ordinary frozen query;
+  `build_search_query` is unchanged;
 * semantic firewall: with an ESTABLISHED alias-expanded search, non-ACCEPTED
   assessments from that search batch are excluded from semantic evaluation
   (no AI_ASSISTED_MATCH / review candidate / Reviewed Price path membership)
@@ -4701,10 +4705,70 @@ Collection accounting (frozen 4D-C baseline 4766 -> 5052):
 | Explicit new focused 4D-D test nodes (7 files) | 258 |
 | New explicit 4D-D model-field inventory test (test_research_run_boundaries.py) | 1 |
 | Automatic parameterized expansion (domain +2, providers +4, research identity +8, runs +4, web +9) | 27 |
-| **Final collection** | **5052** |
+| **4D-D collection** | **5052** |
 
 Not marked APPROVED/FROZEN: freeze follows independent review of the pushed
 commit.
+
+**4D-D FU1 implementation record (IMPLEMENTED / PENDING FINAL REVIEW):**
+
+Append-only correction pass on the 4D-D implementation commit; fixes three
+independently verified source-level acceptance blockers without changing any
+4D-D scope, policy, status vocabulary, persistence, codec, web, or firewall
+semantics.
+
+* BLOCKER 1 — runtime reachability. The production authority endpoint
+  returns `Content-Type: application/json;charset=utf-8` (PRE2) but the real
+  default `HttpPageFetcher` accepted exactly `text/html` /
+  `application/xhtml+xml`, so MICRON_PACKAGING_ALIAS was unreachable in the
+  real default runtime. Fix: additive immutable `accepted_media_types` /
+  `accept_header` constructor configuration on the existing `HttpPageFetcher`
+  (no second HTTP/provider abstraction, no browser, no requests/httpx, no
+  cookie/proxy/auth). The default configuration is exactly the frozen 3A
+  behavior (default `application/json` refusal and its regression unchanged);
+  a JSON-configured fetcher accepts exactly `application/json` (parameters
+  and casing ignored), sends `Accept: application/json`, and keeps every
+  SSRF / redirect / credential / timeout / size bound. Default orchestration
+  wiring: with no injected page fetcher, the ordinary candidate fetcher is
+  the HTML-only default and the ONE Micron authority fetch uses a lazily
+  created JSON-configured `HttpPageFetcher` — instantiated only when fallback
+  search is required AND the request MPN is non-empty (direct-sufficient runs
+  never instantiate or fetch it). An explicitly injected fetcher governs the
+  authority fetch as well, preserving the deterministic fake-provider tests.
+  Mandatory real-adapter integration (offline via public DNS fixture +
+  controlled opener + PRE2-recorded catalog bytes): the REAL JSON-configured
+  `HttpPageFetcher` reaches ESTABLISHED for
+  `MTFDKCC3T8TGP-1BK1DABYYR` (matched base `MTFDKCC3T8TGP-1BK1DABYY`,
+  manufacturer Micron, category SSD); the REAL default HTML-only fetcher
+  refuses the same recorded bytes (`PageFetchError` / bounded FETCH_FAILED);
+  the default production wiring end-to-end sends `Accept: application/json`
+  for the catalog, persists ESTABLISHED, and issues exactly ONE paid search.
+* BLOCKER 2 — query semantics. `build_alias_expanded_search_query` emits the
+  frozen OR shape (requested MPN first, aliases in deterministic relation
+  order, ordinary description appended; group alone without a description).
+  `build_search_query` is unchanged; exactly ONE `SearchProvider.search()`
+  call remains.
+* BLOCKER 3 — broad exception catch removed. The authority module contains
+  no `except Exception` (in any form): only `PageFetchError` (-> FETCH_FAILED)
+  and `UnsafeFetchTargetError` (-> SOURCE_REFUSED) are downgraded; a bare
+  `Exception` and a `RuntimeError` propagate to the catastrophic boundary.
+  Dependency-contract defects (non-callable `fetch`; non-`FetchedPage` /
+  contract-invalid return) propagate `TypeError` and are never given a
+  bounded authority status.
+* HTTP_PAGE opener-OSError change (14981e3) kept and separately
+  regression-tested as a transport-classification fix (`_build_opener`
+  OSError -> bounded `PageFetchError`; non-OSError programming errors still
+  propagate). It does not solve, and is not claimed to solve, the Micron
+  JSON reachability issue (that is BLOCKER 1).
+* Production files changed (FU1): `providers/http_page.py` (additive
+  media-type capability, defaults unchanged), `execution/orchestration.py`
+  (default JSON authority fetcher wiring, additive),
+  `execution/micron_alias_authority.py` (broad catch removed; dependency
+  contract defects propagate), `execution/search_query.py` (OR shape in
+  `build_alias_expanded_search_query` only).
+
+Not marked APPROVED/FROZEN: 4D-D remains IMPLEMENTED / PENDING FINAL REVIEW;
+freeze follows independent review of the pushed FU1 commit.
 
 ### 26.8 Deferred items for 4D
 

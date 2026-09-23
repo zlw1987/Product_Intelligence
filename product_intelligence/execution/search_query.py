@@ -53,17 +53,28 @@ def build_alias_expanded_search_query(
 ) -> SearchQuery:
     """Build ONE alias-expanded search query for an established 4D-D relation.
 
-    Additive to ``build_search_query`` (which is unchanged): the requested
-    MPN remains the primary quoted term, followed by the established
-    relation's alias identifiers (the family members other than the
-    requested form, in deterministic relation order) as quoted recall terms,
-    followed by the description context in the ordinary shape.
+    Additive to ``build_search_query`` (which is unchanged). Frozen 4D-D
+    query shape: the requested MPN, the established relation's alias
+    identifiers (the family members other than the requested form, in
+    deterministic relation order), and nothing else, are grouped as ONE
+    parenthesized OR clause with the requested MPN first:
 
-    The aliases are a CUSTOMER-DEFINED retrieval relation (retrieval
-    recall only). This builder generates a query string; it grants no
-    identity, category, manufacturer, or pricing authority, and it must
-    only ever be called with an ESTABLISHED relation (one per run, at most
-    one search call total).
+        ("REQUESTED" OR "ALIAS1" OR "ALIAS2") description
+
+    with the description omitted when the request has none:
+
+        ("REQUESTED" OR "ALIAS1" OR "ALIAS2")
+
+    The OR grouping is what makes the expansion recall-oriented: a document
+    matching ANY of the family forms is returned. An AND grouping would have
+    required one result to carry every quoted identifier simultaneously and
+    would have defeated the purpose of alias expansion.
+
+    The aliases are a CUSTOMER-DEFINED retrieval relation (retrieval recall
+    only). This builder generates a query string; it grants no identity,
+    category, manufacturer, or pricing authority, and it must only ever be
+    called with an ESTABLISHED relation (one per run, at most one search
+    call total).
 
     Raises ``TypeError``/``ValueError`` on a non-relation argument or a
     relation whose requested form does not bind this request — a
@@ -87,13 +98,14 @@ def build_alias_expanded_search_query(
             "relation"
         )
 
-    terms = [f'"{mpn}"']
+    quoted = [f'"{mpn}"']
     for alias in relation.aliases:
-        terms.append(f'"{alias}"')
-    query_text = " ".join(terms)
+        quoted.append(f'"{alias}"')
+    grouped = "(" + " OR ".join(quoted) + ")"
+    query_text = grouped
 
     description = request.description
     if description:
-        query_text = f"{query_text} {description}"
+        query_text = f"{grouped} {description}"
 
     return SearchQuery(text=query_text)

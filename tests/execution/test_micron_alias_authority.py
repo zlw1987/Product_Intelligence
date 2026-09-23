@@ -370,6 +370,67 @@ class TestProgrammingErrorsPropagate:
             )
 
 
+class TestDependencyContractDefects:
+    """4D-D FU1: dependency/programming contract defects propagate.
+
+    The bounded surface of the authority pipeline is exactly the expected
+    provider classification: ``PageFetchError`` -> FETCH_FAILED and
+    ``UnsafeFetchTargetError`` -> SOURCE_REFUSED (proven in
+    ``TestBoundedFetchFailures``). A page-fetcher dependency that is not
+    structurally valid — no callable ``fetch``, or a ``fetch`` that returns
+    a non-``FetchedPage`` — is a wiring/programming defect, NOT a network
+    acquisition failure, and must propagate (``TypeError``) instead of
+    being downgraded to a bounded authority status. There is no broad
+    ``Exception`` catch anywhere in this module: a bare ``Exception`` and a
+    ``RuntimeError`` (proven in ``TestProgrammingErrorsPropagate``) both
+    propagate to the outer catastrophic boundary.
+    """
+
+    def test_non_callable_fetch_dependency_raises_type_error(self) -> None:
+        class _NoFetchDependency:
+            """A dependency that has no fetch method at all."""
+
+        with pytest.raises(TypeError, match="callable fetch"):
+            acquire_micron_alias_eligibility(
+                request=ResearchRequest(manufacturer_part_number=BASER, description="d"),
+                page_fetcher=_NoFetchDependency(),
+            )
+
+    def test_non_callable_fetch_attribute_raises_type_error(self) -> None:
+        fetcher = MagicMock(spec=PageFetcher)
+        fetcher.fetch = "not a callable"  # type: ignore[method-assign]
+        with pytest.raises(TypeError, match="not callable"):
+            acquire_micron_alias_eligibility(
+                request=ResearchRequest(manufacturer_part_number=BASER, description="d"),
+                page_fetcher=fetcher,
+            )
+
+    @pytest.mark.parametrize("wrong_return", [{"body": "a mapping is not a FetchedPage"}, "a string is not a FetchedPage", 42, None])
+    def test_fetch_returning_non_fetched_page_raises_type_error(
+        self, wrong_return: object
+    ) -> None:
+        fetcher = MagicMock(spec=PageFetcher)
+        fetcher.fetch.return_value = wrong_return
+        with pytest.raises(TypeError, match="must return a FetchedPage"):
+            acquire_micron_alias_eligibility(
+                request=ResearchRequest(manufacturer_part_number=BASER, description="d"),
+                page_fetcher=fetcher,
+            )
+
+    def test_exact_bare_exception_propagates(self) -> None:
+        """A bare ``Exception("programming defect")`` is NOT a bounded
+        authority failure: it propagates exactly as raised."""
+        fetcher = MagicMock(spec=PageFetcher)
+        fetcher.fetch.side_effect = Exception("programming defect")
+        with pytest.raises(Exception) as caught:
+            acquire_micron_alias_eligibility(
+                request=ResearchRequest(manufacturer_part_number=BASER, description="d"),
+                page_fetcher=fetcher,
+            )
+        assert type(caught.value) is Exception
+        assert str(caught.value) == "programming defect"
+
+
 class TestNoAuthorityPolicyInjectionSurface:
     """The reviewed v1 authority policy is fixed and caller-independent."""
 

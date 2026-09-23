@@ -41,6 +41,7 @@ from product_intelligence.providers.direct_source import (
 )
 from product_intelligence.providers.page import (
     FetchedPage,
+    PageFetchError,
     PageFetcher,
     PageFetchRequest,
 )
@@ -594,9 +595,12 @@ class TestDirectAcquisitionExecution:
         research_run: ResearchRun,
     ) -> None:
         """Direct fetch failure triggers exactly one SearchProvider call."""
-        # Page fetcher raises on DirectMacro URL
+        # Page fetcher raises the classified transport failure on every
+        # fetch (candidate fetch path records NETWORK_ERROR; the 4D-D
+        # authority path bounds it to FETCH_FAILED — both expected, both
+        # bounded; the run continues to the one fallback search).
         failing_fetcher = MagicMock(spec=PageFetcher)
-        failing_fetcher.fetch.side_effect = Exception("Network error")
+        failing_fetcher.fetch.side_effect = PageFetchError("Network error")
 
         with patch.dict(
             os.environ,
@@ -1065,9 +1069,12 @@ class TestDirectAcquisitionExecution:
         """Failed fallback SearchProvider causes run to fail."""
         from product_intelligence.providers.search import SearchProviderError
 
-        # Direct acquisition enabled but fetcher fails -> fallback needed
+        # Direct acquisition enabled but fetcher fails -> fallback needed.
+        # PageFetchError is the classified transport failure: bounded to
+        # FETCH_FAILED on the 4D-D authority path, then the search failure
+        # below owns the run outcome.
         failing_fetcher = MagicMock(spec=PageFetcher)
-        failing_fetcher.fetch.side_effect = Exception("Network error")
+        failing_fetcher.fetch.side_effect = PageFetchError("Network error")
 
         # SearchProvider also fails
         failing_provider = MagicMock(spec=SearchProvider)
