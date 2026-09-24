@@ -1,4 +1,5 @@
-"""Tests for the production section-oriented Vendor API contract (PROD-FIX1).
+"""Tests for the production section-oriented Vendor API contract (PROD-FIX1;
+FU1 production-wire fidelity corrections).
 
 The real production Vendor API answers HTTP 200 with
 ``Content-Type: text/html; charset=utf-8`` and a body that is NOT one JSON
@@ -13,6 +14,17 @@ These tests cover:
 * the strict bounded literal parser (no eval / literal_eval / code execution)
 * the exact bounded ``{Not Found}`` representation
 * Decimal-exact monetary parsing (no binary float)
+* the ACTUAL hybrid production Ingram field placement (explicit
+  vendorPartNumber + nested pricing + top-level boolean availability +
+  top-level Avl_Quantity) and the REAL nested Synnex EU form
+  (OnlineCheck.Header.CurrencyCode / OnlineCheck.Item.*), including
+  fake/redacted SessionId / BuyerAccountId / SystemId at their realistic
+  structural locations
+* the flat field forms as separately tested COMPATIBILITY forms (they are
+  NOT the only or exact production wire shape)
+* unknown/interstitial text between complete section literals is ignored
+  (never parsed into data, never able to poison a complete mapping), while
+  malformed content INSIDE a section literal still fails that source closed
 * one malformed section must not destroy independently valid siblings
 * sensitive upstream metadata stripped by the allowlist (synthetic fixtures
   with fake/redacted sentinel values only — never leaked production data)
@@ -60,7 +72,9 @@ FAKE_SESSION_ID = "FAKE-SESSION-000"
 FAKE_BUYER_ACCOUNT_ID = "FAKE-ACCOUNT-000"
 FAKE_SYSTEM_ID = "FAKE-SYSTEM-000"
 
-# Realistic synthetic production envelope (single-quoted Python-repr style)
+# Synthetic FLAT compatibility envelope (single-quoted Python-repr style).
+# FU1: the flat forms are retained compatibility forms — they are NOT the
+# only or exact production wire shape (see the hybrid fixture below).
 SECTION_BODY_REPR = (
     "Ingram Product: {'vendorPartNumber': 'MTFDKBA480TFR-1BC1ZABYYR', "
     "'customerPrice': 1515.72, 'currency': 'USD', 'quantity': 0}\n"
@@ -71,7 +85,7 @@ SECTION_BODY_REPR = (
     "'UnitPriceAmount': 962.86, 'currency': 'EUR', 'AvailabilityTotal': 0}\n"
 )
 
-# Same envelope, double-quoted JSON-literal style
+# Same flat compatibility envelope, double-quoted JSON-literal style
 SECTION_BODY_JSON_STYLE = (
     'Ingram Product: {"vendorPartNumber": "MTFDKBA480TFR-1BC1ZABYYR", '
     '"customerPrice": 1515.72, "currency": "USD", "quantity": 0}\n'
@@ -80,6 +94,51 @@ SECTION_BODY_JSON_STYLE = (
     '"BuyerAccountId": "FAKE-ACCOUNT-000", "SystemId": "FAKE-SYSTEM-000", '
     '"ManufacturerItemIdentifier": "MTFDKBA480TFR-1BC1ZABYYR", '
     '"UnitPriceAmount": 962.86, "currency": "EUR", "AvailabilityTotal": 0}\n'
+)
+
+# ---------------------------------------------------------------------------
+# FU1: faithful HYBRID production envelopes — the ACTUAL production
+# nesting/key placement (synthetic values at the observed structure)
+# ---------------------------------------------------------------------------
+
+# * Ingram: explicit vendorPartNumber; nested pricing block carrying
+#   customerPrice + retailPrice + currencyCode; TOP-LEVEL boolean
+#   availability (False); TOP-LEVEL Avl_Quantity (0); unrelated
+#   non-authoritative fields (vendorName, warehouse) present and ignored.
+# * CDW: the exact bounded {Not Found} marker.
+# * Synnex EU: the REAL nested form — OnlineCheck.Header.CurrencyCode with
+#   fake/redacted SessionId / BuyerAccountId / SystemId at their realistic
+#   structural locations (the Header block), and
+#   OnlineCheck.Item.ManufacturerItemIdentifier / UnitPriceAmount /
+#   AvailabilityTotal.
+SECTION_BODY_HYBRID_REPR = (
+    "Ingram Product: {'vendorPartNumber': 'MTFDKBA480TFR-1BC1ZABYYR', "
+    "'pricing': {'customerPrice': 1515.72, 'retailPrice': 2036.36, "
+    "'currencyCode': 'USD'}, 'availability': False, 'Avl_Quantity': 0, "
+    "'vendorName': 'FAKE-VENDOR-NAME', 'warehouse': 'FAKE-WH-00'}\n"
+    "CDW Product: {Not Found}\n"
+    "Synnex EU Product: {'OnlineCheck': {'Header': {'CurrencyCode': 'EUR', "
+    "'SessionId': 'FAKE-SESSION-000', 'BuyerAccountId': 'FAKE-ACCOUNT-000', "
+    "'SystemId': 'FAKE-SYSTEM-000'}, 'Item': {'ManufacturerItemIdentifier': "
+    "'MTFDKBA480TFR-1BC1ZABYYR', 'UnitPriceAmount': 962.86, "
+    "'AvailabilityTotal': 0}}}\n"
+)
+
+# The faithful hybrid envelope PLUS an unknown label line and a harmless
+# interstitial line between two valid known sections (FU1 section-scanner
+# correctness proof: unknown content never becomes data and never poisons a
+# complete known mapping that has already ended).
+SECTION_BODY_HYBRID_WITH_INTERSTITIAL = (
+    "Ingram Product: {'vendorPartNumber': 'MTFDKBA480TFR-1BC1ZABYYR', "
+    "'pricing': {'customerPrice': 1515.72, 'retailPrice': 2036.36, "
+    "'currencyCode': 'USD'}, 'availability': False, 'Avl_Quantity': 0}\n"
+    "Acme Product: {'vendorPartNumber': 'EVIL-MPN', 'customerPrice': 99999, "
+    "'currency': 'USD', 'quantity': 42}\n"
+    "==== section separator (interstitial noise) ====\n"
+    "CDW Product: {Not Found}\n"
+    "Synnex EU Product: {'OnlineCheck': {'Header': {'CurrencyCode': 'EUR'}, "
+    "'Item': {'ManufacturerItemIdentifier': 'MTFDKBA480TFR-1BC1ZABYYR', "
+    "'UnitPriceAmount': 962.86, 'AvailabilityTotal': 0}}}\n"
 )
 
 
@@ -328,8 +387,40 @@ class TestParseSectionValue:
             _parse_section_value("'just a string'")
 
     def test_trailing_garbage_rejected(self) -> None:
+        # FU1 contract correction: a COMPLETE bounded literal is
+        # authoritative — unknown text AFTER it is ignored interstitial
+        # content (see test_trailing_interstitial_after_complete_mapping).
+        # Trailing garbage that makes the literal itself INCOMPLETE (here:
+        # the mapping is never closed) still fails that section closed.
         with pytest.raises(_SectionValueParseError):
-            _parse_section_value("{'a': 1} trailing junk")
+            _parse_section_value("{'a': 1 trailing junk")
+
+    def test_trailing_interstitial_after_complete_mapping_ignored(self) -> None:
+        # FU1: unknown/interstitial lines between a complete section literal
+        # and the next recognized header are never parsed into data and
+        # cannot poison the complete mapping.
+        kind, value = _parse_section_value(
+            "{'a': 1}\nAcme Product: {'vendorPartNumber': 'EVIL'}\n"
+            "==== end of ingram section ====\n"
+        )
+        assert kind == "mapping"
+        assert value == {"a": 1}
+
+    def test_trailing_interstitial_after_not_found_marker_ignored(self) -> None:
+        kind, _ = _parse_section_value(
+            "{Not Found}\ninterstitial noise line\n"
+        )
+        assert kind == "not_found"
+
+    def test_interstitial_never_parsed_as_data(self) -> None:
+        # The trailing content, even when it looks like another complete
+        # literal, is unknown interstitial text: it is ignored, not parsed
+        # into the section's data.
+        kind, value = _parse_section_value(
+            "{'a': 1}\n{'b': 2}\n"
+        )
+        assert kind == "mapping"
+        assert value == {"a": 1}
 
     def test_missing_opening_brace_rejected(self) -> None:
         with pytest.raises(_SectionValueParseError):
@@ -514,6 +605,264 @@ class TestFlatSectionMapping:
         assert isinstance(result, CommercialSourceCandidate)
         assert result.availability == CommercialAvailability.IN_STOCK
         assert result.quantity == 2
+
+
+# ---------------------------------------------------------------------------
+# FU1: faithful hybrid production field placement (adapter-level)
+# ---------------------------------------------------------------------------
+
+
+class TestHybridProductionSection:
+    """The ACTUAL production Ingram/Synnex nesting, through the real
+    adapter lookup path (not a scanner-only or mapper-only test).
+
+    * Ingram hybrid: nested pricing (customerPrice authoritative) +
+      top-level boolean availability + top-level Avl_Quantity.
+    * Synnex EU: the REAL nested OnlineCheck form with fake/redacted
+      sensitive Header metadata.
+    * Unknown/interstitial content between complete known sections is
+      ignored and never becomes data.
+    """
+
+    def test_hybrid_envelope_maps_faithfully(self) -> None:
+        response, mock_opener = _lookup_body(SECTION_BODY_HYBRID_REPR)
+        assert response.status == LookupStatus.PARTIAL
+        # Exactly ONE network call
+        assert mock_opener.open.call_count == 1
+
+        candidates = {c.source_name: c for c in response.candidates}
+        assert set(candidates) == {"Ingram", "Synnex EU"}
+
+        # Ingram: the exact requested MPN, customer price authoritative
+        # (retailPrice 2036.36 present but NOT used), USD from the nested
+        # pricing block, OUT_OF_STOCK / 0 from the TOP-LEVEL availability
+        # boolean + TOP-LEVEL Avl_Quantity.
+        ingram = candidates["Ingram"]
+        assert ingram.explicit_candidate_mpn == MPN
+        assert ingram.price_amount == Decimal("1515.72")
+        assert ingram.price_basis == CommercialPriceBasis.CUSTOMER_PRICE
+        assert ingram.currency_code == "USD"
+        assert ingram.availability == CommercialAvailability.OUT_OF_STOCK
+        assert ingram.quantity == 0
+
+        # Synnex EU: real nested form, exact MPN, 962.86 EUR, OOS / 0.
+        synnex = candidates["Synnex EU"]
+        assert synnex.explicit_candidate_mpn == MPN
+        assert synnex.price_amount == Decimal("962.86")
+        assert synnex.price_basis == CommercialPriceBasis.LIST_PRICE
+        assert synnex.currency_code == "EUR"
+        assert synnex.availability == CommercialAvailability.OUT_OF_STOCK
+        assert synnex.quantity == 0
+
+        issues = {i.source_name: i for i in response.issues}
+        assert set(issues) == {"CDW"}
+        assert issues["CDW"].outcome == SourceOutcome.NOT_FOUND
+
+        # Sensitive + non-authoritative metadata absent from the whole
+        # normalized response (allowlist boundary).
+        rendered = str(response)
+        for sentinel in (
+            FAKE_SESSION_ID,
+            FAKE_BUYER_ACCOUNT_ID,
+            FAKE_SYSTEM_ID,
+            "SessionId",
+            "BuyerAccountId",
+            "SystemId",
+            "FAKE-VENDOR-NAME",
+            "FAKE-WH-00",
+            "vendorName",
+            "warehouse",
+            "retailPrice",
+            "2036.36",
+        ):
+            assert sentinel not in rendered
+
+    def test_unknown_label_and_interstitial_between_known_sections(self) -> None:
+        """FULL adapter-level proof (FU1 section-scanner correctness):
+        an unknown label line AND a harmless interstitial line between two
+        valid known sections never become data and never poison the
+        complete known mappings."""
+        response, mock_opener = _lookup_body(
+            SECTION_BODY_HYBRID_WITH_INTERSTITIAL
+        )
+        assert mock_opener.open.call_count == 1
+
+        candidates = {c.source_name: c for c in response.candidates}
+        # BOTH complete known sections mapped faithfully, in order
+        assert set(candidates) == {"Ingram", "Synnex EU"}
+        assert candidates["Ingram"].price_amount == Decimal("1515.72")
+        assert candidates["Ingram"].availability == (
+            CommercialAvailability.OUT_OF_STOCK
+        )
+        assert candidates["Ingram"].quantity == 0
+        assert candidates["Synnex EU"].price_amount == Decimal("962.86")
+
+        issues = {i.source_name: i for i in response.issues}
+        assert set(issues) == {"CDW"}
+        assert issues["CDW"].outcome == SourceOutcome.NOT_FOUND
+
+        # The unknown section never becomes data: no EVIL-MPN candidate,
+        # no 99999 price, no Acme issue of any kind.
+        rendered = str(response)
+        assert "EVIL-MPN" not in rendered
+        assert "99999" not in rendered
+        assert "Acme" not in rendered
+        assert "interstitial" not in rendered
+
+    def test_hybrid_ingram_in_stock_true_positive(self) -> None:
+        text = (
+            "{'vendorPartNumber': 'A', "
+            "'pricing': {'customerPrice': 10.00, 'currencyCode': 'USD'}, "
+            "'availability': True, 'Avl_Quantity': 25}"
+        )
+        result = _parse_and_map_section("Ingram", text)
+        assert isinstance(result, CommercialSourceCandidate)
+        assert result.availability == CommercialAvailability.IN_STOCK
+        assert result.quantity == 25
+
+    def test_hybrid_ingram_contradiction_fails_closed_unknown(self) -> None:
+        # true + 0 => contradiction => UNKNOWN (never fabricated)
+        text = (
+            "{'vendorPartNumber': 'A', "
+            "'pricing': {'customerPrice': 10.00, 'currencyCode': 'USD'}, "
+            "'availability': True, 'Avl_Quantity': 0}"
+        )
+        result = _parse_and_map_section("Ingram", text)
+        assert isinstance(result, CommercialSourceCandidate)
+        assert result.availability == CommercialAvailability.UNKNOWN
+
+        # false + positive => contradiction => UNKNOWN
+        text = (
+            "{'vendorPartNumber': 'A', "
+            "'pricing': {'customerPrice': 10.00, 'currencyCode': 'USD'}, "
+            "'availability': False, 'Avl_Quantity': 7}"
+        )
+        result = _parse_and_map_section("Ingram", text)
+        assert isinstance(result, CommercialSourceCandidate)
+        assert result.availability == CommercialAvailability.UNKNOWN
+
+    def test_hybrid_ingram_lone_flag_fails_closed_unknown(self) -> None:
+        # false with NO quantity evidence => UNKNOWN (never fabricated)
+        text = (
+            "{'vendorPartNumber': 'A', "
+            "'pricing': {'customerPrice': 10.00, 'currencyCode': 'USD'}, "
+            "'availability': False}"
+        )
+        result = _parse_and_map_section("Ingram", text)
+        assert isinstance(result, CommercialSourceCandidate)
+        assert result.availability == CommercialAvailability.UNKNOWN
+        assert result.quantity is None
+
+    def test_hybrid_ingram_no_flag_quantity_evidence_kept(self) -> None:
+        # Top-level Avl_Quantity alone (no boolean signal): the quantity
+        # evidence is preserved, availability stays UNKNOWN (no lone
+        # signal fabricates a stock state in the nested-pricing branch).
+        text = (
+            "{'vendorPartNumber': 'A', "
+            "'pricing': {'customerPrice': 10.00, 'currencyCode': 'USD'}, "
+            "'Avl_Quantity': 0}"
+        )
+        result = _parse_and_map_section("Ingram", text)
+        assert isinstance(result, CommercialSourceCandidate)
+        assert result.availability == CommercialAvailability.UNKNOWN
+        assert result.quantity == 0
+
+    def test_hybrid_ingram_customer_price_authoritative_over_retail(self) -> None:
+        text = (
+            "{'vendorPartNumber': 'A', "
+            "'pricing': {'customerPrice': 100.00, 'retailPrice': 200.00, "
+            "'currencyCode': 'USD'}, 'availability': False, "
+            "'Avl_Quantity': 0}"
+        )
+        result = _parse_and_map_section("Ingram", text)
+        assert isinstance(result, CommercialSourceCandidate)
+        assert result.price_amount == Decimal("100.00")
+        assert result.price_basis == CommercialPriceBasis.CUSTOMER_PRICE
+
+    def test_hybrid_ingram_retail_fallback_only_when_key_absent(self) -> None:
+        text = (
+            "{'vendorPartNumber': 'A', "
+            "'pricing': {'retailPrice': 200.00, 'currencyCode': 'USD'}, "
+            "'availability': True, 'Avl_Quantity': 3}"
+        )
+        result = _parse_and_map_section("Ingram", text)
+        assert isinstance(result, CommercialSourceCandidate)
+        assert result.price_amount == Decimal("200.00")
+        assert result.price_basis == CommercialPriceBasis.RETAIL_PRICE_FALLBACK
+
+    def test_hybrid_ingram_customer_price_malformed_no_fallback(self) -> None:
+        # customerPrice PRESENT but malformed: authoritative key => the
+        # section fails closed (no retail fallback), even in the hybrid
+        # placement.
+        text = (
+            "{'vendorPartNumber': 'A', "
+            "'pricing': {'customerPrice': 'not_a_number', "
+            "'retailPrice': 200.00, 'currencyCode': 'USD'}, "
+            "'availability': False, 'Avl_Quantity': 0}"
+        )
+        result = _parse_and_map_section("Ingram", text)
+        assert isinstance(result, CommercialSourceIssue)
+        assert result.outcome == SourceOutcome.MALFORMED_SECTION
+
+    def test_hybrid_canonical_availability_dict_still_canonical(self) -> None:
+        # The canonical nested availability dict takes precedence over the
+        # hybrid top-level placement (a section does not publish both).
+        text = (
+            "{'vendorPartNumber': 'A', "
+            "'pricing': {'customerPrice': 10.00, 'currencyCode': 'USD'}, "
+            "'availability': {'available': True, 'Avl_Quantity': 4}}"
+        )
+        result = _parse_and_map_section("Ingram", text)
+        assert isinstance(result, CommercialSourceCandidate)
+        assert result.availability == CommercialAvailability.IN_STOCK
+        assert result.quantity == 4
+
+    def test_hybrid_malformed_inside_literal_still_fails_closed(self) -> None:
+        # Malformed content INSIDE a known section's literal (the mapping
+        # is never closed) fails that source closed — while the complete
+        # sibling sections survive.
+        body = (
+            "Ingram Product: {'vendorPartNumber': 'A', 'pricing': {"
+            "'customerPrice': 10.00, 'currencyCode': 'USD',\n"
+            "CDW Product: {Not Found}\n"
+            "Synnex EU Product: {'OnlineCheck': {'Header': {'CurrencyCode': 'EUR'}, "
+            "'Item': {'ManufacturerItemIdentifier': 'A', 'UnitPriceAmount': 1.0, "
+            "'AvailabilityTotal': 2}}}\n"
+        )
+        response, _ = _lookup_body(body, mpn="A")
+        assert response.status == LookupStatus.PARTIAL
+        candidates = {c.source_name: c for c in response.candidates}
+        assert set(candidates) == {"Synnex EU"}
+        assert candidates["Synnex EU"].quantity == 2
+        issues = {i.source_name: i for i in response.issues}
+        assert issues["Ingram"].outcome == SourceOutcome.MALFORMED_SECTION
+        assert issues["CDW"].outcome == SourceOutcome.NOT_FOUND
+
+    def test_synnex_nested_form_mapper_direct(self) -> None:
+        text = (
+            "{'OnlineCheck': {'Header': {'CurrencyCode': 'EUR', "
+            "'SessionId': 'FAKE-SESSION-000', 'BuyerAccountId': 'FAKE-ACCOUNT-000', "
+            "'SystemId': 'FAKE-SYSTEM-000'}, 'Item': {'ManufacturerItemIdentifier': "
+            "'A', 'UnitPriceAmount': 962.86, 'AvailabilityTotal': 0}}}}"
+        )
+        result = _parse_and_map_section("Synnex EU", text)
+        assert isinstance(result, CommercialSourceCandidate)
+        assert result.price_amount == Decimal("962.86")
+        assert result.currency_code == "EUR"
+        assert result.availability == CommercialAvailability.OUT_OF_STOCK
+        assert result.quantity == 0
+        # PRIVACY INVARIANT: the Header's sensitive metadata never enters
+        # the provider-neutral candidate.
+        rendered = str(result)
+        for sentinel in (
+            FAKE_SESSION_ID,
+            FAKE_BUYER_ACCOUNT_ID,
+            FAKE_SYSTEM_ID,
+            "SessionId",
+            "BuyerAccountId",
+            "SystemId",
+        ):
+            assert sentinel not in rendered
 
 
 # ---------------------------------------------------------------------------

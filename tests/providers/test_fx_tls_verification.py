@@ -3,17 +3,27 @@
 Production observation: a ZAR 4A bucket triggered an FX fetch, but the
 provider connection failed with ``ssl.SSLCertVerificationError`` /
 ``CERTIFICATE_VERIFY_FAILED`` / ``unable to get local issuer certificate``.
-The correct conclusion:
+
+Confirmed truth (FU1 evidence correction):
 
 * The provider's secure HTTPS verification WORKED as designed — it refused
-  an untrusted certificate chain.
-* The provider correctly converts the failure to ``FxNetworkError`` and
-  orchestration correctly treats FX failure as display-supplemental /
-  nonfatal (no ResearchFxSnapshot, original price survives, USD Equivalent
-  unavailable).
-* The trust-chain repair is an OPERATIONAL server action (install/update
-  the CA trust store on the production host). It is NOT solved by an
-  insecure TLS bypass in code.
+  an untrusted certificate chain. The failure was correctly converted to
+  ``FxNetworkError``; the run completed without a ResearchFxSnapshot, the
+  original non-USD price survived, and USD Equivalent displayed
+  "Unavailable".
+* A later SECURE retry from the SAME production Python runtime — without
+  installing certifi, without manually installing a certificate, without
+  changing fx.py, and without disabling TLS verification — succeeded and
+  returned official rates (observation date 2026-09-24; USD 1.1367; ZAR
+  18.6836). No application change was required.
+* The EXACT reason for the transient trust-chain failure has NOT been
+  proven; there is currently NO evidence-backed requirement to
+  install/update a CA trust store, and no such action is recorded as an
+  outstanding fact. If the failure reoccurs persistently, the CA trust
+  state of the production Python runtime is the first place to inspect —
+  as an investigation step, not a pre-declared repair.
+* NO insecure TLS bypass in code is the (unchanged) answer: secure
+  verification must stay on.
 
 This file locks that in:
 
@@ -23,6 +33,8 @@ This file locks that in:
 2. The FX provider source contains NO insecure TLS bypass: no unverified
    context, no CERT_NONE, no verify=False, no disabled hostname check,
    and urlopen is called WITHOUT any custom SSL context argument.
+
+(FU1: docstring-only correction; every assertion below is unchanged.)
 """
 
 from __future__ import annotations

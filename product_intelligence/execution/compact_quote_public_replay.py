@@ -57,6 +57,13 @@ from product_intelligence.runs.models import (
     ResearchRun,
 )
 
+# FU1: the human-confirmation authority derivation is shared with the
+# authorized-path replay (ONE code path proves the persisted CONFIRMED
+# candidates; the two DENIED/ALLOWED branches must not diverge).
+from product_intelligence.execution.compact_quote_replay import (
+    derive_human_confirmed_assessment_indices,
+)
+
 
 @dataclass(frozen=True)
 class PublicCompactQuoteReplayResult:
@@ -79,7 +86,6 @@ def replay_public_compact_quote_projection(
     *,
     run: ResearchRun,
     price_result: PriceAggregationResult,
-    confirmed_assessment_indices: frozenset[int] | None = None,
 ) -> PublicCompactQuoteReplayResult:
     """Build a vendor-free compact quote projection from persisted artifacts.
 
@@ -89,12 +95,14 @@ def replay_public_compact_quote_projection(
     Authority rules:
     * Public rows: only from frozen 4A bucket membership, via the frozen
       ``project_public_rows`` reading ``price_result.buckets``.
-    * Human-confirmed rows (PROD-FIX1): only from run-scoped assessment
-      indices supplied by the caller AFTER the caller's fail-closed
-      candidate-to-assessment binding validation (the same validated
-      indices feeding the Reviewed Price). Human confirmation is identity
-      authority only; the frozen Machine Price snapshot is never altered.
-      These rows are public-listing evidence — never vendor data.
+    * Human-confirmed rows (PROD-FIX1, FU1 authority ownership): derived
+      EXCLUSIVELY from persisted state by the shared
+      ``derive_human_confirmed_assessment_indices`` — a CONFIRMED run-scoped
+      candidate whose full candidate-to-assessment binding is still valid.
+      This entry point accepts NO caller-supplied indices: a bare integer
+      can never mint HUMAN_CONFIRMED authority. Human confirmation is
+      identity authority only; the frozen Machine Price snapshot is never
+      altered. These rows are public-listing evidence — never vendor data.
     * FX: from persisted ``ResearchFxSnapshot`` only (never live).
     * Vendor supplemental data: NEVER read in this path. Authorization
       happens before sensitive commercial artifact access; this service is
@@ -107,10 +115,6 @@ def replay_public_compact_quote_projection(
     price_result : PriceAggregationResult
         The already provenance-validated price aggregation result decoded
         from the run's ``PriceIntelligenceSnapshot``.
-    confirmed_assessment_indices : frozenset[int] | None
-        Optional run-scoped, binding-validated indices of human-CONFIRMED
-        semantic candidates. ``None`` (or empty) projects no
-        human-confirmed rows (frozen 4D-C behavior).
 
     Returns
     -------
@@ -167,13 +171,19 @@ def replay_public_compact_quote_projection(
     # FAIL-CLOSED: any projection failure propagates (no partial summary).
     public_rows = project_public_rows(price_result, fx_snapshot=fx_snapshot)
 
-    # Human-confirmed rows (PROD-FIX1): public-listing evidence with a
-    # persisted run-scoped identity authority overlay. Zero vendor data.
+    # Human-confirmed rows (FU1 authority ownership): the effective
+    # human-confirmed selection is derived from PERSISTED state via the
+    # shared derivation helper (CONFIRMED run-scoped candidates with
+    # still-valid full bindings). A caller cannot inject indices: this
+    # entry point no longer accepts them. Zero vendor data.
     human_confirmed_rows: tuple = ()
-    if confirmed_assessment_indices:
+    human_confirmed_indices = derive_human_confirmed_assessment_indices(
+        run, price_result.assessments
+    )
+    if human_confirmed_indices:
         human_confirmed_rows = project_human_confirmed_rows(
             price_result,
-            confirmed_assessment_indices,
+            human_confirmed_indices,
             fx_snapshot=fx_snapshot,
         )
 

@@ -230,80 +230,32 @@ def _check_candidate_binding(candidate, assessment, logger):
     Returns True if ALL binding checks pass against the assessment's
     normalized listing observation. Returns False for any failure.
 
-    Uses the human-review eligibility predicate rather than checking
-    assessment.decision == AI_ASSISTED_MATCH, because the frozen FU3B
-    execution path produces ORIGINAL deterministic REJECTED assessments
-    (never AI_ASSISTED_MATCH in the snapshot).
+    FU1: the binding RULES live in exactly one place — the pure
+    lower-layer primitive ``research.matching.is_review_candidate_binding_valid``
+    — which is shared by this web path, the 8-step review-POST validation,
+    and the historical compact-quote replay boundary. This function is a
+    thin logging wrapper: it adds no rules of its own and cannot diverge
+    from the replay boundary.
+
+    Uses the human-review eligibility predicate (inside the shared
+    primitive) rather than checking assessment.decision ==
+    AI_ASSISTED_MATCH, because the frozen FU3B execution path produces
+    ORIGINAL deterministic REJECTED assessments (never AI_ASSISTED_MATCH
+    in the snapshot).
     """
     from product_intelligence.research.matching import (
-        is_human_review_eligible_assessment,
+        is_review_candidate_binding_valid,
     )
 
-    if not is_human_review_eligible_assessment(assessment):
-        logger.warning(
-            "Candidate %s points to assessment that is not human-review "
-            "eligible (decision=%s). Binding failed.",
-            candidate.id, assessment.decision.value,
-        )
-        return False
+    if is_review_candidate_binding_valid(candidate, assessment):
+        return True
 
-    obs = assessment.normalized_listing.observation
-
-    if candidate.source_url != obs.source_url:
-        logger.warning(
-            "Candidate %s source_url %r != assessment source_url %r.",
-            candidate.id, candidate.source_url, obs.source_url,
-        )
-        return False
-
-    if candidate.target_mpn != assessment.requested_part_number:
-        logger.warning(
-            "Candidate %s target_mpn %r != assessment requested_part_number %r.",
-            candidate.id, candidate.target_mpn, assessment.requested_part_number,
-        )
-        return False
-
-    assessment_title = obs.product_title or ""
-    if candidate.candidate_title != assessment_title:
-        logger.warning(
-            "Candidate %s candidate_title %r != assessment product_title %r.",
-            candidate.id, candidate.candidate_title, assessment_title,
-        )
-        return False
-
-    # MPN evidence: candidate_mpn_field must match the RAW observation field
-    # (FU3B semantic provenance: candidate_mpn_field is the raw MPN field,
-    # not the normalized comparison result). This is the correct binding
-    # check regardless of what candidate_part_number_compared normalizes to.
-    assessment_mpn = obs.manufacturer_part_number_text or ""
-    if candidate.candidate_mpn_field != assessment_mpn:
-        logger.warning(
-            "Candidate %s candidate_mpn_field %r != observation.manufacturer_part_number_text %r.",
-            candidate.id, candidate.candidate_mpn_field, assessment_mpn,
-        )
-        return False
-
-    # SKU evidence: candidate_sku should match sku_text from observation
-    assessment_sku = getattr(obs, 'sku_text', '') or ''
-    if candidate.candidate_sku != assessment_sku:
-        logger.warning(
-            "Candidate %s candidate_sku %r != assessment sku_text %r.",
-            candidate.id, candidate.candidate_sku, assessment_sku,
-        )
-        return False
-
-    # Evidence source provenance: candidate.evidence_source must match the
-    # assessment's candidate_evidence_source. This prevents a candidate created
-    # for one evidence source from binding to an assessment with a different one.
-    expected_evidence_source = assessment.candidate_evidence_source.value
-    if candidate.evidence_source != expected_evidence_source:
-        logger.warning(
-            "Candidate %s evidence_source %r != assessment.candidate_evidence_source %r.",
-            candidate.id, candidate.evidence_source, expected_evidence_source,
-        )
-        return False
-
-    return True
+    logger.warning(
+        "Candidate %s (assessment_index=%s) failed the shared "
+        "candidate-to-assessment binding validation; binding invalid.",
+        candidate.id, getattr(candidate, "assessment_index", None),
+    )
+    return False
 
 
 

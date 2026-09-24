@@ -42,10 +42,12 @@ from product_intelligence.research.fx_codec import (
     FxObservationSnapshot,
     decode_fx_observation,
 )
+from product_intelligence.research.matching import is_review_candidate_binding_valid
 from product_intelligence.research.price_result_codec import (
     decode_price_aggregation_result,
 )
 from product_intelligence.runs.models import (
+    AiAssistedReviewCandidate,
     PriceIntelligenceSnapshot,
     ResearchFxSnapshot,
     ResearchSupplementSnapshot,
@@ -70,10 +72,56 @@ class CompactQuoteReplayResult:
     warnings: tuple[str, ...]
 
 
+def derive_human_confirmed_assessment_indices(
+    run: ResearchRun,
+    assessments: tuple,
+) -> frozenset[int]:
+    """Prove, from PERSISTED STATE, the human-confirmed Compact Quote indices.
+
+    FU1 authority ownership: the replay boundary — not the caller — decides
+    which assessment indices carry human-confirmation authority. A bare
+    integer index supplied by any caller is NEVER treated as proof of
+    confirmation. For each index returned here, this function proves from
+    persisted state that:
+
+    1. an ``AiAssistedReviewCandidate`` exists for THIS run (the query is
+       run-scoped — a candidate from another run cannot enter);
+    2. its ``review_state`` is CONFIRMED (UNREVIEWED / REJECTED / undone
+       candidates never qualify);
+    3. it is mapped to the assessment index (in range of the persisted
+       snapshot assessments — a stale out-of-range index never qualifies);
+    4. its full candidate-to-assessment provenance binding is still valid
+       (the single pure binding primitive shared with the web path — a
+       tampered candidate never qualifies);
+    5. the mapped assessment is still human-review eligible (part of the
+       shared binding check);
+    6. persisted price/currency existence is enforced downstream by
+       ``project_human_confirmed_rows`` (a confirmed listing without
+       persisted price evidence produces no row).
+
+    Zero live I/O: this reads persisted review state only (database).
+    Candidates that fail any check are dropped (fail closed — the row
+    simply does not exist); they never raise and never enter the quote.
+    """
+    confirmed_candidates = AiAssistedReviewCandidate.objects.filter(
+        run=run,
+        review_state=AiAssistedReviewCandidate.REVIEW_STATE_CONFIRMED,
+    )
+    valid_indices: set[int] = set()
+    for candidate in confirmed_candidates:
+        idx = candidate.assessment_index
+        if not isinstance(idx, int) or isinstance(idx, bool):
+            continue  # contract-invalid persisted row: fail closed
+        if idx < 0 or idx >= len(assessments):
+            continue  # stale mapping: fail closed
+        if not is_review_candidate_binding_valid(candidate, assessments[idx]):
+            continue  # tampered / foreign / non-eligible binding: fail closed
+        valid_indices.add(idx)
+    return frozenset(valid_indices)
+
+
 def replay_compact_quote_projection(
     run_id: str,
-    *,
-    confirmed_assessment_indices: frozenset[int] | None = None,
 ) -> CompactQuoteReplayResult:
     """Build the compact quote projection from persisted artifacts.
 
@@ -91,24 +139,22 @@ def replay_compact_quote_projection(
       (via project_public_rows which reads PriceAggregationResult.buckets)
     * Vendor rows: only from actual SupplementSourceObservation instances
       with EXACT/NORMALIZED_EXACT match type and brand_new=True/VENDOR_API_POLICY
-    * Human-confirmed rows (PROD-FIX1): only from run-scoped
-      assessment indices supplied by the caller AFTER the caller's own
-      fail-closed candidate-to-assessment binding validation passed
-      (same validated indices that feed the Reviewed Price). The
-      projection re-validates each index against the persisted snapshot
-      (range, semantic eligibility, persisted price/currency). Human
-      confirmation establishes identity authority only — it never alters
-      the frozen Machine Price snapshot.
+    * Human-confirmed rows (PROD-FIX1, FU1 authority ownership): derived
+      EXCLUSIVELY from persisted state by
+      ``derive_human_confirmed_assessment_indices`` — a CONFIRMED
+      run-scoped candidate whose full candidate-to-assessment binding is
+      still valid. This entry point accepts NO caller-supplied indices: a
+      bare integer can never mint HUMAN_CONFIRMED authority. The
+      projection re-validates each derived index against the persisted
+      snapshot (range, semantic eligibility, persisted price/currency).
+      Human confirmation establishes identity authority only — it never
+      alters the frozen Machine Price snapshot.
     * FX: from persisted ResearchFxSnapshot only (never live ECB call)
 
     Parameters
     ----------
     run_id : str
         The UUID of the completed ResearchRun.
-    confirmed_assessment_indices : frozenset[int] | None
-        Optional run-scoped, binding-validated indices of human-CONFIRMED
-        semantic candidates. ``None`` (or empty) projects no
-        human-confirmed rows (frozen 4D-C behavior).
 
     Returns
     -------
@@ -185,14 +231,20 @@ def replay_compact_quote_projection(
             )
             vendor_rows.append(row)
 
-    # Project human-confirmed rows (PROD-FIX1): run-scoped identity
-    # authority overlay only. Never touches the frozen Machine Price
-    # artifact; price/currency/condition are read from it as-is.
+    # Project human-confirmed rows (FU1 authority ownership): the
+    # effective human-confirmed selection is derived from PERSISTED state
+    # — CONFIRMED run-scoped candidates with still-valid full bindings.
+    # A caller cannot inject indices: this entry point no longer accepts
+    # them. Never touches the frozen Machine Price artifact;
+    # price/currency/condition are read from it as-is.
     human_confirmed_rows: tuple[CompactQuoteRow, ...] = ()
-    if confirmed_assessment_indices:
+    human_confirmed_indices = derive_human_confirmed_assessment_indices(
+        run, decoded_price.assessments
+    )
+    if human_confirmed_indices:
         human_confirmed_rows = project_human_confirmed_rows(
             decoded_price,
-            confirmed_assessment_indices,
+            human_confirmed_indices,
             fx_snapshot=fx_snapshot,
         )
 

@@ -2,8 +2,93 @@
 
 ## Current state
 
+**PRODUCT-INTEL.PILOT-RELEASE-2-PROD-FIX1-FU1 (Production Review-Blocker
+Closure) — IMPLEMENTED / PENDING FINAL REVIEW**
+
+Bounded append-only corrective follow-up to the independently reviewed
+PROD-FIX1 commit (SHA 8811104e14103c41346c05471b3170c55c97386a). The
+previous implementation is retained; ONLY the review blockers below are
+corrected, plus directly necessary tests/docs. Not a feature phase; no 8A
+caching implemented; no deployment performed in this commit. Candidate
+state; final approval remains with the project lead. (Canonical spec:
+PLAN §26.11.)
+
+1. **Vendor production-wire fidelity (BLOCKER 1)** — the adapter now
+   supports the ACTUAL hybrid production Ingram placement: explicit
+   `vendorPartNumber`, nested `pricing` (customerPrice / retailPrice /
+   currencyCode), TOP-LEVEL boolean availability signal + TOP-LEVEL
+   `Avl_Quantity`. The nested-pricing branch keeps its pricing authority
+   (customerPrice present => authoritative; retailPrice fallback only
+   when the customerPrice key is absent), keeps the canonical nested
+   availability dict, and recognizes the hybrid top-level placement
+   through the SAME bounded truth table (contradiction => UNKNOWN fail
+   closed; false + 0 => OUT_OF_STOCK/0; true + positive => IN_STOCK);
+   unrelated fields (e.g. `vendorName`) stay ignored by the allowlist.
+   The full `execute_research_run` integration test now uses the faithful
+   hybrid Ingram section and the REAL nested Synnex EU section
+   (`OnlineCheck.Header.CurrencyCode`,
+   `OnlineCheck.Item.ManufacturerItemIdentifier/UnitPriceAmount/
+   AvailabilityTotal`) with fake/redacted SessionId / BuyerAccountId /
+   SystemId at their realistic structural locations (the Header block),
+   stripped by the allowlist. The flat forms remain separately tested
+   compatibility forms and are no longer described as the only/exact
+   production wire shape. Proof: exact MPN `MTFDKBA480TFR-1BC1ZABYYR` →
+   one Ingram observation (1515.72 USD customer price, OUT_OF_STOCK,
+   quantity 0), one Synnex EU observation (962.86 EUR, OUT_OF_STOCK,
+   quantity 0), CDW NOT_FOUND.
+   Section-scanner/strict-parser consistency: only the three exact
+   line-anchored labels establish sections; a COMPLETE bounded literal is
+   authoritative; unknown/interstitial text after it is never parsed into
+   data and cannot poison the section; malformed content INSIDE a literal
+   still fails that source closed (no generic HTML scraping).
+2. **Human-confirmed authority ownership (BLOCKER 2)** — the single pure
+   candidate-to-assessment binding primitive
+   (`research.matching.is_review_candidate_binding_valid`) is now shared
+   by the web GET presentation, the 8-step review-POST validation (unchanged
+   in strength), and both historical replay boundaries — the binding rule
+   exists in exactly one place. Both replay entry points
+   (`replay_compact_quote_projection`,
+   `replay_public_compact_quote_projection`) NO LONGER accept any
+   caller-supplied index parameter: the effective human-confirmed
+   selection is derived from PERSISTED state by
+   `execution.compact_quote_replay.derive_human_confirmed_assessment_indices`,
+   which proves each row is (1) an AiAssistedReviewCandidate for THIS run,
+   (2) review_state CONFIRMED, (3) mapped to an in-range assessment index,
+   (4) fully bound to that assessment (shared primitive), (5) still
+   human-review eligible, (6) persisted price/currency exist (enforced by
+   the projection). A bare caller integer can never mint HUMAN_CONFIRMED
+   authority. The lowest-level pure projection helper
+   (`project_human_confirmed_rows`) is retained as an
+   already-authorized-selection consumer with that contract stated
+   explicitly, keeping its defense-in-depth fail-closed checks.
+   Machine Price untouched; human review run-scoped; historical GET
+   remains zero-live-I/O.
+3. **ECB trust-chain evidence correction (BLOCKER 3)** — NO insecure TLS
+   bypass exists or was added; `providers/fx.py` remains unchanged. A
+   later SECURE retry from the SAME production Python runtime (without
+   installing certifi, without manually installing a certificate,
+   without changing fx.py, without disabling TLS verification) succeeded
+   and returned official rates: observation date 2026-09-24, USD 1.1367,
+   ZAR 18.6836. Confirmed truth: the SSL certificate-chain verification
+   failure WAS observed earlier; it was correctly converted to
+   FxNetworkError; the run correctly completed without
+   ResearchFxSnapshot; a later secure retry succeeded; no application
+   change was required; the exact reason for the transient failure has
+   NOT been proven; there is currently NO evidence-backed requirement to
+   install/update a CA trust store (no such action is recorded as
+   outstanding fact). The failure-path regression tests are retained
+   (not removed, not weakened).
+4. **Reviewed Price wording accuracy (presentation defect)** — the
+   Reviewed Price summary sentence no longer states "includes N
+   human-confirmed listings" from the validated-CONFIRMED-candidate count
+   when fewer are actually price-eligible (e.g. UNKNOWN condition). The
+   template now derives the truthful price-contributing counts from the
+   reviewed buckets themselves (per-bucket `human_confirmed_count` /
+   `deterministic_count` sums) and renders conditionally truthful wording.
+   Reviewed-price eligibility is NOT changed to make the count match.
+
 **PRODUCT-INTEL.PILOT-RELEASE-2-PROD-FIX1 (Production Correction) —
-IMPLEMENTED / PENDING FINAL REVIEW**
+IMPLEMENTED / REVIEW BLOCKERS CORRECTED BY FU1 / PENDING FINAL REVIEW**
 
 Bounded production-correction phase fixing defects discovered during real
 Product Intelligence production use on the deployed PILOT-RELEASE-2 runtime
@@ -11,26 +96,28 @@ Product Intelligence production use on the deployed PILOT-RELEASE-2 runtime
 feature phase; no 8A caching implemented; no deployment performed in this
 commit. Candidate state; final approval remains with the project lead.
 
-Corrections delivered (details in PLAN §26.10):
+Corrections delivered (details in PLAN §26.10; review-blocker closures in
+PLAN §26.11 / FU1 above):
 
 1. **Vendor real-response contract** — the production Vendor API answers
    HTTP 200 / `text/html` with a section-oriented body that is NOT one JSON
    document (`Ingram Product: { ... }` / `CDW Product: {Not Found}` /
-   `Synnex EU Product: { ... }`). The Internal Vendor adapter now supports
-   that exact bounded contract in addition to the retained canonical JSON
-   wrapper: strict recursive-descent literal parsing (no eval /
-   literal_eval), the exact `{Not Found}` bounded marker, the three exact
-   section labels only, flat production field forms mapped through the SAME
-   allowlist mappers, exact Decimal monetary behavior, exactly-one network
-   call, transport/failure behavior preserved, one malformed section does
-   not destroy valid siblings. The real Synnex sensitive metadata
-   (SessionId / BuyerAccountId / SystemId) is stripped by the allowlist and
-   never enters candidates, snapshots, logs, or error detail; the raw body
-   is never persisted. Integration proof: exact MPN
-   `MTFDKBA480TFR-1BC1ZABYYR` with synthetic production-equivalent data
-   yields one Ingram observation (1515.72 USD, customer price, quantity 0
-   faithfully mapped), one Synnex EU observation (962.86 EUR, quantity 0
-   faithfully mapped), and a CDW NOT_FOUND issue.
+   `Synnex EU Product: { ... }`). The Internal Vendor adapter supports that
+   bounded contract in addition to the retained canonical JSON wrapper:
+   strict recursive-descent literal parsing (no eval / literal_eval), the
+   exact `{Not Found}` bounded marker, the three exact section labels only,
+   production field placements (canonical nested, the FU1 hybrid
+   top-level-availability form, and the flat compatibility form) mapped
+   through the SAME allowlist mappers, exact Decimal monetary behavior,
+   exactly-one network call, transport/failure behavior preserved, one
+   malformed section does not destroy valid siblings. The real Synnex
+   sensitive metadata (SessionId / BuyerAccountId / SystemId) is stripped
+   by the allowlist and never enters candidates, snapshots, logs, or error
+   detail; the raw body is never persisted. Integration proof: exact MPN
+   `MTFDKBA480TFR-1BC1ZABYYR` with the faithful hybrid production shape
+   yields one Ingram observation (1515.72 USD, customer price,
+   OUT_OF_STOCK, quantity 0), one Synnex EU observation (962.86 EUR,
+   OUT_OF_STOCK, quantity 0), and a CDW NOT_FOUND issue.
 2. **Currency formatting** — the Compact Quote price formatter no longer
    uses the currency code as a fallback prefix and appends it again.
    Known-symbol currencies keep `$1,515.72 USD` / `€962.86 EUR`; no-symbol
@@ -59,16 +146,21 @@ Corrections delivered (details in PLAN §26.10):
    enabled.
 6. **ECB / USD Equivalent TLS issue** — investigated, NOT bypassed. The
    production `ssl.SSLCertVerificationError` (unable to get local issuer
-   certificate) is the secure verification working as designed; the provider
-   classifies it as bounded `FxNetworkError` and orchestration keeps FX
-   failure nonfatal (no ResearchFxSnapshot, original non-USD price
+   certificate) is the secure verification working as designed; the
+   provider classifies it as bounded `FxNetworkError` and orchestration
+   keeps FX failure nonfatal (no ResearchFxSnapshot, original non-USD price
    survives, USD Equivalent unavailable) — locked in by regression tests,
-   including mechanical no-insecure-bypass guards. The trust-chain repair
-   is an OPERATIONAL action on the production server (install/update the CA
-   trust store). No code change was required; if a future phase wants an
-   explicitly configured trusted CA bundle, that is a new configuration
-   contract to be designed and approved separately (none exists in the
-   repository today).
+   including mechanical no-insecure-bypass guards, all RETAINED by FU1.
+   FU1 evidence correction: a later SECURE retry from the same production
+   Python runtime (no certifi install, no manual certificate, no fx.py
+   change, no disabled TLS verification) succeeded (observation date
+   2026-09-24; USD 1.1367; ZAR 18.6836). The exact reason for the
+   transient trust-chain failure has NOT been proven; there is currently NO
+   evidence-backed requirement to install/update a CA trust store, and no
+   such action is recorded as outstanding fact. No code change was
+   required; if a future phase wants an explicitly configured trusted CA
+   bundle, that is a new configuration contract to be designed and approved
+   separately (none exists in the repository today).
 
 **PILOT-RELEASE-1 DEPLOYED / ACCEPTED**
 
@@ -172,10 +264,10 @@ Runtime-vs-docs distinction (binding):
 Audit)** — PLANNED
 
 The production-correction phase PRODUCT-INTEL.PILOT-RELEASE-2-PROD-FIX1
-(above) is the bounded corrective pass against the deployed
-PILOT-RELEASE-2 runtime; it is PENDING FINAL REVIEW and does NOT change
-the next-architecture-delivery selection below. 8A caching is NOT
-implemented in PROD-FIX1.
+(above) and its bounded review-blocker closure PRODUCT-INTEL.PILOT-
+RELEASE-2-PROD-FIX1-FU1 are PENDING FINAL REVIEW and do NOT change the
+next-architecture-delivery selection below. 8A caching is NOT
+implemented in PROD-FIX1 or FU1.
 
 The previous "post-UAT next is undecided" gate is closed: the
 production deployment/smoke evidence now exists and the project lead
@@ -735,7 +827,8 @@ FU3B wires the frozen FU3A semantic runtime into real research execution:
 | --- | --- | --- |
 | PILOT-RELEASE-1 | Internal pilot deployment | **DEPLOYED / ACCEPTED** |
 | PILOT-RELEASE-2 | 4D Customer Requirement Deployment & UAT | **DEPLOYED / ACCEPTED** (deployed runtime SHA 065320180c17b89c7460164326a0c9f49e01fe3b; production smoke passed 2026-09-23; migrations through 0010 deployed) |
-| PILOT-RELEASE-2-PROD-FIX1 | Production quote-workflow defect corrections (Vendor real-response contract, currency formatting, semantic-section placement, Confirm Match -> Compact Quote, submit guard, ECB/TLS non-bypass) | **IMPLEMENTED / PENDING FINAL REVIEW** (no deployment in this commit) |
+| PILOT-RELEASE-2-PROD-FIX1 | Production quote-workflow defect corrections (Vendor real-response contract, currency formatting, semantic-section placement, Confirm Match -> Compact Quote, submit guard, ECB/TLS non-bypass) | **IMPLEMENTED / REVIEW BLOCKERS CORRECTED BY FU1 / PENDING FINAL REVIEW** (no deployment in this commit) |
+| PILOT-RELEASE-2-PROD-FIX1-FU1 | Bounded review-blocker closure (vendor hybrid production-wire fidelity + section-scanner consistency, human-confirmed authority ownership at the replay boundary, ECB evidence correction, Reviewed Price wording accuracy) | **IMPLEMENTED / PENDING FINAL REVIEW** (no deployment in this commit; canonical spec PLAN §26.11) |
 | 8A-PRE | Caching & Freshness Architecture Audit | **PLANNED** (next delivery; READ-ONLY / DESIGN-FIRST, not caching implementation) |
 | 4D-PRE | Preferred Source Feasibility Audit | Implemented (evidence only, frozen) |
 | 4D-A | Source Acquisition Optimization | Implemented (frozen) |
@@ -1013,6 +1106,78 @@ Not eligible:
 
 
 ## Validation results
+
+### PROD-FIX1-FU1 CANDIDATE ACCEPTANCE SNAPSHOT (PENDING FINAL REVIEW)
+
+| Metric | Count |
+| --- | --- |
+| Collected | 5281 |
+| Passed | 5281 |
+| Failed | 0 |
+| Skipped | 0 |
+| Xfailed | 0 |
+| Deselected | 0 |
+| Subtests passed | 39 |
+
+Definitive full-suite execution of the final FU1 tree (zero
+deselection, no skip/xfail injection): 5281 passed, 0 failed,
+39 subtests passed. During validation, two earlier full executions
+of the same tree observed 10 and 11 failures respectively — in both
+cases EXACTLY members of the fixed eleven-node Windows/Python 3.14
+subprocess-boundary flake allowlist (observed signature
+`subprocess.Popen -> _winapi.DuplicateHandle/CreateProcess ->
+OSError: [WinError 6/50]`), with NO node outside that allowlist
+failing and all three executions otherwise green. The allowlist is
+non-deterministic by nature, exactly as recorded for every prior
+phase; the fixed allowlist remains exactly 11 nodes (not expanded).
+
+Collection accounting: 5247 PROD-FIX1 baseline + 34 FU1 net-new nodes
+= 5281 collected. Net-new: tests/providers/test_vendor_section_response.py
++15 (12 hybrid production-placement adapter tests incl. the full
+adapter-level unknown-label/interstitial-between-known-sections proof;
+3 section-value interstitial/strictness parser tests),
+tests/execution/test_human_confirmed_replay_authority.py +17 (NEW FILE:
+replay/service boundary authority proofs A–G plus injection-surface
+removal and Machine Price / no-persisted-price proofs),
+tests/web/test_human_confirmed_compact_quote.py +2 (focused Reviewed
+Price wording regressions). No boundary parameterization expansion (no
+new production files; only existing files modified).
+
+All 5247 baseline nodes remain collected. No existing test deleted,
+skipped, xfailed, deselected, or weakened. Exact disclosed test-file
+touches:
+
+* `tests/providers/test_vendor_section_response.py` — module docstring
+  and fixture comments corrected (flat forms described as separately
+  tested COMPATIBILITY forms, not the only/exact production wire
+  shape); `test_trailing_garbage_rejected` INPUT corrected from
+  `{'a': 1} trailing junk` (a complete literal + interstitial text, now
+  correctly ignored per the documented contract) to
+  `{'a': 1 trailing junk` (an INCOMPLETE literal — still rejected;
+  name and fail-closed intent preserved, strictness retained);
+  new hybrid/interstitial tests added.
+* `tests/execution/test_4d_b_vendor_section_integration.py` — the
+  SECTION_BODY fixture corrected from the simplified flat
+  "production-equivalent" shape to the faithful hybrid production shape
+  (Ingram: nested pricing + top-level boolean availability + top-level
+  Avl_Quantity + unrelated ignored fields; Synnex EU: REAL nested
+  OnlineCheck form with fake/redacted SessionId / BuyerAccountId /
+  SystemId in the Header block). All seven assertions of the seven
+  existing tests are preserved and now run against the faithful shape.
+* `tests/web/test_web_boundaries.py` — the web research-import
+  allowlist gains exactly one symbol:
+  `research.matching.is_review_candidate_binding_valid` (the single
+  shared binding primitive now consumed by web/presentation.py).
+  Guard strength unchanged (still an explicit symbol-level allowlist).
+* `tests/providers/test_fx_tls_verification.py` — docstring-only
+  evidence correction (BLOCKER 3): no longer records an outstanding
+  CA-trust-store installation as fact (a later secure retry from the
+  same production runtime succeeded; the transient root cause is
+  unproven). Every assertion byte-identical.
+* `tests/web/test_human_confirmed_compact_quote.py` — two focused
+  wording regression tests ADDED (no existing test altered).
+* `tests/execution/test_human_confirmed_replay_authority.py` — NEW FILE
+  (17 nodes).
 
 ### PROD-FIX1 CANDIDATE ACCEPTANCE SNAPSHOT (PENDING FINAL REVIEW)
 

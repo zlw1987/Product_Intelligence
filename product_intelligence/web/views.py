@@ -411,6 +411,8 @@ def research_detail(request: HttpRequest, run_id: uuid.UUID) -> HttpResponse:
     confirmed_count = len(confirmed_indices)
 
     reviewed_result = None
+    reviewed_confirmed_price_count = 0
+    reviewed_deterministic_price_count = 0
     if confirmed_indices and decoded_result is not None:
         from product_intelligence.research.aggregation import aggregate_reviewed_listing_prices
         try:
@@ -418,6 +420,18 @@ def research_detail(request: HttpRequest, run_id: uuid.UUID) -> HttpResponse:
                 request=decoded_result.request,
                 assessments=decoded_result.assessments,
                 confirmed_assessment_indices=confirmed_indices,
+            )
+            # FU1 presentation accuracy: the truthful PRICE-CONTRIBUTING
+            # counts, derived from the reviewed buckets themselves.
+            # confirmed_count (validated CONFIRMED candidates) can exceed
+            # the number of confirmed listings that are actually in the
+            # reviewed price buckets (e.g. UNKNOWN condition is not
+            # price-eligible). The wording must never overclaim.
+            reviewed_confirmed_price_count = sum(
+                bucket.human_confirmed_count for bucket in reviewed_result_raw.buckets
+            )
+            reviewed_deterministic_price_count = sum(
+                bucket.deterministic_count for bucket in reviewed_result_raw.buckets
             )
             from .presentation import build_reviewed_report_presentation
             reviewed_result = build_reviewed_report_presentation(reviewed_result_raw)
@@ -429,6 +443,8 @@ def research_detail(request: HttpRequest, run_id: uuid.UUID) -> HttpResponse:
                 run.id, exc,
             )
             reviewed_result = None
+            reviewed_confirmed_price_count = 0
+            reviewed_deterministic_price_count = 0
 
     # --- Transient comparable error flag ---
     comparable_start_error = request.GET.get("comparable_start_error") == "1"
@@ -467,29 +483,27 @@ def research_detail(request: HttpRequest, run_id: uuid.UUID) -> HttpResponse:
 
     if decoded_result is not None:
         try:
-            # PROD-FIX1: run-scoped, binding-validated human-CONFIRMED
-            # indices (the same fail-closed validation that feeds the
-            # Reviewed Price) may contribute Compact Quote rows for this
-            # SAME run. Identity authority only — the frozen Machine Price
-            # snapshot is never mutated. Zero live work: everything here is
-            # persisted state already read on this GET.
-            effective_confirmed_indices = confirmed_indices or None
+            # FU1 authority ownership: the effective human-confirmed
+            # Compact Quote selection is derived by the replay boundary
+            # itself from persisted state (CONFIRMED run-scoped candidates
+            # with still-valid full bindings). The view no longer passes
+            # indices in: a bare caller-supplied integer can never mint
+            # HUMAN_CONFIRMED authority. Zero live work: everything the
+            # replays read is persisted state. The view's own
+            # confirmed_indices (same shared binding primitive) still feed
+            # the Reviewed Price and the presentation link reconciliation.
             if vendor_commercial_access_allowed:
-                replay = replay_compact_quote_projection(
-                    str(run.id),
-                    confirmed_assessment_indices=effective_confirmed_indices,
-                )
+                replay = replay_compact_quote_projection(str(run.id))
             else:
                 replay = replay_public_compact_quote_projection(
                     run=run,
                     price_result=decoded_result,
-                    confirmed_assessment_indices=effective_confirmed_indices,
                 )
             projection = replay.projection
             compact_quote = build_compact_quote_presentation(
                 projection=projection,
                 price_result=decoded_result,
-                confirmed_assessment_indices=effective_confirmed_indices,
+                confirmed_assessment_indices=confirmed_indices or None,
             )
         except (
             CompactQuoteProjectionError,
@@ -598,6 +612,11 @@ def research_detail(request: HttpRequest, run_id: uuid.UUID) -> HttpResponse:
         "review_candidates": review_candidates,
         "reviewed_result": reviewed_result,
         "confirmed_count": confirmed_count,
+        # FU1 presentation accuracy: truthful price-contributing counts
+        # (may be lower than confirmed_count when a confirmed listing is
+        # not price-eligible, e.g. UNKNOWN condition).
+        "reviewed_confirmed_price_count": reviewed_confirmed_price_count,
+        "reviewed_deterministic_price_count": reviewed_deterministic_price_count,
         "comparable_child": comparable_child,
         "comparable_presentation": comparable_presentation,
         "comparable_decode_error": comparable_decode_error,

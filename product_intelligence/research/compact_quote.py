@@ -728,12 +728,28 @@ def project_human_confirmed_rows(
     confirmed_assessment_indices: frozenset[int],
     fx_snapshot: FxObservationSnapshot | None = None,
 ) -> tuple[CompactQuoteRow, ...]:
-    """Authority-safe projection for run-scoped human-CONFIRMED candidates.
+    """LOWEST-LEVEL PURE PROJECTION HELPER for an ALREADY-AUTHORIZED set.
 
-    PROD-FIX1: a valid run-scoped, human-CONFIRMED semantic candidate MAY
-    contribute to the Compact Quote for that SAME ResearchRun. Human
-    confirmation establishes IDENTITY authority only — it must NEVER invent
-    or upgrade other facts:
+    PROD-FIX1 / FU1 authority contract (binding): this helper does NOT
+    mint human-confirmation authority. It accepts a selection that the
+    CALLING BOUNDARY has already proven from persisted state — for the
+    server-side historical Compact Quote that boundary is the execution
+    replay service, whose ``derive_human_confirmed_assessment_indices``
+    proves each index is a CONFIRMED candidate of THIS run with a still
+    valid full candidate-to-assessment binding. A bare integer index
+    carried no confirmation fact at the moment it was written; only the
+    persisted review state plus the shared binding proof do.
+
+    As defense in depth this helper still fails closed on the parts of the
+    contract it can see: it rejects non-frozenset / non-int selections,
+    out-of-range indices, and semantic-ineligible assessments, and it
+    projects no row for an index whose persisted assessment lacks price or
+    currency (confirmation cannot create evidence that did not exist).
+
+    A valid run-scoped, human-CONFIRMED semantic candidate MAY contribute
+    to the Compact Quote for that SAME ResearchRun. Human confirmation
+    establishes IDENTITY authority only — it must NEVER invent or upgrade
+    other facts:
 
     * the price and currency come from the persisted
       PriceIntelligenceSnapshot assessment (exactly the frozen normalized
@@ -752,10 +768,11 @@ def project_human_confirmed_rows(
     Args:
         price_result: An actual ``PriceAggregationResult`` decoded from the
             persisted PriceIntelligenceSnapshot (exact type enforced).
-        confirmed_assessment_indices: Run-scoped assessment indices whose
-            candidates are human-CONFIRMED and whose candidate-to-assessment
-            binding passed fail-closed validation at the consumption layer.
-            Must be a ``frozenset`` of exact ``int``.
+        confirmed_assessment_indices: Assessment indices ALREADY proven by
+            the calling boundary to be CONFIRMED run-scoped candidates with
+            valid full bindings (this helper does not re-prove confirmation;
+            see the FU1 authority contract above). Must be a ``frozenset``
+            of exact ``int``.
         fx_snapshot: Persisted FX observation for USD conversion.
 
     Returns:

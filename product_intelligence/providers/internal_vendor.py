@@ -25,11 +25,17 @@ Key constraints:
 * Response body: one of two bounded upstream contracts (Decimal-aware parse
   for monetary values in both):
   1. the canonical JSON wrapper document, or
-  2. (PROD-FIX1) the exact production section-oriented plain-text body
+  2. (PROD-FIX1; FU1) the exact production section-oriented plain-text body
      (``Ingram Product: { ... }`` / ``CDW Product: {Not Found}`` /
      ``Synnex EU Product: { ... }``) parsed by a strict bounded
      recursive-descent literal parser — no eval, no literal_eval,
-     no generic HTML scraping
+     no generic HTML scraping. The ACTUAL production Ingram placement is
+     the hybrid form (explicit vendorPartNumber + nested pricing block +
+     top-level boolean availability + top-level Avl_Quantity); the flat
+     field forms remain supported as separately tested compatibility
+     forms. Unknown/interstitial text between complete section literals
+     is ignored (never parsed into data); malformed content INSIDE a
+     section literal still fails that source closed.
 
 The configured base URL is deployment-owned, not request-controlled.
 No user-supplied endpoint is accepted. Base URL must not carry query
@@ -415,12 +421,20 @@ def _availability_flag_table(
 def _map_ingram(source_section: dict[str, Any]) -> CommercialSourceCandidate | CommercialSourceIssue:
     """Map one Ingram source section from the Vendor API response.
 
-    Reads only approved fields. Two bounded forms are supported:
+    Reads only approved fields. Bounded forms are supported:
 
     * Canonical JSON wrapper form:
       - pricing.customerPrice, pricing.retailPrice, pricing.currencyCode
       - availability.available, availability.Avl_Quantity
-    * Flat production section form (PROD-FIX1):
+    * Production hybrid section form (FU1): the ACTUAL production wire
+      placement observed for the requested part — explicit vendorPartNumber,
+      nested ``pricing`` (customerPrice / retailPrice / currencyCode) PLUS a
+      TOP-LEVEL boolean availability signal and a TOP-LEVEL Avl_Quantity.
+      The canonical nested availability dict and the hybrid top-level
+      placement are mutually exclusive readings of the same bounded fields;
+      contradictions fail closed to UNKNOWN exactly like every other
+      availability reading.
+    * Flat production section form (PROD-FIX1 compatibility form):
       - customerPrice, retailPrice (fallback only), currency
       - quantity (and optional boolean available flag)
 
@@ -499,14 +513,32 @@ def _map_ingram(source_section: dict[str, Any]) -> CommercialSourceCandidate | C
 
         currency = currency_raw.strip().upper()
 
-        # Availability (allowlisted fields only)
+        # Availability (allowlisted fields only). Two bounded placements:
+        #
+        # * Canonical nested availability DICT:
+        #   availability.available + availability.Avl_Quantity (unchanged).
+        # * Production-observed hybrid placement (FU1): a TOP-LEVEL boolean
+        #   availability signal + TOP-LEVEL Avl_Quantity next to the nested
+        #   pricing block. The same bounded truth table applies: a
+        #   contradiction (or a lone signal that cannot be cross-checked)
+        #   fails closed to UNKNOWN; false + 0 => OUT_OF_STOCK; true +
+        #   positive => IN_STOCK. Stock is never inferred from vendor
+        #   reputation or unrelated fields.
+        #
+        # A non-dict `availability` value is the flag itself (the hybrid
+        # placement), NOT a malformed nested dict: the bounded truth table
+        # handles it exactly like the nested reading.
         availability_section = source_section.get("availability")
-        if not isinstance(availability_section, dict):
-            availability = CommercialAvailability.UNKNOWN
-            quantity = None
-        else:
+        if isinstance(availability_section, dict):
             available = _safe_bool(availability_section.get("available"))
             qty_raw = availability_section.get("Avl_Quantity")
+            quantity = _safe_int(qty_raw)  # negative already rejected by _safe_int
+            availability, quantity = _availability_flag_table(
+                available, quantity
+            )
+        else:
+            available = _safe_bool(availability_section)
+            qty_raw = source_section.get("Avl_Quantity")
             quantity = _safe_int(qty_raw)  # negative already rejected by _safe_int
             availability, quantity = _availability_flag_table(
                 available, quantity
@@ -974,8 +1006,9 @@ def _identify_and_map_source(source_section: dict[str, Any]) -> CommercialSource
 # SAME allowlist mappers used for the canonical JSON wrapper contract. The
 # mapping is parsed by a strict recursive-descent parser below — no eval,
 # no literal_eval, no code execution. Only the three exact labels are
-# recognized; arbitrary section labels are never trusted, parsed, or
-# persisted. The raw body is never logged or persisted.
+# recognized; arbitrary section labels are never trusted as sections, and
+# their content is never parsed into data or persisted (it is ignored
+# interstitial text — FU1). The raw body is never logged or persisted.
 #
 
 # Exact production section labels (case-sensitive) -> bounded source name
@@ -989,8 +1022,11 @@ _SECTION_HEADER_TO_SOURCE = (
 _SECTION_MAX_DEPTH = 32
 _SECTION_MAX_ENTRIES = 256
 
-# Exact bounded not-found marker: { Not Found } (whitespace-tolerant)
-_SECTION_NOT_FOUND_RE = re.compile(r"\s*Not\s+Found\s*\}\s*")
+# Exact bounded not-found marker: { Not Found } (whitespace-tolerant).
+# Matched as the BEGINNING of a section value (FU1): unknown interstitial
+# text after the complete marker is ignored, exactly like trailing text
+# after a complete mapping literal.
+_SECTION_NOT_FOUND_RE = re.compile(r"\s*Not\s+Found\s*\}")
 
 
 class _SectionValueParseError(ValueError):
@@ -1241,13 +1277,6 @@ class _BoundedLiteralParser:
             return self._IDENTIFIERS[word]
         raise _SectionValueParseError("unrecognized literal token")
 
-    def trailing_is_whitespace_only(self) -> bool:
-        """True when nothing but whitespace follows the parsed value."""
-        pos = self._pos
-        while pos < len(self._text) and self._text[pos].isspace():
-            pos += 1
-        return pos == len(self._text)
-
 
 def _scan_section_oriented_body(body_text: str) -> list | None:
     """Scan a plain-text body for the exact production section labels.
@@ -1262,7 +1291,11 @@ def _scan_section_oriented_body(body_text: str) -> list | None:
       tolerated) and be followed by ':' then whitespace or end-of-line.
     * A section's value text is the remainder of the header line plus all
       following lines up to the next recognized label line (or end of
-      body). Unrecognized text is ignored — never parsed, never persisted.
+      body). Unknown labels and interstitial lines inside that range are
+      NOT sections and NOT data: the strict parser treats the complete
+      bounded literal as authoritative and ignores anything after it
+      (never parsed into data, never persisted — FU1), while malformed
+      content INSIDE the literal still fails that section closed.
     * If a label repeats, only the first occurrence is used (deterministic).
     """
     lines = body_text.splitlines()
@@ -1297,8 +1330,18 @@ def _parse_section_value(value_text: str) -> tuple:
 
     Returns ``("not_found", None)`` for the exact bounded not-found form
     ``{Not Found}``, or ``("mapping", dict)`` for a strict bounded literal
-    mapping. Raises ``_SectionValueParseError`` on any deviation. Only
-    trailing whitespace may follow the parsed value.
+    mapping. Raises ``_SectionValueParseError`` on any deviation from the
+    bounded literal grammar itself.
+
+    The value must BEGIN with the bounded literal (leading whitespace
+    tolerated). Once the COMPLETE literal has parsed, any remaining text is
+    unknown interstitial content between this section and the next
+    recognized header: it is ignored — never parsed, never persisted,
+    never data (FU1). It cannot alter the complete mapping and cannot
+    poison the section; the scanner guarantees it contains no recognized
+    section header. Malformed content INSIDE the literal (unterminated
+    string, duplicate key, expression, code-looking token, non-literal
+    value, ...) still fails that section closed.
     """
     text = value_text
     pos = 0
@@ -1306,17 +1349,17 @@ def _parse_section_value(value_text: str) -> tuple:
         pos += 1
     if pos >= len(text) or text[pos] != "{":
         raise _SectionValueParseError("section value must start with '{'")
-    # Exact bounded not-found form: { Not Found }
-    if _SECTION_NOT_FOUND_RE.fullmatch(text[pos + 1:]):
+    # Exact bounded not-found form: { Not Found } — the marker must begin
+    # the value; unknown interstitial content after it is ignored.
+    if _SECTION_NOT_FOUND_RE.match(text[pos + 1:]):
         return ("not_found", None)
     parser = _BoundedLiteralParser(text, start=pos)
     value = parser.parse_value()
     if not isinstance(value, dict):
         raise _SectionValueParseError("section value must be a mapping")
-    if not parser.trailing_is_whitespace_only():
-        raise _SectionValueParseError(
-            "unexpected trailing content after section value"
-        )
+    # Trailing content after the complete bounded literal is unknown
+    # interstitial text: ignored by contract (never data). The strict
+    # grammar above already refused every malformed in-literal form.
     return ("mapping", value)
 
 

@@ -768,3 +768,75 @@ def is_human_review_eligible_assessment(
             return True
 
     return False
+
+
+def is_review_candidate_binding_valid(
+    candidate: object,
+    assessment: ListingIdentityAssessment,
+) -> bool:
+    """Pure fail-closed candidate-to-assessment binding check (FU1).
+
+    SINGLE SOURCE OF TRUTH for the full provenance binding between a
+    persisted human-review candidate and the assessment it maps to. The
+    web presentation / review-POST path and the historical compact-quote
+    replay boundary all apply THIS predicate — the binding rule is written
+    in exactly one place and cannot diverge between call sites.
+
+    ``candidate`` is a runs-layer persisted record consumed STRUCTURALLY
+    (attribute reads only); this research module never imports persistence
+    or Django, so the layer direction is preserved.
+
+    The checks (ANY failure => False: stale, tampered, or foreign
+    candidate — fail closed):
+
+    1. the assessment is human-review eligible (frozen FU3B states, via
+       :func:`is_human_review_eligible_assessment`);
+    2. ``candidate.source_url`` equals the assessment observation's
+       ``source_url``;
+    3. ``candidate.target_mpn`` equals the assessment's requested part
+       number;
+    4. ``candidate.candidate_title`` equals the observation's product title
+       (or ``""`` when the title is absent);
+    5. ``candidate.candidate_mpn_field`` equals the observation's raw MPN
+       field text (or ``""`` when absent) — the raw field, not the
+       normalized comparison result;
+    6. ``candidate.candidate_sku`` equals the observation's SKU text
+       (or ``""`` when absent);
+    7. ``candidate.evidence_source`` equals the assessment's
+       ``candidate_evidence_source`` value.
+
+    This predicate does NOT mint human-confirmation authority by itself:
+    confirmation is a persisted review-state fact owned by the runs layer
+    (``AiAssistedReviewCandidate.review_state``). It only proves that a
+    candidate is bound to the exact assessment it claims to map to.
+    """
+    if not is_human_review_eligible_assessment(assessment):
+        return False
+
+    obs = assessment.normalized_listing.observation
+
+    if candidate.source_url != obs.source_url:
+        return False
+
+    if candidate.target_mpn != assessment.requested_part_number:
+        return False
+
+    assessment_title = obs.product_title or ""
+    if candidate.candidate_title != assessment_title:
+        return False
+
+    # MPN evidence: the persisted candidate field is the RAW observation
+    # field, not the normalized comparison result.
+    assessment_mpn = obs.manufacturer_part_number_text or ""
+    if candidate.candidate_mpn_field != assessment_mpn:
+        return False
+
+    assessment_sku = getattr(obs, "sku_text", "") or ""
+    if candidate.candidate_sku != assessment_sku:
+        return False
+
+    expected_evidence_source = assessment.candidate_evidence_source.value
+    if candidate.evidence_source != expected_evidence_source:
+        return False
+
+    return True

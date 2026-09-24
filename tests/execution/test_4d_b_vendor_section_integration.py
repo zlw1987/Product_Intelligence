@@ -1,15 +1,22 @@
-"""Integration proof: production section-oriented Vendor response (PROD-FIX1).
+"""Integration proof: production section-oriented Vendor response (PROD-FIX1;
+FU1 faithful production-wire shape).
 
 For the exact requested MPN ``MTFDKBA480TFR-1BC1ZABYYR`` with a synthetic
-production-equivalent section-oriented envelope (fake/redacted sensitive
-values only), this proves through the REAL execution pipeline
-(``execute_research_run``) that:
+envelope that mirrors the ACTUAL production nesting/key placement (fake/
+redacted sensitive values only), this proves through the REAL execution
+pipeline (``execute_research_run``) that:
 
-* Ingram creates exactly one usable observation (exact MPN, customer price
-  1515.72 USD, availability/quantity faithfully mapped);
+* Ingram (hybrid production form: explicit vendorPartNumber + nested
+  pricing customerPrice/retailPrice/currencyCode + top-level boolean
+  availability false + top-level Avl_Quantity 0 + unrelated non-
+  authoritative fields) creates exactly one usable observation (exact MPN,
+  customer price 1515.72 USD, OUT_OF_STOCK, quantity 0);
 * CDW creates a NOT_FOUND issue;
-* Synnex EU creates exactly one usable observation (exact MPN, 962.86 EUR,
-  availability/quantity faithfully mapped);
+* Synnex EU (REAL nested form: OnlineCheck.Header.CurrencyCode with
+  fake/redacted SessionId / BuyerAccountId / SystemId at their realistic
+  structural locations + OnlineCheck.Item.ManufacturerItemIdentifier /
+  UnitPriceAmount / AvailabilityTotal) creates exactly one usable
+  observation (exact MPN, 962.86 EUR, OUT_OF_STOCK, quantity 0);
 * sensitive upstream metadata is absent from the ENCODED supplemental
   payload (the persisted artifact);
 * the Compact Quote replay produces the corresponding Vendor rows and no
@@ -54,17 +61,22 @@ REQUESTED_MPN = "MTFDKBA480TFR-1BC1ZABYYR"
 
 USD_RATE = Decimal("1.0934")
 
-# Synthetic production-equivalent section-oriented envelope. The real
-# Synnex payload contains SessionId / BuyerAccountId / SystemId; this
-# fixture uses FAKE sentinel values only.
+# Synthetic envelope mirroring the ACTUAL production nesting/key placement
+# (FU1). The real Synnex payload carries SessionId / BuyerAccountId /
+# SystemId in the OnlineCheck.Header block; this fixture uses FAKE sentinel
+# values at their realistic structural locations. The real Synnex payload is
+# the REAL nested OnlineCheck form; the flat forms are separately tested
+# compatibility forms, not the production wire shape.
 SECTION_BODY = (
     f"Ingram Product: {{'vendorPartNumber': '{REQUESTED_MPN}', "
-    "'customerPrice': 1515.72, 'currency': 'USD', 'quantity': 0}\n"
+    "'pricing': {'customerPrice': 1515.72, 'retailPrice': 2036.36, "
+    "'currencyCode': 'USD'}, 'availability': False, 'Avl_Quantity': 0, "
+    "'vendorName': 'FAKE-VENDOR-NAME', 'warehouse': 'FAKE-WH-00'}\n"
     "CDW Product: {Not Found}\n"
-    "Synnex EU Product: {'SessionId': 'FAKE-SESSION-000', "
-    "'BuyerAccountId': 'FAKE-ACCOUNT-000', 'SystemId': 'FAKE-SYSTEM-000', "
-    f"'ManufacturerItemIdentifier': '{REQUESTED_MPN}', "
-    "'UnitPriceAmount': 962.86, 'currency': 'EUR', 'AvailabilityTotal': 0}\n"
+    "Synnex EU Product: {'OnlineCheck': {'Header': {'CurrencyCode': 'EUR', "
+    "'SessionId': 'FAKE-SESSION-000', 'BuyerAccountId': 'FAKE-ACCOUNT-000', "
+    "'SystemId': 'FAKE-SYSTEM-000'}, 'Item': {'ManufacturerItemIdentifier': "
+    f"'{REQUESTED_MPN}', 'UnitPriceAmount': 962.86, 'AvailabilityTotal': 0}}}}}}\n"
 )
 
 SENTINELS = (
@@ -160,8 +172,10 @@ class TestVendorSectionIntegration(TestCase):
         observations = {o.source_name: o for o in vcr.observations}
         assert set(observations) == {"Ingram", "Synnex EU"}
 
-        # Ingram: one usable observation, exact MPN, customer price, faithful
-        # availability/quantity mapping
+        # Ingram: one usable observation, exact MPN, customer price
+        # authoritative (retailPrice 2036.36 present but not used),
+        # OUT_OF_STOCK / 0 from the top-level availability boolean +
+        # top-level Avl_Quantity (hybrid production placement)
         ingram = observations["Ingram"]
         assert ingram.explicit_candidate_mpn == REQUESTED_MPN
         assert ingram.vendor_mpn_match_type == "EXACT"
@@ -173,7 +187,7 @@ class TestVendorSectionIntegration(TestCase):
         assert ingram.brand_new is True
         assert ingram.brand_new_basis == "VENDOR_API_POLICY"
 
-        # Synnex EU: one usable observation, exact MPN, faithful mapping
+        # Synnex EU: one usable observation, exact MPN, REAL nested form
         synnex = observations["Synnex EU"]
         assert synnex.explicit_candidate_mpn == REQUESTED_MPN
         assert synnex.vendor_mpn_match_type == "EXACT"

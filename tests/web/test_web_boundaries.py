@@ -54,6 +54,7 @@ ALLOWED_RESEARCH_IMPORTS: dict[str, set[str]] = {
     "product_intelligence.research.matching": {
         "ListingIdentityAssessment",
         "is_human_review_eligible_assessment",  # FU3B authority alignment: binding predicate
+        "is_review_candidate_binding_valid",  # FU1: single shared binding primitive (replay boundary + web path)
     },
     "product_intelligence.research.comparable_result_codec": {
         "ComparableResultCodecError",

@@ -737,3 +737,98 @@ def test_no_confirmation_no_human_rows_semantics_unchanged(client: Client) -> No
     assert len(rows) == 1
     assert rows[0].price == "€1,500.00 EUR"
     assert response.context["reviewed_result"] is None
+
+
+# ---------------------------------------------------------------------------
+# FU1: Reviewed Price wording accuracy — the summary sentence must state
+# the PRICE-CONTRIBUTING confirmed count (from the reviewed buckets
+# themselves), never the validated-CONFIRMED-candidate count.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.usefixtures("human_confirmed_db_isolation")
+def test_reviewed_price_wording_uses_price_contributing_count(client: Client) -> None:
+    """confirmed_count = 2, but only 1 confirmed candidate is
+    price-eligible for Reviewed Price (the other has UNKNOWN condition).
+    The sentence must not falsely say the Reviewed Price "includes 2".
+    """
+    run, obs_unknown, obs_new = _make_completed_run()
+    cand_unknown = _make_candidate(run, obs_unknown, 1)
+    cand_new = _make_candidate(run, obs_new, 2)
+    client.post(_review_url(run, cand_unknown), {"action": "confirm"})
+    client.post(_review_url(run, cand_new), {"action": "confirm"})
+
+    with _settings_patch():
+        response = client.get(_detail_url(run), REMOTE_ADDR=ALLOWED_ADDR)
+    assert response.status_code == 200
+
+    # The candidate-level count is still 2 (unchanged context contract)...
+    assert response.context["confirmed_count"] == 2
+    # ...but the truthful PRICE-CONTRIBUTING counts come from the buckets:
+    # 1 human-confirmed (the NEW-condition 1635 USD listing) and 1
+    # deterministic (the 1500 EUR listing). The UNKNOWN-condition confirmed
+    # listing is NOT in any reviewed bucket.
+    assert response.context["reviewed_confirmed_price_count"] == 1
+    assert response.context["reviewed_deterministic_price_count"] == 1
+
+    html = response.content.decode()
+    reviewed_start = html.index("<h2>Reviewed price</h2>")
+    reviewed_end = html.index("<h3>Reviewed comparable price group</h3>")
+    summary = " ".join(html[reviewed_start:reviewed_end].split())
+    # Truthful wording: exactly ONE human-confirmed listing is in the price.
+    assert (
+        "This price includes 1 human-confirmed AI-assisted listing "
+        "in addition to 1 deterministic match."
+    ) in summary
+    # The overclaim must be gone.
+    assert "includes 2 human-confirmed" not in summary
+    assert "2 human-confirmed AI-assisted" not in summary
+
+
+@pytest.mark.usefixtures("human_confirmed_db_isolation")
+def test_reviewed_price_wording_when_no_confirmed_listing_is_price_eligible(
+    client: Client,
+) -> None:
+    """A run whose ONLY assessment is a semantic-eligible UNKNOWN-condition
+    listing, confirmed by the human: zero reviewed price buckets. The
+    wording must state that no price groups are available — never that the
+    price "includes" the confirmed listing."""
+    request = ResearchRequest(manufacturer_part_number=MPN, description=DESCRIPTION)
+    run = ResearchRun.objects.create_from_request(request)
+    run.transition_to(ResearchRunState.RUNNING)
+    run.transition_to(ResearchRunState.COMPLETED)
+
+    obs = _semantic_observation(
+        "https://wording-none.example.com/u",
+        f"Only listing {MPN} no price group",
+        Decimal("1890.00"),
+        "USD",
+        "unknown",
+    )
+    sem = _semantic_assessment(obs, NormalizedCondition.UNKNOWN, Decimal("1890.00"), "USD")
+    price_result = aggregate_listing_prices(request, (sem,))
+    PriceIntelligenceSnapshot.objects.create(
+        run=run,
+        schema_version=1,
+        payload=encode_price_aggregation_result(price_result),
+    )
+    cand = _make_candidate(run, obs, 0)
+    client.post(_review_url(run, cand), {"action": "confirm"})
+
+    with _settings_patch():
+        response = client.get(_detail_url(run), REMOTE_ADDR=ALLOWED_ADDR)
+    assert response.status_code == 200
+
+    assert response.context["confirmed_count"] == 1
+    assert response.context["reviewed_confirmed_price_count"] == 0
+    assert response.context["reviewed_deterministic_price_count"] == 0
+    reviewed = response.context["reviewed_result"]
+    assert reviewed is not None
+    assert reviewed.buckets == []
+
+    html = response.content.decode()
+    reviewed_start = html.index("<h2>Reviewed price</h2>")
+    nxt = html.find("<h2>", reviewed_start + 10)
+    summary = " ".join(html[reviewed_start : nxt if nxt != -1 else len(html)].split())
+    assert "No price groups are available" in summary
+    assert "includes 1 human-confirmed" not in summary

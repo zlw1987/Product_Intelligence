@@ -4306,7 +4306,8 @@ This canonical plan does not duplicate that operational snapshot.
 | AD-057 | 7A candidate discovery is evidence-first and distinct from similarity: explicit AUTHORITATIVE manufacturer catalog sources produce raw candidate observations; frozen 2A excludes the target and groups only exact/normalized-exact candidate identities; no SearchProvider, LLM, spec filtering, scoring, ranking, or persistence is introduced. | Candidate != comparable. 7A discovers product identities from approved catalog sources; 7B scores similarity. ProductIdentity is NOT reused for discovered candidates (it represents the requested product, not catalog rows). supportSpecsData is the first mechanism. Target-self exclusion uses frozen 2A compare_part_numbers(). Deduplication uses frozen 2A normalize_part_number() semantics. No spec-based pre-filtering (that is 7B). No score/rank fields on candidates. Result is self-auditing. | Accepted (7A implementation) |
 | AD-058 | 7B deterministic similarity scoring: VERIFIED-only field comparison, 12-field equal weight, Decimal min/max ratio for numeric fields, candidate ProductIdentity bridge (EXACT, no manufacturer guessed), evidence_coverage and evidence_weighted_similarity, one-fetch-per-source execution reusing frozen 6C extraction per candidate identity, self-validating contracts, field score self-validation, exact scalar types, execution-owned EnterpriseSsdSimilarityResult with 7A source binding, retained source outcomes and provenance audit. | 7B computes auditable similarity evidence between target and candidate specifications. Similarity != compatibility certification. VERIFIED-only scoring: UNKNOWN/UNVERIFIED/CONFLICT states are not mismatches. 12 fields have equal weight (no domain-business weights). DECIMAL fields use min/max ratio (positive values), TEXT/ENUM/BOOLEAN use exact canonical equality. Field score self-validation: SpecificationSimilarityFieldAssessment recomputes actual score from raw resolutions, rejecting wrong-but-in-range supplied values. Exact scalar types: scored_field_count must be int (not bool/float), evidence_coverage/observed_similarity/evidence_weighted_similarity must be Decimal (not int/float/bool). evidence_coverage = scored/12, evidence_weighted_similarity = sum/12. Candidate ProductIdentity bridge uses EXACT match type, rejects non-AUTHORITATIVE evidence, and ComparableCandidateSpecificationProfile enforces exact bridge output identity (no enriched metadata). Execution fetches each unique source ONCE, calls frozen 6C extraction per candidate identity. EnterpriseSsdSimilarityResult is execution-owned: exact ComparableCandidateDiscoveryResult type (no duck typing, TypeError BEFORE fetch), 7A source binding (canonical EXTRACTED source descriptors derived from frozen 7A result, exact object identity enforced — copied/value-equal substitutes rejected, count and order audited), retained source outcomes, final_url structurally validated, candidate spec evidence traced to FETCHED 7B outcomes (provenance audit). Real Seagate fixture: 80 candidates, each with 1 scoreable field (Form Factor), coverage = 1/12. Evidence too sparse for useful differentiation. | Accepted (7B implementation) |
 | AD-059 | 6D Authoritative Datasheet Specification Enrichment: manufacturer PDF datasheet acquisition through provider-neutral DocumentFetcher boundary; concrete HttpPdfFetcher (stdlib urllib); pure research table interpretation (MPN -> table -> column -> row binding, unit incorporation); frozen 6B normalization + frozen 6A resolution; 7A-grounded authority chain (derive_datasheet_source_from_discovery); public API requires frozen ComparableCandidateDiscoveryResult + exact EXTRACTED outcome (identity-verified member) — arbitrary DatasheetSource objects rejected; batch shared PDF fetch; bounded parser exception taxonomy (pdfminer only, RuntimeError propagates); fully self-auditing SpecificationEnrichmentResult (raw->outcome->normalized->resolution provenance); 6C+6D evidence composition (normalize + re-resolve); abstention paths return valid empty result (zero source_outcomes, all UNKNOWN). | 6D extends specification evidence capability beyond frozen 6C extraction. Added after 7B freeze because frozen 7B revealed only 1/12 candidate evidence coverage. Provider-neutral document boundary. Concrete PDF fetcher (stdlib urllib, no browser). Pure research layer table interpretation (no PDF parser in research/). Six-field allowlist: capacity, sequential_read, sequential_write, random_read_iops, random_write_iops, endurance_dwpd. Support-record datasheet-link extraction from var supportSpecsData JSON. AUTHORITATIVE-only enforcement. Bounded model-row grammar (3 exact forms). Whole-PDF MPN uniqueness. Raw MPN exactness. Bounded parser exception handling (pdfminer/pdfplumber only, programming errors propagate). Self-auditing result. 6C+6D evidence composition. Real Seagate fixture: Nytro 5550/5350 datasheet PDF (8 pages, 15 tables). XP15360SE70005: 6 VERIFIED observations. Candidate composition: scored_field_count=7, evidence_coverage=7/12. | Accepted (6D implementation) |
-| AD-060 | PROD-FIX1 production corrections (canonical spec §26.10): (1) the Internal Vendor adapter supports BOTH the canonical JSON wrapper and the exact production section-oriented response, parsed by a strict bounded recursive-descent literal parser (no eval/literal_eval, three exact section labels only, exact `{Not Found}` bounded marker, Decimal-exact numbers); the allowlist mappers remain the sole sensitive-data boundary. (2) Compact Quote price formatting renders no-symbol currencies once (`ZAR 30,999.0`), never code-as-prefix plus code-suffix. (3) AI-assisted semantic matches render immediately after Compact quote summary (presentation order only). (4) A valid run-scoped human-CONFIRMED semantic candidate contributes ONE Compact Quote row for the SAME run via a projection-layer extension: identity authority only; price/currency/condition exactly the persisted normalized values (UNKNOWN condition stays Unknown); explicit "Human Confirmed" provenance; persisted FX evidence only; the frozen PriceIntelligenceSnapshot and Machine Price are never mutated; UNREVIEWED/REJECTED/invalid-binding/cross-run candidates never enter; Undo removes the row on the next GET; historical GET stays zero-live-I/O. (5) The new-research form carries a front-end-only duplicate-click guard (disable + `Researching…`) — explicitly NOT a backend dedupe guarantee. (6) The ECB TLS trust-chain failure is an operational server repair; NO insecure TLS bypass, unverified context, or HTTP fallback was added, and regression tests mechanically guard against future bypasses. | Defects were discovered in real production use of the deployed PILOT-RELEASE-2 runtime. Each correction is the minimal bounded change to the identified defect: the Vendor parser adds a second supported upstream contract without weakening the allowlist privacy boundary; the currency fix changes display formatting only; the section move is template ordering only; the confirm->quote path reuses the existing fail-closed binding validation and adds a display projection (the frozen 4A/Reviewed Price authority contracts are untouched); the submit guard is client UX only; the TLS item preserves secure verification and documents the operational fix. No 8A caching, no new providers, no new models, no migrations. | IMPLEMENTED / PENDING FINAL REVIEW (PILOT-RELEASE-2-PROD-FIX1) |
+| AD-060 | PROD-FIX1 production corrections (canonical spec §26.10): (1) the Internal Vendor adapter supports BOTH the canonical JSON wrapper and the production section-oriented response, parsed by a strict bounded recursive-descent literal parser (no eval/literal_eval, three exact section labels only, exact `{Not Found}` bounded marker, Decimal-exact numbers); the allowlist mappers remain the sole sensitive-data boundary. (2) Compact Quote price formatting renders no-symbol currencies once (`ZAR 30,999.0`), never code-as-prefix plus code-suffix. (3) AI-assisted semantic matches render immediately after Compact quote summary (presentation order only). (4) A valid run-scoped human-CONFIRMED semantic candidate contributes ONE Compact Quote row for the SAME run via a projection-layer extension: identity authority only; price/currency/condition exactly the persisted normalized values (UNKNOWN condition stays Unknown); explicit "Human Confirmed" provenance; persisted FX evidence only; the frozen PriceIntelligenceSnapshot and Machine Price are never mutated; UNREVIEWED/REJECTED/invalid-binding/cross-run candidates never enter; Undo removes the row on the next GET; historical GET stays zero-live-I/O. (5) The new-research form carries a front-end-only duplicate-click guard (disable + `Researching…`) — explicitly NOT a backend dedupe guarantee. (6) NO insecure TLS bypass, unverified context, or HTTP fallback was added for the ECB trust-chain failure, and regression tests mechanically guard against future bypasses. **Amended by AD-061 (FU1):** items (1) and (4) had production-fidelity / authority-ownership defects corrected by the bounded follow-up; item (6) no longer records an operational CA-store repair as an outstanding action (see AD-061). | Defects were discovered in real production use of the deployed PILOT-RELEASE-2 runtime. Each correction is the minimal bounded change to the identified defect: the Vendor parser adds a second supported upstream contract without weakening the allowlist privacy boundary; the currency fix changes display formatting only; the section move is template ordering only; the confirm->quote path reuses the existing fail-closed binding validation and adds a display projection (the frozen 4A/Reviewed Price authority contracts are untouched); the submit guard is client UX only; the TLS item preserves secure verification. No 8A caching, no new providers, no new models, no migrations. | SUPERSEDED IN PART BY AD-061 (PILOT-RELEASE-2-PROD-FIX1-FU1) |
+| AD-061 | PROD-FIX1-FU1 production review-blocker closure (canonical spec §26.11): (1) VENDOR WIRE FIDELITY — the adapter now supports the ACTUAL hybrid production Ingram placement (explicit `vendorPartNumber` + nested `pricing` customerPrice/retailPrice/currencyCode + TOP-LEVEL boolean availability + TOP-LEVEL `Avl_Quantity`) through the same bounded availability truth table (contradiction => UNKNOWN fail-closed; false+0 => OUT_OF_STOCK/0; true+positive => IN_STOCK), with the canonical nested form and flat compatibility form retained and separately tested (the flat form is NOT described as the only/exact production wire shape); the integration path proves the faithful hybrid Ingram + REAL nested Synnex EU (`OnlineCheck.Header.CurrencyCode`, `OnlineCheck.Item.ManufacturerItemIdentifier/UnitPriceAmount/AvailabilityTotal`) with fake/redacted SessionId/BuyerAccountId/SystemId at their realistic structural locations, stripped by the allowlist; section-scanner documentation and behavior are reconciled — only the three exact line-anchored labels establish sections, a COMPLETE bounded literal is authoritative, and unknown/interstitial text after it is never parsed into data nor allowed to poison the section, while malformed content INSIDE a literal still fails that source closed (no generic HTML scraping). (2) HUMAN-CONFIRMED AUTHORITY OWNERSHIP — the single pure candidate-to-assessment binding primitive (`research.matching.is_review_candidate_binding_valid`) is shared by the web GET/POST paths and both historical replay boundaries (no divergent rule copies; the 8-step POST validation is unchanged in strength); both replay entry points DERIVE the effective human-confirmed selection from persisted state (`derive_human_confirmed_assessment_indices`: CONFIRMED + this run + in-range index + full binding + human-review eligibility + persisted price/currency) and no longer accept ANY caller-supplied index — a bare integer can never mint HUMAN_CONFIRMED authority; the lowest-level pure projection helper is retained as an already-authorized-selection consumer with that contract stated; Machine Price untouched; human review run-scoped; historical GET zero-live-I/O. (3) ECB EVIDENCE CORRECTION — a later SECURE retry from the same production Python runtime (no certifi install, no manual certificate, no fx.py change, no TLS-verification bypass; observation date 2026-09-24, USD 1.1367, ZAR 18.6836) succeeded, so the documentation no longer states an unproven root cause or an outstanding CA-trust-store installation action as fact; the transient failure, its correct FxNetworkError classification, the run completing without ResearchFxSnapshot, and the retained failure-path regression tests are preserved as recorded evidence; NO TLS workaround was added or is required. (4) REVIEWED PRICE WORDING — the Reviewed Price summary now derives the truthful price-contributing counts from the reviewed buckets themselves (per-bucket `human_confirmed_count` / `deterministic_count` sums) instead of overstating them with the validated-CONFIRMED-candidate count; reviewed-price eligibility is NOT changed to make the count match. | Bounded append-only corrective follow-up to the independently reviewed PROD-FIX1 commit (8811104): correct ONLY the review blockers and any directly necessary tests/docs; retain the previous implementation. | IMPLEMENTED / PENDING FINAL REVIEW (PILOT-RELEASE-2-PROD-FIX1-FU1) |
 
 ## 26. Customer Quote Research Expansion — 4D Phase Architecture
 
@@ -5077,6 +5078,10 @@ Frozen correction rules:
   `ManufacturerItemIdentifier`, `UnitPriceAmount`,
   `currency`/`CurrencyCode`, `AvailabilityTotal`, bounded `Note`
   meanings). The canonical nested forms remain supported unchanged.
+  **FU1 correction (see §26.11.1):** the ACTUAL production Ingram wire
+  placement is the hybrid form (nested `pricing` + top-level boolean
+  `availability` + top-level `Avl_Quantity`); the flat forms are retained
+  compatibility forms, not the only/exact production wire shape.
 * Exactly one Vendor network call per lookup; transport/timeout/size/
   redirect/no-proxy behavior unchanged; malformed one-source content does
   not destroy independently valid sources; the raw body is never logged or
@@ -5138,7 +5143,11 @@ the Compact Quote for that SAME ResearchRun. Authority rules (binding):
 * Implementation is a projection-layer extension (`research/
   compact_quote.project_human_confirmed_rows` + additive replay
   parameters), not a rewrite of frozen 4A artifacts. The frozen Reviewed
-  Price behavior is unchanged.
+  Price behavior is unchanged. **FU1 supersession (see §26.11.2):** the
+  additive replay index parameters were removed — the replay boundary
+  itself derives the effective human-confirmed selection from persisted
+  state; a caller-supplied bare index can never mint HUMAN_CONFIRMED
+  authority.
 
 **26.10.5 Research submit duplicate-click guard (UX only)**
 
@@ -5161,17 +5170,140 @@ and locked behavior:
   SSL context, no disabled hostname check, no certificate suppression, no
   hard-coded downloaded certificates, and no fallback to an untrusted HTTP
   endpoint were added. The provider's transport is unchanged.
-* The failure is correctly classified as bounded `FxNetworkError`
+* The failure was correctly classified as bounded `FxNetworkError`
   (regression-tested against the exact production error class via the real
   stdlib wrapping path), and orchestration keeps FX failure nonfatal:
-  no ResearchFxSnapshot, the original non-USD price survives, and USD
-  Equivalent displays "Unavailable" (regression-tested end-to-end).
-* The trust-chain repair is an OPERATIONAL action on the production
-  server (install/update the CA trust store / root certificates used by
-  the server's Python runtime). It is outside this commit.
+  the affected run completed without a ResearchFxSnapshot, the original
+  non-USD price survived, and USD Equivalent displayed "Unavailable"
+  (regression-tested end-to-end; the failure-path regression tests remain
+  valuable and are retained by FU1).
+* FU1 production evidence (recorded in §26.11): a later secure retry from
+  the SAME production Python runtime — without installing certifi,
+  without manually installing any certificate, without changing fx.py,
+  and without disabling TLS verification — succeeded and returned
+  official rates (observation date 2026-09-24; USD 1.1367; ZAR 18.6836).
+  The exact reason for the transient trust-chain failure has NOT been
+  proven; there is currently no evidence-backed requirement to
+  install/update a CA trust store, and no such action is recorded as an
+  outstanding fact. If the failure reoccurs persistently, the CA trust
+  state of the production Python runtime is the first place to inspect —
+  as an investigation step, not as a pre-declared repair.
 * If a future phase requires supporting an explicitly configured trusted
   CA bundle, that is a NEW configuration contract to be designed, reviewed,
   and approved separately — no such pattern exists in the repository
 today, and none was invented by this phase.
 * Caching must not hide this failure (8A-PRE remains design-first and is
   not implemented here).
+
+### 26.11 PILOT-RELEASE-2-PROD-FIX1-FU1: Production Review-Blocker Closure
+
+**Status: IMPLEMENTED / PENDING FINAL REVIEW.** Bounded append-only
+corrective follow-up on the independently reviewed PROD-FIX1 commit (SHA
+8811104e14103c41346c05471b3170c55c97386a). Corrects the three review
+blockers plus one presentation-accuracy defect. No deployment, no 8A
+caching, no new models/migrations. The PROD-FIX1 implementation is
+retained except where a blocker required correction.
+
+**26.11.1 Vendor production-wire fidelity (BLOCKER 1)**
+
+The PROD-FIX1 "production-equivalent" test fixture simplified the real
+production Ingram section into a flat form. The ACTUAL production wire
+shape is a HYBRID placement, now supported and fixture-mirrored:
+
+* Ingram: explicit `vendorPartNumber`; nested `pricing` block
+  (`customerPrice` / `retailPrice` / `currencyCode`); TOP-LEVEL boolean
+  availability signal; TOP-LEVEL `Avl_Quantity`. The nested-pricing branch
+  keeps its pricing authority (customerPrice present => authoritative;
+  retailPrice fallback only when the customerPrice key is absent), keeps
+  the canonical nested availability dict, and additionally recognizes the
+  hybrid top-level placement through the SAME bounded availability truth
+  table: contradiction or uncheckable lone signal => UNKNOWN (fail
+closed); `false` + `Avl_Quantity 0` => OUT_OF_STOCK / 0; `true` +
+  positive => IN_STOCK. Stock is never inferred from vendor reputation or
+  unrelated fields; unknown fields (e.g. `vendorName`) remain ignored by
+  the allowlist. The canonical nested form and the flat compatibility form
+  are both retained and separately tested; the flat form is a
+  COMPATIBILITY form, not the only/exact production wire shape.
+* Synnex EU: the integration path now uses the REAL nested form
+  (`OnlineCheck.Header.CurrencyCode`,
+  `OnlineCheck.Item.ManufacturerItemIdentifier`,
+  `OnlineCheck.Item.UnitPriceAmount`, `OnlineCheck.Item.AvailabilityTotal`)
+  with fake/redacted `SessionId` / `BuyerAccountId` / `SystemId` at their
+  realistic structural locations (the `OnlineCheck.Header` block); the
+  allowlist strips them and they never enter candidates, snapshots, logs,
+  or error detail.
+* Section scanner/strict-parser consistency (the documented contract was
+  "unrecognized/interstitial text is ignored" but the parser rejected a
+  known section as trailing garbage when such text followed a complete
+  literal). Resolved: only the three exact line-anchored labels establish
+  sections; once a section's COMPLETE bounded literal has parsed, unknown
+  text up to the next recognized header is interstitial — never parsed
+  into data, never persisted, never able to poison the complete mapping.
+  Malformed content INSIDE a section literal still fails that source
+  closed. No generic HTML scraping was introduced; the strict bounded
+  recursive-descent grammar is unchanged.
+* Integration proof: the full `execute_research_run` test now uses the
+  faithful hybrid Ingram section + nested Synnex section for the exact
+  requested MPN `MTFDKBA480TFR-1BC1ZABYYR`: one Ingram observation
+  (1515.72 USD, customer price, OUT_OF_STOCK, quantity 0), one Synnex EU
+  observation (962.86 EUR, OUT_OF_STOCK, quantity 0), CDW NOT_FOUND,
+  sensitive metadata absent from the persisted snapshot.
+
+**26.11.2 Human-confirmation authority ownership (BLOCKER 2)**
+
+PROD-FIX1 let the replay/service boundary accept
+`confirmed_assessment_indices` from the caller. `project_human_confirmed_rows`
+proves index/type/range/eligibility but cannot prove CONFIRMED persisted
+review state or the full candidate-to-assessment binding, so a direct
+internal caller could have presented an UNREVIEWED or REJECTED
+semantic-eligible assessment as `HUMAN_CONFIRMED`. Corrected:
+
+* The single pure candidate-to-assessment binding primitive
+  (`research.matching.is_review_candidate_binding_valid`) is now the ONE
+  place the binding rule exists: eligibility + source_url + target_mpn +
+  candidate_title + candidate_mpn_field (raw observation field) +
+  candidate_sku + evidence_source. The web GET presentation, the 8-step
+  review-POST validation, and both historical replay boundaries all apply
+  this same primitive (no divergent copies). The web 8-step POST
+  fail-closed validation is unchanged in strength.
+* `execution.compact_quote_replay.derive_human_confirmed_assessment_indices`
+  proves from PERSISTED STATE (zero live I/O) that each human row is: (1)
+  an AiAssistedReviewCandidate for THIS run; (2) review_state CONFIRMED;
+  (3) mapped to an in-range assessment index; (4) fully bound to that
+  assessment via the shared primitive; (5) the assessment is still
+  human-review eligible; (6) persisted price/currency exist (enforced by
+  the projection — no row without them). UNREVIEWED / REJECTED / undone /
+  tampered / stale / cross-run candidates never enter.
+* BOTH replay entry points (`replay_compact_quote_projection`,
+  `replay_public_compact_quote_projection`) no longer accept any
+  caller-supplied index parameter: a bare integer can never mint
+  `HUMAN_CONFIRMED` authority at the boundary that owns the effective
+  historical Compact Quote. The lowest-level pure projection helper
+  (`project_human_confirmed_rows`) is retained as an
+  already-authorized-selection consumer with that contract stated
+  explicitly, and keeps its defense-in-depth fail-closed checks.
+* Machine Price remains untouched; human review remains run-scoped;
+  historical GET remains zero-live-I/O (DB reads of persisted state only).
+
+**26.11.3 ECB trust-chain evidence correction (BLOCKER 3)**
+
+PLAN §26.10.6 is corrected as recorded there: the transient trust-chain
+failure is retained as history and its failure-path regression tests are
+retained (not removed, not weakened); NO insecure TLS workaround exists or
+was added; `providers/fx.py` is unchanged in this phase; and the
+documentation no longer states an unproven root cause or an outstanding
+CA-store installation action as fact, given the successful secure retry
+from the same production runtime (2026-09-24 rates).
+
+**26.11.4 Reviewed Price wording accuracy (presentation defect)**
+
+The Reviewed Price summary sentence previously stated "includes N
+human-confirmed AI-assisted listings" using the count of validated
+CONFIRMED candidates (N), even when fewer of them were actually
+price-eligible for the reviewed buckets (e.g. UNKNOWN condition). The
+template now derives the truthful PRICE-CONTRIBUTING counts from the
+reviewed buckets themselves (sum of per-bucket `human_confirmed_count` /
+`deterministic_count`) and renders conditionally truthful wording. Review
+eligibility is NOT changed to make the count match: a confirmed
+UNKNOWN-condition listing still renders in the Compact Quote (display)
+while staying out of the Reviewed Price arithmetic (frozen contract).

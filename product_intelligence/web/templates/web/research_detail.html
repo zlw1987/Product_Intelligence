@@ -781,10 +781,33 @@
 
 {% if reviewed_result and confirmed_count > 0 %}
   <h2>Reviewed price</h2>
+  {% if reviewed_confirmed_price_count > 0 %}
   <p>
-    This price includes {{ confirmed_count }} human-confirmed AI-assisted
-    listing{{ confirmed_count|pluralize }} in addition to deterministic matches.
+    This price includes {{ reviewed_confirmed_price_count }}
+    human-confirmed AI-assisted
+    listing{{ reviewed_confirmed_price_count|pluralize }}
+    {% if reviewed_deterministic_price_count > 0 %}in addition to
+    {{ reviewed_deterministic_price_count }} deterministic
+    match{{ reviewed_deterministic_price_count|pluralize }}.{% else %}(
+    no deterministic matches are in these price groups).{% endif %}
   </p>
+  {% elif reviewed_deterministic_price_count > 0 %}
+  <p>
+    This price includes {{ reviewed_deterministic_price_count }}
+    deterministic match{{ reviewed_deterministic_price_count|pluralize }};
+    the {{ confirmed_count }} human-confirmed
+    candidate{{ confirmed_count|pluralize }}
+    {% if confirmed_count == 1 %}is{% else %}are{% endif %}
+    not price-eligible for it.
+  </p>
+  {% else %}
+  <p>
+    No price groups are available: the {{ confirmed_count }}
+    human-confirmed candidate{{ confirmed_count|pluralize }}
+    {% if confirmed_count == 1 %}is{% else %}are{% endif %}
+    not price-eligible for a reviewed price.
+  </p>
+  {% endif %}
 
   {% for bucket in reviewed_result.buckets %}
     <div class="bucket-entry">
