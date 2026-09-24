@@ -34,6 +34,7 @@ from dataclasses import dataclass
 from product_intelligence.research.compact_quote import (
     CompactQuoteProjection,
     CompactQuoteRow,
+    project_human_confirmed_rows,
     project_public_rows,
     project_vendor_api_row,
 )
@@ -71,6 +72,8 @@ class CompactQuoteReplayResult:
 
 def replay_compact_quote_projection(
     run_id: str,
+    *,
+    confirmed_assessment_indices: frozenset[int] | None = None,
 ) -> CompactQuoteReplayResult:
     """Build the compact quote projection from persisted artifacts.
 
@@ -88,12 +91,24 @@ def replay_compact_quote_projection(
       (via project_public_rows which reads PriceAggregationResult.buckets)
     * Vendor rows: only from actual SupplementSourceObservation instances
       with EXACT/NORMALIZED_EXACT match type and brand_new=True/VENDOR_API_POLICY
+    * Human-confirmed rows (PROD-FIX1): only from run-scoped
+      assessment indices supplied by the caller AFTER the caller's own
+      fail-closed candidate-to-assessment binding validation passed
+      (same validated indices that feed the Reviewed Price). The
+      projection re-validates each index against the persisted snapshot
+      (range, semantic eligibility, persisted price/currency). Human
+      confirmation establishes identity authority only — it never alters
+      the frozen Machine Price snapshot.
     * FX: from persisted ResearchFxSnapshot only (never live ECB call)
 
     Parameters
     ----------
     run_id : str
         The UUID of the completed ResearchRun.
+    confirmed_assessment_indices : frozenset[int] | None
+        Optional run-scoped, binding-validated indices of human-CONFIRMED
+        semantic candidates. ``None`` (or empty) projects no
+        human-confirmed rows (frozen 4D-C behavior).
 
     Returns
     -------
@@ -170,8 +185,22 @@ def replay_compact_quote_projection(
             )
             vendor_rows.append(row)
 
-    # Combine: vendor rows first, then public rows
-    projection = CompactQuoteProjection(rows=tuple(vendor_rows) + public_rows)
+    # Project human-confirmed rows (PROD-FIX1): run-scoped identity
+    # authority overlay only. Never touches the frozen Machine Price
+    # artifact; price/currency/condition are read from it as-is.
+    human_confirmed_rows: tuple[CompactQuoteRow, ...] = ()
+    if confirmed_assessment_indices:
+        human_confirmed_rows = project_human_confirmed_rows(
+            decoded_price,
+            confirmed_assessment_indices,
+            fx_snapshot=fx_snapshot,
+        )
+
+    # Combine: vendor rows first, then human-confirmed rows, then public
+    # rows (deterministic order; frozen 4D-C vendor-first rule preserved)
+    projection = CompactQuoteProjection(
+        rows=tuple(vendor_rows) + human_confirmed_rows + public_rows
+    )
 
     return CompactQuoteReplayResult(
         projection=projection,

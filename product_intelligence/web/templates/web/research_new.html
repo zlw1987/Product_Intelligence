@@ -10,7 +10,7 @@
   field may be left blank — but not both.
 </p>
 
-<form method="post" action="{% url 'research-new' %}" novalidate>
+<form method="post" action="{% url 'research-new' %}" novalidate id="research-new-form">
   {% csrf_token %}
 
   {% if form.non_field_errors %}
@@ -32,8 +32,28 @@
     </div>
   {% endfor %}
 
-  <button type="submit">Run Market Research</button>
+  <button type="submit" id="research-submit-button">Run Market Research</button>
 </form>
+
+<script>
+  // Front-end-only duplicate-click guard (PROD-FIX1).
+  // Market research is synchronous and can take a long time, so rapid
+  // repeat clicks must not fire repeated submissions. This is UX
+  // protection only — NOT a backend dedupe guarantee, and it shares no
+  // state between users, runs, or MPNs.
+  (function () {
+    var form = document.getElementById("research-new-form");
+    var button = document.getElementById("research-submit-button");
+    if (!form || !button) { return; }
+    form.addEventListener("submit", function () {
+      // If client-side validation prevents submission, leave the button
+      // enabled so the user can correct the form and resubmit.
+      if (form.checkValidity && !form.checkValidity()) { return; }
+      button.disabled = true;
+      button.textContent = "Researching\u2026";
+    });
+  })();
+</script>
 
 <p class="notice">
   Submitting records the request and gives it a durable report address.

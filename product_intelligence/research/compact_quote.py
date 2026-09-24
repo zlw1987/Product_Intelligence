@@ -145,14 +145,23 @@ def _map_public_listing_brand_new(condition: str) -> str:
 def _format_price(amount: Decimal, currency: str) -> str:
     """Format a price as a human-readable string.
 
-    Format: <symbol><amount> <currency>
-    Uses standard comma grouping for thousands.
+    Currencies with a configured symbol render as
+    ``<symbol><amount> <CODE>`` (e.g. ``$1,515.72 USD``, ``€962.86 EUR``).
+
+    Currencies WITHOUT a configured symbol render the code exactly ONCE as a
+    leading prefix (e.g. ``ZAR 30,999.0``) — never the duplicated
+    ``ZAR30,999.0 ZAR`` form (PROD-FIX1 correction).
+
+    Uses standard comma grouping for thousands. The Decimal value itself is
+    never altered — this is display formatting only.
 
     Examples:
         $2,023.27 USD
         €1,705.35 EUR
+        ZAR 30,999.0
     """
-    # Currency symbol mapping
+    # Currency symbol mapping (true display symbols only — a bare currency
+    # code is NOT a symbol and must not be used as a fallback prefix).
     symbol_map: dict[str, str] = {
         "USD": "$",
         "EUR": "€",
@@ -160,16 +169,16 @@ def _format_price(amount: Decimal, currency: str) -> str:
         "JPY": "¥",
         "CAD": "C$",
         "AUD": "A$",
-        "CHF": "CHF",
         "CNY": "¥",
     }
-    symbol = symbol_map.get(currency.upper(), currency)
+    symbol = symbol_map.get(currency.upper())
 
     # Format with comma grouping — Decimal handles this natively
-    # Use the quantize approach for consistent formatting
     formatted = _format_decimal_with_commas(amount)
 
-    return f"{symbol}{formatted} {currency}"
+    if symbol is not None:
+        return f"{symbol}{formatted} {currency}"
+    return f"{currency} {formatted}"
 
 
 def _format_decimal_with_commas(d: Decimal) -> str:
@@ -225,6 +234,24 @@ def _add_commas(num_str: str) -> str:
     return ','.join(reversed(groups))
 
 
+def _public_source_label(source_url: "str | None") -> str:
+    """Hostname display label for a public-listing row.
+
+    ``urlparse(url).hostname or parsed.netloc or "Unknown Source"``,
+    stripped, with "Unknown Source" for blank or unparseable input.
+    (Leading ``www.`` is stripped later by the presentation layer.)
+    """
+    label = "Unknown Source"
+    if source_url:
+        try:
+            from urllib.parse import urlparse
+            parsed = urlparse(source_url)
+            label = (parsed.hostname or parsed.netloc or "Unknown Source").strip()
+        except Exception:
+            label = "Unknown Source"
+    return label if label else "Unknown Source"
+
+
 # ---------------------------------------------------------------------------
 # Compact Quote Row
 # ---------------------------------------------------------------------------
@@ -240,7 +267,9 @@ class CompactQuoteRow:
     Attributes:
         source: The display source label (e.g. "Ingram", "CDW",
                 or the public listing source name).
-        source_type: "VENDOR_API" or "PUBLIC_LISTING".
+        source_type: "VENDOR_API", "PUBLIC_LISTING", or
+                "HUMAN_CONFIRMED" (run-scoped human-confirmed semantic
+                candidate; identity authority only — PROD-FIX1).
         price_original: The original price string (e.g. "$2,023.27 USD").
         price_amount: The original price amount as Decimal.
         price_currency: The original currency code.
@@ -248,7 +277,8 @@ class CompactQuoteRow:
         usd_equivalent_amount: The USD-equivalent amount as Decimal, or None.
         inventory: The display inventory label (e.g. "In Stock").
         brand_new: The display Brand New label (e.g. "Yes", "No", "Unknown").
-        note: Optional note text (e.g. "Limited", "PREORDER").
+        note: Optional note text (e.g. "Limited", "PREORDER",
+                "Human Confirmed").
     """
 
     source: str
@@ -266,10 +296,10 @@ class CompactQuoteRow:
         if not isinstance(self.source, str) or not self.source.strip():
             raise ValueError("source must be a non-empty string")
 
-        if self.source_type not in ("VENDOR_API", "PUBLIC_LISTING"):
+        if self.source_type not in ("VENDOR_API", "PUBLIC_LISTING", "HUMAN_CONFIRMED"):
             raise ValueError(
-                f"source_type must be VENDOR_API or PUBLIC_LISTING, "
-                f"got {self.source_type!r}"
+                f"source_type must be VENDOR_API, PUBLIC_LISTING, or "
+                f"HUMAN_CONFIRMED, got {self.source_type!r}"
             )
 
         if not isinstance(self.price_amount, Decimal):
@@ -681,14 +711,7 @@ def _project_one_public_listing_row(
     source_url = observation.source_url if observation else ""
 
     # Extract hostname as source label
-    source_name = "Unknown Source"
-    if source_url:
-        try:
-            from urllib.parse import urlparse
-            parsed = urlparse(source_url)
-            source_name = parsed.hostname or parsed.netloc or "Unknown Source"
-        except Exception:
-            source_name = "Unknown Source"
+    source_name = _public_source_label(source_url)
 
     return _build_public_listing_row(
         source_name=source_name,
@@ -698,3 +721,149 @@ def _project_one_public_listing_row(
         condition=condition,
         fx_snapshot=fx_snapshot,
     )
+
+
+def project_human_confirmed_rows(
+    price_result: object,
+    confirmed_assessment_indices: frozenset[int],
+    fx_snapshot: FxObservationSnapshot | None = None,
+) -> tuple[CompactQuoteRow, ...]:
+    """Authority-safe projection for run-scoped human-CONFIRMED candidates.
+
+    PROD-FIX1: a valid run-scoped, human-CONFIRMED semantic candidate MAY
+    contribute to the Compact Quote for that SAME ResearchRun. Human
+    confirmation establishes IDENTITY authority only — it must NEVER invent
+    or upgrade other facts:
+
+    * the price and currency come from the persisted
+      PriceIntelligenceSnapshot assessment (exactly the frozen normalized
+      values — nothing recomputed, nothing added);
+    * the condition is exactly the persisted normalized condition: UNKNOWN
+      stays "Unknown" (never upgraded to Yes/NEW), NEW stays "Yes";
+    * availability is the persisted normalized availability;
+    * the Machine Price / frozen 4A artifacts are NOT mutated; this is a
+      display projection only;
+    * USD Equivalent uses ONLY the persisted FX evidence (or displays
+      "Unavailable"), exactly like the other compact rows.
+
+    The ``note`` of every projected row carries the explicit "Human
+    Confirmed" provenance.
+
+    Args:
+        price_result: An actual ``PriceAggregationResult`` decoded from the
+            persisted PriceIntelligenceSnapshot (exact type enforced).
+        confirmed_assessment_indices: Run-scoped assessment indices whose
+            candidates are human-CONFIRMED and whose candidate-to-assessment
+            binding passed fail-closed validation at the consumption layer.
+            Must be a ``frozenset`` of exact ``int``.
+        fx_snapshot: Persisted FX observation for USD conversion.
+
+    Returns:
+        A tuple of CompactQuoteRows in deterministic (ascending index)
+        order. A confirmed index whose persisted assessment has no price or
+        no currency produces NO row — confirmation cannot create evidence
+        that did not exist.
+
+    Raises:
+        CompactQuoteProjectionError: fail closed when
+            * price_result is not an actual PriceAggregationResult
+              (duck-typed substitutes rejected);
+            * confirmed_assessment_indices is not a frozenset of exact ints;
+            * an index is out of range of the persisted assessments;
+            * an indexed assessment is not human-review eligible (semantic
+              MATCH of a non-eligible assessment can never be confirmed
+              into a quote row).
+    """
+    from product_intelligence.research.aggregation import PriceAggregationResult
+    from product_intelligence.research.matching import (
+        is_human_review_eligible_assessment,
+    )
+
+    # EXACT type check — the authority source must be the real frozen 4A
+    # result (same rule as project_public_rows).
+    if not isinstance(price_result, PriceAggregationResult):
+        raise CompactQuoteProjectionError(
+            f"Human-confirmed projection requires a PriceAggregationResult "
+            f"instance; got {type(price_result).__name__!r}. A duck-typed "
+            f"object cannot be the persisted snapshot authority source."
+        )
+
+    if not isinstance(confirmed_assessment_indices, frozenset):
+        raise CompactQuoteProjectionError(
+            "confirmed_assessment_indices must be a frozenset of int "
+            f"assessment indices; got {type(confirmed_assessment_indices).__name__!r}"
+        )
+
+    assessments = price_result.assessments
+    for idx in confirmed_assessment_indices:
+        if type(idx) is not int:
+            raise CompactQuoteProjectionError(
+                "confirmed_assessment_indices must contain exact ints; "
+                f"got {type(idx).__name__!r}"
+            )
+        if idx < 0 or idx >= len(assessments):
+            raise CompactQuoteProjectionError(
+                f"confirmed assessment index {idx} is out of range for the "
+                f"persisted snapshot ({len(assessments)} assessments); "
+                "stale binding is refused."
+            )
+        if not is_human_review_eligible_assessment(assessments[idx]):
+            raise CompactQuoteProjectionError(
+                f"confirmed assessment index {idx} is not human-review "
+                "eligible; a non-semantic-eligible assessment can never "
+                "enter the Compact Quote."
+            )
+
+    rows: list[CompactQuoteRow] = []
+    for idx in sorted(confirmed_assessment_indices):
+        assessment = assessments[idx]
+        norm = assessment.normalized_listing
+
+        # Human confirmation cannot create price/currency evidence that did
+        # not exist — no row for a confirmed listing without persisted
+        # normalized price and currency.
+        if norm.price_amount is None or norm.currency_code is None:
+            continue
+
+        observation = norm.observation
+        source_url = observation.source_url if observation is not None else ""
+
+        price_amount = norm.price_amount
+        currency_code = norm.currency_code
+
+        # USD equivalent from persisted FX evidence only (or Unavailable).
+        usd_result = compute_usd_equivalent(
+            amount=price_amount,
+            currency=currency_code,
+            fx_snapshot=fx_snapshot,
+        )
+        if usd_result.conversion_available:
+            usd_equiv_str = _format_price(usd_result.usd_equivalent, "USD")
+            usd_equiv_amount = usd_result.usd_equivalent
+        else:
+            usd_equiv_str = "Unavailable"
+            usd_equiv_amount = None
+
+        # Persisted normalized availability and condition — EXACTLY as
+        # stored. UNKNOWN condition renders "Unknown" (never upgraded).
+        inventory_label, inventory_note = _map_public_listing_inventory(
+            norm.availability
+        )
+        brand_new_display = _map_public_listing_brand_new(norm.condition)
+
+        rows.append(
+            CompactQuoteRow(
+                source=_public_source_label(source_url),
+                source_type="HUMAN_CONFIRMED",
+                price_original=_format_price(price_amount, currency_code),
+                price_amount=price_amount,
+                price_currency=currency_code.upper(),
+                usd_equivalent=usd_equiv_str,
+                usd_equivalent_amount=usd_equiv_amount,
+                inventory=inventory_label,
+                brand_new=brand_new_display,
+                note=_combine_notes(inventory_note, "Human Confirmed"),
+            )
+        )
+
+    return tuple(rows)

@@ -4306,6 +4306,7 @@ This canonical plan does not duplicate that operational snapshot.
 | AD-057 | 7A candidate discovery is evidence-first and distinct from similarity: explicit AUTHORITATIVE manufacturer catalog sources produce raw candidate observations; frozen 2A excludes the target and groups only exact/normalized-exact candidate identities; no SearchProvider, LLM, spec filtering, scoring, ranking, or persistence is introduced. | Candidate != comparable. 7A discovers product identities from approved catalog sources; 7B scores similarity. ProductIdentity is NOT reused for discovered candidates (it represents the requested product, not catalog rows). supportSpecsData is the first mechanism. Target-self exclusion uses frozen 2A compare_part_numbers(). Deduplication uses frozen 2A normalize_part_number() semantics. No spec-based pre-filtering (that is 7B). No score/rank fields on candidates. Result is self-auditing. | Accepted (7A implementation) |
 | AD-058 | 7B deterministic similarity scoring: VERIFIED-only field comparison, 12-field equal weight, Decimal min/max ratio for numeric fields, candidate ProductIdentity bridge (EXACT, no manufacturer guessed), evidence_coverage and evidence_weighted_similarity, one-fetch-per-source execution reusing frozen 6C extraction per candidate identity, self-validating contracts, field score self-validation, exact scalar types, execution-owned EnterpriseSsdSimilarityResult with 7A source binding, retained source outcomes and provenance audit. | 7B computes auditable similarity evidence between target and candidate specifications. Similarity != compatibility certification. VERIFIED-only scoring: UNKNOWN/UNVERIFIED/CONFLICT states are not mismatches. 12 fields have equal weight (no domain-business weights). DECIMAL fields use min/max ratio (positive values), TEXT/ENUM/BOOLEAN use exact canonical equality. Field score self-validation: SpecificationSimilarityFieldAssessment recomputes actual score from raw resolutions, rejecting wrong-but-in-range supplied values. Exact scalar types: scored_field_count must be int (not bool/float), evidence_coverage/observed_similarity/evidence_weighted_similarity must be Decimal (not int/float/bool). evidence_coverage = scored/12, evidence_weighted_similarity = sum/12. Candidate ProductIdentity bridge uses EXACT match type, rejects non-AUTHORITATIVE evidence, and ComparableCandidateSpecificationProfile enforces exact bridge output identity (no enriched metadata). Execution fetches each unique source ONCE, calls frozen 6C extraction per candidate identity. EnterpriseSsdSimilarityResult is execution-owned: exact ComparableCandidateDiscoveryResult type (no duck typing, TypeError BEFORE fetch), 7A source binding (canonical EXTRACTED source descriptors derived from frozen 7A result, exact object identity enforced — copied/value-equal substitutes rejected, count and order audited), retained source outcomes, final_url structurally validated, candidate spec evidence traced to FETCHED 7B outcomes (provenance audit). Real Seagate fixture: 80 candidates, each with 1 scoreable field (Form Factor), coverage = 1/12. Evidence too sparse for useful differentiation. | Accepted (7B implementation) |
 | AD-059 | 6D Authoritative Datasheet Specification Enrichment: manufacturer PDF datasheet acquisition through provider-neutral DocumentFetcher boundary; concrete HttpPdfFetcher (stdlib urllib); pure research table interpretation (MPN -> table -> column -> row binding, unit incorporation); frozen 6B normalization + frozen 6A resolution; 7A-grounded authority chain (derive_datasheet_source_from_discovery); public API requires frozen ComparableCandidateDiscoveryResult + exact EXTRACTED outcome (identity-verified member) — arbitrary DatasheetSource objects rejected; batch shared PDF fetch; bounded parser exception taxonomy (pdfminer only, RuntimeError propagates); fully self-auditing SpecificationEnrichmentResult (raw->outcome->normalized->resolution provenance); 6C+6D evidence composition (normalize + re-resolve); abstention paths return valid empty result (zero source_outcomes, all UNKNOWN). | 6D extends specification evidence capability beyond frozen 6C extraction. Added after 7B freeze because frozen 7B revealed only 1/12 candidate evidence coverage. Provider-neutral document boundary. Concrete PDF fetcher (stdlib urllib, no browser). Pure research layer table interpretation (no PDF parser in research/). Six-field allowlist: capacity, sequential_read, sequential_write, random_read_iops, random_write_iops, endurance_dwpd. Support-record datasheet-link extraction from var supportSpecsData JSON. AUTHORITATIVE-only enforcement. Bounded model-row grammar (3 exact forms). Whole-PDF MPN uniqueness. Raw MPN exactness. Bounded parser exception handling (pdfminer/pdfplumber only, programming errors propagate). Self-auditing result. 6C+6D evidence composition. Real Seagate fixture: Nytro 5550/5350 datasheet PDF (8 pages, 15 tables). XP15360SE70005: 6 VERIFIED observations. Candidate composition: scored_field_count=7, evidence_coverage=7/12. | Accepted (6D implementation) |
+| AD-060 | PROD-FIX1 production corrections (canonical spec §26.10): (1) the Internal Vendor adapter supports BOTH the canonical JSON wrapper and the exact production section-oriented response, parsed by a strict bounded recursive-descent literal parser (no eval/literal_eval, three exact section labels only, exact `{Not Found}` bounded marker, Decimal-exact numbers); the allowlist mappers remain the sole sensitive-data boundary. (2) Compact Quote price formatting renders no-symbol currencies once (`ZAR 30,999.0`), never code-as-prefix plus code-suffix. (3) AI-assisted semantic matches render immediately after Compact quote summary (presentation order only). (4) A valid run-scoped human-CONFIRMED semantic candidate contributes ONE Compact Quote row for the SAME run via a projection-layer extension: identity authority only; price/currency/condition exactly the persisted normalized values (UNKNOWN condition stays Unknown); explicit "Human Confirmed" provenance; persisted FX evidence only; the frozen PriceIntelligenceSnapshot and Machine Price are never mutated; UNREVIEWED/REJECTED/invalid-binding/cross-run candidates never enter; Undo removes the row on the next GET; historical GET stays zero-live-I/O. (5) The new-research form carries a front-end-only duplicate-click guard (disable + `Researching…`) — explicitly NOT a backend dedupe guarantee. (6) The ECB TLS trust-chain failure is an operational server repair; NO insecure TLS bypass, unverified context, or HTTP fallback was added, and regression tests mechanically guard against future bypasses. | Defects were discovered in real production use of the deployed PILOT-RELEASE-2 runtime. Each correction is the minimal bounded change to the identified defect: the Vendor parser adds a second supported upstream contract without weakening the allowlist privacy boundary; the currency fix changes display formatting only; the section move is template ordering only; the confirm->quote path reuses the existing fail-closed binding validation and adds a display projection (the frozen 4A/Reviewed Price authority contracts are untouched); the submit guard is client UX only; the TLS item preserves secure verification and documents the operational fix. No 8A caching, no new providers, no new models, no migrations. | IMPLEMENTED / PENDING FINAL REVIEW (PILOT-RELEASE-2-PROD-FIX1) |
 
 ## 26. Customer Quote Research Expansion — 4D Phase Architecture
 
@@ -5031,3 +5032,146 @@ the current FoxPro/browser workflow), 8A (caching / refresh strategy —
 the future implementation phase that 8A-PRE precedes), 8B (research
 history), 8C (production hardening). None of them is NEXT;
 authentication/session remains outside the current priority.
+
+### 26.10 PILOT-RELEASE-2-PROD-FIX1: Production Quote-Workflow Corrections
+
+**Status: IMPLEMENTED / PENDING FINAL REVIEW.** Bounded production
+corrective phase against defects discovered during real production use of
+the deployed PILOT-RELEASE-2 runtime (frozen deployed runtime SHA
+065320180c17b89c7460164326a0c9f49e01fe3b). Corrective scope only: no new
+feature phases, no 8A caching, no new models/migrations, no deployment in
+this commit.
+
+**26.10.1 Vendor real-response contract (4D-B adapter correction)**
+
+The production Vendor API (`PI_VENDOR_LOOKUP_BASE_URL`) answers HTTP 200
+with `Content-Type: text/html; charset=utf-8` and a body that is NOT one
+JSON document — a plain-text, section-oriented body with exactly three
+bounded section labels:
+
+```
+Ingram Product: { ... }
+CDW Product: {Not Found}
+Synnex EU Product: { ... }
+```
+
+Frozen correction rules:
+
+* The adapter supports BOTH upstream contracts: the canonical JSON wrapper
+  (retained, unchanged behavior) and the production section-oriented body
+  (new). When the body is not one JSON document, the strict section parser
+  is attempted before the lookup is failed.
+* Section parsing is strict and bounded: only the three exact labels are
+  recognized (case-sensitive, line-anchored); arbitrary section labels are
+  never trusted, parsed, or persisted; the section value must be either the
+  exact bounded `{Not Found}` marker or a bounded literal mapping parsed by
+  a dedicated recursive-descent parser (no eval, no literal_eval, no code
+  execution; duplicate keys, non-string keys, expressions, and code-looking
+  tokens are refused; depth/entry bounds enforced). Numbers are parsed from
+  text directly into Decimal — no binary float ever touches a value.
+* Section content is mapped through the SAME allowlist mappers, extended
+  with the flat production field forms (Ingram: `vendorPartNumber`,
+  `customerPrice`/`retailPrice`, `currency`, `quantity`/`available`;
+  CDW: `manufacturerPartNumber`, `price`, `currency`/`currencyCode`,
+  `stockStatus`/`quantity`/`Avl_Quantity`; Synnex EU:
+  `ManufacturerItemIdentifier`, `UnitPriceAmount`,
+  `currency`/`CurrencyCode`, `AvailabilityTotal`, bounded `Note`
+  meanings). The canonical nested forms remain supported unchanged.
+* Exactly one Vendor network call per lookup; transport/timeout/size/
+  redirect/no-proxy behavior unchanged; malformed one-source content does
+  not destroy independently valid sources; the raw body is never logged or
+  persisted.
+* PRIVACY INVARIANT (unchanged and re-proven): the real Synnex payload's
+  sensitive metadata (`SessionId`, `BuyerAccountId`, `SystemId`, and any
+  other non-allowlisted field) never enters CommercialSourceCandidate,
+  ResearchSupplementSnapshot, logs, or error detail. The allowlist mappers
+  remain the security boundary; test fixtures use fake/redacted sentinels.
+
+**26.10.2 Currency formatting (Compact Quote display correction)**
+
+The Compact Quote price formatter rendered no-symbol currencies as
+`ZAR30,999.0 ZAR` (code used as fallback prefix, then appended). Corrected:
+known-symbol currencies keep `$1,515.72 USD` / `€962.86 EUR`; currencies
+without a configured symbol render the code exactly once as a leading
+prefix: `ZAR 30,999.0`. A bare currency code is not a symbol (the former
+`CHF -> "CHF"` mapping entry was removed). Decimal values and FX math are
+not altered.
+
+**26.10.3 AI-assisted semantic matches placement (presentation only)**
+
+`research_detail.html` renders the "AI-assisted semantic matches" section
+immediately after "Compact quote summary" and before the detailed
+lower-level audit/research sections (Micron alias evidence, Price
+intelligence, Reviewed price, Comparable products). Template ordering only:
+no semantic eligibility, model, or review-state behavior changes.
+
+**26.10.4 Confirm Match -> Compact Quote (projection-layer extension)**
+
+A valid run-scoped, human-CONFIRMED semantic candidate MAY contribute to
+the Compact Quote for that SAME ResearchRun. Authority rules (binding):
+
+* Human confirmation establishes IDENTITY authority only. It must NOT
+  invent or upgrade other facts: price and currency come from the
+  persisted PriceIntelligenceSnapshot assessment (exactly the frozen
+  normalized values); condition is EXACTLY the persisted normalized
+  condition (UNKNOWN renders "Unknown" — never upgraded to Yes; NEW may
+  truthfully render Yes); a confirmed candidate without persisted
+  price/currency evidence produces no row.
+* Machine Price (frozen 4A artifact) is never mutated; the original
+  PriceIntelligenceSnapshot is byte-identical before and after
+  confirmation.
+* The semantic MATCH itself still does NOT enter the Compact Quote before
+  human confirmation; REJECTED and UNREVIEWED candidates do not enter;
+  Undo removes the row on the next GET; cross-run candidates cannot enter
+  another run; invalid/stale bindings fail closed (the same fail-closed
+  candidate-to-assessment binding validation that feeds the Reviewed
+  Price, plus projection-side re-validation of range, semantic
+  eligibility, and persisted price/currency).
+* Every projected row carries the explicit "Human Confirmed" provenance
+  note; USD Equivalent uses persisted FX evidence only.
+* Vendor authority remains separate and supplemental; Micron alias
+  remains retrieval/reference only.
+* Historical GET `/research/<uuid>` remains ZERO LIVE I/O: the effective
+  Compact Quote is recomputed only from already-persisted
+  PriceIntelligenceSnapshot + AiAssistedReviewCandidate review state +
+  ResearchSupplementSnapshot + ResearchFxSnapshot.
+* Implementation is a projection-layer extension (`research/
+  compact_quote.project_human_confirmed_rows` + additive replay
+  parameters), not a rewrite of frozen 4A artifacts. The frozen Reviewed
+  Price behavior is unchanged.
+
+**26.10.5 Research submit duplicate-click guard (UX only)**
+
+The new-research form carries a small front-end-only inline JavaScript
+guard: on a valid submit the button is immediately disabled and relabeled
+`Researching…`; the normal POST continues. If client-side validation
+prevents submission the button stays enabled. This is NOT a backend
+dedupe guarantee: no in-progress run is shared across users, no MPN-level
+locking, no caching, no server-side whole-run reuse, no ResearchRun
+lifecycle change.
+
+**26.10.6 ECB / USD Equivalent TLS trust-chain issue (no bypass)**
+
+Production observed `ssl.SSLCertVerificationError` /
+`CERTIFICATE_VERIFY_FAILED` / `unable to get local issuer certificate`
+when the ECB FX provider ran on the production server. Binding conclusion
+and locked behavior:
+
+* Secure HTTPS verification is preserved; NO `verify=False`, no unverified
+  SSL context, no disabled hostname check, no certificate suppression, no
+  hard-coded downloaded certificates, and no fallback to an untrusted HTTP
+  endpoint were added. The provider's transport is unchanged.
+* The failure is correctly classified as bounded `FxNetworkError`
+  (regression-tested against the exact production error class via the real
+  stdlib wrapping path), and orchestration keeps FX failure nonfatal:
+  no ResearchFxSnapshot, the original non-USD price survives, and USD
+  Equivalent displays "Unavailable" (regression-tested end-to-end).
+* The trust-chain repair is an OPERATIONAL action on the production
+  server (install/update the CA trust store / root certificates used by
+  the server's Python runtime). It is outside this commit.
+* If a future phase requires supporting an explicitly configured trusted
+  CA bundle, that is a NEW configuration contract to be designed, reviewed,
+  and approved separately — no such pattern exists in the repository
+today, and none was invented by this phase.
+* Caching must not hide this failure (8A-PRE remains design-first and is
+  not implemented here).

@@ -25,6 +25,11 @@ Display rules:
 * Public rows: display hostname with leading ``www.`` stripped; the full
   SAFE source URL — taken from the paired frozen 4A bucket-member
   assessment — remains the link target.
+* Human-confirmed rows (PROD-FIX1): public-listing display rules apply
+  (www.-stripped hostname; SAFE persisted-assessment URL as link target);
+  the "Human Confirmed" provenance note passes through verbatim from the
+  frozen row. They are identity-authority overlays on public evidence —
+  never vendor data, never a re-derivation of price/condition.
 * Public row URL association is mechanically reconciled with the frozen
   4A bucket assessments in deterministic iteration order (bucket by
   bucket, assessment by assessment — the same order the frozen
@@ -180,6 +185,7 @@ def build_compact_quote_presentation(
     *,
     projection: Any,
     price_result: Any,
+    confirmed_assessment_indices: "frozenset[int] | None" = None,
 ) -> CompactQuotePresentation:
     """Build display-only rows from a CompactQuoteProjection.
 
@@ -193,6 +199,13 @@ def build_compact_quote_presentation(
         Any to respect the frozen web-aggregation import boundary)
         used to associate public projected rows with their exact frozen
         4A bucket-member assessments (and therefore their source URLs).
+    confirmed_assessment_indices
+        (PROD-FIX1) The run-scoped, binding-validated indices of
+        human-CONFIRMED semantic candidates, in the same deterministic
+        form the projection used. Used ONLY to mechanically reconcile
+        HUMAN_CONFIRMED rows with their persisted assessments for source
+        link targets. Any mismatch fails closed (link withheld; nothing
+        is guessed).
 
     Returns
     -------
@@ -225,6 +238,40 @@ def build_compact_quote_presentation(
             # display row then renders the source as plain text and the
             # raw unsafe string never enters the template context.
 
+    # (PROD-FIX1) Reconcile human-confirmed rows with their persisted
+    # assessments in the exact deterministic order the projection used:
+    # ascending index, skipping assessments without persisted price or
+    # currency (confirmation cannot create such evidence, so no row was
+    # projected for them). FAIL CLOSED on any count mismatch or source
+    # label mismatch: the link is withheld, never guessed.
+    human_rows = [
+        row for row in projection.rows if row.source_type == "HUMAN_CONFIRMED"
+    ]
+    human_links: dict[int, tuple["str | None", bool]] = {}
+    if human_rows:
+        expected_assessments: list[Any] = []
+        if confirmed_assessment_indices:
+            assessments = price_result.assessments
+            for idx in sorted(confirmed_assessment_indices):
+                if 0 <= idx < len(assessments):
+                    norm = assessments[idx].normalized_listing
+                    if (
+                        norm.price_amount is not None
+                        and norm.currency_code is not None
+                    ):
+                        expected_assessments.append(assessments[idx])
+        if len(expected_assessments) == len(human_rows):
+            for row, assessment in zip(human_rows, expected_assessments):
+                normalized_listing = assessment.normalized_listing
+                observation = normalized_listing.observation
+                source_url = (
+                    observation.source_url if observation is not None else None
+                )
+                if _expected_public_source_from_url(source_url) != row.source:
+                    continue  # mapping mismatch — withhold the link
+                if source_url is not None and _is_safe_href_url(source_url):
+                    human_links[id(row)] = (source_url, True)
+
     rows: list[CompactQuoteRowDisplay] = []
     for row in projection.rows:
         if row.source_type == "VENDOR_API":
@@ -232,6 +279,17 @@ def build_compact_quote_presentation(
             source_display = _vendor_source_display(row.source)
             source_url: "str | None" = None
             source_url_safe = False
+        elif row.source_type == "HUMAN_CONFIRMED":
+            # Human-confirmed rows are public-listing evidence: the
+            # www.-stripped hostname display applies, and the link target
+            # (when mechanically reconciled and safe) is the persisted
+            # assessment's source URL.
+            source_display = _public_source_display(row.source)
+            link = human_links.get(id(row))
+            if link is not None:
+                source_url, source_url_safe = link
+            else:
+                source_url, source_url_safe = None, False
         else:
             source_display = _public_source_display(row.source)
             link = links.get(id(row))

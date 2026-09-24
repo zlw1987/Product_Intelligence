@@ -5,8 +5,11 @@ compact quote summary browser rendering.
 
 The 4D-C security decision occurs in the web view BEFORE any vendor
 supplemental artifact is read, decoded, or projected. This module is the
-denied branch: it produces a ``CompactQuoteProjection`` containing
-PUBLIC_LISTING rows only, from:
+denied branch: it produces a ``CompactQuoteProjection`` containing NO
+vendor rows — only rows derived from the public listing evidence and the
+persisted FX evidence, plus (PROD-FIX1) run-scoped human-CONFIRMED
+semantic rows whose identity authority is a persisted review-state fact
+about the run (never vendor data):
 
 * the already provenance-validated ``PriceAggregationResult`` supplied by
   the view (decoded from ``PriceIntelligenceSnapshot`` and verified against
@@ -42,6 +45,7 @@ from product_intelligence.research.aggregation import PriceAggregationResult
 from product_intelligence.research.compact_quote import (
     CompactQuoteProjection,
     CompactQuoteProjectionError,
+    project_human_confirmed_rows,
     project_public_rows,
 )
 from product_intelligence.research.fx_codec import (
@@ -59,8 +63,8 @@ class PublicCompactQuoteReplayResult:
     """The result of a public-only compact quote replay.
 
     Attributes:
-        projection: CompactQuoteProjection containing PUBLIC_LISTING rows
-            only (zero vendor rows).
+        projection: CompactQuoteProjection containing public listing rows
+            plus (PROD-FIX1) human-confirmed rows — zero vendor rows.
         fx_snapshot: Decoded persisted FX observation snapshot, or None
             when no FX evidence is persisted for this run.
         run: The ResearchRun this replay is for.
@@ -75,8 +79,9 @@ def replay_public_compact_quote_projection(
     *,
     run: ResearchRun,
     price_result: PriceAggregationResult,
+    confirmed_assessment_indices: frozenset[int] | None = None,
 ) -> PublicCompactQuoteReplayResult:
-    """Build a PUBLIC-ONLY compact quote projection from persisted artifacts.
+    """Build a vendor-free compact quote projection from persisted artifacts.
 
     This is the approved server-side replay entry point for the DENIED
     branch of the 4D-C compact quote summary. It does NOT render HTML.
@@ -84,6 +89,12 @@ def replay_public_compact_quote_projection(
     Authority rules:
     * Public rows: only from frozen 4A bucket membership, via the frozen
       ``project_public_rows`` reading ``price_result.buckets``.
+    * Human-confirmed rows (PROD-FIX1): only from run-scoped assessment
+      indices supplied by the caller AFTER the caller's fail-closed
+      candidate-to-assessment binding validation (the same validated
+      indices feeding the Reviewed Price). Human confirmation is identity
+      authority only; the frozen Machine Price snapshot is never altered.
+      These rows are public-listing evidence — never vendor data.
     * FX: from persisted ``ResearchFxSnapshot`` only (never live).
     * Vendor supplemental data: NEVER read in this path. Authorization
       happens before sensitive commercial artifact access; this service is
@@ -96,6 +107,10 @@ def replay_public_compact_quote_projection(
     price_result : PriceAggregationResult
         The already provenance-validated price aggregation result decoded
         from the run's ``PriceIntelligenceSnapshot``.
+    confirmed_assessment_indices : frozenset[int] | None
+        Optional run-scoped, binding-validated indices of human-CONFIRMED
+        semantic candidates. ``None`` (or empty) projects no
+        human-confirmed rows (frozen 4D-C behavior).
 
     Returns
     -------
@@ -151,7 +166,20 @@ def replay_public_compact_quote_projection(
     # Frozen authority-safe public projection.
     # FAIL-CLOSED: any projection failure propagates (no partial summary).
     public_rows = project_public_rows(price_result, fx_snapshot=fx_snapshot)
-    projection = CompactQuoteProjection(rows=tuple(public_rows))
+
+    # Human-confirmed rows (PROD-FIX1): public-listing evidence with a
+    # persisted run-scoped identity authority overlay. Zero vendor data.
+    human_confirmed_rows: tuple = ()
+    if confirmed_assessment_indices:
+        human_confirmed_rows = project_human_confirmed_rows(
+            price_result,
+            confirmed_assessment_indices,
+            fx_snapshot=fx_snapshot,
+        )
+
+    projection = CompactQuoteProjection(
+        rows=tuple(human_confirmed_rows) + tuple(public_rows)
+    )
 
     return PublicCompactQuoteReplayResult(
         projection=projection,

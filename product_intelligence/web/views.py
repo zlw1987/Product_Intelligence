@@ -467,17 +467,29 @@ def research_detail(request: HttpRequest, run_id: uuid.UUID) -> HttpResponse:
 
     if decoded_result is not None:
         try:
+            # PROD-FIX1: run-scoped, binding-validated human-CONFIRMED
+            # indices (the same fail-closed validation that feeds the
+            # Reviewed Price) may contribute Compact Quote rows for this
+            # SAME run. Identity authority only — the frozen Machine Price
+            # snapshot is never mutated. Zero live work: everything here is
+            # persisted state already read on this GET.
+            effective_confirmed_indices = confirmed_indices or None
             if vendor_commercial_access_allowed:
-                replay = replay_compact_quote_projection(str(run.id))
+                replay = replay_compact_quote_projection(
+                    str(run.id),
+                    confirmed_assessment_indices=effective_confirmed_indices,
+                )
             else:
                 replay = replay_public_compact_quote_projection(
                     run=run,
                     price_result=decoded_result,
+                    confirmed_assessment_indices=effective_confirmed_indices,
                 )
             projection = replay.projection
             compact_quote = build_compact_quote_presentation(
                 projection=projection,
                 price_result=decoded_result,
+                confirmed_assessment_indices=effective_confirmed_indices,
             )
         except (
             CompactQuoteProjectionError,

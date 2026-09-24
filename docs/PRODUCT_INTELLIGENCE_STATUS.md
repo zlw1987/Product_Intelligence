@@ -2,6 +2,74 @@
 
 ## Current state
 
+**PRODUCT-INTEL.PILOT-RELEASE-2-PROD-FIX1 (Production Correction) —
+IMPLEMENTED / PENDING FINAL REVIEW**
+
+Bounded production-correction phase fixing defects discovered during real
+Product Intelligence production use on the deployed PILOT-RELEASE-2 runtime
+(frozen deployed runtime SHA 065320180c17b89c7460164326a0c9f49e01fe3b). Not a
+feature phase; no 8A caching implemented; no deployment performed in this
+commit. Candidate state; final approval remains with the project lead.
+
+Corrections delivered (details in PLAN §26.10):
+
+1. **Vendor real-response contract** — the production Vendor API answers
+   HTTP 200 / `text/html` with a section-oriented body that is NOT one JSON
+   document (`Ingram Product: { ... }` / `CDW Product: {Not Found}` /
+   `Synnex EU Product: { ... }`). The Internal Vendor adapter now supports
+   that exact bounded contract in addition to the retained canonical JSON
+   wrapper: strict recursive-descent literal parsing (no eval /
+   literal_eval), the exact `{Not Found}` bounded marker, the three exact
+   section labels only, flat production field forms mapped through the SAME
+   allowlist mappers, exact Decimal monetary behavior, exactly-one network
+   call, transport/failure behavior preserved, one malformed section does
+   not destroy valid siblings. The real Synnex sensitive metadata
+   (SessionId / BuyerAccountId / SystemId) is stripped by the allowlist and
+   never enters candidates, snapshots, logs, or error detail; the raw body
+   is never persisted. Integration proof: exact MPN
+   `MTFDKBA480TFR-1BC1ZABYYR` with synthetic production-equivalent data
+   yields one Ingram observation (1515.72 USD, customer price, quantity 0
+   faithfully mapped), one Synnex EU observation (962.86 EUR, quantity 0
+   faithfully mapped), and a CDW NOT_FOUND issue.
+2. **Currency formatting** — the Compact Quote price formatter no longer
+   uses the currency code as a fallback prefix and appends it again.
+   Known-symbol currencies keep `$1,515.72 USD` / `€962.86 EUR`; no-symbol
+   currencies render once (`ZAR 30,999.0`, never `ZAR30,999.0 ZAR`). Decimal
+   values and FX math untouched.
+3. **AI-assisted semantic matches placement** — presentation-only reorder of
+   `research_detail.html`: the section now renders immediately after
+   "Compact quote summary" and before the detailed lower-level
+   audit/research sections. Semantic eligibility and model behavior
+   unchanged.
+4. **Confirm Match -> Compact Quote** — a valid run-scoped, human-CONFIRMED
+   semantic candidate now contributes a Compact Quote row for that SAME
+   ResearchRun (projection-layer extension; frozen 4A artifacts never
+   mutated). Identity authority only: price/currency from the persisted
+   PriceIntelligenceSnapshot assessment, condition EXACTLY the persisted
+   normalized condition (UNKNOWN stays "Unknown"; never upgraded), explicit
+   "Human Confirmed" provenance note, persisted FX evidence only. UNREVIEWED
+   / REJECTED / invalid-binding / cross-run candidates never enter; Undo
+   removes the row on the next GET; historical GET remains zero live I/O.
+   Machine Price and the frozen Reviewed Price behavior are unchanged.
+5. **Research submit duplicate-click guard** — front-end-only inline JS on
+   the new-research form: on valid submit the button is immediately
+   disabled and relabeled `Researching…`. UX protection only — NOT a
+   backend dedupe guarantee; no run sharing, MPN locking, caching, or
+   lifecycle change. Invalid client-side validation leaves the button
+   enabled.
+6. **ECB / USD Equivalent TLS issue** — investigated, NOT bypassed. The
+   production `ssl.SSLCertVerificationError` (unable to get local issuer
+   certificate) is the secure verification working as designed; the provider
+   classifies it as bounded `FxNetworkError` and orchestration keeps FX
+   failure nonfatal (no ResearchFxSnapshot, original non-USD price
+   survives, USD Equivalent unavailable) — locked in by regression tests,
+   including mechanical no-insecure-bypass guards. The trust-chain repair
+   is an OPERATIONAL action on the production server (install/update the CA
+   trust store). No code change was required; if a future phase wants an
+   explicitly configured trusted CA bundle, that is a new configuration
+   contract to be designed and approved separately (none exists in the
+   repository today).
+
 **PILOT-RELEASE-1 DEPLOYED / ACCEPTED**
 
 Internal pilot deployment is deployed and accepted on the internal Windows pilot server.
@@ -102,6 +170,12 @@ Runtime-vs-docs distinction (binding):
 
 **NEXT: PRODUCT-INTEL.8A-PRE (Caching & Freshness Architecture
 Audit)** — PLANNED
+
+The production-correction phase PRODUCT-INTEL.PILOT-RELEASE-2-PROD-FIX1
+(above) is the bounded corrective pass against the deployed
+PILOT-RELEASE-2 runtime; it is PENDING FINAL REVIEW and does NOT change
+the next-architecture-delivery selection below. 8A caching is NOT
+implemented in PROD-FIX1.
 
 The previous "post-UAT next is undecided" gate is closed: the
 production deployment/smoke evidence now exists and the project lead
@@ -661,6 +735,7 @@ FU3B wires the frozen FU3A semantic runtime into real research execution:
 | --- | --- | --- |
 | PILOT-RELEASE-1 | Internal pilot deployment | **DEPLOYED / ACCEPTED** |
 | PILOT-RELEASE-2 | 4D Customer Requirement Deployment & UAT | **DEPLOYED / ACCEPTED** (deployed runtime SHA 065320180c17b89c7460164326a0c9f49e01fe3b; production smoke passed 2026-09-23; migrations through 0010 deployed) |
+| PILOT-RELEASE-2-PROD-FIX1 | Production quote-workflow defect corrections (Vendor real-response contract, currency formatting, semantic-section placement, Confirm Match -> Compact Quote, submit guard, ECB/TLS non-bypass) | **IMPLEMENTED / PENDING FINAL REVIEW** (no deployment in this commit) |
 | 8A-PRE | Caching & Freshness Architecture Audit | **PLANNED** (next delivery; READ-ONLY / DESIGN-FIRST, not caching implementation) |
 | 4D-PRE | Preferred Source Feasibility Audit | Implemented (evidence only, frozen) |
 | 4D-A | Source Acquisition Optimization | Implemented (frozen) |
@@ -938,6 +1013,28 @@ Not eligible:
 
 
 ## Validation results
+
+### PROD-FIX1 CANDIDATE ACCEPTANCE SNAPSHOT (PENDING FINAL REVIEW)
+
+| Metric | Count |
+| --- | --- |
+| Collected | 5247 |
+| Passed | 5247 |
+| Failed | 0 |
+| Skipped | 0 |
+| Xfailed | 0 |
+| Deselected | 0 |
+| Subtests passed | 39 |
+
+Collection accounting: frozen 4D-D baseline 5097 + 150 new PROD-FIX1
+nodes (test_vendor_section_response.py 70, test_compact_quote_human_
+confirmed.py 21, test_compact_quote_currency_formatting.py 16,
+test_human_confirmed_compact_quote.py 15, test_research_submit_guard.py
+10, test_fx_tls_verification.py 9, test_4d_b_vendor_section_integration.
+py 7, test_fx_tls_production_chain.py 2). No boundary parameterization
+expansion (no new production files; only existing files modified). No
+existing test deleted, renamed, skipped, xfailed, deselected, or
+weakened.
 
 ### 4D-D FINAL ACCEPTANCE SNAPSHOT (IMPLEMENTED / APPROVED / FROZEN)
 

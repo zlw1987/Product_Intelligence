@@ -22,7 +22,14 @@ Key constraints:
 * no ambient proxy; explicit empty ProxyHandler({}) disables environment proxy routing
 * URL-encode the canonical requested MPN
 * GET only
-* JSON response (Decimal-aware parse for monetary values)
+* Response body: one of two bounded upstream contracts (Decimal-aware parse
+  for monetary values in both):
+  1. the canonical JSON wrapper document, or
+  2. (PROD-FIX1) the exact production section-oriented plain-text body
+     (``Ingram Product: { ... }`` / ``CDW Product: {Not Found}`` /
+     ``Synnex EU Product: { ... }``) parsed by a strict bounded
+     recursive-descent literal parser — no eval, no literal_eval,
+     no generic HTML scraping
 
 The configured base URL is deployment-owned, not request-controlled.
 No user-supplied endpoint is accepted. Base URL must not carry query
@@ -37,6 +44,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from decimal import Decimal, InvalidOperation
 from datetime import datetime, timezone
 from typing import Any
@@ -377,13 +385,45 @@ def _safe_bool(value: Any) -> bool | None:
 # ---------------------------------------------------------------------------
 
 
+def _availability_flag_table(
+    available: bool | None, quantity: int | None
+) -> tuple[CommercialAvailability, int | None]:
+    """Bounded availability truth table for sections publishing a flag.
+
+    Contradiction or insufficient evidence => UNKNOWN (never fabricated).
+    """
+    if available is True:
+        if quantity is None:
+            return CommercialAvailability.IN_STOCK, None
+        if quantity > 0:
+            return CommercialAvailability.IN_STOCK, quantity
+        return CommercialAvailability.UNKNOWN, quantity
+    if available is False:
+        if quantity is None:
+            return CommercialAvailability.UNKNOWN, None
+        if quantity == 0:
+            return CommercialAvailability.OUT_OF_STOCK, quantity
+        return CommercialAvailability.UNKNOWN, quantity
+    # available is None
+    if quantity is None:
+        return CommercialAvailability.UNKNOWN, None
+    if quantity > 0:
+        return CommercialAvailability.IN_STOCK, quantity
+    return CommercialAvailability.UNKNOWN, quantity
+
+
 def _map_ingram(source_section: dict[str, Any]) -> CommercialSourceCandidate | CommercialSourceIssue:
     """Map one Ingram source section from the Vendor API response.
 
-    Reads only approved fields:
-    - vendorPartNumber
-    - pricing.customerPrice, pricing.retailPrice, pricing.currencyCode
-    - availability.available, availability.Avl_Quantity
+    Reads only approved fields. Two bounded forms are supported:
+
+    * Canonical JSON wrapper form:
+      - pricing.customerPrice, pricing.retailPrice, pricing.currencyCode
+      - availability.available, availability.Avl_Quantity
+    * Flat production section form (PROD-FIX1):
+      - customerPrice, retailPrice (fallback only), currency
+      - quantity (and optional boolean available flag)
+
     - documented not-found marker (NotFound, notFound, "Not Found")
     """
     source_name = "Ingram"
@@ -419,74 +459,113 @@ def _map_ingram(source_section: dict[str, Any]) -> CommercialSourceCandidate | C
 
     # Price — customerPrice primary, retailPrice fallback
     pricing = source_section.get("pricing")
-    if not isinstance(pricing, dict):
+    if pricing is not None:
+        # ---- Canonical JSON wrapper form ----
+        if not isinstance(pricing, dict):
+            return CommercialSourceIssue(
+                source_name=source_name,
+                outcome=SourceOutcome.MALFORMED_SECTION)
+
+
+        # KEY RULE: if customerPrice key is PRESENT (even if null/malformed),
+        # it is authoritative. Do NOT fall back to retailPrice.
+        if "customerPrice" in pricing:
+            customer_price_raw = pricing["customerPrice"]
+            price = _safe_decimal(customer_price_raw)
+            if price is None or not price.is_finite() or price < 0:
+                # customerPrice present but malformed/non-finite/negative
+                return CommercialSourceIssue(
+                    source_name=source_name,
+                    outcome=SourceOutcome.MALFORMED_SECTION)
+
+            price_basis = CommercialPriceBasis.CUSTOMER_PRICE
+        else:
+            # customerPrice ABSENT — retail fallback allowed
+            retail_price_raw = pricing.get("retailPrice")
+            price = _safe_decimal(retail_price_raw)
+            if price is None or not price.is_finite() or price < 0:
+                return CommercialSourceIssue(
+                    source_name=source_name,
+                    outcome=SourceOutcome.MALFORMED_SECTION)
+
+            price_basis = CommercialPriceBasis.RETAIL_PRICE_FALLBACK
+
+        # Currency — must be str and nonempty
+        currency_raw = pricing.get("currencyCode")
+        if not isinstance(currency_raw, str) or not currency_raw.strip():
+            return CommercialSourceIssue(
+                source_name=source_name,
+                outcome=SourceOutcome.MALFORMED_SECTION)
+
+        currency = currency_raw.strip().upper()
+
+        # Availability (allowlisted fields only)
+        availability_section = source_section.get("availability")
+        if not isinstance(availability_section, dict):
+            availability = CommercialAvailability.UNKNOWN
+            quantity = None
+        else:
+            available = _safe_bool(availability_section.get("available"))
+            qty_raw = availability_section.get("Avl_Quantity")
+            quantity = _safe_int(qty_raw)  # negative already rejected by _safe_int
+            availability, quantity = _availability_flag_table(
+                available, quantity
+            )
+
+        return CommercialSourceCandidate(
+            source_name=source_name,
+            explicit_candidate_mpn=str(vendor_mpn).strip(),
+            price_amount=price,
+            currency_code=currency,
+            availability=availability,
+            quantity=quantity,
+            price_basis=price_basis,
+        )
+
+    # ---- Flat production section form (PROD-FIX1) ----
+    # Price: customerPrice primary (present => authoritative, no fallback);
+    # retailPrice fallback only when customerPrice is absent.
+    if "customerPrice" in source_section:
+        price = _safe_decimal(source_section["customerPrice"])
+        if price is None or not price.is_finite() or price < 0:
+            return CommercialSourceIssue(
+                source_name=source_name,
+                outcome=SourceOutcome.MALFORMED_SECTION)
+        price_basis = CommercialPriceBasis.CUSTOMER_PRICE
+    elif "retailPrice" in source_section:
+        price = _safe_decimal(source_section["retailPrice"])
+        if price is None or not price.is_finite() or price < 0:
+            return CommercialSourceIssue(
+                source_name=source_name,
+                outcome=SourceOutcome.MALFORMED_SECTION)
+        price_basis = CommercialPriceBasis.RETAIL_PRICE_FALLBACK
+    else:
         return CommercialSourceIssue(
             source_name=source_name,
             outcome=SourceOutcome.MALFORMED_SECTION)
 
-
-    # KEY RULE: if customerPrice key is PRESENT (even if null/malformed),
-    # it is authoritative. Do NOT fall back to retailPrice.
-    if "customerPrice" in pricing:
-        customer_price_raw = pricing["customerPrice"]
-        price = _safe_decimal(customer_price_raw)
-        if price is None or not price.is_finite() or price < 0:
-            # customerPrice present but malformed/non-finite/negative
-            return CommercialSourceIssue(
-                source_name=source_name,
-                outcome=SourceOutcome.MALFORMED_SECTION)
-
-        price_basis = CommercialPriceBasis.CUSTOMER_PRICE
-    else:
-        # customerPrice ABSENT — retail fallback allowed
-        retail_price_raw = pricing.get("retailPrice")
-        price = _safe_decimal(retail_price_raw)
-        if price is None or not price.is_finite() or price < 0:
-            return CommercialSourceIssue(
-                source_name=source_name,
-                outcome=SourceOutcome.MALFORMED_SECTION)
-
-        price_basis = CommercialPriceBasis.RETAIL_PRICE_FALLBACK
-
-    # Currency — must be str and nonempty
-    currency_raw = pricing.get("currencyCode")
+    # Currency — flat field name: currency (must be str, nonempty)
+    currency_raw = source_section.get("currency")
     if not isinstance(currency_raw, str) or not currency_raw.strip():
         return CommercialSourceIssue(
             source_name=source_name,
             outcome=SourceOutcome.MALFORMED_SECTION)
-
     currency = currency_raw.strip().upper()
 
-    # Availability (allowlisted fields only)
-    availability_section = source_section.get("availability")
-    if not isinstance(availability_section, dict):
-        availability = CommercialAvailability.UNKNOWN
-        quantity = None
-    else:
-        available = _safe_bool(availability_section.get("available"))
-        qty_raw = availability_section.get("Avl_Quantity")
-        quantity = _safe_int(qty_raw)  # negative already rejected by _safe_int
-
-        if available is True and quantity is not None and quantity > 0:
+    # Availability: optional boolean flag + quantity.
+    # Without a published flag, quantity is the only stock signal:
+    # > 0 => In Stock, 0 => Out of Stock, absent => Unknown (faithful).
+    available = _safe_bool(source_section.get("available"))
+    quantity = _safe_int(source_section.get("quantity"))
+    if available is None:
+        if quantity is None:
+            availability = CommercialAvailability.UNKNOWN
+        elif quantity > 0:
             availability = CommercialAvailability.IN_STOCK
-        elif available is True and quantity is not None and quantity == 0:
-            availability = CommercialAvailability.UNKNOWN
-        elif available is True and quantity is None:
-            availability = CommercialAvailability.IN_STOCK
-        elif available is False and quantity is not None and quantity == 0:
-            availability = CommercialAvailability.OUT_OF_STOCK
-        elif available is False and quantity is not None and quantity > 0:
-            availability = CommercialAvailability.UNKNOWN
-        elif available is False and quantity is None:
-            availability = CommercialAvailability.UNKNOWN
-        elif available is None and quantity is not None and quantity > 0:
-            availability = CommercialAvailability.IN_STOCK
-        elif available is None and quantity is not None and quantity == 0:
-            availability = CommercialAvailability.UNKNOWN
-        elif available is None and quantity is None:
-            availability = CommercialAvailability.UNKNOWN
         else:
-            availability = CommercialAvailability.UNKNOWN
+            availability = CommercialAvailability.OUT_OF_STOCK
+    else:
+        availability, quantity = _availability_flag_table(available, quantity)
 
     return CommercialSourceCandidate(
         source_name=source_name,
@@ -502,11 +581,15 @@ def _map_ingram(source_section: dict[str, Any]) -> CommercialSourceCandidate | C
 def _map_cdw(source_section: dict[str, Any]) -> CommercialSourceCandidate | CommercialSourceIssue:
     """Map one CDW source section from the Vendor API response.
 
-    Reads only approved fields:
-    - manufacturerPartNumber
-    - price
-    - currencyCode
-    - inventoryStatus.stockStatus, inventoryStatus.Avl_Quantity
+    Reads only approved fields. Two bounded forms are supported:
+
+    * Canonical JSON wrapper form:
+      - manufacturerPartNumber, price, currencyCode
+      - inventoryStatus.stockStatus, inventoryStatus.Avl_Quantity
+    * Flat production section form (PROD-FIX1):
+      - manufacturerPartNumber, price, currency
+      - stockStatus, quantity / Avl_Quantity (top level)
+
     - documented not-found marker (NotFound, notFound, "Not Found")
     """
     source_name = "CDW"
@@ -549,8 +632,11 @@ def _map_cdw(source_section: dict[str, Any]) -> CommercialSourceCandidate | Comm
             outcome=SourceOutcome.MALFORMED_SECTION)
 
 
-    # Currency — must be str and nonempty
+    # Currency — must be str and nonempty (canonical: currencyCode,
+    # flat production form: currency)
     currency_raw = source_section.get("currencyCode")
+    if currency_raw is None:
+        currency_raw = source_section.get("currency")
     if not isinstance(currency_raw, str) or not currency_raw.strip():
         return CommercialSourceIssue(
             source_name=source_name,
@@ -560,12 +646,20 @@ def _map_cdw(source_section: dict[str, Any]) -> CommercialSourceCandidate | Comm
 
     # Availability
     inventory = source_section.get("inventoryStatus")
-    qty_raw = None
+    flat_inventory = inventory is None
     if isinstance(inventory, dict):
-        qty_raw = inventory.get("Avl_Quantity")
         stock_status = inventory.get("stockStatus", "")
+        qty_raw = inventory.get("Avl_Quantity")
     else:
-        stock_status = ""
+        # Flat production form: top-level stockStatus + quantity /
+        # Avl_Quantity. A non-dict inventoryStatus is ignored exactly as
+        # before (treated as absent), never a programming error.
+        stock_status = source_section.get("stockStatus", "")
+        if not isinstance(stock_status, str):
+            stock_status = ""
+        qty_raw = source_section.get("Avl_Quantity")
+        if qty_raw is None:
+            qty_raw = source_section.get("quantity")
 
     quantity = _safe_int(qty_raw)  # negative already rejected by _safe_int
 
@@ -577,6 +671,15 @@ def _map_cdw(source_section: dict[str, Any]) -> CommercialSourceCandidate | Comm
     elif stock_status == "OutOfStock":
         if quantity is not None and quantity > 0:
             availability = CommercialAvailability.UNKNOWN
+        else:
+            availability = CommercialAvailability.OUT_OF_STOCK
+    elif flat_inventory:
+        # Flat production form (PROD-FIX1) without a published stockStatus:
+        # quantity is the only stock signal (faithful mapping).
+        if quantity is None:
+            availability = CommercialAvailability.UNKNOWN
+        elif quantity > 0:
+            availability = CommercialAvailability.IN_STOCK
         else:
             availability = CommercialAvailability.OUT_OF_STOCK
     else:
@@ -596,18 +699,25 @@ def _map_cdw(source_section: dict[str, Any]) -> CommercialSourceCandidate | Comm
 def _map_synnex_eu(source_section: dict[str, Any]) -> CommercialSourceCandidate | CommercialSourceIssue:
     """Map one Synnex EU source section from the Vendor API response.
 
-    Reads only approved fields:
-    - OnlineCheck.Header.CurrencyCode
-    - OnlineCheck.Item.ManufacturerItemIdentifier
-    - OnlineCheck.Item.UnitPriceAmount
-    - OnlineCheck.Item.AvailabilityTotal
-    - OnlineCheck.Item.Note (bounded meanings only)
+    Reads only approved fields. Two bounded forms are supported:
+
+    * Canonical JSON wrapper form:
+      - OnlineCheck.Header.CurrencyCode
+      - OnlineCheck.Item.ManufacturerItemIdentifier
+      - OnlineCheck.Item.UnitPriceAmount
+      - OnlineCheck.Item.AvailabilityTotal
+      - OnlineCheck.Item.Note (bounded meanings only)
+    * Flat production section form (PROD-FIX1):
+      - ManufacturerItemIdentifier, UnitPriceAmount
+      - currency / CurrencyCode, AvailabilityTotal, Note
+
     - documented not-found marker (NotFound, notFound, "Not Found")
     - documented not-maintained semantics
 
     Not-maintained detection (before normal fields):
-    If OnlineCheck.Item.Note contains "not maintained" text,
-    result is NOT_FOUND with no candidate.
+    If the Note contains "not maintained" text, the result is NOT_FOUND
+    with no candidate. All non-allowlisted fields (e.g. session/account/
+    system identifiers) are ignored by construction.
     """
     source_name = "Synnex EU"
 
@@ -629,8 +739,81 @@ def _map_synnex_eu(source_section: dict[str, Any]) -> CommercialSourceCandidate 
             outcome=SourceOutcome.NOT_FOUND)
 
 
-    # Synnex EU uses OnlineCheck nesting
+    # Synnex EU uses OnlineCheck nesting (canonical form)
     online_check = source_section.get("OnlineCheck")
+    if online_check is None:
+        # ---- Flat production section form (PROD-FIX1) ----
+        note_raw = source_section.get("Note")
+        if isinstance(note_raw, str) and note_raw.strip():
+            if "not maintained" in note_raw.strip().lower():
+                # Not maintained in catalogue -> NOT_FOUND, no candidate
+                return CommercialSourceIssue(
+                    source_name=source_name,
+                    outcome=SourceOutcome.NOT_FOUND)
+
+        # Currency — flat field name: currency (canonical: CurrencyCode)
+        currency_raw = source_section.get("currency")
+        if currency_raw is None:
+            currency_raw = source_section.get("CurrencyCode")
+        if not isinstance(currency_raw, str) or not currency_raw.strip():
+            return CommercialSourceIssue(
+                source_name=source_name,
+                outcome=SourceOutcome.MALFORMED_SECTION)
+        currency_val = currency_raw.strip().upper()
+
+        # Explicit MPN (required)
+        vendor_mpn = source_section.get("ManufacturerItemIdentifier")
+        if vendor_mpn is None:
+            return CommercialSourceIssue(
+                source_name=source_name,
+                outcome=SourceOutcome.MISSING_EXPLICIT_MPN)
+        if not isinstance(vendor_mpn, str):
+            return CommercialSourceIssue(
+                source_name=source_name,
+                outcome=SourceOutcome.MALFORMED_SECTION)
+        if not vendor_mpn or not vendor_mpn.strip():
+            return CommercialSourceIssue(
+                source_name=source_name,
+                outcome=SourceOutcome.MISSING_EXPLICIT_MPN)
+
+        # Price — must be finite, nonnegative Decimal
+        price = _safe_decimal(source_section.get("UnitPriceAmount"))
+        if price is None or not price.is_finite() or price < 0:
+            return CommercialSourceIssue(
+                source_name=source_name,
+                outcome=SourceOutcome.MALFORMED_SECTION)
+
+        # Availability: numeric AvailabilityTotal (> 0 In Stock, 0 Out of
+        # Stock, missing/unparseable Unknown) — faithful to the flat form.
+        avail_int = _safe_int(source_section.get("AvailabilityTotal"))
+        if avail_int is not None and avail_int > 0:
+            availability = CommercialAvailability.IN_STOCK
+            quantity = avail_int
+        elif avail_int is not None and avail_int == 0:
+            availability = CommercialAvailability.OUT_OF_STOCK
+            quantity = 0
+        else:
+            availability = CommercialAvailability.UNKNOWN
+            quantity = None
+
+        # Note handling — only approved bounded meanings
+        note_kind: CommercialNoteKind | None = None
+        if isinstance(note_raw, str) and note_raw.strip():
+            if "no return" in note_raw.strip().lower():
+                note_kind = CommercialNoteKind.NO_RETURNS
+            # "not maintained" already handled above
+            # All other free-form note text is dropped
+
+        return CommercialSourceCandidate(
+            source_name=source_name,
+            explicit_candidate_mpn=str(vendor_mpn).strip(),
+            price_amount=price,
+            currency_code=currency_val,
+            availability=availability,
+            quantity=quantity,
+            price_basis=CommercialPriceBasis.LIST_PRICE,
+            note_kind=note_kind,
+        )
     if not isinstance(online_check, dict):
         return CommercialSourceIssue(
             source_name=source_name,
@@ -763,12 +946,415 @@ def _identify_and_map_source(source_section: dict[str, Any]) -> CommercialSource
         return _map_cdw(source_section)
     elif "OnlineCheck" in source_section:
         return _map_synnex_eu(source_section)
+    elif "ManufacturerItemIdentifier" in source_section:
+        # Flat production section form (PROD-FIX1): Synnex EU flat marker
+        return _map_synnex_eu(source_section)
 
     # Unknown source structure
     return CommercialSourceIssue(
         source_name="Unknown",
         outcome=SourceOutcome.MALFORMED_SECTION)
 
+
+# ---------------------------------------------------------------------------
+# Section-oriented production response (PROD-FIX1)
+# ---------------------------------------------------------------------------
+#
+# The production Vendor API answers HTTP 200 with
+# ``Content-Type: text/html; charset=utf-8`` and a body that is NOT one JSON
+# document. The body is plain text containing exactly three bounded section
+# labels, one per known upstream source::
+#
+#     Ingram Product: { ... }
+#     CDW Product: {Not Found}
+#     Synnex EU Product: { ... }
+#
+# Each section value is either the exact bounded not-found marker
+# ``{Not Found}`` or a bounded literal mapping whose fields are read by the
+# SAME allowlist mappers used for the canonical JSON wrapper contract. The
+# mapping is parsed by a strict recursive-descent parser below — no eval,
+# no literal_eval, no code execution. Only the three exact labels are
+# recognized; arbitrary section labels are never trusted, parsed, or
+# persisted. The raw body is never logged or persisted.
+#
+
+# Exact production section labels (case-sensitive) -> bounded source name
+_SECTION_HEADER_TO_SOURCE = (
+    ("Ingram Product", "Ingram"),
+    ("CDW Product", "CDW"),
+    ("Synnex EU Product", "Synnex EU"),
+)
+
+# Bounded parse limits (external content must not recurse/expand unbounded)
+_SECTION_MAX_DEPTH = 32
+_SECTION_MAX_ENTRIES = 256
+
+# Exact bounded not-found marker: { Not Found } (whitespace-tolerant)
+_SECTION_NOT_FOUND_RE = re.compile(r"\s*Not\s+Found\s*\}\s*")
+
+
+class _SectionValueParseError(ValueError):
+    """One section value deviated from the bounded literal grammar.
+
+    This is a bounded external-data failure (like a JSON decode error), not
+    a programming defect. It is raised per-section so one malformed source
+    cannot destroy independently valid siblings, and it never carries raw
+    upstream content in its message.
+    """
+
+
+class _BoundedLiteralParser:
+    """Strict recursive-descent parser for bounded upstream literals.
+
+    Grammar (nothing else is accepted — no eval, no literal_eval, no code):
+
+        value    := mapping | list | string | number | identifier
+        mapping  := '{' [entry (',' entry)* [',']] '}'
+        entry    := string ':' value
+        list     := '[' [value (',' value)* [',']] ']'
+        string   := (' | ") chars (' | ")   (escapes: backslash forms for
+                     quote/backslash/newline/tab/CR/BS/FF and \\uXXXX hex)
+        number   := ['-']? digits ['.' digits]   (finite Decimal, exact text)
+        identifier := True | False | true | false | None | null
+
+    * Numbers are parsed directly from the text token into ``Decimal`` —
+      no binary float ever touches a value.
+    * Mapping keys must be strings; duplicate keys are rejected.
+    * Nesting depth and per-container entry counts are bounded.
+    """
+
+    _ESCAPES = {
+        "n": "\n",
+        "t": "\t",
+        "r": "\r",
+        "b": "\b",
+        "f": "\f",
+        "'": "'",
+        '"': '"',
+        "\\": "\\",
+    }
+    _IDENTIFIERS = {
+        "True": True,
+        "False": False,
+        "true": True,
+        "false": False,
+        "None": None,
+        "null": None,
+    }
+
+    def __init__(self, text: str, start: int = 0) -> None:
+        self._text = text
+        self._pos = start
+        self._depth = 0
+
+    # -- low-level cursor helpers -----------------------------------------
+
+    def _peek(self) -> str:
+        if self._pos >= len(self._text):
+            return ""
+        return self._text[self._pos]
+
+    def _advance(self) -> str:
+        ch = self._peek()
+        if ch == "":
+            raise _SectionValueParseError("unexpected end of section value")
+        self._pos += 1
+        return ch
+
+    def _expect(self, expected: str) -> None:
+        ch = self._advance()
+        if ch != expected:
+            raise _SectionValueParseError(
+                f"expected {expected!r} in section value"
+            )
+
+    def _skip_ws(self) -> None:
+        while self._pos < len(self._text) and self._text[self._pos].isspace():
+            self._pos += 1
+
+    # -- grammar ------------------------------------------------------------
+
+    def parse_value(self):
+        self._skip_ws()
+        ch = self._peek()
+        if ch == "":
+            raise _SectionValueParseError("empty section value")
+        if ch == "{":
+            return self._parse_mapping()
+        if ch == "[":
+            return self._parse_list()
+        if ch in ("'", '"'):
+            return self._parse_string()
+        if ch in "-0123456789.":
+            return self._parse_number()
+        return self._parse_identifier()
+
+    def _parse_mapping(self) -> dict:
+        if self._depth >= _SECTION_MAX_DEPTH:
+            raise _SectionValueParseError("section literal too deep")
+        self._depth += 1
+        try:
+            self._expect("{")
+            result: dict = {}
+            self._skip_ws()
+            if self._peek() == "}":
+                self._advance()
+                return result
+            while True:
+                self._skip_ws()
+                if self._peek() not in ("'", '"'):
+                    raise _SectionValueParseError(
+                        "mapping key must be a quoted string"
+                    )
+                key = self._parse_string()
+                self._skip_ws()
+                self._expect(":")
+                value = self.parse_value()
+                if key in result:
+                    raise _SectionValueParseError("duplicate mapping key")
+                result[key] = value
+                if len(result) > _SECTION_MAX_ENTRIES:
+                    raise _SectionValueParseError("too many mapping entries")
+                self._skip_ws()
+                ch = self._peek()
+                if ch == ",":
+                    self._advance()
+                    self._skip_ws()
+                    if self._peek() == "}":  # trailing comma tolerated
+                        self._advance()
+                        return result
+                    continue
+                if ch == "}":
+                    self._advance()
+                    return result
+                raise _SectionValueParseError(
+                    "expected ',' or '}' in mapping"
+                )
+        finally:
+            self._depth -= 1
+
+    def _parse_list(self) -> list:
+        if self._depth >= _SECTION_MAX_DEPTH:
+            raise _SectionValueParseError("section literal too deep")
+        self._depth += 1
+        try:
+            self._expect("[")
+            result: list = []
+            self._skip_ws()
+            if self._peek() == "]":
+                self._advance()
+                return result
+            while True:
+                value = self.parse_value()
+                result.append(value)
+                if len(result) > _SECTION_MAX_ENTRIES:
+                    raise _SectionValueParseError("too many list entries")
+                self._skip_ws()
+                ch = self._peek()
+                if ch == ",":
+                    self._advance()
+                    self._skip_ws()
+                    if self._peek() == "]":  # trailing comma tolerated
+                        self._advance()
+                        return result
+                    continue
+                if ch == "]":
+                    self._advance()
+                    return result
+                raise _SectionValueParseError(
+                    "expected ',' or ']' in list"
+                )
+        finally:
+            self._depth -= 1
+
+    def _parse_string(self) -> str:
+        quote = self._advance()
+        out: list = []
+        while True:
+            if self._pos >= len(self._text):
+                raise _SectionValueParseError("unterminated string")
+            ch = self._text[self._pos]
+            if ch == quote:
+                self._pos += 1
+                return "".join(out)
+            if ch == "\\":
+                self._pos += 1
+                if self._pos >= len(self._text):
+                    raise _SectionValueParseError("unterminated escape")
+                esc = self._text[self._pos]
+                if esc in self._ESCAPES:
+                    out.append(self._ESCAPES[esc])
+                    self._pos += 1
+                elif esc == "u":
+                    hexdigits = self._text[self._pos + 1:self._pos + 5]
+                    if len(hexdigits) != 4 or not re.fullmatch(
+                        r"[0-9a-fA-F]{4}", hexdigits
+                    ):
+                        raise _SectionValueParseError(
+                            "invalid unicode escape"
+                        )
+                    out.append(chr(int(hexdigits, 16)))
+                    self._pos += 5
+                else:
+                    raise _SectionValueParseError("invalid escape sequence")
+            else:
+                out.append(ch)
+                self._pos += 1
+
+    def _parse_number(self) -> Decimal:
+        start = self._pos
+        if self._peek() == "-":
+            self._advance()
+        saw_digit = False
+        saw_dot = False
+        while self._pos < len(self._text):
+            ch = self._text[self._pos]
+            if ch in "0123456789":
+                saw_digit = True
+                self._pos += 1
+            elif ch == "." and not saw_dot:
+                saw_dot = True
+                self._pos += 1
+            else:
+                break
+        if not saw_digit:
+            raise _SectionValueParseError("malformed number literal")
+        token = self._text[start:self._pos]
+        try:
+            value = Decimal(token)  # exact: parsed from text, never float
+        except InvalidOperation:
+            raise _SectionValueParseError("malformed number literal") from None
+        if not value.is_finite():
+            raise _SectionValueParseError("non-finite number literal")
+        return value
+
+    def _parse_identifier(self):
+        start = self._pos
+        while self._pos < len(self._text):
+            ch = self._text[self._pos]
+            if ch.isascii() and (ch.isalnum() or ch == "_"):
+                self._pos += 1
+            else:
+                break
+        word = self._text[start:self._pos]
+        if word in self._IDENTIFIERS:
+            return self._IDENTIFIERS[word]
+        raise _SectionValueParseError("unrecognized literal token")
+
+    def trailing_is_whitespace_only(self) -> bool:
+        """True when nothing but whitespace follows the parsed value."""
+        pos = self._pos
+        while pos < len(self._text) and self._text[pos].isspace():
+            pos += 1
+        return pos == len(self._text)
+
+
+def _scan_section_oriented_body(body_text: str) -> list | None:
+    """Scan a plain-text body for the exact production section labels.
+
+    Returns a list of ``(source_name, value_text)`` in document order, or
+    ``None`` when no recognized section label is present (the body is not
+    the section-oriented production contract).
+
+    Strictness:
+    * Only the three exact labels are recognized (case-sensitive).
+    * A label must start at the beginning of a line (leading whitespace
+      tolerated) and be followed by ':' then whitespace or end-of-line.
+    * A section's value text is the remainder of the header line plus all
+      following lines up to the next recognized label line (or end of
+      body). Unrecognized text is ignored — never parsed, never persisted.
+    * If a label repeats, only the first occurrence is used (deterministic).
+    """
+    lines = body_text.splitlines()
+    found: list = []  # (line_idx, label, source)
+    for idx, line in enumerate(lines):
+        stripped = line.lstrip()
+        for label, source in _SECTION_HEADER_TO_SOURCE:
+            if stripped.startswith(label + ":"):
+                nxt = stripped[len(label) + 1:]
+                if nxt == "" or nxt[0].isspace():
+                    found.append((idx, label, source))
+                    break
+    if not found:
+        return None
+    sections: list = []
+    seen_sources: set = set()
+    for pos, (idx, label, source) in enumerate(found):
+        if source in seen_sources:
+            continue  # duplicate label: first occurrence wins
+        seen_sources.add(source)
+        end_idx = found[pos + 1][0] if pos + 1 < len(found) else len(lines)
+        line = lines[idx]
+        prefix_len = len(line) - len(line.lstrip())
+        remainder = line[prefix_len + len(label) + 1:]
+        value_text = "\n".join([remainder] + lines[idx + 1:end_idx])
+        sections.append((source, value_text))
+    return sections
+
+
+def _parse_section_value(value_text: str) -> tuple:
+    """Parse one section value strictly.
+
+    Returns ``("not_found", None)`` for the exact bounded not-found form
+    ``{Not Found}``, or ``("mapping", dict)`` for a strict bounded literal
+    mapping. Raises ``_SectionValueParseError`` on any deviation. Only
+    trailing whitespace may follow the parsed value.
+    """
+    text = value_text
+    pos = 0
+    while pos < len(text) and text[pos].isspace():
+        pos += 1
+    if pos >= len(text) or text[pos] != "{":
+        raise _SectionValueParseError("section value must start with '{'")
+    # Exact bounded not-found form: { Not Found }
+    if _SECTION_NOT_FOUND_RE.fullmatch(text[pos + 1:]):
+        return ("not_found", None)
+    parser = _BoundedLiteralParser(text, start=pos)
+    value = parser.parse_value()
+    if not isinstance(value, dict):
+        raise _SectionValueParseError("section value must be a mapping")
+    if not parser.trailing_is_whitespace_only():
+        raise _SectionValueParseError(
+            "unexpected trailing content after section value"
+        )
+    return ("mapping", value)
+
+
+# Bounded source name -> allowlist mapper (defined above in this module)
+_SECTION_SOURCE_TO_MAPPER = {
+    "Ingram": _map_ingram,
+    "CDW": _map_cdw,
+    "Synnex EU": _map_synnex_eu,
+}
+
+
+def _parse_and_map_section(
+    source_name: str, value_text: str
+) -> CommercialSourceCandidate | CommercialSourceIssue:
+    """Parse one bounded section value and map it through its source mapper.
+
+    One malformed section yields a bounded MALFORMED_SECTION issue and does
+    NOT destroy independently valid sibling sections. Programming defects in
+    the mappers propagate (no broad exception catch).
+    """
+    try:
+        kind, section = _parse_section_value(value_text)
+    except _SectionValueParseError:
+        logger.warning(
+            "Vendor API section value failed bounded parsing for source %s",
+            source_name,
+        )
+        return CommercialSourceIssue(
+            source_name=source_name,
+            outcome=SourceOutcome.MALFORMED_SECTION,
+        )
+    if kind == "not_found":
+        return CommercialSourceIssue(
+            source_name=source_name,
+            outcome=SourceOutcome.NOT_FOUND,
+        )
+    mapper = _SECTION_SOURCE_TO_MAPPER[source_name]
+    return mapper(section)
 
 
 # ---------------------------------------------------------------------------
@@ -867,23 +1453,24 @@ class InternalVendorAdapter:
                 retrieved_at=None,
             )
 
-        # Parse JSON with Decimal for exact monetary values.
-        # parse_float=Decimal preserves precision; no binary float conversion.
-        # parse_constant=_reject_json_constant rejects NaN/Infinity/-Infinity.
+        # Parse the response body against the bounded upstream contracts.
+        #
+        # Contract 1 (canonical): one JSON document. Decimal-aware parse
+        # (parse_float=Decimal preserves precision; no binary float
+        # conversion). parse_constant=_reject_json_constant rejects
+        # NaN/Infinity/-Infinity.
+        #
+        # Contract 2 (production, PROD-FIX1): the real Vendor API answers
+        # with Content-Type text/html and a body that is NOT one JSON
+        # document — a plain-text, section-oriented body with the three
+        # exact bounded section labels (Ingram / CDW / Synnex EU). When
+        # contract 1 fails, the strict section parser is attempted before
+        # the lookup is failed. The raw body is never logged or persisted.
         try:
             body_text = body_bytes.decode("utf-8")
-            payload = json.loads(
-                body_text,
-                parse_float=Decimal,
-                parse_constant=_reject_json_constant,
-            )
-        except (
-            json.JSONDecodeError,
-            UnicodeDecodeError,
-            _InvalidVendorJsonConstant,
-        ) as exc:
+        except UnicodeDecodeError:
             logger.warning(
-                "Vendor API response JSON parse failed for MPN %s",
+                "Vendor API response is not valid UTF-8 for MPN %s",
                 query.mpn,
             )
             return CommercialSourceResponse(
@@ -891,6 +1478,24 @@ class InternalVendorAdapter:
                 retrieved_at=None,
             )
 
+        json_parse_failed = False
+        payload = None
+        try:
+            payload = json.loads(
+                body_text,
+                parse_float=Decimal,
+                parse_constant=_reject_json_constant,
+            )
+        except (json.JSONDecodeError, _InvalidVendorJsonConstant):
+            json_parse_failed = True
+
+        if json_parse_failed:
+            # -------- production section-oriented contract (PROD-FIX1) -----
+            # The body is NOT one JSON document. Attempt the strict bounded
+            # section parser before failing the lookup.
+            return self._lookup_from_section_body(body_text, query.mpn)
+
+        # ---------------- canonical JSON wrapper contract ----------------
         # Record retrieval time
         retrieved_at = datetime.now(timezone.utc)
 
@@ -950,6 +1555,65 @@ class InternalVendorAdapter:
             issues=tuple(issues),
         )
 
+    def _lookup_from_section_body(
+        self, body_text: str, mpn: str
+    ) -> CommercialSourceResponse:
+        """Parse the production section-oriented body (PROD-FIX1).
+
+        Strict bounded parsing only:
+        * exactly three recognized section labels (never arbitrary labels)
+        * exact ``{Not Found}`` bounded not-found marker
+        * strict recursive-descent literal grammar (no eval / literal_eval)
+        * one malformed section yields a bounded issue and does NOT destroy
+          independently valid sibling sections
+
+        The raw body text is never logged or persisted; only normalized,
+        allowlist-mapped observations reach the response.
+        """
+        sections = _scan_section_oriented_body(body_text)
+        if sections is None:
+            # Neither supported contract recognized -> FAILED.
+            logger.warning(
+                "Vendor API response matched no supported contract for MPN %s",
+                mpn,
+            )
+            return CommercialSourceResponse(
+                status=LookupStatus.FAILED,
+                retrieved_at=None,
+            )
+
+        # Parse and map each section independently
+        candidates: list[CommercialSourceCandidate] = []
+        issues: list[CommercialSourceIssue] = []
+        for source_name, value_text in sections:
+            result = _parse_and_map_section(source_name, value_text)
+            if isinstance(result, CommercialSourceCandidate):
+                candidates.append(result)
+            else:
+                issues.append(result)
+
+        # Record retrieval time (contract recognized and parsed)
+        retrieved_at = datetime.now(timezone.utc)
+
+        # Determine overall status (same bounded rules as the JSON contract)
+        if candidates:
+            status = (
+                LookupStatus.SUCCESS if not issues else LookupStatus.PARTIAL
+            )
+        elif issues:
+            status = LookupStatus.PARTIAL if any(
+                i.outcome == SourceOutcome.NOT_FOUND for i in issues
+            ) else LookupStatus.FAILED
+        else:
+            status = LookupStatus.FAILED
+
+        return CommercialSourceResponse(
+            status=status,
+            retrieved_at=retrieved_at,
+            candidates=tuple(candidates),
+            issues=tuple(issues),
+        )
+
     def _extract_source_sections(self, payload: dict[str, Any]) -> list[dict[str, Any]]:
         """Extract individual source sections from the Vendor API response.
 
@@ -977,6 +1641,7 @@ class InternalVendorAdapter:
                 "vendorPartNumber" in value
                 or "manufacturerPartNumber" in value
                 or "OnlineCheck" in value
+                or "ManufacturerItemIdentifier" in value  # PROD-FIX1 flat form
                 or "sourceName" in value
                 or "NotFound" in value
                 or "notFound" in value
