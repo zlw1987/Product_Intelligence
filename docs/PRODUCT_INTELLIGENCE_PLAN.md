@@ -34,11 +34,20 @@ web execution/retry integration, FU3A/FU3B implement semantic qualification
 and semantic execution integration, and HUMAN-REVIEW implements human review
 for AI-assisted semantic matches. The web form creates a run, triggers
 execution synchronously, and redirects to the report with the full result.
-Remaining future work: structured API (5A). 4D-B is APPROVED/FROZEN.
-4D-C-A is APPROVED/FROZEN. 4D-C-SEC is APPROVED/FROZEN.
-4D-C is APPROVED/FROZEN. 4D-D-PRE1 is APPROVED/FROZEN and 4D-D-PRE2 is
-APPROVED/FROZEN (evidence SHA 1cb65a3d6002006af9e1c77906a6de6b5a3fd42c).
-4D-D is IMPLEMENTED / PENDING FINAL REVIEW (v1 scope: Micron 7500 SSD only).
+PRODUCT-INTEL.4D (Customer Quote Research Expansion) is
+IMPLEMENTED / APPROVED / FROZEN / COMPLETE: 4D-B is APPROVED/FROZEN,
+4D-C-A is APPROVED/FROZEN, 4D-C-SEC is APPROVED/FROZEN, 4D-C is
+APPROVED/FROZEN, 4D-D-PRE1 is APPROVED/FROZEN and 4D-D-PRE2 is
+APPROVED/FROZEN (evidence SHA 1cb65a3d6002006af9e1c77906a6de6b5a3fd42c),
+and 4D-D (including 4D-D-FU1) is APPROVED/FROZEN (v1 scope: Micron 7500
+SSD only; frozen SHA 065320180c17b89c7460164326a0c9f49e01fe3b; frozen
+baseline 5097 collected; final acceptance 5097 passed, 0 failed, 0
+skipped, 0 xfailed, 0 deselected, +39 subtests passed). The immediate
+next delivery is PRODUCT-INTEL.PILOT-RELEASE-2 (4D Customer Requirement
+Deployment & UAT), PLANNED — a deployment/UAT phase, not a
+feature-development phase. Remaining future feature work: structured API
+(5A, PLANNED / NOT IMPLEMENTED / NON-BLOCKING), then 8A/8B/8C (later
+planned; not implemented).
 
 ## 2. Problem statement
 
@@ -219,8 +228,13 @@ human review (HUMAN-REVIEW) is implemented and frozen. Still-not-implemented:
 structured API (5A). 6A/6B/6C are implemented and frozen (product specification
 framework, Enterprise SSD category schema, specification evidence extraction
 and resolution). 7A/7B/7C are implemented and frozen (comparable-product
-candidate discovery, similarity scoring, comparison presentation). 4D is the
-next planned phase.
+candidate discovery, similarity scoring, comparison presentation). 4D
+(Customer Quote Research Expansion) is IMPLEMENTED / APPROVED / FROZEN /
+COMPLETE. The next planned delivery is PILOT-RELEASE-2 (4D Customer
+Requirement Deployment & UAT; PLANNED; deployment/UAT phase, not a
+feature-development phase). The next planned feature phase is 5A
+(structured API; PLANNED / NOT IMPLEMENTED / NON-BLOCKING for the current
+FoxPro/browser workflow).
 
 ## 6. Multi-interface intake design
 
@@ -2385,11 +2399,15 @@ prior run. General caching/freshness remains `DEFERRED` to 8A.
   followed — this is a live risk once an LLM is involved.
 * **Report URLs are not an access-control mechanism.** A run's identifier is a
   random UUID (§15.3), which resists enumeration and does nothing else: it
-  authenticates nobody and authorizes nothing. Whether reports need
-  authentication, and what visibility they have, is still `UNDECIDED` and must
-  be settled before any deployment beyond a trusted internal network. Choosing
-  the identifier scheme in 1A did not answer that question and must not be read
-  as having answered it.
+  authenticates nobody and authorizes nothing. For the current restricted
+  internal pilot deployment, the project-lead decision is that people who can
+  reach the internal pilot server are currently considered authorized for this
+  pilot; PILOT-RELEASE-2 introduces no application authentication, no
+  login/session identity, no OAuth, and no per-user authorization. Whether
+  reports need authentication, and what visibility they have, remains to be
+  settled before any deployment beyond a trusted internal network (8C
+  production hardening). Choosing the identifier scheme in 1A did not answer
+  that question and must not be read as having answered it.
 * **`DEBUG` off and a real `SECRET_KEY`** are required for any deployment.
   The repository default is explicitly development-only.
 
@@ -2401,6 +2419,18 @@ blocker rather than an open question. Public market pricing shown to an internal
 audience is a different exposure from a distributor's negotiated price shown to
 whoever holds a URL. Launcher URLs remain URL builders throughout and never
 carry provider or authentication secrets (AD-005).
+
+The current security posture has three distinct layers, kept separate in this
+documentation so they are not conflated: (1) the current restricted internal
+deployment assumption — the pilot server itself has restricted access, and
+people who can reach this internal server are currently considered authorized
+for this pilot; (2) the existing frozen vendor-price network gate — 4D-C-SEC
+`REMOTE_ADDR` / `PI_VENDOR_PRICE_ALLOWED_CIDRS` (unchanged by
+PILOT-RELEASE-2); and (3) future broader production-hardening concerns —
+full application authentication, login/session identity, OAuth, and
+per-user authorization, which remain `DEFERRED` to 8C and are NOT part of
+PILOT-RELEASE-2. The report UUID is never access control, and no
+session-based authorization is introduced.
 
 **4D-B is the phase that triggers this gate.** Before 4D-B vendor/customer
 commercial prices are exposed in the report, deployment MUST verify or
@@ -2770,7 +2800,7 @@ PRODUCT-INTEL.5B   Visual FoxPro 5 launcher integration       IMPLEMENTED
 PRODUCT-INTEL.HUMAN-REVIEW  Human review for AI-assisted matches  IMPLEMENTED
 PRODUCT-INTEL.PILOT-RELEASE-1  Internal pilot deployment          DEPLOYED / ACCEPTED
 
------ PILOT DEPLOYED / ACCEPTED — NEXT: 4D -----
+----- PILOT DEPLOYED / ACCEPTED — 4D COMPLETE — NEXT: PILOT-RELEASE-2 -----
 
 PRODUCT-INTEL.4D-PRE  Preferred Source Feasibility Audit         APPROVED / FROZEN
 PRODUCT-INTEL.4D-A    Source Acquisition Optimization            APPROVED / FROZEN
@@ -2778,9 +2808,16 @@ PRODUCT-INTEL.4D-B    Internal Vendor Commercial Evidence        APPROVED / FROZ
 PRODUCT-INTEL.4D-C-A  ECB FX + Compact Quote Projection          APPROVED / FROZEN
 PRODUCT-INTEL.4D-C-SEC Vendor Commercial Price Access Gate        APPROVED / FROZEN
 PRODUCT-INTEL.4D-C    Compact Quote Summary (browser rendering)  APPROVED / FROZEN
-PRODUCT-INTEL.4D-D    Micron Packaging Alias Retrieval           IMPLEMENTED / PENDING FINAL REVIEW
+PRODUCT-INTEL.4D-D-PRE1 Early 4D-D authority feasibility review  APPROVED / FROZEN
+PRODUCT-INTEL.4D-D-PRE2 Micron official authority evidence capture
+                                                                APPROVED / FROZEN
+PRODUCT-INTEL.4D-D    Micron Packaging Alias Retrieval (incl. 4D-D-FU1)
+                                                                APPROVED / FROZEN
 
------ PRODUCT-INTEL.4D — Customer Quote Research Expansion -----
+----- PRODUCT-INTEL.4D — Customer Quote Research Expansion: COMPLETE -----
+
+PRODUCT-INTEL.PILOT-RELEASE-2  4D Customer Requirement Deployment
+                   & UAT                                       PLANNED
 
 ----- FOXPRO MVP + HUMAN REVIEW -----
 
@@ -2819,12 +2856,35 @@ DEPLOYED / ACCEPTED:
                    semantic, human review, comparable research, persistent
                    SQLite, Windows service)
 
-NEXT — PRODUCT-INTEL.4D (Customer Quote Research Expansion):
-  4D-PRE  Preferred Source Feasibility Audit
-  4D-A    Source Acquisition Optimization
-  4D-B    Internal Vendor Commercial Evidence
-  4D-C    Compact Quote Summary
-  4D-D    Micron Packaging Alias Retrieval
+COMPLETE — PRODUCT-INTEL.4D (Customer Quote Research Expansion):
+  IMPLEMENTED / APPROVED / FROZEN / COMPLETE
+  4D-PRE  Preferred Source Feasibility Audit (approved / frozen)
+  4D-A    Source Acquisition Optimization (approved / frozen)
+  4D-B    Internal Vendor Commercial Evidence (approved / frozen)
+  4D-C    Compact Quote Summary (4D-C-A + 4D-C-SEC + 4D-C, approved / frozen)
+  4D-D    Micron Packaging Alias Retrieval (incl. 4D-D-FU1; approved /
+          frozen at SHA 065320180c17b89c7460164326a0c9f49e01fe3b,
+          baseline 5097 collected, final acceptance 5097 passed)
+
+NEXT — PRODUCT-INTEL.PILOT-RELEASE-2 (4D Customer Requirement Deployment
+& UAT): PLANNED
+  Deploy the already-frozen 4D customer requirements to the restricted
+  internal Windows pilot server and validate the complete real business
+  workflow before starting another architecture feature phase.
+  Deployment/UAT phase, not a feature-development phase. UAT covers
+  (high level): direct-source acquisition via a viable preferred-source
+  case; normal Serper fallback; real Vendor API commercial evidence;
+  compact quote rendering; non-USD vendor evidence + persisted ECB USD
+  equivalent; Micron 7500 packaging-alias BASE/R/T behavior; a non-eligible
+  MPN proving alias abstention; Visual FoxPro launcher -> browser prefill
+  against the deployed server; historical report reload causing zero new
+  Search/Vendor/ECB/Micron/Semantic live work; vendor-price access behavior
+  under the existing frozen network gate (4D-C-SEC, unchanged).
+  Authentication: current restricted internal pilot deployment assumption
+  (reachability = authorized for this pilot); full application
+  authentication remains a deferred 8C production-hardening concern; the
+  frozen 4D-C-SEC REMOTE_ADDR / PI_VENDOR_PRICE_ALLOWED_CIDRS gate is
+  unchanged; report UUID is not access control.
 
 IMPLEMENTED (frozen):
   4C-A  Execution ownership/lifecycle/evidence primitives
@@ -3470,7 +3530,7 @@ observations, normalized observations, resolutions, category schemas,
 and the resolver. 6B uses only CategorySchema and the normalization
 primitive — it does not call resolve_specification().
 
-6C (next delivery priority) owns evidence acquisition and extraction:
+6C (now IMPLEMENTED / APPROVED / FROZEN) owns evidence acquisition and extraction:
 it acquires specification evidence from approved sources, extracts raw
 specification observations, preserves source provenance, normalizes
 using the 6B category schema, and feeds normalized evidence into the
@@ -4191,7 +4251,7 @@ This canonical plan does not duplicate that operational snapshot.
 
 ## 26. Customer Quote Research Expansion — 4D Phase Architecture
 
-**Status: PARTIALLY IMPLEMENTED**
+**Status: IMPLEMENTED / APPROVED / FROZEN / COMPLETE**
 
 4D-PRE — APPROVED / FROZEN (Preferred Source Feasibility Audit, evidence only)
 4D-A — APPROVED / FROZEN (Source Acquisition Optimization)
@@ -4211,12 +4271,25 @@ This canonical plan does not duplicate that operational snapshot.
      at the time: NO CURRENT 4D-D ELIGIBILITY AUTHORITY EXISTS)
 4D-D-PRE2 — APPROVED / FROZEN (Micron official authority evidence capture;
      evidence SHA 1cb65a3d6002006af9e1c77906a6de6b5a3fd42c)
-4D-D — IMPLEMENTED / PENDING FINAL REVIEW (Micron Packaging Alias Retrieval;
+4D-D — APPROVED / FROZEN (Micron Packaging Alias Retrieval, incl. 4D-D-FU1;
      v1 scope: Micron 7500 SSD ONLY)
+     Frozen SHA: 065320180c17b89c7460164326a0c9f49e01fe3b
+     Frozen baseline: 5097 collected
+     Final acceptance: 5097 passed, 0 failed, 0 skipped, 0 xfailed,
+     0 deselected (+ 39 subtests passed)
 
 Note: 4D-C security gate (trusted network/VPN access control) is resolved by
 the frozen 4D-C-SEC REMOTE_ADDR-only access policy. Report UUID is not access
 control.
+
+The complete 4D phase is closed. The next delivery is
+PRODUCT-INTEL.PILOT-RELEASE-2 — 4D Customer Requirement Deployment & UAT
+(PLANNED): deploy the already-frozen 4D customer requirements to the
+restricted internal Windows pilot server and validate the complete real
+business workflow before starting another architecture feature phase. It is
+a deployment/UAT phase, not a feature-development phase. 5A remains PLANNED /
+NOT IMPLEMENTED / NON-BLOCKING, and 8A/8B/8C remain later planned
+(directional; not an approved implementation order).
 
 ### 26.0 Overview
 
@@ -4642,7 +4715,8 @@ It may generate retrieval aliases:
 If a later phase wants these variants to enter authoritative pricing, that
 requires independent evidence-backed validation.
 
-**4D-D implementation record (IMPLEMENTED / PENDING FINAL REVIEW):**
+**4D-D implementation record (original candidate pass — historical; final
+state APPROVED / FROZEN via the 4D-D FU1 record below):**
 
 Implemented against the frozen 4D-D-PRE2 evidence (SHA
 1cb65a3d6002006af9e1c77906a6de6b5a3fd42c). v1 scope is binding: Micron 7500
@@ -4707,10 +4781,12 @@ Collection accounting (frozen 4D-C baseline 4766 -> 5052):
 | Automatic parameterized expansion (domain +2, providers +4, research identity +8, runs +4, web +9) | 27 |
 | **4D-D collection** | **5052** |
 
-Not marked APPROVED/FROZEN: freeze follows independent review of the pushed
-commit.
+State at the time of this record: the candidate was IMPLEMENTED / PENDING
+FINAL REVIEW and was not approved; independent review identified
+source-level defects, corrected by the 4D-D-FU1 pass below. Final state:
+APPROVED / FROZEN (see the 4D-D FU1 record).
 
-**4D-D FU1 implementation record (IMPLEMENTED / PENDING FINAL REVIEW):**
+**4D-D FU1 implementation record (APPROVED / FROZEN):**
 
 Append-only correction pass on the 4D-D implementation commit; fixes three
 independently verified source-level acceptance blockers without changing any
@@ -4767,8 +4843,15 @@ semantics.
   contract defects propagate), `execution/search_query.py` (OR shape in
   `build_alias_expanded_search_query` only).
 
-Not marked APPROVED/FROZEN: 4D-D remains IMPLEMENTED / PENDING FINAL REVIEW;
-freeze follows independent review of the pushed FU1 commit.
+Independent review of the pushed FU1 commit (ChatGPT, acting as project lead
+/ independent architecture reviewer) is complete and approved
+PRODUCT-INTEL.4D-D-FU1. PRODUCT-INTEL.4D-D (including 4D-D-FU1) is
+APPROVED / FROZEN:
+
+Frozen SHA: 065320180c17b89c7460164326a0c9f49e01fe3b
+Frozen collection baseline: 5097 collected
+Final acceptance execution: 5097 passed, 0 failed, 0 skipped, 0 xfailed,
+0 deselected (+ 39 subtests passed)
 
 ### 26.8 Deferred items for 4D
 
@@ -4787,3 +4870,40 @@ The following are NOT pulled into 4D unless already documented as future:
 8A caching / refresh remains later.
 8B research history remains later.
 8C production hardening remains later.
+
+### 26.9 Next delivery — PILOT-RELEASE-2: 4D Customer Requirement Deployment & UAT
+
+**Status: PLANNED** (deployment/UAT phase, not a feature-development phase).
+
+Purpose: deploy the already-frozen 4D customer requirements to the restricted
+internal Windows pilot server and validate the complete real business
+workflow before starting another architecture feature phase.
+
+UAT coverage (high level):
+- direct-source acquisition using a viable preferred-source case
+- normal Serper fallback
+- real Vendor API commercial evidence
+- compact quote rendering
+- non-USD vendor evidence + persisted ECB USD equivalent
+- Micron 7500 packaging-alias BASE/R/T behavior
+- a non-eligible MPN proving alias abstention
+- Visual FoxPro launcher -> browser prefill against the deployed server
+- historical report reload causing zero new Search/Vendor/ECB/Micron/Semantic
+  live work
+- vendor-price access behavior under the existing frozen network gate
+  (4D-C-SEC `REMOTE_ADDR` / `PI_VENDOR_PRICE_ALLOWED_CIDRS`, unchanged)
+
+Authentication/session decision for the current pilot:
+- The current pilot server itself has restricted access; people who can reach
+  this internal server are currently considered authorized for this pilot.
+- Full application authentication, login/session identity, OAuth, and
+  per-user authorization are NOT part of PILOT-RELEASE-2; they remain
+  deferred future production-hardening concerns (8C). No authentication or
+  session design is introduced by this phase.
+- The report UUID is never access control.
+- The frozen 4D-C-SEC vendor-commercial-price network gate is unchanged.
+
+Later planned (directional; not an approved implementation order):
+5A (structured external API — PLANNED / NOT IMPLEMENTED / NON-BLOCKING for
+the current FoxPro/browser workflow), 8A (caching / refresh strategy),
+8B (research history), 8C (production hardening).

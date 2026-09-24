@@ -27,14 +27,46 @@ HUMAN-REVIEW Human Review for AI-Assisted Matches APPROVED/FROZEN;
 7B Enterprise SSD Similarity Scoring IMPLEMENTED / APPROVED / FROZEN.**
 6D Authoritative Datasheet Specification Enrichment IMPLEMENTED / APPROVED / FROZEN
 
-**NEXT: PRODUCT-INTEL.4D (Customer Quote Research Expansion)**
+**PRODUCT-INTEL.4D — Customer Quote Research Expansion:
+IMPLEMENTED / APPROVED / FROZEN / COMPLETE**
 
-4D is partially implemented. 4D-PRE and 4D-A are approved and frozen.
-4D-B is approved and frozen. 4D-C-A is APPROVED / FROZEN. 4D-C-SEC is APPROVED / FROZEN.
-4D-C (browser rendering) is APPROVED / FROZEN. 4D-D-PRE1 is APPROVED / FROZEN.
-4D-D-PRE2 is APPROVED / FROZEN (evidence SHA
-1cb65a3d6002006af9e1c77906a6de6b5a3fd42c). 4D-D is IMPLEMENTED / PENDING
-FINAL REVIEW (correction pass 4D-D-FU1 implemented, pending review).
+The complete customer-requirement expansion is closed: every 4D component
+is approved and frozen. 4D-D (including correction pass 4D-D-FU1) was
+IMPLEMENTED / PENDING FINAL REVIEW as the original candidate, was corrected
+by FU1, was independently reviewed afterward, and is now APPROVED / FROZEN
+(the candidate narrative below is preserved as history).
+
+4D freeze record (4D-D, the last component frozen):
+Frozen SHA: 065320180c17b89c7460164326a0c9f49e01fe3b
+Frozen collection baseline: 5097 collected
+Final acceptance execution: 5097 passed, 0 failed, 0 skipped,
+0 xfailed, 0 deselected (+ 39 subtests passed)
+
+**NEXT: PRODUCT-INTEL.PILOT-RELEASE-2 (4D Customer Requirement
+Deployment & UAT)** — PLANNED
+
+Deployment/UAT phase, not a feature-development phase: deploy the
+already-frozen 4D customer requirements to the restricted internal
+Windows pilot server and validate the complete real business workflow
+before starting another architecture feature phase. High-level UAT
+coverage: direct-source acquisition using a viable preferred-source
+case; normal Serper fallback; real Vendor API commercial evidence;
+compact quote rendering; non-USD vendor evidence + persisted ECB USD
+equivalent; Micron 7500 packaging-alias BASE/R/T behavior; a non-eligible
+MPN proving alias abstention; Visual FoxPro launcher -> browser prefill
+against the deployed server; historical report reload causing zero new
+Search/Vendor/ECB/Micron/Semantic live work; vendor-price access behavior
+under the existing frozen network gate (4D-C-SEC REMOTE_ADDR /
+PI_VENDOR_PRICE_ALLOWED_CIDRS, unchanged).
+
+Current pilot authentication decision: the pilot server itself has
+restricted access; people who can reach this internal server are
+currently considered authorized for this pilot. Full application
+authentication, login/session identity, OAuth, and per-user
+authorization are NOT part of PILOT-RELEASE-2; they remain deferred
+future production-hardening concerns (8C). Report UUID is not access
+control. No session-based authorization is introduced. The frozen
+4D-C-SEC vendor-price network gate is unchanged.
 
 ```
 4D-PRE  Preferred Source Feasibility Audit  (evidence only) — APPROVED / FROZEN
@@ -45,8 +77,8 @@ FINAL REVIEW (correction pass 4D-D-FU1 implemented, pending review).
 4D-C    Compact Quote Summary (browser rendering) — APPROVED / FROZEN
 4D-D-PRE1 Early 4D-D authority feasibility review — APPROVED / FROZEN
 4D-D-PRE2 Micron official authority evidence capture — APPROVED / FROZEN
-4D-D    Micron Packaging Alias Retrieval — IMPLEMENTED / PENDING FINAL REVIEW
-4D-D-FU1 Runtime reachability + query-semantics closure — IMPLEMENTED / PENDING FINAL REVIEW
+4D-D    Micron Packaging Alias Retrieval — APPROVED / FROZEN
+4D-D-FU1 Runtime reachability + query-semantics closure — APPROVED / FROZEN
 ```
 
 **PRODUCT-INTEL.4D-B — APPROVED / FROZEN**
@@ -201,7 +233,14 @@ the `is-ssd` category proof; R/T per-part endpoints return
 `Invalid Partnumber` and R/T page metadata is template echo — neither is
 authority; no official R/T packaging-semantic statement exists.
 
-**PRODUCT-INTEL.4D-D — IMPLEMENTED / PENDING FINAL REVIEW**
+**PRODUCT-INTEL.4D-D — APPROVED / FROZEN** (including correction pass
+4D-D-FU1; the original candidate state — IMPLEMENTED / PENDING FINAL
+REVIEW until corrected — is historical; see the FU1 approval record below)
+
+Frozen SHA: 065320180c17b89c7460164326a0c9f49e01fe3b
+Frozen collection baseline: 5097 collected
+Final acceptance execution: 5097 passed, 0 failed, 0 skipped, 0 xfailed,
+0 deselected (+ 39 subtests passed)
 
 Micron Packaging Alias Retrieval, v1 scope: **Micron 7500 SSD ONLY** (not
 generic Micron memory, not DRAM, not any other family; extending requires
@@ -335,7 +374,7 @@ guard gains `ResearchMicronAliasSnapshot`; model inventories in
   assertions preserved, none deleted, renamed, skipped, xfailed, or
   deselected.
 
-**PRODUCT-INTEL.4D-D-FU1 — IMPLEMENTED / PENDING FINAL REVIEW**
+**PRODUCT-INTEL.4D-D-FU1 — APPROVED / FROZEN**
 
 Runtime reachability + query-semantics closure for 4D-D (append-only
 correction on top of the 4D-D implementation commit; the 4D-D scope,
@@ -406,11 +445,18 @@ media-type capability, defaults unchanged), `execution/orchestration.py`
 contract defects propagate), `execution/search_query.py` (OR query shape in
 `build_alias_expanded_search_query`; `build_search_query` byte-identical).
 
-NOT marked APPROVED/FROZEN: 4D-D remains IMPLEMENTED / PENDING FINAL
-REVIEW; final approval/freeze happens only after independent review of the
-pushed FU1 commit.
+Independent review of the pushed FU1 commit (ChatGPT, acting as project
+lead / independent architecture reviewer) is complete and approved
+PRODUCT-INTEL.4D-D-FU1. PRODUCT-INTEL.4D-D (including 4D-D-FU1) is
+APPROVED / FROZEN:
 
-**Final acceptance evidence (this session):**
+Frozen SHA: 065320180c17b89c7460164326a0c9f49e01fe3b
+Frozen collection baseline: 5097 collected
+Final acceptance execution: 5097 passed, 0 failed, 0 skipped, 0 xfailed,
+0 deselected (+ 39 subtests passed)
+
+**Acceptance evidence (this session, candidate pass — historical; the
+final accepted execution at 5097 followed the FU1 correction):**
 
 - Focused 4D-D matrix (7 files): 258 passed.
 - Collection: 4766 (frozen 4D-C baseline) + 258 (explicit new focused 4D-D
@@ -436,8 +482,11 @@ files byte-identical to the parent (mechanically verified).
 - Process disclosure: an earlier interrupted 4D-D diagnostic session used
 `--deselect` once (530 passed, 7 deselected — diagnostic boundary run only,
 no test modified); the final acceptance suite used zero deselection.
-- NOT marked APPROVED/FROZEN: final approval/freeze happens only after
-independent review of the pushed commit.
+- Historical marker: the 5052-collection numbers above record the
+  candidate pass (pre-FU1). Final approval/freeze happened only after
+  independent review of the pushed FU1 commit — APPROVED / FROZEN at
+  SHA 065320180c17b89c7460164326a0c9f49e01fe3b, 5097 collected,
+  5097 passed (see the 4D-D-FU1 approval record above).
 
 Semantic qualification is APPROVED AND FROZEN:
 - Semantic qualification corpus, prompt v1.1, evaluator mathematics,
@@ -546,18 +595,19 @@ FU3B wires the frozen FU3A semantic runtime into real research execution:
 | Phase | Description | Status |
 | --- | --- | --- |
 | PILOT-RELEASE-1 | Internal pilot deployment | **DEPLOYED / ACCEPTED** |
+| PILOT-RELEASE-2 | 4D Customer Requirement Deployment & UAT | **PLANNED** (next delivery; deployment/UAT phase, not feature development) |
 | 4D-PRE | Preferred Source Feasibility Audit | Implemented (evidence only, frozen) |
 | 4D-A | Source Acquisition Optimization | Implemented (frozen) |
 | 4D-B | Internal Vendor Commercial Evidence | **Implemented (approved / frozen)** |
 | 4D-C-A | ECB FX + Compact Quote Projection Foundation | **IMPLEMENTED / APPROVED / FROZEN** |
 | 4D-C-SEC | Vendor Commercial Price Access Gate | **IMPLEMENTED / APPROVED / FROZEN** |
 | 4D-C | Compact Quote Summary (browser rendering) | **IMPLEMENTED / APPROVED / FROZEN** |
-| 4D-D | Micron Packaging Alias Retrieval | Implemented (pending final review; PRE1 + PRE2 frozen) |
+| 4D-D | Micron Packaging Alias Retrieval (incl. 4D-D-FU1) | **Implemented (approved / frozen)**; PRE1 + PRE2 frozen; frozen SHA 065320180c17b89c7460164326a0c9f49e01fe3b; frozen baseline 5097 collected |
 | 4C-A | Execution ownership/lifecycle/evidence primitives | Implemented (frozen) |
 | 4C-B | Backend research execution | Implemented (frozen) |
 | 4C-B-FU | Exact duplicate deduplication | Implemented (frozen) |
 | 4C-C | Web execution/retry integration | Implemented (frozen) |
-| 5A | Structured external API | Not implemented |
+| 5A | Structured external API | Planned (not implemented; non-blocking for the current FoxPro/browser workflow) |
 | 5B | FoxPro launcher | Server-side implemented; client integrated outside repo, UAT passed |
 | PILOT-UX | Pilot UX polish + semantic qualification | **FROZEN** |
 | HUMAN-REVIEW | Human review for AI-assisted semantic matches | Implemented (frozen)
@@ -649,11 +699,11 @@ FU3B wires the frozen FU3A semantic runtime into real research execution:
 | Commercial Price Access Gate (4D-C-SEC) | `web/commercial_access.py` | **Implemented (approved / frozen)** |
 | Compact Quote Public Replay (4D-C) | `execution/compact_quote_public_replay.py` | **Implemented (approved / frozen)** |
 | Compact Quote Browser Presentation (4D-C) | `web/compact_quote_presentation.py` | **Implemented (approved / frozen)** |
-| Micron 7500 Packaging Alias Contracts (4D-D) | `research/micron_packaging_alias.py` | Implemented (pending final review) |
-| Micron Alias Snapshot Codec (4D-D) | `research/micron_alias_codec.py` | Implemented (pending final review) |
-| Micron Alias Authority Acquisition (4D-D) | `execution/micron_alias_authority.py` | Implemented (pending final review) |
-| Alias Snapshot Model (4D-D) | `runs/models.py` (ResearchMicronAliasSnapshot) + migration 0010 | Implemented (pending final review) |
-| Alias Browser Presentation (4D-D) | `web/micron_alias_presentation.py` | Implemented (pending final review) |
+| Micron 7500 Packaging Alias Contracts (4D-D) | `research/micron_packaging_alias.py` | **Implemented (approved / frozen)** |
+| Micron Alias Snapshot Codec (4D-D) | `research/micron_alias_codec.py` | **Implemented (approved / frozen)** |
+| Micron Alias Authority Acquisition (4D-D) | `execution/micron_alias_authority.py` | **Implemented (approved / frozen)** |
+| Alias Snapshot Model (4D-D) | `runs/models.py` (ResearchMicronAliasSnapshot) + migration 0010 | **Implemented (approved / frozen)** |
+| Alias Browser Presentation (4D-D) | `web/micron_alias_presentation.py` | **Implemented (approved / frozen)** |
 
 ## Research orchestration
 
@@ -822,6 +872,24 @@ Not eligible:
 
 
 ## Validation results
+
+### 4D-D FINAL ACCEPTANCE SNAPSHOT (IMPLEMENTED / APPROVED / FROZEN)
+
+| Metric | Count |
+| --- | --- |
+| Collected | 5097 |
+| Passed | 5097 |
+| Failed | 0 |
+| Skipped | 0 |
+| Xfailed | 0 |
+| Deselected | 0 |
+| Subtests passed | 39 |
+
+Frozen SHA: 065320180c17b89c7460164326a0c9f49e01fe3b. With this
+acceptance, PRODUCT-INTEL.4D (all components) is closed as
+IMPLEMENTED / APPROVED / FROZEN / COMPLETE. The 5052-collection
+candidate-pass evidence recorded in the 4D-D section above is preserved
+as history.
 
 ### HISTORICAL FU3A2F FREEZE SNAPSHOT
 
@@ -1081,9 +1149,32 @@ Corrective pass (final evidence-backed closure):
 
 ## Next delivery priority
 
+**PILOT-RELEASE-2**: PLANNED — 4D Customer Requirement Deployment & UAT
+(next delivery priority). Deployment/UAT phase, not a feature-development
+phase: deploy the already-frozen 4D customer requirements to the restricted
+internal Windows pilot server and validate the complete real business
+workflow before starting another architecture feature phase. High-level UAT
+coverage: direct-source acquisition using a viable preferred-source case;
+normal Serper fallback; real Vendor API commercial evidence; compact quote
+rendering; non-USD vendor evidence + persisted ECB USD equivalent; Micron
+7500 packaging-alias BASE/R/T behavior; a non-eligible MPN proving alias
+abstention; Visual FoxPro launcher -> browser prefill against the deployed
+server; historical report reload causing zero new Search/Vendor/ECB/Micron/
+Semantic live work; vendor-price access behavior under the existing frozen
+network gate (4D-C-SEC REMOTE_ADDR / PI_VENDOR_PRICE_ALLOWED_CIDRS,
+unchanged). No UAT tooling is implemented by the documentation closure;
+this entry records the phase only. Authentication: the current pilot server
+has restricted access and people who can reach this internal server are
+currently considered authorized for this pilot; full application
+authentication, login/session identity, OAuth, and per-user authorization
+are NOT part of PILOT-RELEASE-2 and remain deferred future
+production-hardening concerns (8C); report UUID is not access control; no
+session-based authorization is introduced.
+
 **PILOT-RELEASE-1**: DEPLOYED / ACCEPTED
 
-**4D-PRE**: PLANNED / EVIDENCE ONLY — Preferred Source Feasibility Audit;
+**4D-PRE**: APPROVED / FROZEN (evidence only) — Preferred Source
+         Feasibility Audit;
          audit 12 customer preferred sites;
          record per-site: direct lookup mechanism, static HTML capability,
          JS requirements, blocking behavior, MPN/price/currency evidence;
@@ -1091,18 +1182,25 @@ Corrective pass (final evidence-backed closure):
          no production code changes;
          evidence recorded in docs/PILOT_SOURCE_FEASIBILITY.md
 
-**4D**: PARTIALLY IMPLEMENTED — Customer Quote Research Expansion;
+**4D**: IMPLEMENTED / APPROVED / FROZEN / COMPLETE — Customer Quote
+       Research Expansion;
        4D-PRE (feasibility audit) -> 4D-A (source optimization) ->
        4D-B (vendor commercial evidence) -> 4D-C (compact quote + FX) ->
-       4D-D (Micron packaging alias, IMPLEMENTED / PENDING FINAL REVIEW,
-       v1 scope Micron 7500 SSD only);
+       4D-D (Micron packaging alias, APPROVED / FROZEN including
+       4D-D-FU1, frozen SHA 065320180c17b89c7460164326a0c9f49e01fe3b,
+       frozen baseline 5097 collected, final acceptance 5097 passed /
+       0 failed, v1 scope Micron 7500 SSD only);
        no frozen phase reopened; no frozen boundary weakened;
-       4D-B triggers §19 security gate (access control no longer deferrable);
-       8C remains formal production-hardening/authentication phase
+       4D-B triggered the §19 security gate, resolved by the frozen
+       4D-C-SEC REMOTE_ADDR-only network gate;
+       full application authentication remains a deferred 8C
+       production-hardening concern; the current restricted internal
+       pilot deployment assumes reachability = authorized for this pilot
 
 **HUMAN-REVIEW**: IMPLEMENTED / APPROVED / FROZEN
 
-**5A**: PLANNED / NOT IMPLEMENTED / non-blocking
+**5A**: PLANNED / NOT IMPLEMENTED / non-blocking (not needed for the
+current FoxPro/browser workflow; not the next delivery)
 
 **5B**: Server-side implemented; client integrated outside repo; localhost UAT passed
 
@@ -1172,7 +1270,9 @@ Corrective pass (final evidence-backed closure):
         real Seagate fixture: 80 candidates, 1 scoreable field each (Form Factor);
         evidence too sparse for useful differentiation (candidate spec enrichment needed);
         6D completed the candidate-specification enrichment identified after the
-7B freeze. 7C is IMPLEMENTED / APPROVED / FROZEN. 4D is the next delivery.
+7B freeze. 7C is IMPLEMENTED / APPROVED / FROZEN. 4D is
+IMPLEMENTED / APPROVED / FROZEN / COMPLETE; PILOT-RELEASE-2 is the next
+delivery.
 
 **7C-A**: COMPARABLE RESEARCH RESULTS + CODEC — IMPLEMENTED / APPROVED / FROZEN
 
