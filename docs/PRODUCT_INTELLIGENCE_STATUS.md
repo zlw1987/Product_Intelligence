@@ -47,16 +47,22 @@ DEPLOYED / ACCEPTED**
 
 Deployment/UAT phase, now closed: the already-frozen 4D customer
 requirements are deployed to the internal production/pilot Windows
-server, and the complete real business workflow was validated.
-High-level UAT coverage exercised: direct-source acquisition using a
-viable preferred-source case; normal Serper fallback; real Vendor API
-commercial evidence; compact quote rendering; non-USD vendor evidence +
-persisted ECB USD equivalent; Micron 7500 packaging-alias BASE/R/T
-behavior; a non-eligible MPN proving alias abstention; Visual FoxPro
-launcher -> browser prefill against the deployed server; historical
-report reload causing zero new Search/Vendor/ECB/Micron/Semantic live
-work; vendor-price access behavior under the existing frozen network
-gate (4D-C-SEC REMOTE_ADDR / PI_VENDOR_PRICE_ALLOWED_CIDRS, unchanged).
+server. The recorded representative 4D production smoke validation
+covered: a normal customer quote flow exercising current Price
+Intelligence / Compact Quote behavior; Micron 7500 R/T packaging-alias
+behavior.
+The previously planned broader UAT matrix (direct-source acquisition
+using a viable preferred-source case; normal Serper fallback; real
+Vendor API commercial evidence; compact quote rendering; non-USD vendor
+evidence + persisted ECB USD equivalent; Micron 7500 packaging-alias
+BASE/R/T behavior; a non-eligible MPN proving alias abstention; Visual
+FoxPro launcher -> browser prefill against the deployed server;
+historical report reload causing zero new Search/Vendor/ECB/Micron/
+Semantic live work; vendor-price access behavior under the existing
+frozen network gate (4D-C-SEC REMOTE_ADDR / PI_VENDOR_PRICE_ALLOWED_
+CIDRS, unchanged)) remains a validation reference; the production
+records do not claim that every matrix case was separately executed
+and evidenced during the 2026-09-23 cutover.
 
 Deployment record:
 - Deployed runtime SHA: 065320180c17b89c7460164326a0c9f49e01fe3b — the
@@ -1228,17 +1234,22 @@ reports (immutable replay, NEVER refreshed merely by GET).
 
 **PILOT-RELEASE-2**: DEPLOYED / ACCEPTED — 4D Customer Requirement
 Deployment & UAT. The already-frozen 4D customer requirements are
-deployed to the internal production/pilot Windows server and the
-complete real business workflow was validated (the high-level UAT
-coverage: direct-source acquisition using a viable preferred-source
-case; normal Serper fallback; real Vendor API commercial evidence;
-compact quote rendering; non-USD vendor evidence + persisted ECB USD
-equivalent; Micron 7500 packaging-alias BASE/R/T behavior; a
-non-eligible MPN proving alias abstention; Visual FoxPro launcher ->
-browser prefill against the deployed server; historical report reload
-causing zero new Search/Vendor/ECB/Micron/Semantic live work;
-vendor-price access behavior under the existing frozen network gate
-(4D-C-SEC REMOTE_ADDR / PI_VENDOR_PRICE_ALLOWED_CIDRS, unchanged)).
+deployed to the internal production/pilot Windows server; the recorded
+representative 4D production smoke validation covered a normal customer
+quote flow exercising current Price Intelligence / Compact Quote
+behavior and Micron 7500 R/T packaging-alias behavior. The previously
+planned broader UAT matrix (direct-source acquisition using a viable
+preferred-source case; normal Serper fallback; real Vendor API
+commercial evidence; compact quote rendering; non-USD vendor evidence +
+persisted ECB USD equivalent; Micron 7500 packaging-alias BASE/R/T
+behavior; a non-eligible MPN proving alias abstention; Visual FoxPro
+launcher -> browser prefill against the deployed server; historical
+report reload causing zero new Search/Vendor/ECB/Micron/Semantic live
+work; vendor-price access behavior under the existing frozen network
+gate (4D-C-SEC REMOTE_ADDR / PI_VENDOR_PRICE_ALLOWED_CIDRS, unchanged))
+remains a validation reference; the production records do not claim
+that every matrix case was separately executed and evidenced during
+the 2026-09-23 cutover.
 Deployment record: deployed runtime SHA
 065320180c17b89c7460164326a0c9f49e01fe3b (the independently reviewed
 and frozen PRODUCT-INTEL.4D-D-FU1 runtime SHA; deployment is

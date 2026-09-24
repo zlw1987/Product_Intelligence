@@ -2901,15 +2901,21 @@ Requirement Deployment & UAT)
   (application path, persistent SQLite, service ID / WinSW wrapper,
   Waitress, port, health endpoint, 4D preferred-source configuration,
   Vendor API configuration) are recorded in the operational Confluence
-  references and are not duplicated here. UAT exercised (high level):
-  direct-source acquisition via a viable preferred-source case; normal
-  Serper fallback; real Vendor API commercial evidence; compact quote
-  rendering; non-USD vendor evidence + persisted ECB USD equivalent;
-  Micron 7500 packaging-alias BASE/R/T behavior; a non-eligible MPN
-  proving alias abstention; Visual FoxPro launcher -> browser prefill
-  against the deployed server; historical report reload causing zero new
-  Search/Vendor/ECB/Micron/Semantic live work; vendor-price access
-  behavior under the existing frozen network gate (4D-C-SEC, unchanged).
+  references and are not duplicated here. The recorded representative
+  4D production smoke validation covered: a normal customer quote flow
+  exercising current Price Intelligence / Compact Quote behavior;
+  Micron 7500 R/T packaging-alias behavior. The previously planned
+  broader UAT matrix (direct-source acquisition via a viable
+  preferred-source case; normal Serper fallback; real Vendor API
+  commercial evidence; compact quote rendering; non-USD vendor evidence
+  + persisted ECB USD equivalent; Micron 7500 packaging-alias BASE/R/T
+  behavior; a non-eligible MPN proving alias abstention; Visual FoxPro
+  launcher -> browser prefill against the deployed server; historical
+  report reload causing zero new Search/Vendor/ECB/Micron/Semantic live
+  work; vendor-price access behavior under the existing frozen network
+  gate (4D-C-SEC, unchanged)) remains a validation reference; the
+  production records do not claim that every matrix case was separately
+  executed and evidenced during the 2026-09-23 cutover.
   Authentication: current restricted internal pilot deployment assumption
   (reachability = authorized for this pilot); full application
   authentication remains a deferred 8C production-hardening concern; the
@@ -4949,8 +4955,13 @@ Deployment record (PILOT-RELEASE-2 closure):
   independently reviewed and frozen PRODUCT-INTEL.4D-D-FU1 runtime SHA.
   Deployment is Git-managed and exact-approved-SHA based (local
   `production` branch pinned to independently approved SHAs).
-- Production smoke test passed: 2026-09-23; the high-level UAT coverage
-  (listed below) was exercised on the deployed server.
+- Production smoke test passed: 2026-09-23. The recorded representative
+  4D production smoke validation covered: a normal customer quote flow
+  exercising current Price Intelligence / Compact Quote behavior;
+  Micron 7500 R/T packaging-alias behavior. The previously planned
+  broader UAT matrix (listed below) remains a validation reference; the
+  production records do not claim that every matrix case was separately
+  executed and evidenced during the 2026-09-23 cutover.
 - 4D is deployed; migrations through
   0010_research_micron_alias_snapshot are deployed (4D migrations
   0008 / 0009 / 0010).
@@ -4972,7 +4983,8 @@ Runtime-vs-docs distinction (binding for this closure):
 - 7ff0ab7 is NOT the production runtime SHA; the deployed production
   runtime at 0653201 is intentional and correct.
 
-UAT coverage (high level):
+Previously planned broader UAT matrix (high level; historical planning
+reference):
 - direct-source acquisition using a viable preferred-source case
 - normal Serper fallback
 - real Vendor API commercial evidence
