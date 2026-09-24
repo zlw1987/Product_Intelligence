@@ -45,9 +45,11 @@ baseline 5097 collected; final acceptance 5097 passed, 0 failed, 0
 skipped, 0 xfailed, 0 deselected, +39 subtests passed). The immediate
 next delivery is PRODUCT-INTEL.PILOT-RELEASE-2 (4D Customer Requirement
 Deployment & UAT), PLANNED — a deployment/UAT phase, not a
-feature-development phase. Remaining future feature work: structured API
-(5A, PLANNED / NOT IMPLEMENTED / NON-BLOCKING), then 8A/8B/8C (later
-planned; not implemented).
+feature-development phase. Later planned work includes 5A (Structured
+external API), 8A (Caching / refresh strategy), 8B (Research history),
+and 8C (Production hardening). No post-PILOT-RELEASE-2 feature
+implementation order is approved yet; the next feature phase will be
+selected after reviewing real PILOT-RELEASE-2 UAT evidence.
 
 ## 2. Problem statement
 
@@ -232,9 +234,10 @@ candidate discovery, similarity scoring, comparison presentation). 4D
 (Customer Quote Research Expansion) is IMPLEMENTED / APPROVED / FROZEN /
 COMPLETE. The next planned delivery is PILOT-RELEASE-2 (4D Customer
 Requirement Deployment & UAT; PLANNED; deployment/UAT phase, not a
-feature-development phase). The next planned feature phase is 5A
-(structured API; PLANNED / NOT IMPLEMENTED / NON-BLOCKING for the current
-FoxPro/browser workflow).
+feature-development phase). 5A remains PLANNED / NOT IMPLEMENTED /
+NON-BLOCKING for the current FoxPro/browser workflow. No feature phase
+after PILOT-RELEASE-2 is currently designated NEXT; that decision
+follows review of PILOT-RELEASE-2 UAT evidence.
 
 ## 6. Multi-interface intake design
 
