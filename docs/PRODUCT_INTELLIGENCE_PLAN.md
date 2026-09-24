@@ -4308,6 +4308,7 @@ This canonical plan does not duplicate that operational snapshot.
 | AD-059 | 6D Authoritative Datasheet Specification Enrichment: manufacturer PDF datasheet acquisition through provider-neutral DocumentFetcher boundary; concrete HttpPdfFetcher (stdlib urllib); pure research table interpretation (MPN -> table -> column -> row binding, unit incorporation); frozen 6B normalization + frozen 6A resolution; 7A-grounded authority chain (derive_datasheet_source_from_discovery); public API requires frozen ComparableCandidateDiscoveryResult + exact EXTRACTED outcome (identity-verified member) — arbitrary DatasheetSource objects rejected; batch shared PDF fetch; bounded parser exception taxonomy (pdfminer only, RuntimeError propagates); fully self-auditing SpecificationEnrichmentResult (raw->outcome->normalized->resolution provenance); 6C+6D evidence composition (normalize + re-resolve); abstention paths return valid empty result (zero source_outcomes, all UNKNOWN). | 6D extends specification evidence capability beyond frozen 6C extraction. Added after 7B freeze because frozen 7B revealed only 1/12 candidate evidence coverage. Provider-neutral document boundary. Concrete PDF fetcher (stdlib urllib, no browser). Pure research layer table interpretation (no PDF parser in research/). Six-field allowlist: capacity, sequential_read, sequential_write, random_read_iops, random_write_iops, endurance_dwpd. Support-record datasheet-link extraction from var supportSpecsData JSON. AUTHORITATIVE-only enforcement. Bounded model-row grammar (3 exact forms). Whole-PDF MPN uniqueness. Raw MPN exactness. Bounded parser exception handling (pdfminer/pdfplumber only, programming errors propagate). Self-auditing result. 6C+6D evidence composition. Real Seagate fixture: Nytro 5550/5350 datasheet PDF (8 pages, 15 tables). XP15360SE70005: 6 VERIFIED observations. Candidate composition: scored_field_count=7, evidence_coverage=7/12. | Accepted (6D implementation) |
 | AD-060 | PROD-FIX1 production corrections (canonical spec §26.10): (1) the Internal Vendor adapter supports BOTH the canonical JSON wrapper and the production section-oriented response, parsed by a strict bounded recursive-descent literal parser (no eval/literal_eval, three exact section labels only, exact `{Not Found}` bounded marker, Decimal-exact numbers); the allowlist mappers remain the sole sensitive-data boundary. (2) Compact Quote price formatting renders no-symbol currencies once (`ZAR 30,999.0`), never code-as-prefix plus code-suffix. (3) AI-assisted semantic matches render immediately after Compact quote summary (presentation order only). (4) A valid run-scoped human-CONFIRMED semantic candidate contributes ONE Compact Quote row for the SAME run via a projection-layer extension: identity authority only; price/currency/condition exactly the persisted normalized values (UNKNOWN condition stays Unknown); explicit "Human Confirmed" provenance; persisted FX evidence only; the frozen PriceIntelligenceSnapshot and Machine Price are never mutated; UNREVIEWED/REJECTED/invalid-binding/cross-run candidates never enter; Undo removes the row on the next GET; historical GET stays zero-live-I/O. (5) The new-research form carries a front-end-only duplicate-click guard (disable + `Researching…`) — explicitly NOT a backend dedupe guarantee. (6) NO insecure TLS bypass, unverified context, or HTTP fallback was added for the ECB trust-chain failure, and regression tests mechanically guard against future bypasses. **Amended by AD-061 (FU1):** items (1) and (4) had production-fidelity / authority-ownership defects corrected by the bounded follow-up; item (6) no longer records an operational CA-store repair as an outstanding action (see AD-061). | Defects were discovered in real production use of the deployed PILOT-RELEASE-2 runtime. Each correction is the minimal bounded change to the identified defect: the Vendor parser adds a second supported upstream contract without weakening the allowlist privacy boundary; the currency fix changes display formatting only; the section move is template ordering only; the confirm->quote path reuses the existing fail-closed binding validation and adds a display projection (the frozen 4A/Reviewed Price authority contracts are untouched); the submit guard is client UX only; the TLS item preserves secure verification. No 8A caching, no new providers, no new models, no migrations. | SUPERSEDED IN PART BY AD-061 (PILOT-RELEASE-2-PROD-FIX1-FU1) |
 | AD-061 | PROD-FIX1-FU1 production review-blocker closure (canonical spec §26.11): (1) VENDOR WIRE FIDELITY — the adapter now supports the ACTUAL hybrid production Ingram placement (explicit `vendorPartNumber` + nested `pricing` customerPrice/retailPrice/currencyCode + TOP-LEVEL boolean availability + TOP-LEVEL `Avl_Quantity`) through the same bounded availability truth table (contradiction => UNKNOWN fail-closed; false+0 => OUT_OF_STOCK/0; true+positive => IN_STOCK), with the canonical nested form and flat compatibility form retained and separately tested (the flat form is NOT described as the only/exact production wire shape); the integration path proves the faithful hybrid Ingram + REAL nested Synnex EU (`OnlineCheck.Header.CurrencyCode`, `OnlineCheck.Item.ManufacturerItemIdentifier/UnitPriceAmount/AvailabilityTotal`) with fake/redacted SessionId/BuyerAccountId/SystemId at their realistic structural locations, stripped by the allowlist; section-scanner documentation and behavior are reconciled — only the three exact line-anchored labels establish sections, a COMPLETE bounded literal is authoritative, and unknown/interstitial text after it is never parsed into data nor allowed to poison the section, while malformed content INSIDE a literal still fails that source closed (no generic HTML scraping). (2) HUMAN-CONFIRMED AUTHORITY OWNERSHIP — the single pure candidate-to-assessment binding primitive (`research.matching.is_review_candidate_binding_valid`) is shared by the web GET/POST paths and both historical replay boundaries (no divergent rule copies; the 8-step POST validation is unchanged in strength); both replay entry points DERIVE the effective human-confirmed selection from persisted state (`derive_human_confirmed_assessment_indices`: CONFIRMED + this run + in-range index + full binding + human-review eligibility + persisted price/currency) and no longer accept ANY caller-supplied index — a bare integer can never mint HUMAN_CONFIRMED authority; the lowest-level pure projection helper is retained as an already-authorized-selection consumer with that contract stated; Machine Price untouched; human review run-scoped; historical GET zero-live-I/O. (3) ECB EVIDENCE CORRECTION — a later SECURE retry from the same production Python runtime (no certifi install, no manual certificate, no fx.py change, no TLS-verification bypass; observation date 2026-09-24, USD 1.1367, ZAR 18.6836) succeeded, so the documentation no longer states an unproven root cause or an outstanding CA-trust-store installation action as fact; the transient failure, its correct FxNetworkError classification, the run completing without ResearchFxSnapshot, and the retained failure-path regression tests are preserved as recorded evidence; NO TLS workaround was added or is required. (4) REVIEWED PRICE WORDING — the Reviewed Price summary now derives the truthful price-contributing counts from the reviewed buckets themselves (per-bucket `human_confirmed_count` / `deterministic_count` sums) instead of overstating them with the validated-CONFIRMED-candidate count; reviewed-price eligibility is NOT changed to make the count match. | Bounded append-only corrective follow-up to the independently reviewed PROD-FIX1 commit (8811104): correct ONLY the review blockers and any directly necessary tests/docs; retain the previous implementation. | IMPLEMENTED / PENDING FINAL REVIEW (PILOT-RELEASE-2-PROD-FIX1-FU1) |
+| AD-062 | PROD-FIX1-FU2 final review-blocker closure (canonical spec §26.12): the PUBLIC (denied-branch) historical compact quote replay now OWNS its price/currency/condition evidence authority exactly like the authorized replay. `replay_public_compact_quote_projection` no longer accepts ANY caller-supplied `PriceAggregationResult` (the `price_result` parameter is removed; the only parameter is `run`). It verifies the run is a real ResearchRun, loads `PriceIntelligenceSnapshot.objects.get(run=run)`, decodes it through the canonical price-result codec, verifies `decoded.request == run.to_research_request()`, and uses THAT decoded persisted result for the frozen public bucket projection, the shared human-confirmed binding derivation, and the human-confirmed price/currency/condition evidence. A same-request cross-run result — identical source URL / product title / MPN field / SKU / evidence source, different persisted price — can no longer substitute for the persisted snapshot, so a CONFIRMED candidate's identity authority can never be exercised over another run's price evidence (historical report immutability; run-scoped evidence authority; confirmation establishes identity authority only over the persisted evidence belonging to that same run). Fail-closed: missing snapshot (DoesNotExist, the existing persisted-artifact behavior), malformed payload / unsupported schema version (PriceResultCodecError), request-provenance-corrupt snapshot (CompactQuoteProjectionError). The denied branch remains vendor-free: NO ResearchSupplementSnapshot read, NO commercial supplement codec import, NO Vendor/Search/Page/ECB- live/Semantic/network work; persisted ResearchFxSnapshot remains allowed; zero live I/O. The authorized replay (`replay_compact_quote_projection`), Machine Price, and Human Review state semantics are UNCHANGED. | Final independent review of FU1 blocked on the public replay trusting caller-supplied price evidence: request equality alone does not prove the evidence is THIS run's persisted snapshot, and the shared binding primitive legitimately matches across same-request runs with identical identity fields. The correction is the minimal bounded change: the denied replay loads its own authority source, removing the caller-owned input rather than comparing against it. | IMPLEMENTED / PENDING FINAL REVIEW (PILOT-RELEASE-2-PROD-FIX1-FU2) |
 
 ## 26. Customer Quote Research Expansion — 4D Phase Architecture
 
@@ -5284,6 +5285,100 @@ semantic-eligible assessment as `HUMAN_CONFIRMED`. Corrected:
   explicitly, and keeps its defense-in-depth fail-closed checks.
 * Machine Price remains untouched; human review remains run-scoped;
   historical GET remains zero-live-I/O (DB reads of persisted state only).
+
+### 26.12 PILOT-RELEASE-2-PROD-FIX1-FU2: Public Replay Persisted-Snapshot Authority
+
+**Status: IMPLEMENTED / PENDING FINAL REVIEW.** Bounded append-only
+corrective follow-up on the FU1 commit (SHA
+681a4a8b67895e510eb277c850c0e83318af17b9). Closes the final independent
+review blocker for PROD-FIX1. No deployment, no 8A caching, no new
+models/migrations. FU1 (Vendor hybrid wire, shared binding primitive,
+authorized replay authority, ECB evidence, Reviewed Price wording) is
+retained unchanged.
+
+**The blocker (final FU1 review):** FU1 removed the caller-supplied
+`confirmed_assessment_indices` from both replay boundaries, but the
+PUBLIC (denied-branch) replay
+`replay_public_compact_quote_projection(run=..., price_result=...)`
+still accepted a CALLER-SUPPLIED `PriceAggregationResult` and verified
+only `price_result.request == run.to_research_request()`. Request
+equality is NOT proof that the price/currency/condition evidence is
+the persisted `PriceIntelligenceSnapshot` belonging to THIS run. A
+same-request cross-run scenario could borrow evidence: Run A (request
+R, CONFIRMED semantic candidate, source URL/title/MPN-field/SKU/
+evidence-source binding X, persisted price 1890 USD) and Run B (same
+request R, same binding X, later/different persisted price 999 USD).
+If an internal caller supplied Run B's decoded result with Run A, the
+shared binding primitive (`is_review_candidate_binding_valid`) would
+legitimately match Run A's CONFIRMED candidate against Run B's
+assessment — all identity/provenance fields are equal — and the public
+replay could present Run B's 999 USD as a HUMAN_CONFIRMED row for
+Run A. That violates historical report immutability, run-scoped
+evidence authority, and the rule that confirmation establishes
+identity authority only over the persisted evidence belonging to that
+same run.
+
+**The correction:** the public/denied replay boundary now OWNS its
+`PriceIntelligenceSnapshot` authority exactly like the authorized
+replay. The `price_result` parameter is REMOVED; the entry point is
+`replay_public_compact_quote_projection(run=run)`. It:
+
+1. verifies `run` is a real `ResearchRun` (TypeError otherwise);
+2. loads `PriceIntelligenceSnapshot.objects.get(run=run)` — missing
+   artifact fails closed (DoesNotExist propagates, the existing
+   persisted-artifact behavior shared with the authorized replay; the
+   web view maps it to "summary unavailable");
+3. decodes it through the canonical price-result codec
+   (`decode_price_aggregation_result`; malformed payload / unsupported
+   schema version fails closed with `PriceResultCodecError`);
+4. verifies `decoded.request == run.to_research_request()` (a
+   request-provenance-corrupt snapshot fails closed with
+   `CompactQuoteProjectionError`);
+5. uses THAT decoded persisted result for the frozen public bucket
+   projection, the shared human-confirmed binding derivation
+   (`derive_human_confirmed_assessment_indices`), and the
+   human-confirmed price/currency/condition evidence;
+6. reads persisted `ResearchFxSnapshot` only (never live);
+7. NEVER reads `ResearchSupplementSnapshot` and never imports/calls the
+   commercial supplement codec (4D-C-SEC denied branch unchanged);
+8. performs ZERO live Search/Page/Vendor/ECB/Semantic/network work.
+
+**Authority statement (exact):** BOTH the authorized and the denied
+historical Compact Quote replay paths derive public and
+human-confirmed price evidence from the ResearchRun's OWN persisted
+`PriceIntelligenceSnapshot`. NO caller-supplied
+`PriceAggregationResult` (and no caller-supplied index) is an authority
+source at either boundary.
+
+**Regression proof (same-request cross-run, direct service level):**
+Run A (1890 USD, CONFIRMED candidate) and Run B (999 USD, SAME request,
+SAME source URL / product title / MPN field / SKU / evidence source,
+CONFIRMED candidate) — (a) the exploit premise is proven non-vacuous:
+the shared binding primitive legitimately matches Run A's candidate
+against Run B's assessment and the derivation would mint index 0 over
+Run B's evidence; (b) the public replay for Run A shows Run A's
+persisted 1890 USD and no 999 anywhere in Run A's projection; (c)
+Run B's public replay independently shows its own 999 USD and no 1890;
+(d) `inspect.signature` proves the only parameter is `run`, and
+supplying Run B's decoded result raises TypeError; (e) the authorized
+replay for Run A still shows 1890 (unchanged); (f) every
+`PriceIntelligenceSnapshot` is byte-identical (schema_version +
+payload) before/after both replays on both runs (Machine Price
+untouched).
+
+**Boundary preservation (re-proven):** the denied/public replay remains
+vendor-free — no `ResearchSupplementSnapshot` read (armed fail-fast,
+including a real persisted supplement with a sentinel vendor price), no
+commercial supplement codec import (mechanical AST guard, runs.models
+allowlist extended with exactly `PriceIntelligenceSnapshot`), no
+InternalVendorAdapter, no SearchProvider, no PageFetcher, no ECB live
+call, no SemanticRuntime, no generic network call (armed fail-fast).
+Persisted `ResearchFxSnapshot` remains allowed; persisted
+`PriceIntelligenceSnapshot` is now REQUIRED because it is the authority
+source. FU1's human-confirmed authority semantics are preserved:
+UNREVIEWED / REJECTED / tampered / stale / cross-run candidates never
+enter; Undo removes the row on the next GET; the 8-step review-POST
+validation is unchanged in strength.
 
 **26.11.3 ECB trust-chain evidence correction (BLOCKER 3)**
 

@@ -1,10 +1,13 @@
-"""Tests for the public-only compact quote replay (PRODUCT-INTEL.4D-C).
+"""Tests for the public-only compact quote replay (PRODUCT-INTEL.4D-C, FU2).
 
 The DENIED branch of the compact quote summary browser rendering uses a
-new bounded execution/read-side service:
+bounded execution/read-side service:
 ``replay_public_compact_quote_projection``.
 
-These tests prove:
+FU2 authority ownership: the replay loads and decodes the run's OWN
+persisted ``PriceIntelligenceSnapshot`` itself; no caller-supplied price
+aggregation result is an authority source (the ``price_result`` parameter
+was removed). These tests prove:
 * PUBLIC_LISTING rows only — vendor rows can never appear, even when a
   real ResearchSupplementSnapshot exists for the run
 * the supplemental artifact access path is NEVER touched (armed with
@@ -12,13 +15,17 @@ These tests prove:
 * ZERO live provider/network/semantic work (armed fail-fast sentinels)
 * persisted FX evidence drives the USD Equivalent display
 * fail-closed: malformed FX artifact propagates (no partial summary)
-* fail-closed: request-provenance mismatch is refused
+* fail-closed: request-provenance-corrupt persisted snapshot is refused
+* fail-closed: missing / malformed persisted price artifact propagates
+* no API surface accepts a caller-supplied (duck-typed or canonical)
+  price result as authority
 * programming errors (wrong types) propagate, never swallowed
 """
 
 from __future__ import annotations
 
 import ast
+import inspect
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from pathlib import Path
@@ -41,6 +48,7 @@ from product_intelligence.providers.fx import (
     EcbFxProvider,
     FxRateObservation,
 )
+from product_intelligence.research import encode_price_aggregation_result
 from product_intelligence.research.aggregation import (
     PriceAggregateBucket,
     PriceAggregationResult,
@@ -158,6 +166,20 @@ def _make_public_result(
     )
 
 
+def _persist_price(run: ResearchRun, result: PriceAggregationResult) -> None:
+    """Persist the canonical price snapshot the replay must load itself.
+
+    FU2: the replay owns its authority source; tests establish the
+    persisted artifact exactly as execution would, then call the replay
+    with the run alone.
+    """
+    PriceIntelligenceSnapshot.objects.create(
+        run=run,
+        schema_version=1,
+        payload=encode_price_aggregation_result(result),
+    )
+
+
 def _persist_fx(run: ResearchRun) -> None:
     """Persist a real V1 FX snapshot (EUR base, USD rate)."""
     rates = (
@@ -223,14 +245,13 @@ class TestPublicOnlyReplay:
     def test_public_rows_with_persisted_fx(self) -> None:
         run = _create_run()
         result = _make_public_result(run)
+        _persist_price(run, result)
         _persist_fx(run)
         # A real supplement exists in the DB — the public replay must
         # ignore it entirely.
         _persist_supplement(run)
 
-        replay = replay_public_compact_quote_projection(
-            run=run, price_result=result
-        )
+        replay = replay_public_compact_quote_projection(run=run)
 
         assert isinstance(replay, PublicCompactQuoteReplayResult)
         assert isinstance(replay.projection, CompactQuoteProjection)
@@ -250,12 +271,11 @@ class TestPublicOnlyReplay:
     def test_zero_vendor_rows_even_with_real_supplement(self) -> None:
         run = _create_run()
         result = _make_public_result(run)
+        _persist_price(run, result)
         _persist_fx(run)
         _persist_supplement(run)
 
-        replay = replay_public_compact_quote_projection(
-            run=run, price_result=result
-        )
+        replay = replay_public_compact_quote_projection(run=run)
 
         for row in replay.projection.rows:
             assert row.source_type == "PUBLIC_LISTING"
@@ -264,10 +284,9 @@ class TestPublicOnlyReplay:
     def test_no_fx_evidence_still_projects_public_rows(self) -> None:
         run = _create_run()
         result = _make_public_result(run)
+        _persist_price(run, result)
 
-        replay = replay_public_compact_quote_projection(
-            run=run, price_result=result
-        )
+        replay = replay_public_compact_quote_projection(run=run)
 
         assert replay.fx_snapshot is None
         rows = replay.projection.rows
@@ -289,10 +308,9 @@ class TestPublicOnlyReplay:
             price_amount=Decimal("109.99"),
             currency_code="USD",
         )
+        _persist_price(run, result)
 
-        replay = replay_public_compact_quote_projection(
-            run=run, price_result=result
-        )
+        replay = replay_public_compact_quote_projection(run=run)
 
         row = replay.projection.rows[0]
         assert row.usd_equivalent_amount == Decimal("109.99")
@@ -307,10 +325,9 @@ class TestPublicOnlyReplay:
             exclusions=(),
             verification_status=VerificationStatus.UNKNOWN,
         )
+        _persist_price(run, result)
 
-        replay = replay_public_compact_quote_projection(
-            run=run, price_result=result
-        )
+        replay = replay_public_compact_quote_projection(run=run)
 
         assert replay.projection.rows == ()
 
@@ -328,6 +345,7 @@ class TestPublicOnlyReplayNeverTouchesSupplement:
         decode_research_supplement_result, RuntimeError would propagate."""
         run = _create_run()
         result = _make_public_result(run)
+        _persist_price(run, result)
         _persist_fx(run)
         _persist_supplement(run)
 
@@ -347,9 +365,7 @@ class TestPublicOnlyReplayNeverTouchesSupplement:
                 side_effect=_boom,
             ),
         ):
-            replay = replay_public_compact_quote_projection(
-                run=run, price_result=result
-            )
+            replay = replay_public_compact_quote_projection(run=run)
 
         assert len(replay.projection.rows) == 1
         assert replay.projection.rows[0].source_type == "PUBLIC_LISTING"
@@ -358,6 +374,7 @@ class TestPublicOnlyReplayNeverTouchesSupplement:
         """Even the run-related descriptor path is armed."""
         run = _create_run()
         result = _make_public_result(run)
+        _persist_price(run, result)
         _persist_supplement(run)
 
         class _BoomDescriptor:
@@ -369,9 +386,7 @@ class TestPublicOnlyReplayNeverTouchesSupplement:
         with patch.object(
             type(run), "research_supplement_snapshot", new=_BoomDescriptor()
         ):
-            replay = replay_public_compact_quote_projection(
-                run=run, price_result=result
-            )
+            replay = replay_public_compact_quote_projection(run=run)
 
         assert len(replay.projection.rows) == 1
 
@@ -385,6 +400,7 @@ class TestPublicOnlyReplayZeroLiveWork:
     def test_live_boundaries_armed_and_replay_succeeds(self) -> None:
         run = _create_run()
         result = _make_public_result(run)
+        _persist_price(run, result)
         _persist_fx(run)
         _persist_supplement(run)
 
@@ -419,9 +435,7 @@ class TestPublicOnlyReplayZeroLiveWork:
                 "urllib.request.OpenerDirector.open", side_effect=_live_boom
             ),
         ):
-            replay = replay_public_compact_quote_projection(
-                run=run, price_result=result
-            )
+            replay = replay_public_compact_quote_projection(run=run)
 
         assert len(replay.projection.rows) == 1
         assert replay.fx_snapshot is not None
@@ -436,16 +450,18 @@ class TestPublicOnlyReplayFailClosed:
     def test_malformed_fx_payload_propagates(self) -> None:
         run = _create_run()
         result = _make_public_result(run)
+        _persist_price(run, result)
         ResearchFxSnapshot.objects.create(
             run=run, schema_version=1, payload={"garbage": True}
         )
 
         with pytest.raises(FxCodecError):
-            replay_public_compact_quote_projection(run=run, price_result=result)
+            replay_public_compact_quote_projection(run=run)
 
     def test_unsupported_fx_schema_version_propagates(self) -> None:
         run = _create_run()
         result = _make_public_result(run)
+        _persist_price(run, result)
         valid = encode_fx_observation(
             provider_id="ECB",
             observation_date=date(2024, 1, 15),
@@ -459,46 +475,87 @@ class TestPublicOnlyReplayFailClosed:
         )
 
         with pytest.raises(FxCodecError):
-            replay_public_compact_quote_projection(run=run, price_result=result)
+            replay_public_compact_quote_projection(run=run)
 
     def test_provenance_mismatch_is_refused(self) -> None:
+        """FU2: the authority source is the PERSISTED snapshot, so a
+        request-provenance corruption is proven by persisting a snapshot
+        whose decoded result is bound to a DIFFERENT run's request.
+        The replay must fail closed (no summary, no borrowed evidence).
+        The same safety contract as before holds: a foreign-request
+        price result is never projected for this run."""
         run = _create_run()
         other_run = ResearchRun.objects.create_from_request(
             ResearchRequest(manufacturer_part_number="OTHER-MPN", description="x")
         )
-        # A valid result — but bound to a DIFFERENT run's request.
+        # A valid result — but bound to a DIFFERENT run's request —
+        # persisted as THIS run's snapshot (request-provenance corrupt).
         foreign_result = _make_public_result(other_run)
+        _persist_price(run, foreign_result)
 
         with pytest.raises(CompactQuoteProjectionError, match="provenance"):
-            replay_public_compact_quote_projection(
-                run=run, price_result=foreign_result
-            )
+            replay_public_compact_quote_projection(run=run)
+
+    def test_missing_price_snapshot_fails_closed(self) -> None:
+        """FU2: no persisted price artifact => fail closed with the
+        existing persisted-artifact behavior (DoesNotExist propagates,
+        exactly as the authorized replay's documented behavior; the web
+        view maps it to 'summary unavailable')."""
+        run = _create_run()
+        assert not PriceIntelligenceSnapshot.objects.filter(run=run).exists()
+
+        with pytest.raises(PriceIntelligenceSnapshot.DoesNotExist):
+            replay_public_compact_quote_projection(run=run)
+
+    def test_malformed_price_snapshot_payload_fails_closed(self) -> None:
+        """FU2: a corrupt persisted price payload fails closed through
+        the canonical codec (no partial summary)."""
+        run = _create_run()
+        PriceIntelligenceSnapshot.objects.create(
+            run=run, schema_version=1, payload={"garbage": True}
+        )
+
+        from product_intelligence.research.price_result_codec import (
+            PriceResultCodecError,
+        )
+
+        with pytest.raises(PriceResultCodecError):
+            replay_public_compact_quote_projection(run=run)
 
     def test_duck_typed_price_result_is_refused(self) -> None:
+        """FU2: there is NO API surface accepting a caller-supplied price
+        result (duck-typed or canonical) as the authority source.
+        Mechanical proof: the parameter is gone — supplying one raises
+        TypeError — and the projection derives solely from the persisted
+        snapshot even when a foreign in-memory object exists."""
         run = _create_run()
+
+        params = inspect.signature(
+            replay_public_compact_quote_projection
+        ).parameters
+        assert "price_result" not in params
 
         class FakeResult:
             request = run.to_research_request()
             buckets = ()
 
-        with pytest.raises(CompactQuoteProjectionError, match="PriceAggregationResult"):
+        with pytest.raises(TypeError):
             replay_public_compact_quote_projection(
-                run=run, price_result=FakeResult()  # type: ignore[arg-type]
+                run=run, price_result=FakeResult()  # type: ignore[call-arg]
             )
 
-    def test_wrong_run_type_is_programming_error(self) -> None:
-        result = PriceAggregationResult(
-            request=ResearchRequest(manufacturer_part_number="X", description=""),
-            assessments=(),
-            buckets=(),
-            exclusions=(),
-            verification_status=VerificationStatus.UNKNOWN,
-        )
+        # Behavior: the persisted snapshot is the only authority source.
+        persisted = _make_public_result(run)
+        _persist_price(run, persisted)
+        _ = FakeResult()
+        replay = replay_public_compact_quote_projection(run=run)
+        assert len(replay.projection.rows) == 1
+        assert replay.projection.rows[0].price_amount == Decimal("1705.35")
 
+    def test_wrong_run_type_is_programming_error(self) -> None:
         with pytest.raises(TypeError):
             replay_public_compact_quote_projection(
                 run="not-a-run",  # type: ignore[arg-type]
-                price_result=result,
             )
 
     def test_frozen_projection_failure_propagates(self) -> None:
@@ -507,6 +564,7 @@ class TestPublicOnlyReplayFailClosed:
         no partial public summary."""
         run = _create_run()
         result = _make_public_result(run)
+        _persist_price(run, result)
 
         with patch(
             "product_intelligence.execution.compact_quote_public_replay"
@@ -514,15 +572,14 @@ class TestPublicOnlyReplayFailClosed:
             side_effect=CompactQuoteProjectionError("injected authority defect"),
         ):
             with pytest.raises(CompactQuoteProjectionError, match="injected"):
-                replay_public_compact_quote_projection(
-                    run=run, price_result=result
-                )
+                replay_public_compact_quote_projection(run=run)
 
     def test_runtime_error_in_fx_decode_propagates(self) -> None:
         """A programming RuntimeError inside the FX decode path propagates
         and is never swallowed."""
         run = _create_run()
         result = _make_public_result(run)
+        _persist_price(run, result)
         _persist_fx(run)
 
         with patch(
@@ -531,9 +588,7 @@ class TestPublicOnlyReplayFailClosed:
             side_effect=RuntimeError("injected programming defect"),
         ):
             with pytest.raises(RuntimeError, match="injected programming defect"):
-                replay_public_compact_quote_projection(
-                    run=run, price_result=result
-                )
+                replay_public_compact_quote_projection(run=run)
 
 
 # ---------------------------------------------------------------------------
@@ -591,7 +646,12 @@ class TestPublicOnlyReplayModuleBoundaries:
                 )
                 if node.module == "product_intelligence.runs.models":
                     imported = {alias.name for alias in node.names}
-                    assert imported <= {"ResearchRun", "ResearchFxSnapshot"}, (
+                    assert imported <= {
+                        "ResearchRun",
+                        "ResearchFxSnapshot",
+                        # FU2: the persisted price authority source.
+                        "PriceIntelligenceSnapshot",
+                    }, (
                         f"imports unapproved runs.models symbols {sorted(imported)}"
                     )
             if isinstance(node, ast.Import):

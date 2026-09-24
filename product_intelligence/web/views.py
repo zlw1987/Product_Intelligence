@@ -467,9 +467,12 @@ def research_detail(request: HttpRequest, run_id: uuid.UUID) -> HttpResponse:
     # * DENIED (False):
     #     the new public-only replay
     #     (replay_public_compact_quote_projection) builds a
-    #     PUBLIC_LISTING-only projection from the already
-    #     provenance-validated PriceAggregationResult plus persisted
-    #     FX evidence. It NEVER reads ResearchSupplementSnapshot and
+    #     PUBLIC_LISTING-only projection from THIS run's own persisted
+    #     PriceIntelligenceSnapshot (loaded, decoded, and
+    #     request-provenance-verified by the replay itself — FU2
+    #     authority ownership: no caller-supplied price result can
+    #     substitute for the persisted snapshot) plus persisted FX
+    #     evidence. It NEVER reads ResearchSupplementSnapshot and
     #     NEVER decodes the commercial supplement codec.
     #
     # The compact summary is constructed only when the existing price
@@ -488,17 +491,22 @@ def research_detail(request: HttpRequest, run_id: uuid.UUID) -> HttpResponse:
             # itself from persisted state (CONFIRMED run-scoped candidates
             # with still-valid full bindings). The view no longer passes
             # indices in: a bare caller-supplied integer can never mint
-            # HUMAN_CONFIRMED authority. Zero live work: everything the
-            # replays read is persisted state. The view's own
-            # confirmed_indices (same shared binding primitive) still feed
-            # the Reviewed Price and the presentation link reconciliation.
+            # HUMAN_CONFIRMED authority.
+            # FU2 authority ownership: the denied (public) replay loads
+            # and decodes THIS run's persisted PriceIntelligenceSnapshot
+            # itself and re-verifies its request provenance. The view no
+            # longer passes a price result in: a caller-supplied
+            # same-request PriceAggregationResult can never substitute
+            # for the persisted snapshot, so a same-request cross-run
+            # result cannot borrow price/currency/condition evidence.
+            # Zero live work: everything the replays read is persisted
+            # state. The view's own confirmed_indices (same shared
+            # binding primitive) still feed the Reviewed Price and the
+            # presentation link reconciliation.
             if vendor_commercial_access_allowed:
                 replay = replay_compact_quote_projection(str(run.id))
             else:
-                replay = replay_public_compact_quote_projection(
-                    run=run,
-                    price_result=decoded_result,
-                )
+                replay = replay_public_compact_quote_projection(run=run)
             projection = replay.projection
             compact_quote = build_compact_quote_presentation(
                 projection=projection,

@@ -2,8 +2,55 @@
 
 ## Current state
 
-**PRODUCT-INTEL.PILOT-RELEASE-2-PROD-FIX1-FU1 (Production Review-Blocker
-Closure) — IMPLEMENTED / PENDING FINAL REVIEW**
+**PRODUCT-INTEL.PILOT-RELEASE-2-PROD-FIX1-FU2 (Public Replay
+Persisted-Snapshot Authority) — IMPLEMENTED / PENDING FINAL REVIEW**
+
+Bounded append-only corrective follow-up to the FU1 commit (SHA
+681a4a8b67895e510eb277c850c0e83318af17b9) closing the FINAL independent
+review blocker for PROD-FIX1. The previous implementation is retained;
+ONLY the public replay's price-evidence authority source is corrected,
+plus directly necessary tests/docs. Not a feature phase; no 8A caching
+implemented; no deployment performed in this commit. Candidate state;
+final approval remains with the project lead. (Canonical spec: PLAN
+§26.12.)
+
+1. **Public replay persisted-snapshot authority (FINAL BLOCKER)** —
+   `replay_public_compact_quote_projection` no longer accepts a
+   caller-supplied `PriceAggregationResult` (the `price_result`
+   parameter is removed; the only parameter is `run`). The denied
+   replay now owns its authority exactly like the authorized replay:
+   it loads `PriceIntelligenceSnapshot.objects.get(run=run)`, decodes
+   it through the canonical price-result codec, verifies
+   `decoded.request == run.to_research_request()`, and uses THAT
+   decoded persisted result for the frozen public bucket projection,
+   the shared human-confirmed binding derivation, and the
+   human-confirmed price/currency/condition evidence. A same-request
+   cross-run result (identical source URL / product title / MPN field
+   / SKU / evidence source, different persisted price — Run A 1890
+   USD vs Run B 999 USD) can no longer substitute for the persisted
+   snapshot: confirmation establishes identity authority only over the
+   persisted evidence belonging to that same run, and historical
+   reports stay immutable. Fail-closed: missing snapshot
+   (DoesNotExist — the existing persisted-artifact behavior shared
+   with the authorized replay), malformed payload / unsupported schema
+   version (`PriceResultCodecError`), request-provenance-corrupt
+   snapshot (`CompactQuoteProjectionError`). The view's DENIED branch
+   call site is updated to `replay_public_compact_quote_projection(
+   run=run)`; the ALLOWED branch is unchanged. Denied branch remains
+   vendor-free (no `ResearchSupplementSnapshot` read, no commercial
+   supplement codec import, zero live Search/Page/Vendor/ECB/Semantic/
+   network work; persisted `ResearchFxSnapshot` still allowed) —
+   re-proven with armed fail-fast sentinels including a real persisted
+   supplement with a sentinel vendor price. Machine Price untouched
+   (snapshots byte-identical before/after both replays on both runs);
+   human review state semantics unchanged (UNREVIEWED / REJECTED /
+   tampered / stale / cross-run / undo rules re-proven unchanged);
+   authorized replay behavior unchanged; the shared binding primitive
+   and the 8-step review-POST validation are unchanged in strength.
+
+**PRODUCT-INTEL.PILOT-RELEASE-2-PROD-FIX1-FU1 (Production
+Review-Blocker Closure) — IMPLEMENTED / FINAL REVIEW BLOCKER
+CORRECTED BY FU2 / PENDING FINAL REVIEW**
 
 Bounded append-only corrective follow-up to the independently reviewed
 PROD-FIX1 commit (SHA 8811104e14103c41346c05471b3170c55c97386a). The
@@ -264,10 +311,11 @@ Runtime-vs-docs distinction (binding):
 Audit)** — PLANNED
 
 The production-correction phase PRODUCT-INTEL.PILOT-RELEASE-2-PROD-FIX1
-(above) and its bounded review-blocker closure PRODUCT-INTEL.PILOT-
-RELEASE-2-PROD-FIX1-FU1 are PENDING FINAL REVIEW and do NOT change the
+(above) and its bounded review-blocker closures PRODUCT-INTEL.PILOT-
+RELEASE-2-PROD-FIX1-FU1 and PRODUCT-INTEL.PILOT-RELEASE-2-PROD-FIX1-FU2
+are PENDING FINAL REVIEW and do NOT change the
 next-architecture-delivery selection below. 8A caching is NOT
-implemented in PROD-FIX1 or FU1.
+implemented in PROD-FIX1, FU1, or FU2.
 
 The previous "post-UAT next is undecided" gate is closed: the
 production deployment/smoke evidence now exists and the project lead
@@ -828,7 +876,8 @@ FU3B wires the frozen FU3A semantic runtime into real research execution:
 | PILOT-RELEASE-1 | Internal pilot deployment | **DEPLOYED / ACCEPTED** |
 | PILOT-RELEASE-2 | 4D Customer Requirement Deployment & UAT | **DEPLOYED / ACCEPTED** (deployed runtime SHA 065320180c17b89c7460164326a0c9f49e01fe3b; production smoke passed 2026-09-23; migrations through 0010 deployed) |
 | PILOT-RELEASE-2-PROD-FIX1 | Production quote-workflow defect corrections (Vendor real-response contract, currency formatting, semantic-section placement, Confirm Match -> Compact Quote, submit guard, ECB/TLS non-bypass) | **IMPLEMENTED / REVIEW BLOCKERS CORRECTED BY FU1 / PENDING FINAL REVIEW** (no deployment in this commit) |
-| PILOT-RELEASE-2-PROD-FIX1-FU1 | Bounded review-blocker closure (vendor hybrid production-wire fidelity + section-scanner consistency, human-confirmed authority ownership at the replay boundary, ECB evidence correction, Reviewed Price wording accuracy) | **IMPLEMENTED / PENDING FINAL REVIEW** (no deployment in this commit; canonical spec PLAN §26.11) |
+| PILOT-RELEASE-2-PROD-FIX1-FU1 | Bounded review-blocker closure (vendor hybrid production-wire fidelity + section-scanner consistency, human-confirmed authority ownership at the replay boundary, ECB evidence correction, Reviewed Price wording accuracy) | **IMPLEMENTED / FINAL REVIEW BLOCKER CORRECTED BY FU2 / PENDING FINAL REVIEW** (no deployment in this commit; canonical spec PLAN §26.11) |
+| PILOT-RELEASE-2-PROD-FIX1-FU2 | Final review-blocker closure (public/denied historical replay binds to the run's own persisted PriceIntelligenceSnapshot; caller-supplied price results removed as an authority input) | **IMPLEMENTED / PENDING FINAL REVIEW** (no deployment in this commit; canonical spec PLAN §26.12) |
 | 8A-PRE | Caching & Freshness Architecture Audit | **PLANNED** (next delivery; READ-ONLY / DESIGN-FIRST, not caching implementation) |
 | 4D-PRE | Preferred Source Feasibility Audit | Implemented (evidence only, frozen) |
 | 4D-A | Source Acquisition Optimization | Implemented (frozen) |
@@ -1106,6 +1155,106 @@ Not eligible:
 
 
 ## Validation results
+
+### PROD-FIX1-FU2 CANDIDATE ACCEPTANCE SNAPSHOT (PENDING FINAL REVIEW)
+
+| Metric | Count |
+| --- | --- |
+| Collected | 5298 |
+| Passed | 5296 |
+| Failed | 2 (exactly the fixed allowlist; non-deterministic) |
+| Unexpected failures | 0 |
+| Skipped | 0 |
+| Xfailed | 0 |
+| Deselected | 0 |
+| Subtests passed | 39 |
+
+Definitive full-suite execution of the final FU2 tree (zero
+deselection, no skip/xfail injection): 5296 passed, 2 failed — both
+failures are members of the fixed eleven-node Windows/Python 3.14
+subprocess-boundary flake allowlist, each with the recorded signature
+`subprocess.Popen -> _winapi.DuplicateHandle/CreateProcess ->
+OSError: [WinError 6/50]` (verified per-failure from the JUnit
+report), and NO node outside that allowlist failed. Three earlier
+full executions of the same tree in this session observed 11, 2, and
+1 failures respectively — in every case EXACTLY members of the fixed
+allowlist, all other nodes green. The allowlist is non-deterministic
+by nature, exactly as recorded for every prior phase; the fixed
+allowlist remains exactly 11 nodes (not expanded).
+
+The 2 failed nodes in the definitive execution (both
+fixed-allowlist members):
+
+1. `tests/domain/test_domain_boundaries.py::test_domain_imports_without_django_network_or_llm_dependencies`
+2. `tests/evaluation/test_evaluation_boundaries.py::test_loading_the_corpus_imports_no_framework_or_provider`
+
+The full fixed allowlist (all observed failures across the session's
+four full executions were subset members of this list, never outside
+it):
+
+1. `tests/domain/test_domain_boundaries.py::test_domain_imports_without_django_network_or_llm_dependencies`
+2. `tests/evaluation/test_evaluation_boundaries.py::test_loading_the_corpus_imports_no_framework_or_provider`
+3. `tests/providers/test_provider_boundaries.py::test_importing_the_provider_boundary_pulls_in_no_third_party_dependency`
+4. `tests/providers/test_provider_boundaries.py::test_importing_the_page_boundary_pulls_in_no_third_party_dependency`
+5. `tests/providers/test_provider_boundaries.py::test_http_pdf_imports_no_third_party_dependency`
+6. `tests/research/test_enterprise_ssd_boundaries.py::test_importing_enterprise_ssd_pulls_in_no_third_party`
+7. `tests/research/test_enterprise_ssd_boundaries.py::test_importing_enterprise_ssd_does_not_load_django`
+8. `tests/research/test_listing_normalization_boundaries.py::test_importing_the_research_core_still_pulls_in_no_third_party_dependency`
+9. `tests/research/test_research_identity_boundaries.py::test_importing_the_research_core_pulls_in_no_third_party_dependency`
+10. `tests/research/test_specification_boundaries.py::test_importing_specifications_pulls_in_no_third_party_dependency`
+11. `tests/runs/test_research_run_boundaries.py::test_the_domain_still_imports_without_django_present`
+
+All 11 are boundary/import-guard tests that spawn a subprocess to
+prove isolated imports; the failure occurs at
+`subprocess.Popen -> _winapi.DuplicateHandle` before any project code
+runs. No FU2 production or test file is imported by any of them.
+
+Collection accounting: 5281 FU1 baseline + 17 FU2 net-new nodes
+= 5298 collected. Net-new: tests/execution/test_public_replay_persisted_
+authority.py +15 (NEW FILE: same-request cross-run 1890/999 borrow
+premise, per-run persisted-evidence isolation, no-caller-price-result
+signature proof, corrupt/missing snapshot fail-closed, denied-boundary
+preservation, authorized-replay-unchanged + Machine Price
+byte-identity), tests/execution/test_compact_quote_public_replay.py
++2 (missing-snapshot and malformed-price-payload fail-closed). No
+boundary parameterization expansion (no new production files; only
+existing files modified).
+
+All 5281 FU1 baseline nodes remain collected. No existing test
+deleted, renamed, skipped, xfailed, deselected, or weakened. Exact
+disclosed test-file touches (safety contracts preserved):
+
+* `tests/execution/test_public_replay_persisted_authority.py` — NEW
+  FILE (15 nodes) proving the FU2 blocker regression.
+* `tests/execution/test_compact_quote_public_replay.py` — call sites
+  updated to the FU2 signature (the persisted snapshot is now
+  established as the run's artifact; the replay receives only the
+  run). `test_provenance_mismatch_is_refused` now proves the same
+  contract against a request-provenance-CORRUPT PERSISTED snapshot
+  (stronger: the corruption lives in the artifact, not in a supplied
+  object). `test_duck_typed_price_result_is_refused` now proves the
+  stronger contract that NO parameter accepts any caller-supplied
+  price result (signature + TypeError + persisted-snapshot-only
+  authority). `test_wrong_run_type_is_programming_error` updated to
+  the FU2 signature. Two new fail-closed nodes added (missing
+  snapshot, malformed price payload). The module-boundary AST test's
+  runs.models allowlist gains exactly `PriceIntelligenceSnapshot`
+  (the intentional persisted-authority read); all other guards
+  unchanged. No node renamed, deleted, or weakened.
+* `tests/execution/test_human_confirmed_replay_authority.py` — three
+  call sites drop the removed `price_result=` keyword argument
+  (UNREVIEWED public replay, CONFIRMED public replay, armed
+  zero-live public replay); every assertion preserved byte-for-byte
+  (same expected rows / prices / zero-live behavior). No node renamed
+  or deleted.
+* `tests/web/test_compact_quote_report.py`, `tests/web/
+  test_web_boundaries.py`, and all other web/execution tests —
+  UNCHANGED (view-level denied-branch tests already persist the run's
+  PriceIntelligenceSnapshot; the authorized branch is untouched).
+
+`python manage.py check`: System check identified no issues
+(0 silenced). `python manage.py makemigrations --check --dry-run`:
+No changes detected.
 
 ### PROD-FIX1-FU1 CANDIDATE ACCEPTANCE SNAPSHOT (PENDING FINAL REVIEW)
 

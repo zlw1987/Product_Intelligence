@@ -322,9 +322,7 @@ class TestUnreviewedInjectionFailsClosed(TestCase):
         cand = _make_candidate(run, obs, 0)
         self.assertEqual(cand.review_state, "UNREVIEWED")
 
-        replay = replay_public_compact_quote_projection(
-            run=run, price_result=_decoded_price(run)
-        )
+        replay = replay_public_compact_quote_projection(run=run)
         rows = [r for r in replay.projection.rows if r.source_type == "HUMAN_CONFIRMED"]
         self.assertEqual(rows, [])
 
@@ -381,10 +379,10 @@ class TestConfirmedValidBindingProjects(TestCase):
         # USD pass-through equivalent (persisted-FX-only contract).
         self.assertEqual(row.usd_equivalent_amount, Decimal("1890.00"))
 
-        # The public (denied-branch) replay derives the same authority.
-        pub = replay_public_compact_quote_projection(
-            run=run, price_result=_decoded_price(run)
-        )
+        # The public (denied-branch) replay derives the same authority
+        # from THIS run's own persisted snapshot (FU2 authority
+        # ownership: no caller-supplied price result).
+        pub = replay_public_compact_quote_projection(run=run)
         pub_rows = [
             r for r in pub.projection.rows if r.source_type == "HUMAN_CONFIRMED"
         ]
@@ -579,9 +577,7 @@ class TestArmedHistoricalReplayZeroLive(TestCase):
         confirm_candidate(cand.id, run_id=run.id)
 
         with _armed_live_boundaries():
-            replay = replay_public_compact_quote_projection(
-                run=run, price_result=_decoded_price(run)
-            )
+            replay = replay_public_compact_quote_projection(run=run)
 
         rows = [
             r for r in replay.projection.rows if r.source_type == "HUMAN_CONFIRMED"

@@ -1,4 +1,4 @@
-"""Public-only historical compact quote replay (PRODUCT-INTEL.4D-C).
+"""Public-only historical compact quote replay (PRODUCT-INTEL.4D-C, FU2).
 
 Bounded execution/read-side service for the DENIED branch of the 4D-C
 compact quote summary browser rendering.
@@ -9,19 +9,35 @@ denied branch: it produces a ``CompactQuoteProjection`` containing NO
 vendor rows — only rows derived from the public listing evidence and the
 persisted FX evidence, plus (PROD-FIX1) run-scoped human-CONFIRMED
 semantic rows whose identity authority is a persisted review-state fact
-about the run (never vendor data):
+about the run (never vendor data).
 
-* the already provenance-validated ``PriceAggregationResult`` supplied by
-  the view (decoded from ``PriceIntelligenceSnapshot`` and verified against
-  ``run.to_research_request()`` in ``research_detail``), and
-* the persisted ``ResearchFxSnapshot``, if present.
+FU2 authority ownership (PROD-FIX1 final review blocker): the public
+replay now OWNS its price/currency/condition evidence authority exactly
+like the authorized replay. It loads the run's own persisted
+``PriceIntelligenceSnapshot`` and decodes it through the canonical
+price-result codec. A caller-supplied price aggregation result is NO
+LONGER part of this API: a same-request cross-run result (identical
+source URL / title / MPN field / SKU / evidence source, different
+persisted price) can never substitute for the persisted snapshot, and a
+bare caller integer can never mint HUMAN_CONFIRMED authority.
+Confirmation establishes identity authority only over the persisted
+evidence belonging to THAT SAME run.
 
 What this module does:
-* re-verify the request-provenance binding of the supplied
-  ``PriceAggregationResult`` to the run (fail closed)
+* verify ``run`` is a real ``ResearchRun`` (programming contract)
+* load ``PriceIntelligenceSnapshot.objects.get(run=run)`` — the
+  authority source for this replay (missing artifact fails closed)
+* decode it through the canonical price-result codec (malformed
+  artifact / unsupported schema version fails closed)
+* verify the decoded request is bound to this run
+  (``decoded.request == run.to_research_request()``; a
+  request-provenance-corrupt snapshot fails closed)
 * read the persisted ``ResearchFxSnapshot`` (optional) and decode it
   through the frozen V1 FX codec
 * project public rows through the frozen ``project_public_rows``
+* derive the human-confirmed selection from persisted state via the
+  shared ``derive_human_confirmed_assessment_indices`` and project it
+  through ``project_human_confirmed_rows``
 * perform ZERO live provider/network/semantic work
 
 What this module does NOT do (binding):
@@ -34,14 +50,14 @@ What this module does NOT do (binding):
 * change Machine Price, Reviewed Price, or any authority
 
 The frozen authorized-path replay (``execution/compact_quote_replay.py``)
-is unchanged. This is a small additive service, not a refactor of it.
+is unchanged. This is a bounded correction of the denied-path
+authority source, not a refactor of the authorized path.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
-from product_intelligence.research.aggregation import PriceAggregationResult
 from product_intelligence.research.compact_quote import (
     CompactQuoteProjection,
     CompactQuoteProjectionError,
@@ -52,7 +68,11 @@ from product_intelligence.research.fx_codec import (
     FxObservationSnapshot,
     decode_fx_observation,
 )
+from product_intelligence.research.price_result_codec import (
+    decode_price_aggregation_result,
+)
 from product_intelligence.runs.models import (
+    PriceIntelligenceSnapshot,
     ResearchFxSnapshot,
     ResearchRun,
 )
@@ -85,7 +105,6 @@ class PublicCompactQuoteReplayResult:
 def replay_public_compact_quote_projection(
     *,
     run: ResearchRun,
-    price_result: PriceAggregationResult,
 ) -> PublicCompactQuoteReplayResult:
     """Build a vendor-free compact quote projection from persisted artifacts.
 
@@ -93,14 +112,23 @@ def replay_public_compact_quote_projection(
     branch of the 4D-C compact quote summary. It does NOT render HTML.
 
     Authority rules:
-    * Public rows: only from frozen 4A bucket membership, via the frozen
-      ``project_public_rows`` reading ``price_result.buckets``.
+    * Price authority source (FU2): ONLY this run's own persisted
+      ``PriceIntelligenceSnapshot``, loaded here and decoded through the
+      canonical price-result codec. No parameter of this function accepts
+      a price aggregation result — a caller-supplied same-request result
+      (even one whose identity/provenance fields match exactly) can never
+      substitute for the persisted snapshot, so historical reports stay
+      immutable and run-scoped.
+    * Request provenance: the decoded persisted result must satisfy
+      ``decoded.request == run.to_research_request()`` or the replay
+      fails closed (``CompactQuoteProjectionError``).
+    * Public rows: only from frozen 4A bucket membership of the decoded
+      persisted result, via the frozen ``project_public_rows``.
     * Human-confirmed rows (PROD-FIX1, FU1 authority ownership): derived
       EXCLUSIVELY from persisted state by the shared
       ``derive_human_confirmed_assessment_indices`` — a CONFIRMED run-scoped
-      candidate whose full candidate-to-assessment binding is still valid.
-      This entry point accepts NO caller-supplied indices: a bare integer
-      can never mint HUMAN_CONFIRMED authority. Human confirmation is
+      candidate whose full candidate-to-assessment binding is still valid
+      against the persisted assessments of THIS run. Human confirmation is
       identity authority only; the frozen Machine Price snapshot is never
       altered. These rows are public-listing evidence — never vendor data.
     * FX: from persisted ``ResearchFxSnapshot`` only (never live).
@@ -111,10 +139,8 @@ def replay_public_compact_quote_projection(
     Parameters
     ----------
     run : ResearchRun
-        The persisted research run (already loaded by the caller).
-    price_result : PriceAggregationResult
-        The already provenance-validated price aggregation result decoded
-        from the run's ``PriceIntelligenceSnapshot``.
+        The persisted research run (already loaded by the caller). The
+        run's own persisted price snapshot is the authority source.
 
     Returns
     -------
@@ -125,10 +151,18 @@ def replay_public_compact_quote_projection(
     ------
     TypeError
         If ``run`` is not a ResearchRun (programming error; propagates).
+    PriceIntelligenceSnapshot.DoesNotExist
+        If the run has no persisted price snapshot (fail closed — the
+        existing persisted-artifact behavior of the authorized replay;
+        the web view maps this to "summary unavailable", never to a
+        partial or borrowed summary).
+    PriceResultCodecError
+        If the persisted price artifact is malformed or its schema
+        version is unsupported (fail closed — no partial summary).
     CompactQuoteProjectionError
-        If ``price_result`` is not an actual PriceAggregationResult, or is
-        not bound to this run (request-provenance mismatch), or the frozen
-        public projection fails (fail closed — no partial summary).
+        If the decoded persisted price result is not bound to this run
+        (request-provenance mismatch), or the frozen public projection
+        fails (fail closed — no partial summary).
     FxCodecError
         If the persisted FX artifact is malformed (fail closed — mirrors
         the frozen authorized replay; no partial summary).
@@ -141,22 +175,27 @@ def replay_public_compact_quote_projection(
             f"run must be a ResearchRun, got {type(run).__name__!r}"
         )
 
-    # The authority source must be the real frozen 4A result.
-    if not isinstance(price_result, PriceAggregationResult):
-        raise CompactQuoteProjectionError(
-            f"Public compact quote replay requires a PriceAggregationResult "
-            f"instance; got {type(price_result).__name__!r}. A duck-typed "
-            f"object cannot be the frozen 4A authority source."
-        )
+    # FU2 authority ownership: the price/currency/condition evidence must
+    # be the persisted PriceIntelligenceSnapshot belonging to THIS run.
+    # The snapshot is loaded and decoded HERE — no caller can supply a
+    # same-request result from another run in its place. A missing
+    # artifact fails closed (DoesNotExist propagates, mirroring the
+    # authorized replay's persisted-artifact behavior).
+    price_snapshot = PriceIntelligenceSnapshot.objects.get(run=run)
+    price_result = decode_price_aggregation_result(
+        price_snapshot.payload,
+        schema_version=price_snapshot.schema_version,
+    )
 
-    # Re-verify the request-provenance binding on the read side. The view
-    # has already validated ``decoded.request == run.to_research_request()``
-    # before reaching this service; this check makes the service safe
-    # against independent misuse and fails closed on any mismatch.
+    # Verify the decoded persisted result is bound to this run's request.
+    # The authorized web path performs the same check before rendering;
+    # this check makes the denied replay boundary safe against
+    # independent misuse and fails closed on any mismatch.
     if price_result.request != run.to_research_request():
         raise CompactQuoteProjectionError(
-            "Public compact quote replay requires a PriceAggregationResult "
-            "bound to this run; request provenance mismatch."
+            "Public compact quote replay requires the persisted "
+            "PriceIntelligenceSnapshot to be bound to this run's request; "
+            "request provenance mismatch."
         )
 
     # Persisted FX evidence only — zero live FX calls.
@@ -167,15 +206,17 @@ def replay_public_compact_quote_projection(
     except ResearchFxSnapshot.DoesNotExist:
         pass  # No FX evidence — USD-equivalent display unavailable
 
-    # Frozen authority-safe public projection.
-    # FAIL-CLOSED: any projection failure propagates (no partial summary).
+    # Frozen authority-safe public projection over THIS run's persisted
+    # result. FAIL-CLOSED: any projection failure propagates (no partial
+    # summary).
     public_rows = project_public_rows(price_result, fx_snapshot=fx_snapshot)
 
     # Human-confirmed rows (FU1 authority ownership): the effective
     # human-confirmed selection is derived from PERSISTED state via the
     # shared derivation helper (CONFIRMED run-scoped candidates with
-    # still-valid full bindings). A caller cannot inject indices: this
-    # entry point no longer accepts them. Zero vendor data.
+    # still-valid full bindings against THIS run's persisted
+    # assessments). A caller cannot inject indices: this entry point
+    # does not accept them. Zero vendor data.
     human_confirmed_rows: tuple = ()
     human_confirmed_indices = derive_human_confirmed_assessment_indices(
         run, price_result.assessments
