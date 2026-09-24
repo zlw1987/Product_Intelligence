@@ -42,31 +42,90 @@ Frozen collection baseline: 5097 collected
 Final acceptance execution: 5097 passed, 0 failed, 0 skipped,
 0 xfailed, 0 deselected (+ 39 subtests passed)
 
-**NEXT: PRODUCT-INTEL.PILOT-RELEASE-2 (4D Customer Requirement
-Deployment & UAT)** — PLANNED
+**PILOT-RELEASE-2 (4D Customer Requirement Deployment & UAT) —
+DEPLOYED / ACCEPTED**
 
-Deployment/UAT phase, not a feature-development phase: deploy the
-already-frozen 4D customer requirements to the restricted internal
-Windows pilot server and validate the complete real business workflow
-before starting another architecture feature phase. High-level UAT
-coverage: direct-source acquisition using a viable preferred-source
-case; normal Serper fallback; real Vendor API commercial evidence;
-compact quote rendering; non-USD vendor evidence + persisted ECB USD
-equivalent; Micron 7500 packaging-alias BASE/R/T behavior; a non-eligible
-MPN proving alias abstention; Visual FoxPro launcher -> browser prefill
-against the deployed server; historical report reload causing zero new
-Search/Vendor/ECB/Micron/Semantic live work; vendor-price access behavior
-under the existing frozen network gate (4D-C-SEC REMOTE_ADDR /
-PI_VENDOR_PRICE_ALLOWED_CIDRS, unchanged).
+Deployment/UAT phase, now closed: the already-frozen 4D customer
+requirements are deployed to the internal production/pilot Windows
+server, and the complete real business workflow was validated.
+High-level UAT coverage exercised: direct-source acquisition using a
+viable preferred-source case; normal Serper fallback; real Vendor API
+commercial evidence; compact quote rendering; non-USD vendor evidence +
+persisted ECB USD equivalent; Micron 7500 packaging-alias BASE/R/T
+behavior; a non-eligible MPN proving alias abstention; Visual FoxPro
+launcher -> browser prefill against the deployed server; historical
+report reload causing zero new Search/Vendor/ECB/Micron/Semantic live
+work; vendor-price access behavior under the existing frozen network
+gate (4D-C-SEC REMOTE_ADDR / PI_VENDOR_PRICE_ALLOWED_CIDRS, unchanged).
 
-Current pilot authentication decision: the pilot server itself has
-restricted access; people who can reach this internal server are
-currently considered authorized for this pilot. Full application
+Deployment record:
+- Deployed runtime SHA: 065320180c17b89c7460164326a0c9f49e01fe3b — the
+  independently reviewed and frozen PRODUCT-INTEL.4D-D-FU1 runtime SHA.
+  Deployment is Git-managed and exact-approved-SHA based (local
+  `production` branch pinned to independently approved SHAs).
+- Production smoke test passed: 2026-09-23.
+- 4D is deployed; migrations through
+  0010_research_micron_alias_snapshot are deployed (4D migrations
+  0008 / 0009 / 0010).
+- Production environment details (application path, persistent SQLite,
+  service ID / WinSW wrapper, Waitress, port, health endpoint, 4D
+  preferred-source configuration with `directmacro.com` enabled,
+  Vendor API configuration) are recorded in the operational Confluence
+  references and are not duplicated in this repository.
+- The deployment relies on the internal server/network perimeter as the
+  pilot authorization boundary; no application login/session/OAuth/
+  per-user authorization is introduced.
+
+Current pilot authentication decision (unchanged): the pilot server
+itself has restricted access; people who can reach this internal server
+are currently considered authorized for this pilot. Full application
 authentication, login/session identity, OAuth, and per-user
 authorization are NOT part of PILOT-RELEASE-2; they remain deferred
 future production-hardening concerns (8C). Report UUID is not access
 control. No session-based authorization is introduced. The frozen
 4D-C-SEC vendor-price network gate is unchanged.
+
+Runtime-vs-docs distinction (binding):
+- Runtime freeze / deployed SHA = 065320180c17b89c7460164326a0c9f49e01fe3b.
+- The later commits c6ad6ae (PRODUCT-INTEL.4D-CLOSE) and 7ff0ab7
+  (PRODUCT-INTEL.4D-CLOSE-FU1) are docs-only project-state closures;
+  production does not need to move merely to obtain those
+  documentation edits.
+- 7ff0ab7 is NOT the production runtime SHA; the deployed production
+  runtime at 0653201 is intentional and correct.
+
+**NEXT: PRODUCT-INTEL.8A-PRE (Caching & Freshness Architecture
+Audit)** — PLANNED
+
+The previous "post-UAT next is undecided" gate is closed: the
+production deployment/smoke evidence now exists and the project lead
+has selected the next architecture investigation.
+
+8A-PRE is a READ-ONLY / DESIGN-FIRST phase: it investigates and records
+a caching and freshness architecture before any caching
+implementation. It is NOT authorization to implement caching, and no
+actual TTL values are approved in this closure.
+
+Reason for choosing 8A-PRE: Product Intelligence is now in production,
+and evidence classes have materially different freshness requirements.
+The design must prevent stale evidence from being presented as current
+while also avoiding unnecessary paid/live calls.
+
+The future 8A design must distinguish at minimum:
+- market/public prices — short freshness
+- Vendor commercial observations — short freshness
+- ECB FX rates — tied to persisted official observation date
+- product specifications — longer freshness
+- comparable research — medium freshness
+- deterministic identity/authority evidence — not automatically
+  equivalent to market-price freshness
+- user/operator forced refresh
+- historical reports — immutable replay, NEVER refreshed merely by GET
+
+Later planned (directional; not an approved implementation order):
+5A (Structured external API — PLANNED / NON-BLOCKING), 8B (Research
+history — PLANNED), 8C (Production hardening — PLANNED). None of them
+is NEXT. Authentication/session remains outside the current priority.
 
 ```
 4D-PRE  Preferred Source Feasibility Audit  (evidence only) — APPROVED / FROZEN
@@ -595,7 +654,8 @@ FU3B wires the frozen FU3A semantic runtime into real research execution:
 | Phase | Description | Status |
 | --- | --- | --- |
 | PILOT-RELEASE-1 | Internal pilot deployment | **DEPLOYED / ACCEPTED** |
-| PILOT-RELEASE-2 | 4D Customer Requirement Deployment & UAT | **PLANNED** (next delivery; deployment/UAT phase, not feature development) |
+| PILOT-RELEASE-2 | 4D Customer Requirement Deployment & UAT | **DEPLOYED / ACCEPTED** (deployed runtime SHA 065320180c17b89c7460164326a0c9f49e01fe3b; production smoke passed 2026-09-23; migrations through 0010 deployed) |
+| 8A-PRE | Caching & Freshness Architecture Audit | **PLANNED** (next delivery; READ-ONLY / DESIGN-FIRST, not caching implementation) |
 | 4D-PRE | Preferred Source Feasibility Audit | Implemented (evidence only, frozen) |
 | 4D-A | Source Acquisition Optimization | Implemented (frozen) |
 | 4D-B | Internal Vendor Commercial Evidence | **Implemented (approved / frozen)** |
@@ -1149,21 +1209,48 @@ Corrective pass (final evidence-backed closure):
 
 ## Next delivery priority
 
-**PILOT-RELEASE-2**: PLANNED — 4D Customer Requirement Deployment & UAT
-(next delivery priority). Deployment/UAT phase, not a feature-development
-phase: deploy the already-frozen 4D customer requirements to the restricted
-internal Windows pilot server and validate the complete real business
-workflow before starting another architecture feature phase. High-level UAT
-coverage: direct-source acquisition using a viable preferred-source case;
-normal Serper fallback; real Vendor API commercial evidence; compact quote
-rendering; non-USD vendor evidence + persisted ECB USD equivalent; Micron
-7500 packaging-alias BASE/R/T behavior; a non-eligible MPN proving alias
-abstention; Visual FoxPro launcher -> browser prefill against the deployed
-server; historical report reload causing zero new Search/Vendor/ECB/Micron/
-Semantic live work; vendor-price access behavior under the existing frozen
-network gate (4D-C-SEC REMOTE_ADDR / PI_VENDOR_PRICE_ALLOWED_CIDRS,
-unchanged). No UAT tooling is implemented by the documentation closure;
-this entry records the phase only. Authentication: the current pilot server
+**8A-PRE**: PLANNED — Caching & Freshness Architecture Audit (next
+delivery priority). READ-ONLY / DESIGN-FIRST: investigate and record a
+caching and freshness architecture before any caching implementation.
+NOT authorization to implement caching; no actual TTL values are
+approved in the PILOT-RELEASE-2 documentation closure. Chosen because
+Product Intelligence is now in production and evidence classes have
+materially different freshness requirements: the design must prevent
+stale evidence from being presented as current while avoiding
+unnecessary paid/live calls. The future 8A design must distinguish at
+minimum: market/public prices (short freshness); Vendor commercial
+observations (short freshness); ECB FX rates (tied to persisted
+official observation date); product specifications (longer
+freshness); comparable research (medium freshness); deterministic
+identity/authority evidence (not automatically equivalent to
+market-price freshness); user/operator forced refresh; historical
+reports (immutable replay, NEVER refreshed merely by GET).
+
+**PILOT-RELEASE-2**: DEPLOYED / ACCEPTED — 4D Customer Requirement
+Deployment & UAT. The already-frozen 4D customer requirements are
+deployed to the internal production/pilot Windows server and the
+complete real business workflow was validated (the high-level UAT
+coverage: direct-source acquisition using a viable preferred-source
+case; normal Serper fallback; real Vendor API commercial evidence;
+compact quote rendering; non-USD vendor evidence + persisted ECB USD
+equivalent; Micron 7500 packaging-alias BASE/R/T behavior; a
+non-eligible MPN proving alias abstention; Visual FoxPro launcher ->
+browser prefill against the deployed server; historical report reload
+causing zero new Search/Vendor/ECB/Micron/Semantic live work;
+vendor-price access behavior under the existing frozen network gate
+(4D-C-SEC REMOTE_ADDR / PI_VENDOR_PRICE_ALLOWED_CIDRS, unchanged)).
+Deployment record: deployed runtime SHA
+065320180c17b89c7460164326a0c9f49e01fe3b (the independently reviewed
+and frozen PRODUCT-INTEL.4D-D-FU1 runtime SHA; deployment is
+Git-managed and exact-approved-SHA based); production smoke test
+passed 2026-09-23; 4D is deployed; migrations through
+0010_research_micron_alias_snapshot are deployed (4D migrations
+0008 / 0009 / 0010). Production environment details are recorded in
+the operational Confluence references and are not duplicated here.
+Runtime-vs-docs: the later commits c6ad6ae and 7ff0ab7 are docs-only
+project-state closures; production does not need to move merely to
+obtain those documentation edits; 7ff0ab7 is not the production
+runtime SHA. Authentication: the current pilot server
 has restricted access and people who can reach this internal server are
 currently considered authorized for this pilot; full application
 authentication, login/session identity, OAuth, and per-user authorization
@@ -1271,8 +1358,8 @@ current FoxPro/browser workflow; not the next delivery)
         evidence too sparse for useful differentiation (candidate spec enrichment needed);
         6D completed the candidate-specification enrichment identified after the
 7B freeze. 7C is IMPLEMENTED / APPROVED / FROZEN. 4D is
-IMPLEMENTED / APPROVED / FROZEN / COMPLETE; PILOT-RELEASE-2 is the next
-delivery.
+IMPLEMENTED / APPROVED / FROZEN / COMPLETE; PILOT-RELEASE-2 is
+DEPLOYED / ACCEPTED; 8A-PRE is the next delivery.
 
 **7C-A**: COMPARABLE RESEARCH RESULTS + CODEC — IMPLEMENTED / APPROVED / FROZEN
 
