@@ -770,6 +770,87 @@ def is_human_review_eligible_assessment(
     return False
 
 
+class AiAssistedReviewTier(str, Enum):
+    """User-workflow tier for a persisted semantic MATCH candidate.
+
+    This is NOT identity authority and never mutates the deterministic
+    assessment. It only decides how an already-produced semantic MATCH is
+    presented in the pilot workflow.
+
+    AUTO_INCLUDE
+        Unreviewed HIGH candidate with no semantic conflicts and exact/
+        normalized-exact strong identifier evidence in SKU or title.
+        It may appear in the Working Quote but remains explicitly
+        "not human verified".
+    NEEDS_REVIEW
+        HIGH without the extra auto-include proof, or MEDIUM. Visible for
+        human verification but not included by default.
+    OTHER_POSSIBLE
+        LOW/unknown confidence. Preserved as a possible source, collapsed by
+        default, never auto-rejected merely because confidence is low.
+    INVALID
+        Candidate-to-assessment binding failed. No workflow authority.
+    """
+
+    AUTO_INCLUDE = "AUTO_INCLUDE"
+    NEEDS_REVIEW = "NEEDS_REVIEW"
+    OTHER_POSSIBLE = "OTHER_POSSIBLE"
+    INVALID = "INVALID"
+
+
+def classify_ai_assisted_review_tier(
+    candidate: object,
+    assessment: ListingIdentityAssessment,
+) -> AiAssistedReviewTier:
+    """Classify one persisted semantic MATCH for pilot review workflow.
+
+    The classification is deliberately stricter than confidence alone.
+    HIGH auto-inclusion requires all of:
+
+    * full persisted candidate -> snapshot assessment binding is valid;
+    * confidence is exactly HIGH;
+    * semantic conflicting-attributes is a real empty list/tuple;
+    * deterministic evidence source is SKU_FIELD or TITLE_TEXT; and
+    * that candidate identifier is EXACT/NORMALIZED_EXACT to the requested
+      MPN under the existing 2A comparator.
+
+    PARTIAL_MPN_ONLY can therefore never auto-include. MEDIUM is always
+    NEEDS_REVIEW. LOW is preserved as OTHER_POSSIBLE rather than converted
+    into a rejection, protecting recall when upstream extraction is incomplete.
+
+    candidate is consumed structurally; this research layer imports no
+    Django/persistence model.
+    """
+    if not is_review_candidate_binding_valid(candidate, assessment):
+        return AiAssistedReviewTier.INVALID
+
+    confidence = getattr(candidate, "semantic_confidence", "")
+    conflicts = getattr(candidate, "semantic_conflicting_attributes", None)
+
+    strong_identity = False
+    if assessment.candidate_evidence_source in (
+        EvidenceSource.SKU_FIELD,
+        EvidenceSource.TITLE_TEXT,
+    ):
+        comparison = compare_part_numbers(
+            assessment.requested_part_number,
+            assessment.candidate_part_number_compared,
+        )
+        strong_identity = comparison.is_established
+
+    conflicts_are_empty = (
+        isinstance(conflicts, (list, tuple))
+        and len(conflicts) == 0
+    )
+
+    if confidence == "HIGH" and strong_identity and conflicts_are_empty:
+        return AiAssistedReviewTier.AUTO_INCLUDE
+
+    if confidence in ("HIGH", "MEDIUM"):
+        return AiAssistedReviewTier.NEEDS_REVIEW
+
+    return AiAssistedReviewTier.OTHER_POSSIBLE
+
 def is_review_candidate_binding_valid(
     candidate: object,
     assessment: ListingIdentityAssessment,
