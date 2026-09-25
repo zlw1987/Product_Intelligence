@@ -359,7 +359,8 @@ class ListingIdentityAssessment:
                 EvidenceSource.VISIBLE_LABELED_MPN_FIELD,
             ):
                 raise ValueError(
-                    f"ACCEPTED requires explicit MPN evidence, "
+                    "ACCEPTED requires EXPLICIT_MPN_FIELD or "
+                    "VISIBLE_LABELED_MPN_FIELD evidence, "
                     f"got {evidence_source.value}; "
                     "only a structured MPN field or bounded visible labeled "
                     "MPN field can establish identity"

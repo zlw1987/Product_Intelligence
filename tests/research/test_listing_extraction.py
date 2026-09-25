@@ -685,6 +685,19 @@ class TestVisibleLabeledIdentityEnrichment:
 
         assert _extract(document)[0].manufacturer_part_number_text is None
 
+    def test_inline_model_with_trailing_item_number_uses_only_model_value(self) -> None:
+        document = (
+            "<html><head>"
+            + _json_ld({"@type": "Product", "name": "Thing", "sku": "SHOP-1"})
+            + "</head><body>"
+            + "<div>Model #: M321RYGA0PB2-CCP Item #: MEMSAM59664S</div>"
+            + "</body></html>"
+        )
+
+        observation = _extract(document)[0]
+        assert observation.manufacturer_part_number_text == "M321RYGA0PB2-CCP"
+        assert observation.sku_text == "SHOP-1"
+
     def test_label_does_not_borrow_unrelated_text_from_another_parent(self) -> None:
         document = (
             "<html><head>"
@@ -696,6 +709,30 @@ class TestVisibleLabeledIdentityEnrichment:
         )
 
         assert _extract(document)[0].manufacturer_part_number_text is None
+
+    def test_two_block_div_siblings_are_not_treated_as_label_value_pair(self) -> None:
+        document = (
+            "<html><head>"
+            + _json_ld({"@type": "Product", "name": "Thing", "sku": "SHOP-1"})
+            + "</head><body>"
+            + "<div>Model #:</div><div>ABC-123</div>"
+            + "</body></html>"
+        )
+
+        assert _extract(document)[0].manufacturer_part_number_text is None
+
+    def test_table_header_and_value_cell_can_supply_visible_mpn(self) -> None:
+        document = (
+            "<html><head>"
+            + _json_ld({"@type": "Product", "name": "Thing", "sku": "SHOP-1"})
+            + "</head><body><table><tr>"
+            + "<th>Manufacturer Part Number</th><td>M321RYGA0PB2-CCP</td>"
+            + "</tr></table></body></html>"
+        )
+
+        observation = _extract(document)[0]
+        assert observation.manufacturer_part_number_text == "M321RYGA0PB2-CCP"
+        assert observation.extraction_method is ExtractionMethod.JSON_LD_WITH_VISIBLE_MPN
 
     def test_mfr_part_label_variant_is_supported(self) -> None:
         document = (

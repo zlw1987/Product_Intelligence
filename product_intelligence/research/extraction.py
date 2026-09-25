@@ -172,7 +172,8 @@ _VISIBLE_MPN_LABEL_KEYS = frozenset(label.casefold() for label in _VISIBLE_MPN_L
 _VISIBLE_MPN_INLINE_RE = re.compile(
     r"^(?P<label>manufacturer\s+part\s+number|manufacturer\s+part\s+#|"
     r"mfr\s+part\s+number|mfr\s+part\s+#|model\s+number|model\s+#|mpn)"
-    r"\s*:\s*(?P<value>.+)$",
+    r"\s*:\s*(?P<value>[A-Za-z0-9][A-Za-z0-9._/#-]{0,127})"
+    r"(?:\s+(?:item\s+#|item\s+number|sku)\s*:\s*.+)?$",
     re.IGNORECASE,
 )
 _VISIBLE_MPN_VALUE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/#-]{0,127}$")
@@ -180,6 +181,16 @@ _IGNORED_VISIBLE_TEXT_TAGS = frozenset({"script", "style", "noscript", "template
 _VOID_VISIBLE_TAGS = frozenset({
     "area", "base", "br", "col", "embed", "hr", "img", "input",
     "link", "meta", "param", "source", "track", "wbr",
+})
+_INLINE_IDENTITY_CHILD_TAGS = frozenset({
+    "span", "strong", "b", "em", "i", "small", "code", "label",
+})
+_SPLIT_IDENTITY_TAG_PAIRS = frozenset({
+    ("span", "span"),
+    ("th", "td"),
+    ("dt", "dd"),
+    ("strong", "span"),
+    ("label", "span"),
 })
 
 MAX_VISIBLE_IDENTITY_ELEMENTS = 2048
@@ -196,6 +207,7 @@ class _VisibleTextFrame:
     parent_id: int | None
     parts: list[str]
     text_len: int = 0
+    child_tags: list[str] | None = None
 
 
 class _StructuredDataCollector(HTMLParser):
@@ -211,7 +223,7 @@ class _StructuredDataCollector(HTMLParser):
         super().__init__(convert_charrefs=True)
         self.json_ld_blocks: list[str] = []
         self.meta_tags: list[dict[str, str]] = []
-        self.visible_identity_elements: list[tuple[int | None, str]] = []
+        self.visible_identity_elements: list[tuple[int | None, str, str]] = []
         self._in_json_ld = False
         self._buffer: list[str] = []
         self._ignored_visible_text_depth = 0
@@ -247,11 +259,26 @@ class _StructuredDataCollector(HTMLParser):
         text = " ".join(frame.parts).strip()
         if not text:
             return
-        if len(self.visible_identity_elements) >= MAX_VISIBLE_IDENTITY_ELEMENTS:
-            self._disable_visible_capture()
-            return
-        self.visible_identity_elements.append((frame.parent_id, text))
-        self._append_visible_piece(text)
+
+        child_tags = frame.child_tags or []
+        should_record = (
+            not child_tags
+            or all(tag in _INLINE_IDENTITY_CHILD_TAGS for tag in child_tags)
+        )
+        if should_record:
+            if len(self.visible_identity_elements) >= MAX_VISIBLE_IDENTITY_ELEMENTS:
+                self._disable_visible_capture()
+                return
+            self.visible_identity_elements.append(
+                (frame.parent_id, frame.tag, text)
+            )
+
+        # Propagate leaf text one level only. This lets inline children combine
+        # inside their immediate field container, but prevents a body/section
+        # ancestor from concatenating unrelated product facts into fake MPN
+        # evidence.
+        if not child_tags:
+            self._append_visible_piece(text)
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         attributes = {name.lower(): (value or "") for name, value in attrs}
@@ -288,11 +315,18 @@ class _StructuredDataCollector(HTMLParser):
             if self._visible_frames
             else None
         )
+        if self._visible_frames:
+            parent = self._visible_frames[-1]
+            if parent.child_tags is None:
+                parent.child_tags = []
+            parent.child_tags.append(tag)
+
         frame = _VisibleTextFrame(
             tag=tag,
             frame_id=self._next_visible_frame_id,
             parent_id=parent_id,
             parts=[],
+            child_tags=[],
         )
         self._next_visible_frame_id += 1
         self._visible_frames.append(frame)
@@ -369,20 +403,22 @@ def _bounded_visible_mpn_value(value: str) -> str | None:
 
 
 def _extract_visible_mpn_evidence(
-    elements: list[tuple[int | None, str]],
+    elements: list[tuple[int | None, str, str]],
 ) -> tuple[str, str] | None:
     """Extract one unambiguous MPN from exact bounded visible field labels.
 
     An inline element containing an approved label, colon, and identifier is
-    accepted. A split label and value are accepted only when the two finalized
-    sibling elements share the same parent. Generic Part Number and retailer
-    identifiers such as Item # or SKU are intentionally not authoritative.
+    accepted. A split label and value are accepted only for a small allowlist
+    of local sibling tag pairs sharing the same parent. Generic Part Number and
+    retailer identifiers such as Item # or SKU are intentionally not
+    authoritative. A trailing Item #/SKU after an inline Model # is ignored
+    rather than being mistaken for part of the MPN.
 
     Different authoritative labeled values fail closed.
     """
     found: list[tuple[str, str]] = []
 
-    for index, (parent_id, text) in enumerate(elements):
+    for index, (parent_id, tag, text) in enumerate(elements):
         inline = _VISIBLE_MPN_INLINE_RE.fullmatch(text)
         if inline is not None:
             value = _bounded_visible_mpn_value(inline.group("value"))
@@ -396,8 +432,10 @@ def _extract_visible_mpn_evidence(
         if index + 1 >= len(elements):
             continue
 
-        next_parent_id, next_text = elements[index + 1]
+        next_parent_id, next_tag, next_text = elements[index + 1]
         if next_parent_id != parent_id:
+            continue
+        if (tag, next_tag) not in _SPLIT_IDENTITY_TAG_PAIRS:
             continue
 
         value = _bounded_visible_mpn_value(next_text)
