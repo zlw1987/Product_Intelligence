@@ -289,7 +289,13 @@ def _extract_visible_labeled_mpn(chunks: list[str]) -> str | None:
                 value = _bounded_visible_identity_value(right)
                 if value is not None:
                     found.append(value)
-                continue
+                    continue
+                if right.strip():
+                    # A non-empty but invalid same-chunk value is not repaired
+                    # by borrowing a later text node.
+                    continue
+                # Label and value are split across adjacent DOM text nodes.
+                normalized = left
 
         if _canonical_visible_label(normalized) not in approved:
             continue
