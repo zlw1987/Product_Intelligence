@@ -79,14 +79,18 @@ class ExtractionMethod(Enum):
     still one page's claim, and one of the real pages behind this phase proves
     it by publishing the literal string `undefined` there.
 
-    Two members, because two mechanisms are implemented. A third, for a
-    narrowly scoped per-source strategy, is described in the plan document and
-    is deliberately not declared here: a vocabulary member nothing produces is a
-    placeholder for unbuilt behaviour.
+    Four members are implemented. JSON_LD and META mean every carried field
+    came from that structured mechanism. The *_WITH_VISIBLE_MPN variants mean
+    the offer record came from the named structured mechanism while a missing
+    manufacturer part number was filled from a bounded, explicitly labeled
+    visible identity field on the same page. These mixed provenance values are
+    not trust ratings and do not authorize arbitrary rendered-text extraction.
     """
 
     JSON_LD = "JSON_LD"
     META = "META"
+    JSON_LD_WITH_VISIBLE_MPN = "JSON_LD_WITH_VISIBLE_MPN"
+    META_WITH_VISIBLE_MPN = "META_WITH_VISIBLE_MPN"
 
 
 @dataclass(frozen=True)
@@ -111,7 +115,10 @@ class ListingObservation:
     addresses: without it, two observations from one page are indistinguishable
     in their traceability.
 
-    `extraction_method` records the mechanism, per `ExtractionMethod`.
+    `extraction_method` records the observation provenance, per
+    `ExtractionMethod`. For the two *_WITH_VISIBLE_MPN values, price and offer
+    fields still came from JSON-LD/META; only the otherwise-missing MPN came
+    from the bounded visible labeled-identity path.
 
     `raw_reference` preserves the structured node the observation came from, so
     a reviewer can check the mapping against the source. It follows AD-040: it

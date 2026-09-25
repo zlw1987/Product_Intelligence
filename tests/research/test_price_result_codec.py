@@ -477,6 +477,77 @@ class TestRoundTripFidelity:
             assert d_bucket.market_range_high == o_bucket.market_range_high
             assert d_bucket.confidence == o_bucket.confidence
 
+    def test_visible_labeled_mpn_provenance_round_trips(self) -> None:
+        request = ResearchRequest(
+            manufacturer_part_number="M321RYGA0PB2-CCP",
+            description="Samsung 96GB DDR5-6400 ECC RDIMM",
+        )
+        observation = ListingObservation(
+            source_url="https://example.com/visible-model",
+            extraction_method=ExtractionMethod.JSON_LD_WITH_VISIBLE_MPN,
+            product_title="Samsung 96GB DDR5 Server Memory",
+            manufacturer_part_number_text="M321RYGA0PB2-CCP",
+            sku_text="MEMSAM59664S",
+            price_text="4099.99",
+            currency_text="USD",
+            condition_text="New",
+            raw_reference='{"@type":"Product","sku":"MEMSAM59664S"}',
+        )
+        normalized = NormalizedListingObservation(
+            observation=observation,
+            price_amount=Decimal("4099.99"),
+            currency_code="USD",
+            availability=NormalizedAvailability.UNKNOWN,
+            condition=NormalizedCondition.NEW,
+            seller_name=None,
+            normalization_issues=(),
+        )
+        assessment = ListingIdentityAssessment(
+            normalized_listing=normalized,
+            requested_part_number="M321RYGA0PB2-CCP",
+            candidate_part_number_raw="M321RYGA0PB2-CCP",
+            candidate_part_number_compared="M321RYGA0PB2-CCP",
+            candidate_evidence_source=EvidenceSource.VISIBLE_LABELED_MPN_FIELD,
+            match_type=IdentityMatchType.EXACT,
+            decision=EvidenceDecision.ACCEPTED,
+            rejection_reason=None,
+        )
+        result = PriceAggregationResult(
+            request=request,
+            assessments=(assessment,),
+            exclusions=(),
+            buckets=(
+                PriceAggregateBucket(
+                    currency_code="USD",
+                    condition=NormalizedCondition.NEW,
+                    assessments=(assessment,),
+                    count=1,
+                    low=Decimal("4099.99"),
+                    median=Decimal("4099.99"),
+                    high=Decimal("4099.99"),
+                    market_range_low=None,
+                    market_range_high=None,
+                    confidence=ConfidenceLevel.LOW,
+                ),
+            ),
+            verification_status=VerificationStatus.VERIFIED,
+        )
+
+        payload = encode_price_aggregation_result(result)
+        decoded = decode_price_aggregation_result(payload, schema_version=1)
+
+        decoded_assessment = decoded.assessments[0]
+        assert (
+            decoded_assessment.normalized_listing.observation.extraction_method
+            is ExtractionMethod.JSON_LD_WITH_VISIBLE_MPN
+        )
+        assert (
+            decoded_assessment.candidate_evidence_source
+            is EvidenceSource.VISIBLE_LABELED_MPN_FIELD
+        )
+        assert decoded_assessment.decision is EvidenceDecision.ACCEPTED
+
+
     def test_empty_assessments_round_trip(self, canonical_request: ResearchRequest) -> None:
         result = PriceAggregationResult(
             request=canonical_request,

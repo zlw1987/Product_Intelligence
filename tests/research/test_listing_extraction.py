@@ -541,11 +541,10 @@ class TestVisibleLabeledIdentityEnrichment:
         assert observation.sku_text == "MEMSAM59664S"
         assert observation.price_text == "4099.99"
         assert observation.currency_text == "USD"
+        assert observation.extraction_method is ExtractionMethod.JSON_LD_WITH_VISIBLE_MPN
         preserved = json.loads(observation.raw_reference or "{}")
-        assert preserved["_visible_identity_evidence"] == {
-            "label": "Model #",
-            "value": "M321RYGA0PB2-CCP",
-        }
+        assert preserved["sku"] == "MEMSAM59664S"
+        assert "_visible_identity_evidence" not in preserved
 
     def test_visible_model_number_flows_to_existing_exact_3c_match(self) -> None:
         """The extractor supplies evidence; frozen matching still decides."""
@@ -579,8 +578,11 @@ class TestVisibleLabeledIdentityEnrichment:
         normalized = normalize_listing_observations(_extract(document))
         assessment = assess_listing_identity(request, normalized[0])
 
+        from product_intelligence.research.matching import EvidenceSource
+
         assert assessment.decision is EvidenceDecision.ACCEPTED
         assert assessment.match_type is IdentityMatchType.EXACT
+        assert assessment.candidate_evidence_source is EvidenceSource.VISIBLE_LABELED_MPN_FIELD
 
     def test_inline_model_number_label_is_supported(self) -> None:
         document = (
@@ -614,7 +616,10 @@ class TestVisibleLabeledIdentityEnrichment:
 
     @pytest.mark.parametrize(
         "label",
-        ["Item #", "Item Number", "SKU", "Stock #", "UPC", "EAN", "Product #"],
+        [
+            "Item #", "Item Number", "SKU", "Stock #", "UPC", "EAN",
+            "Product #", "Part Number",
+        ],
     )
     def test_retailer_or_unapproved_labels_are_never_promoted_to_mpn(
         self,
@@ -634,7 +639,7 @@ class TestVisibleLabeledIdentityEnrichment:
             + _json_ld({"@type": "Product", "name": "Thing", "sku": "SHOP-1"})
             + "</head><body>"
             + "<div>Model #: ABC-123</div>"
-            + "<div>Part Number: XYZ-999</div>"
+            + "<div>Manufacturer Part Number: XYZ-999</div>"
             + "</body></html>"
         )
 
@@ -662,6 +667,29 @@ class TestVisibleLabeledIdentityEnrichment:
         )
 
         assert _extract(document)[0].manufacturer_part_number_text is None
+
+    def test_label_does_not_borrow_unrelated_text_from_another_parent(self) -> None:
+        document = (
+            "<html><head>"
+            + _json_ld({"@type": "Product", "name": "Thing", "sku": "SHOP-1"})
+            + "</head><body>"
+            + "<div><span>Model #:</span></div>"
+            + "<div><span>ABC-123</span></div>"
+            + "</body></html>"
+        )
+
+        assert _extract(document)[0].manufacturer_part_number_text is None
+
+    def test_mfr_part_label_variant_is_supported(self) -> None:
+        document = (
+            "<html><head>"
+            + _json_ld({"@type": "Product", "name": "Thing", "sku": "SHOP-1"})
+            + "</head><body><div>Mfr Part #: ABC-123</div></body></html>"
+        )
+
+        observation = _extract(document)[0]
+        assert observation.manufacturer_part_number_text == "ABC-123"
+        assert observation.extraction_method is ExtractionMethod.JSON_LD_WITH_VISIBLE_MPN
 
     def test_visible_identity_alone_never_creates_a_listing(self) -> None:
         document = "<html><body><div>Model #: ABC-123</div></body></html>"

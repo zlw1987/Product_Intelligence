@@ -46,11 +46,14 @@ The same character sequence has different semantics depending on which field
 published it:
 
 * ``EXPLICIT_MPN_FIELD`` — the page published a structured MPN field
+* ``VISIBLE_LABELED_MPN_FIELD`` — the page published an explicit visible
+  manufacturer/model-number field accepted by the bounded identity extractor
 * ``SKU_FIELD`` — the page published a structured SKU field
 * ``TITLE_TEXT`` — the requested MPN appears in the product title
 * ``NONE`` — no candidate identifier was found
 
-Only an explicit MPN field can produce ACCEPTED.
+Only an explicit structured MPN or bounded visible labeled MPN can produce
+ACCEPTED, and only through EXACT / NORMALIZED_EXACT comparison.
 """
 
 from __future__ import annotations
@@ -66,7 +69,7 @@ from product_intelligence.domain.enums import (
 from product_intelligence.research.identity import (
     compare_part_numbers,
 )
-from product_intelligence.research.listings import ListingObservation
+from product_intelligence.research.listings import ExtractionMethod, ListingObservation
 from product_intelligence.research.normalization import (
     NormalizedListingObservation,
 )
@@ -82,6 +85,9 @@ class EvidenceSource(str, Enum):
 
     EXPLICIT_MPN_FIELD = "EXPLICIT_MPN_FIELD"
     """The page published a structured MPN field."""
+
+    VISIBLE_LABELED_MPN_FIELD = "VISIBLE_LABELED_MPN_FIELD"
+    """The page published a bounded explicit visible manufacturer/model field."""
 
     SKU_FIELD = "SKU_FIELD"
     """The page published a structured SKU field."""
@@ -170,7 +176,8 @@ def _candidate_compared_from_evidence(
     ``ListingIdentityAssessment.__post_init__``).
 
     * ``EXPLICIT_MPN_FIELD`` — apply narrow ``mpn:`` wrapper cleanup.
-    * ``SKU_FIELD`` / ``TITLE_TEXT`` / ``NONE`` — no transformation.
+    * ``VISIBLE_LABELED_MPN_FIELD`` / ``SKU_FIELD`` / ``TITLE_TEXT`` /
+      ``NONE`` — no transformation.
 
     Both the normal builder (``assess_listing_identity``) and the
     constructor invariant check call this to prevent drift.
@@ -347,11 +354,15 @@ class ListingIdentityAssessment:
         rejection = self.rejection_reason
 
         if decision is EvidenceDecision.ACCEPTED:
-            if evidence_source is not EvidenceSource.EXPLICIT_MPN_FIELD:
+            if evidence_source not in (
+                EvidenceSource.EXPLICIT_MPN_FIELD,
+                EvidenceSource.VISIBLE_LABELED_MPN_FIELD,
+            ):
                 raise ValueError(
-                    f"ACCEPTED requires EXPLICIT_MPN_FIELD evidence, "
+                    f"ACCEPTED requires explicit MPN evidence, "
                     f"got {evidence_source.value}; "
-                    "only an explicit MPN field can establish identity"
+                    "only a structured MPN field or bounded visible labeled "
+                    "MPN field can establish identity"
                 )
             if match_type not in (
                 IdentityMatchType.EXACT,
@@ -534,7 +545,8 @@ def _find_evidence(
 
     Priority order:
 
-    1. Explicit MPN field — the page published a structured MPN.
+    1. Explicit MPN field — structured MPN, or bounded visible labeled MPN
+       when the extraction provenance says the MPN came from that path.
     2. SKU field — the page published a structured SKU (retailer internal or
        manufacturer public; 3C has no general source-specific knowledge to
        distinguish).
@@ -545,9 +557,21 @@ def _find_evidence(
     Returns ``(source, candidate_text)`` where candidate text is ``""`` when
     the source is ``NONE``.
     """
-    # 1. Explicit MPN field.
+    # 1. Explicit MPN field, preserving whether it came from structured data
+    #    or the bounded visible labeled-identity enrichment.
     if observation.manufacturer_part_number_text is not None:
-        return EvidenceSource.EXPLICIT_MPN_FIELD, observation.manufacturer_part_number_text
+        if observation.extraction_method in (
+            ExtractionMethod.JSON_LD_WITH_VISIBLE_MPN,
+            ExtractionMethod.META_WITH_VISIBLE_MPN,
+        ):
+            return (
+                EvidenceSource.VISIBLE_LABELED_MPN_FIELD,
+                observation.manufacturer_part_number_text,
+            )
+        return (
+            EvidenceSource.EXPLICIT_MPN_FIELD,
+            observation.manufacturer_part_number_text,
+        )
 
     # 2. SKU field.
     if observation.sku_text is not None:
@@ -637,11 +661,17 @@ def assess_listing_identity(
             rejection_reason=IdentityRejectionReason.NO_EXPLICIT_MPN_EVIDENCE,
         )
 
-    # --- Explicit MPN field: compare with 2A ---
-    assert evidence_source is EvidenceSource.EXPLICIT_MPN_FIELD
+    # --- Explicit structured or visible labeled MPN: compare with 2A ---
+    assert evidence_source in (
+        EvidenceSource.EXPLICIT_MPN_FIELD,
+        EvidenceSource.VISIBLE_LABELED_MPN_FIELD,
+    )
 
-    # Apply narrow wrapper cleanup.
-    candidate_compared = _clean_mpn_field_wrapper(candidate_raw)
+    # Apply the narrow wrapper cleanup only to the structured MPN-field path.
+    candidate_compared = _candidate_compared_from_evidence(
+        evidence_source,
+        candidate_raw,
+    )
 
     # Run the existing 2A comparator.
     assessment_2a = compare_part_numbers(requested_mpn, candidate_compared)

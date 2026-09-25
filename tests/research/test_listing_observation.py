@@ -173,11 +173,14 @@ class TestValuesAreKeptAsPublished:
 
 
 class TestExtractionMethod:
-    def test_exactly_two_mechanisms_are_declared(self) -> None:
-        """A vocabulary member nothing produces is a placeholder for unbuilt
-        behaviour. A per-source strategy is described in the plan and is not
-        implemented, so it is not named here."""
-        assert {member.name for member in ExtractionMethod} == {"JSON_LD", "META"}
+    def test_exactly_the_implemented_mechanisms_are_declared(self) -> None:
+        """The mixed variants are real provenance states, not placeholders."""
+        assert {member.name for member in ExtractionMethod} == {
+            "JSON_LD",
+            "META",
+            "JSON_LD_WITH_VISIBLE_MPN",
+            "META_WITH_VISIBLE_MPN",
+        }
 
     def test_a_mechanism_is_not_a_trustworthiness_rating(self) -> None:
         """No ordering, no score, no confidence mapping.

@@ -106,7 +106,7 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from html.parser import HTMLParser
 
 from product_intelligence.research.listings import ExtractionMethod, ListingObservation
@@ -163,46 +163,99 @@ _VISIBLE_MPN_LABELS: tuple[str, ...] = (
     "MPN",
     "Manufacturer Part Number",
     "Manufacturer Part #",
+    "Mfr Part Number",
+    "Mfr Part #",
     "Model Number",
     "Model #",
-    "Part Number",
 )
 _VISIBLE_MPN_LABEL_KEYS = frozenset(label.casefold() for label in _VISIBLE_MPN_LABELS)
 _VISIBLE_MPN_INLINE_RE = re.compile(
     r"^(?P<label>manufacturer\s+part\s+number|manufacturer\s+part\s+#|"
-    r"model\s+number|model\s+#|part\s+number|mpn)\s*:\s*(?P<value>.+)$",
+    r"mfr\s+part\s+number|mfr\s+part\s+#|model\s+number|model\s+#|mpn)"
+    r"\s*:\s*(?P<value>.+)$",
     re.IGNORECASE,
 )
 _VISIBLE_MPN_VALUE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/#-]{0,127}$")
 _IGNORED_VISIBLE_TEXT_TAGS = frozenset({"script", "style", "noscript", "template"})
+_VOID_VISIBLE_TAGS = frozenset({
+    "area", "base", "br", "col", "embed", "hr", "img", "input",
+    "link", "meta", "param", "source", "track", "wbr",
+})
+
+MAX_VISIBLE_IDENTITY_ELEMENTS = 2048
+MAX_VISIBLE_IDENTITY_ELEMENT_TEXT = 256
+MAX_VISIBLE_IDENTITY_DEPTH = 64
+
+
+@dataclass
+class _VisibleTextFrame:
+    """One bounded visible element under construction."""
+
+    tag: str
+    frame_id: int
+    parent_id: int | None
+    parts: list[str]
+    text_len: int = 0
 
 
 class _StructuredDataCollector(HTMLParser):
-    """Collect structured data plus bounded visible text chunks for identity.
+    """Collect structured data plus bounded visible identity containers.
 
     JSON-LD and META remain the only offer/price extraction mechanisms. Visible
-    text chunks are retained only so the later exact-label scanner can recover a
-    missing manufacturer part number; script/style/noscript/template content is
-    excluded. No visible price extraction is performed.
-
-    A parser rather than a regular expression, because a regular expression over
-    HTML gets the easy cases right and then quietly mis-slices a page with a
-    `</script>` inside a string literal. `HTMLParser` treats `script` as CDATA,
-    so a block's contents arrive verbatim and un-unescaped, which is what a
-    JSON parser needs.
+    element text is retained only for exact labeled MPN recovery. The collector
+    records bounded element containers and sibling relationships so a label is
+    never paired with arbitrary later page text.
     """
 
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
         self.json_ld_blocks: list[str] = []
         self.meta_tags: list[dict[str, str]] = []
-        self.visible_text_chunks: list[str] = []
+        self.visible_identity_elements: list[tuple[int | None, str]] = []
         self._in_json_ld = False
         self._buffer: list[str] = []
         self._ignored_visible_text_depth = 0
+        self._visible_frames: list[_VisibleTextFrame] = []
+        self._next_visible_frame_id = 1
+        self._visible_capture_disabled = False
+
+    def _disable_visible_capture(self) -> None:
+        self._visible_capture_disabled = True
+        self._visible_frames.clear()
+        self.visible_identity_elements.clear()
+
+    def _append_visible_piece(self, value: str) -> None:
+        if self._visible_capture_disabled or not self._visible_frames:
+            return
+        text = " ".join(value.split())
+        if not text:
+            return
+        frame = self._visible_frames[-1]
+        extra = len(text) + (1 if frame.parts else 0)
+        if frame.text_len + extra > MAX_VISIBLE_IDENTITY_ELEMENT_TEXT:
+            frame.parts.clear()
+            frame.text_len = MAX_VISIBLE_IDENTITY_ELEMENT_TEXT + 1
+            return
+        frame.parts.append(text)
+        frame.text_len += extra
+
+    def _finalize_visible_frame(self, frame: _VisibleTextFrame) -> None:
+        if self._visible_capture_disabled:
+            return
+        if frame.text_len > MAX_VISIBLE_IDENTITY_ELEMENT_TEXT:
+            return
+        text = " ".join(frame.parts).strip()
+        if not text:
+            return
+        if len(self.visible_identity_elements) >= MAX_VISIBLE_IDENTITY_ELEMENTS:
+            self._disable_visible_capture()
+            return
+        self.visible_identity_elements.append((frame.parent_id, text))
+        self._append_visible_piece(text)
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         attributes = {name.lower(): (value or "") for name, value in attrs}
+
         if tag == "script":
             declared = attributes.get("type", "").split(";", 1)[0].strip().lower()
             if declared == "application/ld+json":
@@ -210,10 +263,39 @@ class _StructuredDataCollector(HTMLParser):
                 self._buffer = []
             else:
                 self._ignored_visible_text_depth += 1
-        elif tag in _IGNORED_VISIBLE_TEXT_TAGS:
+            return
+
+        if tag in _IGNORED_VISIBLE_TEXT_TAGS:
             self._ignored_visible_text_depth += 1
-        elif tag == "meta":
+            return
+
+        if tag == "meta":
             self.meta_tags.append(attributes)
+
+        if (
+            self._ignored_visible_text_depth
+            or self._visible_capture_disabled
+            or tag in _VOID_VISIBLE_TAGS
+        ):
+            return
+
+        if len(self._visible_frames) >= MAX_VISIBLE_IDENTITY_DEPTH:
+            self._disable_visible_capture()
+            return
+
+        parent_id = (
+            self._visible_frames[-1].frame_id
+            if self._visible_frames
+            else None
+        )
+        frame = _VisibleTextFrame(
+            tag=tag,
+            frame_id=self._next_visible_frame_id,
+            parent_id=parent_id,
+            parts=[],
+        )
+        self._next_visible_frame_id += 1
+        self._visible_frames.append(frame)
 
     def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         if tag == "meta":
@@ -226,9 +308,7 @@ class _StructuredDataCollector(HTMLParser):
             self._buffer.append(data)
             return
         if self._ignored_visible_text_depth == 0:
-            visible = " ".join(data.split())
-            if visible:
-                self.visible_text_chunks.append(visible)
+            self._append_visible_piece(data)
 
     def handle_endtag(self, tag: str) -> None:
         if tag == "script" and self._in_json_ld:
@@ -236,9 +316,31 @@ class _StructuredDataCollector(HTMLParser):
             if len(self.json_ld_blocks) < MAX_JSON_LD_BLOCKS:
                 self.json_ld_blocks.append("".join(self._buffer))
             self._buffer = []
-        elif tag in _IGNORED_VISIBLE_TEXT_TAGS and self._ignored_visible_text_depth:
-            self._ignored_visible_text_depth -= 1
+            return
 
+        if tag in _IGNORED_VISIBLE_TEXT_TAGS:
+            if self._ignored_visible_text_depth:
+                self._ignored_visible_text_depth -= 1
+            return
+
+        if (
+            self._ignored_visible_text_depth
+            or self._visible_capture_disabled
+            or not self._visible_frames
+        ):
+            return
+
+        match_index = None
+        for index in range(len(self._visible_frames) - 1, -1, -1):
+            if self._visible_frames[index].tag == tag:
+                match_index = index
+                break
+        if match_index is None:
+            return
+
+        while len(self._visible_frames) > match_index:
+            frame = self._visible_frames.pop()
+            self._finalize_visible_frame(frame)
 
 def _parse_document(document: str) -> _StructuredDataCollector:
     """Run the collector over untrusted markup, keeping whatever it reached.
@@ -267,36 +369,38 @@ def _bounded_visible_mpn_value(value: str) -> str | None:
 
 
 def _extract_visible_mpn_evidence(
-    chunks: list[str],
+    elements: list[tuple[int | None, str]],
 ) -> tuple[str, str] | None:
-    """Extract one unambiguous MPN from exact visible field labels.
+    """Extract one unambiguous MPN from exact bounded visible field labels.
 
-    Supported shapes are deliberately narrow: one text chunk containing an
-    exact label, colon, and value; or an exact label chunk followed by one
-    bounded identifier chunk.
+    An inline element containing an approved label, colon, and identifier is
+    accepted. A split label and value are accepted only when the two finalized
+    sibling elements share the same parent. Generic Part Number and retailer
+    identifiers such as Item # or SKU are intentionally not authoritative.
 
-    Only labels in _VISIBLE_MPN_LABELS qualify. If two qualifying labels publish
-    different values, enrichment fails closed. Repeated publication of the same
-    value is allowed. Free text, titles, URLs, Item # and SKU never enter this
-    function as MPN evidence.
+    Different authoritative labeled values fail closed.
     """
     found: list[tuple[str, str]] = []
 
-    for index, chunk in enumerate(chunks):
-        inline = _VISIBLE_MPN_INLINE_RE.fullmatch(chunk)
+    for index, (parent_id, text) in enumerate(elements):
+        inline = _VISIBLE_MPN_INLINE_RE.fullmatch(text)
         if inline is not None:
             value = _bounded_visible_mpn_value(inline.group("value"))
             if value is not None:
                 found.append((inline.group("label").strip(), value))
             continue
 
-        label = chunk.rstrip(":").strip()
+        label = text.rstrip(":").strip()
         if label.casefold() not in _VISIBLE_MPN_LABEL_KEYS:
             continue
-        if index + 1 >= len(chunks):
+        if index + 1 >= len(elements):
             continue
 
-        value = _bounded_visible_mpn_value(chunks[index + 1])
+        next_parent_id, next_text = elements[index + 1]
+        if next_parent_id != parent_id:
+            continue
+
+        value = _bounded_visible_mpn_value(next_text)
         if value is not None:
             found.append((label, value))
 
@@ -312,35 +416,27 @@ def _extract_visible_mpn_evidence(
 
     return next(iter(by_value.values()))
 
-
 def _enrich_observation_with_visible_mpn(
     observation: ListingObservation,
     *,
     label: str,
     value: str,
 ) -> ListingObservation:
-    """Fill only a missing MPN and preserve exact enrichment provenance."""
+    """Fill only a missing MPN and mark the mixed extraction provenance."""
     if observation.manufacturer_part_number_text is not None:
         return observation
 
-    raw_reference = observation.raw_reference
-    if raw_reference is not None:
-        reference_data = json.loads(raw_reference)
-        if isinstance(reference_data, dict):
-            reference_data["_visible_identity_evidence"] = {
-                "label": label,
-                "value": value,
-            }
-            raw_reference = json.dumps(
-                reference_data,
-                ensure_ascii=False,
-                sort_keys=True,
-            )
+    if observation.extraction_method is ExtractionMethod.JSON_LD:
+        enriched_method = ExtractionMethod.JSON_LD_WITH_VISIBLE_MPN
+    elif observation.extraction_method is ExtractionMethod.META:
+        enriched_method = ExtractionMethod.META_WITH_VISIBLE_MPN
+    else:
+        return observation
 
     return replace(
         observation,
+        extraction_method=enriched_method,
         manufacturer_part_number_text=value,
-        raw_reference=raw_reference,
     )
 
 
@@ -644,7 +740,9 @@ def extract_listing_observations(
     # may fill ONLY a missing MPN on an observation that already exists. It
     # cannot create an offer, cannot alter price/currency/condition, and fails
     # closed on conflicting labeled values.
-    visible_mpn = _extract_visible_mpn_evidence(collector.visible_text_chunks)
+    visible_mpn = _extract_visible_mpn_evidence(
+        collector.visible_identity_elements
+    )
     if visible_mpn is not None and observations:
         label, value = visible_mpn
         observations = [
