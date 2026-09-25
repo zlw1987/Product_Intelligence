@@ -10,7 +10,7 @@ ResearchRequest + tuple[ListingIdentityAssessment, ...]
         ↓
   price-eligibility assessment
         ↓
-  comparable buckets  (currency + known-condition)
+  comparable buckets  (currency + condition, including NOT STATED/UNKNOWN)
         ↓
   deterministic statistics  (count / low / median / high)
         ↓
@@ -233,9 +233,10 @@ class PriceAggregateBucket:
     """One comparable-price group from the aggregation.
 
     A bucket groups observations that share the same currency code and the
-    same known condition. Arithmetic is performed only within a bucket:
-    ``USD`` + ``EUR`` never share one median, and ``NEW`` + ``USED`` never
-    mix.
+    same normalized condition. ``UNKNOWN`` means the source did not state a
+    condition; it is a valid *separate* bucket and is never blended with NEW,
+    USED, or REFURBISHED. Arithmetic is performed only within a bucket:
+    ``USD`` + ``EUR`` never share one median, and distinct conditions never mix.
 
     All monetary values are ``Decimal``. Binary floating point never enters
     price arithmetic.
@@ -375,13 +376,8 @@ class PriceAggregateBucket:
                     "all members must share the bucket's condition"
                 )
 
-            # Condition must not be UNKNOWN.
-            if norm.condition is NormalizedCondition.UNKNOWN:
-                raise ValueError(
-                    f"assessments[{i}] has UNKNOWN condition; "
-                    "UNKNOWN condition is excluded from aggregation"
-                )
-
+            # UNKNOWN is allowed only as its own bucket key. The equality
+            # check above prevents it from mixing with any stated condition.
             prices.append(norm.price_amount)
 
         # -- Refuse exact duplicate assessment values (value-based, not
@@ -687,7 +683,9 @@ def _determine_eligibility(
     1. Identity must be ACCEPTED (3C).
     2. Normalized price must be a Decimal (3B).
     3. Normalized currency must be present.
-    4. Condition must not be UNKNOWN.
+
+    Condition is not an exclusion gate. UNKNOWN means "condition not stated"
+    and remains comparable only with other UNKNOWN-condition observations.
 
     The first failing check wins. For example, a rejected listing with no
     price is excluded for ``IDENTITY_NOT_ACCEPTED``, not
@@ -703,9 +701,6 @@ def _determine_eligibility(
 
     if normalized.currency_code is None:
         return PriceAggregationExclusionReason.NO_COMPARABLE_CURRENCY
-
-    if normalized.condition is NormalizedCondition.UNKNOWN:
-        return PriceAggregationExclusionReason.UNKNOWN_CONDITION
 
     return None
 
@@ -788,7 +783,6 @@ def aggregate_listing_prices(
             norm = assessment.normalized_listing
             assert norm.price_amount is not None  # eligibility guarantees this
             assert norm.currency_code is not None  # eligibility guarantees this
-            assert norm.condition is not NormalizedCondition.UNKNOWN
             key = (norm.currency_code, norm.condition)
             bucket_groups.setdefault(key, []).append(assessment)
 
@@ -1247,13 +1241,9 @@ class ReviewedPriceAggregateBucket:
                     "all members must share the bucket's condition"
                 )
 
-            # Condition must not be UNKNOWN.
-            if norm.condition is NormalizedCondition.UNKNOWN:
-                raise ValueError(
-                    f"assessments[{i}] has UNKNOWN condition; "
-                    "UNKNOWN condition is excluded from reviewed aggregation"
-                )
-
+            # UNKNOWN is permitted as a distinct reviewed bucket key and never
+            # mixes with a stated condition because the equality check above
+            # binds every member to the bucket condition.
             prices.append(norm.price_amount)
 
         # -- Validate counts are derived from per-entry provenance --
@@ -1381,8 +1371,6 @@ def _determine_price_eligibility(
         return PriceAggregationExclusionReason.NO_NUMERIC_PRICE
     if normalized.currency_code is None:
         return PriceAggregationExclusionReason.NO_COMPARABLE_CURRENCY
-    if normalized.condition is NormalizedCondition.UNKNOWN:
-        return PriceAggregationExclusionReason.UNKNOWN_CONDITION
     return None
 
 
@@ -1481,7 +1469,6 @@ def aggregate_reviewed_listing_prices(
         norm = assessment.normalized_listing
         assert norm.price_amount is not None
         assert norm.currency_code is not None
-        assert norm.condition is not NormalizedCondition.UNKNOWN
 
         origin = (
             ReviewedListingOrigin.HUMAN_CONFIRMED
