@@ -247,7 +247,12 @@ class TestPriceAggregateBucketFabrication:
             )
 
     def test_unknown_condition_in_bucket_refused(self) -> None:
-        """A bucket containing UNKNOWN condition -> ValueError."""
+        """Historical node retained: UNKNOWN is now a valid isolated bucket.
+
+        This requirement intentionally changed for pilot recall. The bucket
+        remains truthful because UNKNOWN is never relabeled NEW and cannot mix
+        with a different condition.
+        """
         obs = ListingObservation(
             source_url="https://example.com/unknown-cond",
             extraction_method=ExtractionMethod.JSON_LD,
@@ -274,19 +279,20 @@ class TestPriceAggregateBucketFabrication:
             decision=EvidenceDecision.ACCEPTED,
             rejection_reason=None,
         )
-        with pytest.raises(ValueError, match="UNKNOWN condition"):
-            PriceAggregateBucket(
-                currency_code="USD",
-                condition=NormalizedCondition.UNKNOWN,
-                assessments=(assessment,),
-                count=1,
-                low=Decimal("100"),
-                median=Decimal("100"),
-                high=Decimal("100"),
-                market_range_low=None,
-                market_range_high=None,
-                confidence=ConfidenceLevel.LOW,
-            )
+        bucket = PriceAggregateBucket(
+            currency_code="USD",
+            condition=NormalizedCondition.UNKNOWN,
+            assessments=(assessment,),
+            count=1,
+            low=Decimal("100"),
+            median=Decimal("100"),
+            high=Decimal("100"),
+            market_range_low=None,
+            market_range_high=None,
+            confidence=ConfidenceLevel.LOW,
+        )
+        assert bucket.condition is NormalizedCondition.UNKNOWN
+        assert bucket.median == Decimal("100")
 
     def test_rejected_assessment_in_bucket_refused(self) -> None:
         """A bucket containing a 3C-REJECTED assessment -> ValueError."""
