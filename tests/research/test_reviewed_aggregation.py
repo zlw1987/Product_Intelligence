@@ -975,10 +975,10 @@ class TestReviewedBucketAdversarialConstruction:
             )
 
     def test_unknown_condition_member_refused(self) -> None:
-        """Assessment with UNKNOWN condition is refused in a reviewed bucket.
+        """Historical node retained: reviewed UNKNOWN is an isolated bucket.
 
-        This is a per-assessment invariant enforced by the reviewed bucket,
-        consistent with the PriceAggregateBucket contract.
+        It is condition-not-stated evidence, not NEW evidence. The exact
+        condition key still prevents cross-condition arithmetic.
         """
         from product_intelligence.research.aggregation import (
             ReviewedPriceAggregateBucket,
@@ -1018,22 +1018,23 @@ class TestReviewedBucketAdversarialConstruction:
             origin=ReviewedListingOrigin.DETERMINISTIC,
         )
 
-        with pytest.raises(ValueError, match="UNKNOWN condition"):
-            ReviewedPriceAggregateBucket(
-                currency_code="USD",
-                condition=NormalizedCondition.UNKNOWN,
-                assessments=(assessment,),
-                entries=(entry,),
-                count=1,
-                deterministic_count=1,
-                human_confirmed_count=0,
-                low=Decimal("99.99"),
-                median=Decimal("99.99"),
-                high=Decimal("99.99"),
-                market_range_low=None,
-                market_range_high=None,
-                confidence=ConfidenceLevel.LOW,
-            )
+        bucket = ReviewedPriceAggregateBucket(
+            currency_code="USD",
+            condition=NormalizedCondition.UNKNOWN,
+            assessments=(assessment,),
+            entries=(entry,),
+            count=1,
+            deterministic_count=1,
+            human_confirmed_count=0,
+            low=Decimal("99.99"),
+            median=Decimal("99.99"),
+            high=Decimal("99.99"),
+            market_range_low=None,
+            market_range_high=None,
+            confidence=ConfidenceLevel.LOW,
+        )
+        assert bucket.condition is NormalizedCondition.UNKNOWN
+        assert bucket.median == Decimal("99.99")
 
     # -----------------------------------------------------------------------
     # E. Positive: legitimate HUMAN_CONFIRMED REJECTED assessment works
