@@ -466,8 +466,8 @@ def test_4_human_confirmed_provenance_explicit(client: Client) -> None:
     assert len(human_rows) == 1
     html = response.content.decode()
     # The rendered compact quote section carries the provenance
-    compact_start = html.index("<h2>Compact quote summary</h2>")
-    compact_end = html.index("<h2>AI-assisted semantic matches</h2>")
+    compact_start = html.index("<h2>Quote & Market Summary</h2>")
+    compact_end = html.index("<h2>AI-assisted evidence & review</h2>")
     compact_section = html[compact_start:compact_end]
     assert "Human Confirmed" in compact_section
 
@@ -832,3 +832,225 @@ def test_reviewed_price_wording_when_no_confirmed_listing_is_price_eligible(
     summary = " ".join(html[reviewed_start : nxt if nxt != -1 else len(html)].split())
     assert "No price groups are available" in summary
     assert "includes 1 human-confirmed" not in summary
+
+# ---------------------------------------------------------------------------
+# B3 end-to-end: auto-included HIGH SKU row + inline remove/restore
+# ---------------------------------------------------------------------------
+
+
+def _make_auto_ai_completed_run(
+    *,
+    confidence: str = "HIGH",
+    conflicts: tuple[str, ...] = (),
+    evidence_source: EvidenceSource = EvidenceSource.SKU_FIELD,
+) -> tuple[ResearchRun, AiAssistedReviewCandidate]:
+    """Completed USD run with one deterministic $120 row and one AI $100 row."""
+    request = ResearchRequest(manufacturer_part_number=MPN, description=DESCRIPTION)
+    run = ResearchRun.objects.create_from_request(request)
+    run.transition_to(ResearchRunState.RUNNING)
+    run.transition_to(ResearchRunState.COMPLETED)
+
+    deterministic = _accepted_assessment(
+        "https://det-working.example.com/item",
+        Decimal("120.00"),
+        "USD",
+    )
+
+    if evidence_source is EvidenceSource.SKU_FIELD:
+        title = "AI assisted candidate"
+        sku = MPN
+    else:
+        title = f"AI assisted candidate {MPN}"
+        sku = None
+
+    obs = ListingObservation(
+        source_url="https://ai-working.example.com/item",
+        extraction_method=ExtractionMethod.JSON_LD,
+        product_title=title,
+        manufacturer_part_number_text="",
+        sku_text=sku,
+        brand_text="Example",
+        price_text="100.00",
+        currency_text="USD",
+        availability_text="In Stock",
+        condition_text="unknown",
+        seller_text="AI Working Seller",
+        offer_url_text=None,
+        raw_reference=None,
+    )
+    norm = NormalizedListingObservation(
+        observation=obs,
+        price_amount=Decimal("100.00"),
+        currency_code="USD",
+        availability=NormalizedAvailability.IN_STOCK,
+        condition=NormalizedCondition.UNKNOWN,
+        seller_name="AI Working Seller",
+        normalization_issues=(),
+    )
+    semantic = ListingIdentityAssessment(
+        normalized_listing=norm,
+        requested_part_number=MPN,
+        candidate_part_number_raw=MPN,
+        candidate_part_number_compared=MPN,
+        candidate_evidence_source=evidence_source,
+        match_type=IdentityMatchType.UNKNOWN,
+        decision=EvidenceDecision.REJECTED,
+        rejection_reason=IdentityRejectionReason.NO_EXPLICIT_MPN_EVIDENCE,
+    )
+
+    result = aggregate_listing_prices(request, (deterministic, semantic))
+    PriceIntelligenceSnapshot.objects.create(
+        run=run,
+        schema_version=1,
+        payload=encode_price_aggregation_result(result),
+    )
+    candidate = AiAssistedReviewCandidate.objects.create(
+        run=run,
+        assessment_index=1,
+        source_url=obs.source_url,
+        target_mpn=MPN,
+        target_description=DESCRIPTION,
+        candidate_title=obs.product_title or "",
+        candidate_mpn_field="",
+        candidate_sku=obs.sku_text or "",
+        candidate_specs=(f"SKU: {MPN}" if sku else ""),
+        evidence_source=evidence_source.value,
+        semantic_confidence=confidence,
+        semantic_reason_code="exact_mpn_match",
+        semantic_matched_attributes=["mpn"],
+        semantic_conflicting_attributes=list(conflicts),
+        actual_provider="amax",
+        actual_model="nemotron-3-super",
+        prompt_version="v1.1",
+    )
+    return run, candidate
+
+
+@pytest.mark.usefixtures("human_confirmed_db_isolation")
+def test_b3_high_exact_sku_auto_included_with_inline_actions(client: Client) -> None:
+    run, candidate = _make_auto_ai_completed_run()
+
+    with _settings_patch(), _armed_live_boundaries():
+        response = client.get(_detail_url(run), REMOTE_ADDR=ALLOWED_ADDR)
+    assert response.status_code == 200
+
+    compact = response.context["compact_quote"]
+    assert compact.quotes_found == 2
+    assert compact.in_stock_count == 2
+    assert compact.lowest_in_stock_price == "$100.00 USD"
+    assert compact.lowest_in_stock_source == "ai-working.example.com"
+    assert compact.public_market_count == 1
+
+    ai_rows = [r for r in compact.rows if r.source_type == "AI_ASSISTED_UNVERIFIED"]
+    assert len(ai_rows) == 1
+    ai_row = ai_rows[0]
+    assert ai_row.review_candidate_id == str(candidate.id)
+    assert ai_row.condition == "Not stated"
+    assert ai_row.match_evidence == "AI High — Not human verified"
+    assert ai_row.market_use == "Quote only — AI-assisted"
+
+    deterministic_rows = [r for r in compact.rows if r.source_type == "PUBLIC_LISTING"]
+    assert len(deterministic_rows) == 1
+    assert deterministic_rows[0].review_candidate_id is None
+
+    html = response.content.decode()
+    assert f'id="quote-row-{candidate.id}"' in html
+    assert f'id="ai-candidate-{candidate.id}"' in html
+    assert "Review / Verify" in html
+    assert 'name="action" value="remove"' in html
+    assert "Verify / Confirm" in html
+
+
+@pytest.mark.usefixtures("human_confirmed_db_isolation")
+def test_b3_remove_recomputes_summary_and_restore_returns_auto_row(client: Client) -> None:
+    run, candidate = _make_auto_ai_completed_run()
+
+    response = client.post(_review_url(run, candidate), {"action": "remove"})
+    assert response.status_code == 302
+    candidate.refresh_from_db()
+    assert candidate.review_state == "REJECTED"
+
+    response, rows = _detail_rows(client, run)
+    compact = response.context["compact_quote"]
+    assert compact.quotes_found == 1
+    assert compact.in_stock_count == 1
+    assert compact.lowest_in_stock_price == "$120.00 USD"
+    assert compact.lowest_in_stock_source == "det-working.example.com"
+    assert [r.source_type for r in rows] == ["PUBLIC_LISTING"]
+    assert len(response.context["ai_rejected_candidates"]) == 1
+    assert "Restore" in response.content.decode()
+
+    response = client.post(_review_url(run, candidate), {"action": "undo"})
+    assert response.status_code == 302
+    candidate.refresh_from_db()
+    assert candidate.review_state == "UNREVIEWED"
+
+    response, rows = _detail_rows(client, run)
+    compact = response.context["compact_quote"]
+    assert compact.quotes_found == 2
+    assert compact.in_stock_count == 2
+    assert compact.lowest_in_stock_price == "$100.00 USD"
+    assert any(r.source_type == "AI_ASSISTED_UNVERIFIED" for r in rows)
+
+
+@pytest.mark.usefixtures("human_confirmed_db_isolation")
+def test_b3_confirm_replaces_unreviewed_row_without_duplicate(client: Client) -> None:
+    run, candidate = _make_auto_ai_completed_run()
+
+    response = client.post(_review_url(run, candidate), {"action": "confirm"})
+    assert response.status_code == 302
+    candidate.refresh_from_db()
+    assert candidate.review_state == "CONFIRMED"
+
+    response, rows = _detail_rows(client, run)
+    assert len([r for r in rows if r.source_type == "HUMAN_CONFIRMED"]) == 1
+    assert len([r for r in rows if r.source_type == "AI_ASSISTED_UNVERIFIED"]) == 0
+    human = [r for r in rows if r.source_type == "HUMAN_CONFIRMED"][0]
+    assert human.review_candidate_id == str(candidate.id)
+    assert human.match_evidence == "AI High — Human confirmed"
+    assert response.context["compact_quote"].quotes_found == 2
+    assert "Remove from quote" in response.content.decode()
+
+
+@pytest.mark.usefixtures("human_confirmed_db_isolation")
+@pytest.mark.parametrize(
+    ("confidence", "evidence_source", "conflicts", "expected_group"),
+    (
+        ("MEDIUM", EvidenceSource.SKU_FIELD, (), "ai_needs_review_candidates"),
+        ("LOW", EvidenceSource.SKU_FIELD, (), "ai_low_confidence_candidates"),
+        ("HIGH", EvidenceSource.TITLE_TEXT, (), "ai_needs_review_candidates"),
+        ("HIGH", EvidenceSource.SKU_FIELD, ("capacity",), "ai_needs_review_candidates"),
+    ),
+)
+def test_b3_non_auto_tiers_stay_out_of_quote_and_remain_reviewable(
+    client: Client,
+    confidence: str,
+    evidence_source: EvidenceSource,
+    conflicts: tuple[str, ...],
+    expected_group: str,
+) -> None:
+    run, candidate = _make_auto_ai_completed_run(
+        confidence=confidence,
+        conflicts=conflicts,
+        evidence_source=evidence_source,
+    )
+
+    response, rows = _detail_rows(client, run)
+    candidate.refresh_from_db()
+    assert candidate.review_state == "UNREVIEWED"
+    assert not any(
+        r.source_type in ("AI_ASSISTED_UNVERIFIED", "HUMAN_CONFIRMED")
+        for r in rows
+    )
+    assert response.context["compact_quote"].quotes_found == 1
+    group = response.context[expected_group]
+    assert [c.candidate_id for c in group] == [str(candidate.id)]
+
+    html = response.content.decode()
+    if confidence == "LOW":
+        assert "Other possible sources — low confidence (1)" in html
+    else:
+        assert "Possible matches — needs review" in html
+    assert 'name="action" value="confirm"' in html
+    assert 'name="action" value="reject"' in html
+
