@@ -129,6 +129,15 @@ def _ordered_bucket_assessments(price_result: Any) -> list[Any]:
     return ordered
 
 
+def _condition_display(value: str | None) -> str:
+    """Business-facing condition label without inventing missing facts."""
+    if value == "NEW_VENDOR_POLICY":
+        return "New (Vendor policy)"
+    if not value or value == "UNKNOWN":
+        return "Not stated"
+    return value.replace("_", " ").title()
+
+
 # ---------------------------------------------------------------------------
 # Display data structures
 # ---------------------------------------------------------------------------
@@ -162,6 +171,25 @@ class CompactQuoteRowDisplay:
     inventory: str
     brand_new: str
     note: "str | None"
+    source_type: str = ""
+    condition: str = "Not stated"
+    match_evidence: str = ""
+    market_use: str = ""
+    candidate_id: "str | None" = None
+    review_anchor: "str | None" = None
+    can_remove: bool = False
+
+
+@dataclass(frozen=True)
+class CompactMarketGroupDisplay:
+    """One strict deterministic public-market group for top summary."""
+
+    currency_code: str
+    condition: str
+    count: int
+    low: str
+    high: str
+    median: "str | None"
 
 
 @dataclass(frozen=True)
@@ -174,6 +202,15 @@ class CompactQuotePresentation:
     """
 
     rows: tuple[CompactQuoteRowDisplay, ...]
+    show_usd_equivalent: bool = False
+    quote_count: int = 0
+    in_stock_count: int = 0
+    lowest_in_stock_price: "str | None" = None
+    lowest_in_stock_source: "str | None" = None
+    quote_span_low: "str | None" = None
+    quote_span_high: "str | None" = None
+    usd_comparable_quote_count: int = 0
+    market_groups: tuple[CompactMarketGroupDisplay, ...] = ()
 
 
 # ---------------------------------------------------------------------------
@@ -186,6 +223,7 @@ def build_compact_quote_presentation(
     projection: Any,
     price_result: Any,
     confirmed_assessment_indices: "frozenset[int] | None" = None,
+    review_candidates: "list[Any] | tuple[Any, ...] | None" = None,
 ) -> CompactQuotePresentation:
     """Build display-only rows from a CompactQuoteProjection.
 
@@ -238,39 +276,58 @@ def build_compact_quote_presentation(
             # display row then renders the source as plain text and the
             # raw unsafe string never enters the template context.
 
-    # (PROD-FIX1) Reconcile human-confirmed rows with their persisted
-    # assessments in the exact deterministic order the projection used:
-    # ascending index, skipping assessments without persisted price or
-    # currency (confirmation cannot create such evidence, so no row was
-    # projected for them). FAIL CLOSED on any count mismatch or source
-    # label mismatch: the link is withheld, never guessed.
-    human_rows = [
-        row for row in projection.rows if row.source_type == "HUMAN_CONFIRMED"
+    # Semantic overlay rows carry their persisted snapshot assessment index.
+    # Reconcile that exact index to a source URL; never guess by hostname alone.
+    semantic_links: dict[int, tuple["str | None", bool]] = {}
+    assessments = price_result.assessments
+    for row in projection.rows:
+        if row.source_type not in ("HUMAN_CONFIRMED", "AI_ASSISTED"):
+            continue
+        idx = getattr(row, "assessment_index", None)
+        if type(idx) is not int or idx < 0 or idx >= len(assessments):
+            continue
+        assessment = assessments[idx]
+        norm = assessment.normalized_listing
+        observation = norm.observation
+        source_url = observation.source_url if observation is not None else None
+        if _expected_public_source_from_url(source_url) != row.source:
+            continue
+        if source_url is not None and _is_safe_href_url(source_url):
+            semantic_links[id(row)] = (source_url, True)
+
+    # Backward-compatible reconciliation for historical/test human rows that
+    # predate assessment_index on CompactQuoteRow.
+    legacy_human_rows = [
+        row for row in projection.rows
+        if row.source_type == "HUMAN_CONFIRMED"
+        and getattr(row, "assessment_index", None) is None
     ]
-    human_links: dict[int, tuple["str | None", bool]] = {}
-    if human_rows:
+    if legacy_human_rows and confirmed_assessment_indices:
         expected_assessments: list[Any] = []
-        if confirmed_assessment_indices:
-            assessments = price_result.assessments
-            for idx in sorted(confirmed_assessment_indices):
-                if 0 <= idx < len(assessments):
-                    norm = assessments[idx].normalized_listing
-                    if (
-                        norm.price_amount is not None
-                        and norm.currency_code is not None
-                    ):
-                        expected_assessments.append(assessments[idx])
-        if len(expected_assessments) == len(human_rows):
-            for row, assessment in zip(human_rows, expected_assessments):
-                normalized_listing = assessment.normalized_listing
-                observation = normalized_listing.observation
-                source_url = (
-                    observation.source_url if observation is not None else None
-                )
+        for idx in sorted(confirmed_assessment_indices):
+            if 0 <= idx < len(assessments):
+                norm = assessments[idx].normalized_listing
+                if norm.price_amount is not None and norm.currency_code is not None:
+                    expected_assessments.append(assessments[idx])
+        if len(expected_assessments) == len(legacy_human_rows):
+            for row, assessment in zip(legacy_human_rows, expected_assessments):
+                observation = assessment.normalized_listing.observation
+                source_url = observation.source_url if observation is not None else None
                 if _expected_public_source_from_url(source_url) != row.source:
-                    continue  # mapping mismatch — withhold the link
+                    continue
                 if source_url is not None and _is_safe_href_url(source_url):
-                    human_links[id(row)] = (source_url, True)
+                    semantic_links[id(row)] = (source_url, True)
+
+    candidate_by_index = {
+        candidate.assessment_index: candidate
+        for candidate in (review_candidates or ())
+        if getattr(candidate, "binding_valid", False)
+    }
+
+    public_assessment_by_row_id: dict[int, Any] = {}
+    if len(public_rows) == len(bucket_assessments):
+        for row, assessment in zip(public_rows, bucket_assessments):
+            public_assessment_by_row_id[id(row)] = assessment
 
     rows: list[CompactQuoteRowDisplay] = []
     for row in projection.rows:
@@ -279,13 +336,9 @@ def build_compact_quote_presentation(
             source_display = _vendor_source_display(row.source)
             source_url: "str | None" = None
             source_url_safe = False
-        elif row.source_type == "HUMAN_CONFIRMED":
-            # Human-confirmed rows are public-listing evidence: the
-            # www.-stripped hostname display applies, and the link target
-            # (when mechanically reconciled and safe) is the persisted
-            # assessment's source URL.
+        elif row.source_type in ("HUMAN_CONFIRMED", "AI_ASSISTED"):
             source_display = _public_source_display(row.source)
-            link = human_links.get(id(row))
+            link = semantic_links.get(id(row))
             if link is not None:
                 source_url, source_url_safe = link
             else:
@@ -298,6 +351,51 @@ def build_compact_quote_presentation(
             else:
                 source_url, source_url_safe = None, False
 
+        candidate = None
+        idx = getattr(row, "assessment_index", None)
+        if type(idx) is int:
+            candidate = candidate_by_index.get(idx)
+
+        if row.source_type == "VENDOR_API":
+            match_evidence = "Vendor API"
+            market_use = "Quote only — vendor supplemental"
+        elif row.source_type == "HUMAN_CONFIRMED":
+            confidence = (
+                getattr(candidate, "semantic_confidence", "") if candidate else ""
+            )
+            match_evidence = (
+                f"AI {confidence} — Human confirmed"
+                if confidence else "AI — Human confirmed"
+            )
+            market_use = "Included — reviewed market"
+        elif row.source_type == "AI_ASSISTED":
+            confidence = (
+                getattr(candidate, "semantic_confidence", "HIGH")
+                if candidate else "HIGH"
+            )
+            match_evidence = f"AI {confidence} — Not human verified"
+            market_use = "Working quote only"
+        else:
+            assessment = public_assessment_by_row_id.get(id(row))
+            match_type = getattr(getattr(assessment, "match_type", None), "value", "")
+            if match_type == "EXACT":
+                match_evidence = "Exact MPN"
+            elif match_type == "NORMALIZED_EXACT":
+                match_evidence = "Normalized exact MPN"
+            else:
+                match_evidence = "Deterministic match"
+            market_use = (
+                "Included — condition not stated group"
+                if getattr(row, "condition", "UNKNOWN") == "UNKNOWN"
+                else "Included — public market"
+            )
+
+        candidate_id = (
+            getattr(candidate, "candidate_id", None)
+            if row.source_type in ("HUMAN_CONFIRMED", "AI_ASSISTED")
+            else None
+        )
+
         rows.append(
             CompactQuoteRowDisplay(
                 source_display=source_display,
@@ -308,7 +406,85 @@ def build_compact_quote_presentation(
                 inventory=row.inventory,
                 brand_new=row.brand_new,
                 note=row.note,
+                source_type=row.source_type,
+                condition=_condition_display(getattr(row, "condition", None)),
+                match_evidence=match_evidence,
+                market_use=market_use,
+                candidate_id=candidate_id,
+                review_anchor=(
+                    f"ai-candidate-{candidate_id}" if candidate_id else None
+                ),
+                can_remove=(
+                    candidate_id is not None
+                    and row.source_type in ("HUMAN_CONFIRMED", "AI_ASSISTED")
+                ),
             )
         )
 
-    return CompactQuotePresentation(rows=tuple(rows))
+    show_usd_equivalent = any(
+        getattr(row, "price_currency", "").upper() != "USD"
+        for row in projection.rows
+    )
+
+    usd_rows = [
+        (raw, display)
+        for raw, display in zip(projection.rows, rows)
+        if raw.usd_equivalent_amount is not None
+    ]
+    in_stock_rows = [
+        (raw, display)
+        for raw, display in usd_rows
+        if raw.inventory == "In Stock"
+    ]
+
+    lowest_in_stock_price = None
+    lowest_in_stock_source = None
+    if in_stock_rows:
+        lowest_raw, lowest_display = min(
+            in_stock_rows,
+            key=lambda pair: pair[0].usd_equivalent_amount,
+        )
+        lowest_in_stock_price = lowest_raw.usd_equivalent
+        lowest_in_stock_source = lowest_display.source_display
+
+    quote_span_low = None
+    quote_span_high = None
+    if usd_rows:
+        low_raw, _ = min(
+            usd_rows, key=lambda pair: pair[0].usd_equivalent_amount
+        )
+        high_raw, _ = max(
+            usd_rows, key=lambda pair: pair[0].usd_equivalent_amount
+        )
+        quote_span_low = low_raw.usd_equivalent
+        quote_span_high = high_raw.usd_equivalent
+
+    market_groups: list[CompactMarketGroupDisplay] = []
+    for bucket in price_result.buckets:
+        condition_value = getattr(bucket.condition, "value", str(bucket.condition))
+        market_groups.append(
+            CompactMarketGroupDisplay(
+                currency_code=bucket.currency_code,
+                condition=_condition_display(condition_value),
+                count=bucket.count,
+                low=str(bucket.low),
+                high=str(bucket.high),
+                # With one or two observations the standard mathematical
+                # median is valid but operationally unhelpful and is easily
+                # mistaken for an "average". Show it only at n >= 3.
+                median=str(bucket.median) if bucket.count >= 3 else None,
+            )
+        )
+
+    return CompactQuotePresentation(
+        rows=tuple(rows),
+        show_usd_equivalent=show_usd_equivalent,
+        quote_count=len(rows),
+        in_stock_count=sum(1 for row in projection.rows if row.inventory == "In Stock"),
+        lowest_in_stock_price=lowest_in_stock_price,
+        lowest_in_stock_source=lowest_in_stock_source,
+        quote_span_low=quote_span_low,
+        quote_span_high=quote_span_high,
+        usd_comparable_quote_count=len(usd_rows),
+        market_groups=tuple(market_groups),
+    )
