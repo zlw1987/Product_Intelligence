@@ -136,11 +136,12 @@
             <th>Condition</th>
             <th>Match / Evidence</th>
             <th>Market Use</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
           {% for row in compact_quote.rows %}
-          <tr>
+          <tr{% if row.review_candidate_id %} id="quote-row-{{ row.review_candidate_id }}"{% endif %}>
             <td>
               {% if row.source_url_safe %}
                 <a href="{{ row.source_url }}">{{ row.source_display }}</a>
@@ -157,6 +158,20 @@
               {{ row.market_use }}
               {% if row.note %}<br><small>{{ row.note }}</small>{% endif %}
             </td>
+            <td>
+              {% if row.review_candidate_id %}
+                {% if row.source_url_safe %}<a href="{{ row.source_url }}">Open source</a> · {% endif %}
+                <a href="#ai-candidate-{{ row.review_candidate_id }}">Review / Verify</a>
+                <form method="post" action="{% url "research-review" run_id=run.id candidate_id=row.review_candidate_id %}" style="display:inline;">
+                  {% csrf_token %}
+                  <button type="submit" name="action" value="remove">Remove</button>
+                </form>
+              {% elif row.source_url_safe %}
+                <a href="{{ row.source_url }}">Open source</a>
+              {% else %}
+                <span class="absent">Evidence only</span>
+              {% endif %}
+            </td>
           </tr>
           {% endfor %}
         </tbody>
@@ -171,148 +186,44 @@
 {% endif %}
 
 {% if review_candidates %}
-  <h2>AI-assisted semantic matches</h2>
+  <h2>AI-assisted evidence & review</h2>
   <p>
-    These listings were not deterministically matched but the semantic
-    model found evidence of a match. You can confirm or reject each one.
-    Confirmed listings may contribute to the reviewed price below.
+    AI confidence is a workflow tier, not a calibrated probability.
+    Human confirmation changes review state only; deterministic Machine Price
+    and public-market authority remain unchanged.
   </p>
 
-  {% for candidate in review_candidates %}
-    {% with candidate_binding_valid=candidate.binding_valid %}
-    <div class="evidence-entry review-candidate {% if not candidate_binding_valid %}unavailable{% endif %}">
-      {% if not candidate_binding_valid %}
-        {# --- Unavailable/stale candidate: neutral "evidence unavailable" display --- #}
-        <p class="notice">
-          <strong>Review evidence unavailable.</strong>
-          The snapshot evidence for this candidate could not be verified.
-          No review action is available.
-        </p>
-        <dl>
-          <dt>Source</dt>
-          <dd>{{ candidate.source_url }}</dd>
-          <dt>Review state</dt>
-          <dd>
-            {% if candidate.review_state == "CONFIRMED" %}
-              <strong style="color: green;">CONFIRMED</strong>
-            {% elif candidate.review_state == "REJECTED" %}
-              <strong style="color: red;">REJECTED</strong>
-            {% else %}
-              <span style="color: orange;">UNREVIEWED</span>
-            {% endif %}
-          </dd>
-          {% if candidate.reviewed_at %}
-            <dt>Reviewed at</dt>
-            <dd>{{ candidate.reviewed_at|date:"Y-m-d H:i:s T" }}</dd>
-          {% endif %}
-        </dl>
-      {% else %}
-        {# --- Valid binding: full snapshot-backed display --- #}
-        <dl>
-          <dt>Seller</dt>
-          <dd>{{ candidate.seller_name|default:"Not identified" }}</dd>
+  {% if ai_working_quote_candidates %}
+    <h3>AI-assisted quote evidence</h3>
+    {% for candidate in ai_working_quote_candidates %}
+      {% include "web/_ai_candidate_card.html" with candidate=candidate %}
+    {% endfor %}
+  {% endif %}
 
-          <dt>Price</dt>
-          <dd>
-            {% if candidate.normalized_price %}
-              {{ candidate.currency_code }} {{ candidate.normalized_price }}
-            {% else %}
-              <span class="absent">Not available</span>
-            {% endif %}
-          </dd>
+  {% if ai_needs_review_candidates %}
+    <h3>Possible matches — needs review</h3>
+    {% for candidate in ai_needs_review_candidates %}
+      {% include "web/_ai_candidate_card.html" with candidate=candidate %}
+    {% endfor %}
+  {% endif %}
 
-          <dt>Condition</dt>
-          <dd>{{ candidate.condition }}</dd>
+  {% if ai_low_confidence_candidates %}
+    <details>
+      <summary><strong>Other possible sources — low confidence ({{ ai_low_confidence_candidates|length }})</strong></summary>
+      {% for candidate in ai_low_confidence_candidates %}
+        {% include "web/_ai_candidate_card.html" with candidate=candidate %}
+      {% endfor %}
+    </details>
+  {% endif %}
 
-          <dt>Product title</dt>
-          <dd>{{ candidate.product_title }}</dd>
-
-          <dt>Source URL</dt>
-          <dd>
-            {% if candidate.source_url %}
-              {% if candidate.source_url_safe %}
-              <a href="{{ candidate.source_url }}" target="_blank" rel="noopener noreferrer">{{ candidate.source_url }}</a>
-              {% else %}
-              {{ candidate.source_url }}
-              {% endif %}
-            {% else %}
-              <span class="absent">No URL</span>
-            {% endif %}
-          </dd>
-
-          <dt>MPN evidence</dt>
-          <dd>
-            {% if candidate.candidate_mpn_field %}{{ candidate.candidate_mpn_field }}
-            {% else %}<span class="absent">None</span>{% endif %}
-          </dd>
-
-          <dt>SKU evidence</dt>
-          <dd>
-            {% if candidate.candidate_sku %}{{ candidate.candidate_sku }}
-            {% else %}<span class="absent">None</span>{% endif %}
-          </dd>
-
-          <dt>Semantic confidence</dt>
-          <dd>
-            {% if candidate.semantic_confidence %}{{ candidate.semantic_confidence }}
-            {% else %}<span class="absent">None</span>{% endif %}
-          </dd>
-
-          <dt>Semantic reason</dt>
-          <dd>
-            {% if candidate.semantic_reason_code %}{{ candidate.semantic_reason_code }}
-            {% else %}<span class="absent">None</span>{% endif %}
-          </dd>
-
-          <dt>Matched attributes</dt>
-          <dd>
-            {% if candidate.semantic_matched_attributes %}
-              {{ candidate.semantic_matched_attributes|join:", " }}
-            {% else %}<span class="absent">None</span>{% endif %}
-          </dd>
-
-          <dt>Conflicting attributes</dt>
-          <dd>
-            {% if candidate.semantic_conflicting_attributes %}
-              {{ candidate.semantic_conflicting_attributes|join:", " }}
-            {% else %}<span class="absent">None</span>{% endif %}
-          </dd>
-
-          <dt>Provider / Model</dt>
-          <dd>{{ candidate.actual_provider }} / {{ candidate.actual_model }}</dd>
-
-          <dt>Review state</dt>
-          <dd>
-            {% if candidate.review_state == "CONFIRMED" %}
-              <strong style="color: green;">CONFIRMED</strong>
-            {% elif candidate.review_state == "REJECTED" %}
-              <strong style="color: red;">REJECTED</strong>
-            {% else %}
-              <span style="color: orange;">UNREVIEWED</span>
-            {% endif %}
-          </dd>
-
-          {% if candidate.reviewed_at %}
-            <dt>Reviewed at</dt>
-            <dd>{{ candidate.reviewed_at|date:"Y-m-d H:i:s T" }}</dd>
-          {% endif %}
-        </dl>
-
-        <form method="post" action="{% url "research-review" run_id=run.id candidate_id=candidate.candidate_id %}" style="display: inline;">
-          {% csrf_token %}
-          {% if candidate.review_state == "CONFIRMED" %}
-            <button type="submit" name="action" value="undo">Undo confirmation</button>
-          {% elif candidate.review_state == "REJECTED" %}
-            <button type="submit" name="action" value="undo">Undo rejection</button>
-          {% else %}
-            <button type="submit" name="action" value="confirm">Confirm match</button>
-            <button type="submit" name="action" value="reject">Reject</button>
-          {% endif %}
-        </form>
-      {% endif %}
-    </div>
-    {% endwith %}
-  {% endfor %}
+  {% if ai_rejected_candidates %}
+    <details>
+      <summary><strong>Rejected AI-assisted sources ({{ ai_rejected_candidates|length }})</strong></summary>
+      {% for candidate in ai_rejected_candidates %}
+        {% include "web/_ai_candidate_card.html" with candidate=candidate %}
+      {% endfor %}
+    </details>
+  {% endif %}
 {% endif %}
 
 {% if micron_alias or micron_alias_unavailable %}

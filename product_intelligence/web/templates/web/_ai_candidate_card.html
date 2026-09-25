@@ -1,0 +1,66 @@
+<div id="ai-candidate-{{ candidate.candidate_id }}" class="evidence-entry review-candidate {% if not candidate.binding_valid %}unavailable{% endif %}">
+  {% if not candidate.binding_valid %}
+    <p class="notice">
+      <strong>Review evidence unavailable.</strong>
+      The snapshot evidence for this candidate could not be verified.
+      No review action is available.
+    </p>
+    <p><strong>Review state:</strong> {{ candidate.review_state }}</p>
+  {% else %}
+    <dl>
+      <dt>Seller</dt>
+      <dd>{{ candidate.seller_name|default:"Not identified" }}</dd>
+      <dt>Price</dt>
+      <dd>{% if candidate.normalized_price %}{{ candidate.currency_code }} {{ candidate.normalized_price }}{% else %}<span class="absent">Not available</span>{% endif %}</dd>
+      <dt>Condition</dt>
+      <dd>{{ candidate.condition }}</dd>
+      <dt>Product title</dt>
+      <dd>{{ candidate.product_title }}</dd>
+      <dt>Source</dt>
+      <dd>
+        {% if candidate.source_url_safe %}
+          <a href="{{ candidate.source_url }}" target="_blank" rel="noopener noreferrer">Open source</a>
+        {% else %}
+          {{ candidate.source_url|default:"No URL" }}
+        {% endif %}
+      </dd>
+      <dt>MPN evidence</dt>
+      <dd>{% if candidate.candidate_mpn_field %}{{ candidate.candidate_mpn_field }}{% else %}<span class="absent">None</span>{% endif %}</dd>
+      <dt>SKU evidence</dt>
+      <dd>{% if candidate.candidate_sku %}{{ candidate.candidate_sku }}{% else %}<span class="absent">None</span>{% endif %}</dd>
+      <dt>Evidence source</dt>
+      <dd>{{ candidate.evidence_source }}</dd>
+      <dt>Semantic confidence</dt>
+      <dd>{{ candidate.semantic_confidence|default:"Not stated" }}</dd>
+      <dt>Semantic reason</dt>
+      <dd>{{ candidate.semantic_reason_code|default:"None" }}</dd>
+      <dt>Matched attributes</dt>
+      <dd>{% if candidate.semantic_matched_attributes %}{{ candidate.semantic_matched_attributes|join:", " }}{% else %}<span class="absent">None</span>{% endif %}</dd>
+      <dt>Conflicting attributes</dt>
+      <dd>{% if candidate.semantic_conflicting_attributes %}{{ candidate.semantic_conflicting_attributes|join:", " }}{% else %}<span class="absent">None</span>{% endif %}</dd>
+      <dt>Provider / Model</dt>
+      <dd>{{ candidate.actual_provider }} / {{ candidate.actual_model }}</dd>
+      <dt>Review state</dt>
+      <dd><strong>{{ candidate.review_state }}</strong></dd>
+    </dl>
+
+    <form method="post" action="{% url "research-review" run_id=run.id candidate_id=candidate.candidate_id %}" style="display:inline;">
+      {% csrf_token %}
+      {% if candidate.review_state == "REJECTED" %}
+        <button type="submit" name="action" value="undo">Restore</button>
+      {% elif candidate.working_quote_disposition == "AUTO_INCLUDE_UNVERIFIED" %}
+        <button type="submit" name="action" value="confirm">Verify / Confirm</button>
+        <button type="submit" name="action" value="remove">Remove</button>
+      {% elif candidate.review_state == "CONFIRMED" %}
+        <button type="submit" name="action" value="remove">Remove from quote</button>
+      {% else %}
+        <button type="submit" name="action" value="confirm">Include</button>
+        <button type="submit" name="action" value="reject">Reject</button>
+      {% endif %}
+    </form>
+
+    {% if candidate.working_quote_disposition == "AUTO_INCLUDE_UNVERIFIED" or candidate.working_quote_disposition == "CONFIRMED" %}
+      <a href="#quote-row-{{ candidate.candidate_id }}">Back to quote</a>
+    {% endif %}
+  {% endif %}
+</div>
