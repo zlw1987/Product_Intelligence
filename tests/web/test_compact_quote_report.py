@@ -601,7 +601,7 @@ class TestAuthorizedVendorTable:
         assert "fewer than 3 comparable NEW listings" in html
         # Primary summary does not expose a two-observation/one-observation median.
         primary = html.split("Quote & Market Summary", 1)[1].split(
-            "AI-assisted semantic matches", 1
+            "Advanced Evidence & Audit", 1
         )[0]
         assert "<strong>Median:</strong> €1,500.00 EUR" not in primary
 
@@ -656,14 +656,12 @@ class TestNoteCellNoneRendersBlank:
         * a Synnex EU Vendor row with the real bounded note NO_RETURNS
         * one public row
 
-        Proves, in the rendered Compact Quote table (parsed row/cell,
+        Proves, in the rendered unified quote table (parsed row/cell,
         narrowly scoped):
-        1. the Ingram Note cell is empty
-        2. the literal text "None" does NOT appear in that Note cell
-          (nor anywhere in the compact table section)
-        3. the Synnex real note still renders
-        4. no Vendor/security behavior changes (context rows and labels
-           exactly as before)
+        1. missing notes never render the literal text "None"
+        2. the Synnex bounded NO_RETURNS note still renders under Market Use
+        3. no Vendor/security behavior changes (context rows and labels
+           remain provider-safe)
         """
         run = _create_quote_run(mpn="NOTE-NONE-FU1-MPN")
         url = _detail_url(run)

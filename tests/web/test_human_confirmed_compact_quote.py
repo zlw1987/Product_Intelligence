@@ -8,7 +8,7 @@ only — it must not invent or upgrade other facts.
 
 Proofs required by the production correction:
 
-1. UNREVIEWED semantic candidate absent from Compact Quote.
+1. Weak/title-only UNREVIEWED semantic candidate absent from Working Quote.
 2. CONFIRM candidate -> redirected GET -> candidate appears.
 3. Machine Price unchanged byte-for-byte / semantically unchanged.
 4. HUMAN_CONFIRMED provenance is explicit.

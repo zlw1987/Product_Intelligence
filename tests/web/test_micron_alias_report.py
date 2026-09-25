@@ -355,7 +355,7 @@ class TestMicronAliasReport(TestCase):
         # location.
         self.assertEqual(html.count(SIBLING_URL), 4)
         for heading in (
-            "Compact quote summary",
+            "Quote & Market Summary",
             "Reviewed price",
             "Comparable products",
         ):
