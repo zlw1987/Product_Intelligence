@@ -372,12 +372,15 @@ def research_detail(request: HttpRequest, run_id: uuid.UUID) -> HttpResponse:
                 binding_valid=False,
                 review_state=candidate.review_state,
                 reviewed_at=candidate.reviewed_at,
+                review_tier="INVALID",
+                working_quote_included=False,
                 source_url=None,
                 source_url_safe=False,
                 seller_name=None,
                 normalized_price=None,
                 currency_code=None,
                 condition=None,
+                condition_display=None,
                 product_title=None,
                 candidate_mpn_field=candidate.candidate_mpn_field,
                 candidate_sku=candidate.candidate_sku,
@@ -425,8 +428,8 @@ def research_detail(request: HttpRequest, run_id: uuid.UUID) -> HttpResponse:
             # counts, derived from the reviewed buckets themselves.
             # confirmed_count (validated CONFIRMED candidates) can exceed
             # the number of confirmed listings that are actually in the
-            # reviewed price buckets (e.g. UNKNOWN condition is not
-            # price-eligible). The wording must never overclaim.
+            # reviewed price buckets when price/currency evidence is absent.
+            # UNKNOWN condition is now a truthful separate bucket, never NEW.
             reviewed_confirmed_price_count = sum(
                 bucket.human_confirmed_count for bucket in reviewed_result_raw.buckets
             )
@@ -512,6 +515,7 @@ def research_detail(request: HttpRequest, run_id: uuid.UUID) -> HttpResponse:
                 projection=projection,
                 price_result=decoded_result,
                 confirmed_assessment_indices=confirmed_indices or None,
+                review_candidates=review_candidates,
             )
         except (
             CompactQuoteProjectionError,
@@ -530,6 +534,50 @@ def research_detail(request: HttpRequest, run_id: uuid.UUID) -> HttpResponse:
             )
             compact_quote = None
             compact_quote_unavailable = True
+
+    # --- Pilot AI review workflow groups ---------------------------------
+    # The Working Quote itself is the source of truth for which semantic
+    # candidates are currently included. This avoids presentation drift when
+    # a HIGH candidate has no price/currency and therefore cannot project a row.
+    quote_candidate_ids = set()
+    if compact_quote is not None:
+        quote_candidate_ids = {
+            row.candidate_id
+            for row in compact_quote.rows
+            if row.candidate_id is not None
+        }
+
+    ai_quote_candidates = [
+        candidate for candidate in review_candidates
+        if candidate.candidate_id in quote_candidate_ids
+    ]
+    ai_needs_review_candidates = [
+        candidate for candidate in review_candidates
+        if (
+            candidate.binding_valid
+            and candidate.review_state == "UNREVIEWED"
+            and candidate.review_tier == "NEEDS_REVIEW"
+        )
+    ]
+    ai_other_possible_candidates = [
+        candidate for candidate in review_candidates
+        if (
+            candidate.binding_valid
+            and candidate.review_state == "UNREVIEWED"
+            and candidate.review_tier == "OTHER_POSSIBLE"
+        )
+    ]
+    ai_removed_candidates = [
+        candidate for candidate in review_candidates
+        if (
+            candidate.binding_valid
+            and candidate.review_state == "REJECTED"
+        )
+    ]
+    ai_unavailable_candidates = [
+        candidate for candidate in review_candidates
+        if not candidate.binding_valid
+    ]
 
     # --- PRODUCT-INTEL.4D-D: Micron packaging alias audit (historical) ---
     #
@@ -618,6 +666,11 @@ def research_detail(request: HttpRequest, run_id: uuid.UUID) -> HttpResponse:
         "start_error": start_error,
         "retry_error": retry_error,
         "review_candidates": review_candidates,
+        "ai_quote_candidates": ai_quote_candidates,
+        "ai_needs_review_candidates": ai_needs_review_candidates,
+        "ai_other_possible_candidates": ai_other_possible_candidates,
+        "ai_removed_candidates": ai_removed_candidates,
+        "ai_unavailable_candidates": ai_unavailable_candidates,
         "reviewed_result": reviewed_result,
         "confirmed_count": confirmed_count,
         # FU1 presentation accuracy: truthful price-contributing counts
