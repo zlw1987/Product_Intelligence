@@ -33,6 +33,7 @@ from product_intelligence.research.aggregation import (
 )
 from product_intelligence.research.compact_quote import (
     CompactQuoteProjectionError,
+    project_ai_assisted_rows,
     project_human_confirmed_rows,
     project_public_rows,
 )
@@ -257,6 +258,8 @@ class TestHumanConfirmedProjection:
         assert row.price_currency == "USD"
         assert row.price_original == "$1,890.00 USD"
         assert row.brand_new == "Unknown"
+        assert row.condition == "UNKNOWN"
+        assert row.assessment_index == 0
         assert "Human Confirmed" in (row.note or "")
         assert row.source == "one.example.com"
 
@@ -563,3 +566,80 @@ class TestAuthorityIsolation:
         assert project_human_confirmed_rows(result, frozenset()) == ()
         # And the public (Machine Price) projection excludes it entirely
         assert project_public_rows(result) == ()
+
+
+# ---------------------------------------------------------------------------
+# AI-assisted HIGH Working Quote projection (policy already proved upstream)
+# ---------------------------------------------------------------------------
+
+
+class TestAiAssistedWorkingQuoteProjection:
+    def test_unknown_condition_is_preserved_and_not_upgraded(self) -> None:
+        sem = _semantic_assessment(
+            MPN, source_url="https://ai.example.com/a",
+            price_amount=Decimal("2969.01"),
+            condition=NormalizedCondition.UNKNOWN,
+            availability=NormalizedAvailability.IN_STOCK,
+        )
+        result = _make_result(MPN, (sem,))
+
+        rows = project_ai_assisted_rows(result, frozenset({0}))
+
+        assert len(rows) == 1
+        row = rows[0]
+        assert row.source_type == "AI_ASSISTED"
+        assert row.assessment_index == 0
+        assert row.price_amount == Decimal("2969.01")
+        assert row.inventory == "In Stock"
+        assert row.brand_new == "Unknown"
+        assert row.condition == "UNKNOWN"
+        assert "AI High" in (row.note or "")
+        assert "Not human verified" in (row.note or "")
+
+    def test_new_condition_is_preserved_truthfully(self) -> None:
+        sem = _semantic_assessment(
+            MPN, source_url="https://ai.example.com/new",
+            condition=NormalizedCondition.NEW,
+        )
+        result = _make_result(MPN, (sem,))
+        row = project_ai_assisted_rows(result, frozenset({0}))[0]
+        assert row.condition == "NEW"
+        assert row.brand_new == "Yes"
+
+    def test_missing_price_or_currency_never_created_by_ai_projection(self) -> None:
+        no_price = _semantic_assessment(
+            MPN, source_url="https://ai.example.com/no-price", price_amount=None
+        )
+        no_currency = _semantic_assessment(
+            MPN, source_url="https://ai.example.com/no-currency", currency_code=None
+        )
+        result = _make_result(MPN, (no_price, no_currency))
+        assert project_ai_assisted_rows(result, frozenset({0, 1})) == ()
+
+    def test_non_review_eligible_index_fails_closed(self) -> None:
+        accepted = _accepted_assessment(
+            MPN, source_url="https://deterministic.example.com/product"
+        )
+        bucket = PriceAggregateBucket(
+            currency_code="USD",
+            condition=NormalizedCondition.NEW,
+            assessments=(accepted,),
+            count=1,
+            low=Decimal("100.00"),
+            median=Decimal("100.00"),
+            high=Decimal("100.00"),
+            market_range_low=None,
+            market_range_high=None,
+            confidence=ConfidenceLevel.LOW,
+        )
+        result = _make_result(MPN, (accepted,), buckets=(bucket,))
+        with pytest.raises(CompactQuoteProjectionError, match="not semantic-review eligible"):
+            project_ai_assisted_rows(result, frozenset({0}))
+
+    def test_selection_requires_frozenset_exact_ints(self) -> None:
+        sem = _semantic_assessment(MPN, source_url="https://ai.example.com/a")
+        result = _make_result(MPN, (sem,))
+        with pytest.raises(CompactQuoteProjectionError, match="frozenset"):
+            project_ai_assisted_rows(result, {0})
+        with pytest.raises(CompactQuoteProjectionError, match="exact ints"):
+            project_ai_assisted_rows(result, frozenset({True}))
