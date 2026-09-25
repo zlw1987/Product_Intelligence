@@ -749,3 +749,186 @@ class TestQuoteMarketBusinessSummary:
         assert presentation.rows[0].condition == "Not stated"
         assert presentation.rows[0].market_use == "Quote only — condition not stated"
 
+# ---------------------------------------------------------------------------
+# B2 primary-market display boundaries
+# ---------------------------------------------------------------------------
+
+
+class TestQuoteMarketSummaryBoundaries:
+    def test_two_public_new_listings_hide_median(self) -> None:
+        a1 = _make_assessment(
+            MPN,
+            source_url="https://one.example.com/item",
+            price_amount=Decimal("100.00"),
+            currency_code="USD",
+        )
+        a2 = _make_assessment(
+            MPN,
+            source_url="https://two.example.com/item",
+            price_amount=Decimal("120.00"),
+            currency_code="USD",
+        )
+        bucket = PriceAggregateBucket(
+            currency_code="USD",
+            condition=NormalizedCondition.NEW,
+            assessments=(a1, a2),
+            count=2,
+            low=Decimal("100.00"),
+            median=Decimal("110.00"),
+            high=Decimal("120.00"),
+            market_range_low=None,
+            market_range_high=None,
+            confidence=ConfidenceLevel.LOW,
+        )
+        result = _make_result(MPN, (a1, a2), (bucket,))
+        projection = CompactQuoteProjection(
+            rows=(
+                _public_row(
+                    source="one.example.com",
+                    price_amount=Decimal("100.00"),
+                    currency="USD",
+                    price_original="$100.00 USD",
+                    usd_equivalent="$100.00 USD",
+                    usd_amount=Decimal("100.00"),
+                ),
+                _public_row(
+                    source="two.example.com",
+                    price_amount=Decimal("120.00"),
+                    currency="USD",
+                    price_original="$120.00 USD",
+                    usd_equivalent="$120.00 USD",
+                    usd_amount=Decimal("120.00"),
+                ),
+            )
+        )
+        presentation = build_compact_quote_presentation(
+            projection=projection,
+            price_result=result,
+        )
+        assert presentation.public_market_count == 2
+        assert presentation.public_market_low == "$100.00 USD"
+        assert presentation.public_market_high == "$120.00 USD"
+        assert presentation.public_market_median is None
+        assert "fewer than 3" in presentation.public_market_median_note
+
+    def test_three_public_new_listings_show_canonical_median(self) -> None:
+        assessments = tuple(
+            _make_assessment(
+                MPN,
+                source_url=f"https://three-{idx}.example.com/item",
+                price_amount=price,
+                currency_code="USD",
+            )
+            for idx, price in enumerate(
+                (Decimal("100.00"), Decimal("110.00"), Decimal("120.00")),
+                start=1,
+            )
+        )
+        bucket = PriceAggregateBucket(
+            currency_code="USD",
+            condition=NormalizedCondition.NEW,
+            assessments=assessments,
+            count=3,
+            low=Decimal("100.00"),
+            median=Decimal("110.00"),
+            high=Decimal("120.00"),
+            market_range_low=Decimal("100.00"),
+            market_range_high=Decimal("120.00"),
+            confidence=ConfidenceLevel.MEDIUM,
+        )
+        result = _make_result(MPN, assessments, (bucket,))
+        rows = tuple(
+            _public_row(
+                source=f"three-{idx}.example.com",
+                price_amount=price,
+                currency="USD",
+                price_original=f"USD {price}",
+                usd_equivalent=f"USD {price}",
+                usd_amount=price,
+            )
+            for idx, price in enumerate(
+                (Decimal("100.00"), Decimal("110.00"), Decimal("120.00")),
+                start=1,
+            )
+        )
+        presentation = build_compact_quote_presentation(
+            projection=CompactQuoteProjection(rows=rows),
+            price_result=result,
+        )
+        assert presentation.public_market_count == 3
+        assert presentation.public_market_median == "$110.00 USD"
+        assert presentation.public_market_median_note is None
+
+    def test_multiple_new_currency_groups_are_not_combined(self) -> None:
+        usd = _make_assessment(
+            MPN,
+            source_url="https://usd-market.example.com/item",
+            price_amount=Decimal("100.00"),
+            currency_code="USD",
+        )
+        eur = _make_assessment(
+            MPN,
+            source_url="https://eur-market.example.com/item",
+            price_amount=Decimal("90.00"),
+            currency_code="EUR",
+        )
+        usd_bucket = PriceAggregateBucket(
+            currency_code="USD",
+            condition=NormalizedCondition.NEW,
+            assessments=(usd,),
+            count=1,
+            low=Decimal("100.00"),
+            median=Decimal("100.00"),
+            high=Decimal("100.00"),
+            market_range_low=None,
+            market_range_high=None,
+            confidence=ConfidenceLevel.LOW,
+        )
+        eur_bucket = PriceAggregateBucket(
+            currency_code="EUR",
+            condition=NormalizedCondition.NEW,
+            assessments=(eur,),
+            count=1,
+            low=Decimal("90.00"),
+            median=Decimal("90.00"),
+            high=Decimal("90.00"),
+            market_range_low=None,
+            market_range_high=None,
+            confidence=ConfidenceLevel.LOW,
+        )
+        result = _make_result(
+            MPN,
+            (usd, eur),
+            (usd_bucket, eur_bucket),
+        )
+        presentation = build_compact_quote_presentation(
+            projection=CompactQuoteProjection(
+                rows=(
+                    _public_row(
+                        source="usd-market.example.com",
+                        price_amount=Decimal("100.00"),
+                        currency="USD",
+                        price_original="$100.00 USD",
+                        usd_equivalent="$100.00 USD",
+                        usd_amount=Decimal("100.00"),
+                    ),
+                    _public_row(
+                        source="eur-market.example.com",
+                        price_amount=Decimal("90.00"),
+                        currency="EUR",
+                        price_original="EUR 90.00",
+                        usd_equivalent="Unavailable",
+                        usd_amount=None,
+                    ),
+                )
+            ),
+            price_result=result,
+        )
+        assert presentation.public_market_count == 2
+        assert presentation.public_market_low is None
+        assert presentation.public_market_high is None
+        assert presentation.public_market_median is None
+        assert "multiple non-comparable currency groups" in (
+            presentation.public_market_median_note
+        )
+
