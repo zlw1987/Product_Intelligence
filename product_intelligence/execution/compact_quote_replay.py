@@ -34,6 +34,7 @@ from dataclasses import dataclass
 from product_intelligence.research.compact_quote import (
     CompactQuoteProjection,
     CompactQuoteRow,
+    project_ai_assisted_rows,
     project_human_confirmed_rows,
     project_public_rows,
     project_vendor_api_row,
@@ -42,7 +43,11 @@ from product_intelligence.research.fx_codec import (
     FxObservationSnapshot,
     decode_fx_observation,
 )
-from product_intelligence.research.matching import is_review_candidate_binding_valid
+from product_intelligence.research.matching import (
+    AiAssistedReviewTier,
+    classify_ai_assisted_review_tier,
+    is_review_candidate_binding_valid,
+)
 from product_intelligence.research.price_result_codec import (
     decode_price_aggregation_result,
 )
@@ -120,6 +125,32 @@ def derive_human_confirmed_assessment_indices(
     return frozenset(valid_indices)
 
 
+def derive_ai_auto_included_assessment_indices(
+    run: ResearchRun,
+    assessments: tuple,
+) -> frozenset[int]:
+    """Derive Working Quote HIGH auto-inclusion from persisted state only.
+
+    Only UNREVIEWED candidates can be auto-included. CONFIRMED candidates
+    use the existing human-confirmed path; REJECTED candidates are excluded.
+    The pure shared tier policy re-validates candidate-to-assessment binding,
+    HIGH confidence, no conflicts, and strong exact identifier evidence.
+    No live semantic/provider work occurs during replay.
+    """
+    candidates = AiAssistedReviewCandidate.objects.filter(
+        run=run,
+        review_state=AiAssistedReviewCandidate.REVIEW_STATE_UNREVIEWED,
+    )
+    valid_indices: set[int] = set()
+    for candidate in candidates:
+        idx = candidate.assessment_index
+        if type(idx) is not int or idx < 0 or idx >= len(assessments):
+            continue
+        tier = classify_ai_assisted_review_tier(candidate, assessments[idx])
+        if tier is AiAssistedReviewTier.AUTO_INCLUDE:
+            valid_indices.add(idx)
+    return frozenset(valid_indices)
+
 def replay_compact_quote_projection(
     run_id: str,
 ) -> CompactQuoteReplayResult:
@@ -139,16 +170,15 @@ def replay_compact_quote_projection(
       (via project_public_rows which reads PriceAggregationResult.buckets)
     * Vendor rows: only from actual SupplementSourceObservation instances
       with EXACT/NORMALIZED_EXACT match type and brand_new=True/VENDOR_API_POLICY
-    * Human-confirmed rows (PROD-FIX1, FU1 authority ownership): derived
-      EXCLUSIVELY from persisted state by
-      ``derive_human_confirmed_assessment_indices`` — a CONFIRMED
-      run-scoped candidate whose full candidate-to-assessment binding is
-      still valid. This entry point accepts NO caller-supplied indices: a
-      bare integer can never mint HUMAN_CONFIRMED authority. The
-      projection re-validates each derived index against the persisted
-      snapshot (range, semantic eligibility, persisted price/currency).
-      Human confirmation establishes identity authority only — it never
-      alters the frozen Machine Price snapshot.
+    * Human-confirmed rows remain derived exclusively from persisted
+      CONFIRMED review state and valid full bindings.
+    * AI-assisted Working Quote rows are derived exclusively from persisted
+      UNREVIEWED candidates that satisfy the shared HIGH auto-include policy
+      (HIGH + no conflicts + exact/normalized-exact SKU/title identifier).
+      They are labeled AI-assisted, never human-confirmed, and never enter
+      Machine Price.
+    * REJECTED candidates never project; MEDIUM/LOW unreviewed candidates
+      never project into the Working Quote.
     * FX: from persisted ResearchFxSnapshot only (never live ECB call)
 
     Parameters
@@ -248,10 +278,30 @@ def replay_compact_quote_projection(
             fx_snapshot=fx_snapshot,
         )
 
-    # Combine: vendor rows first, then human-confirmed rows, then public
-    # rows (deterministic order; frozen 4D-C vendor-first rule preserved)
+    # AI-assisted HIGH auto-included rows: persisted UNREVIEWED state plus
+    # shared policy proof only. MEDIUM/LOW remain review/possible-source UI,
+    # and REJECTED rows disappear from the Working Quote.
+    ai_assisted_rows: tuple[CompactQuoteRow, ...] = ()
+    ai_assisted_indices = derive_ai_auto_included_assessment_indices(
+        run, decoded_price.assessments
+    )
+    if ai_assisted_indices:
+        ai_assisted_rows = project_ai_assisted_rows(
+            decoded_price,
+            ai_assisted_indices,
+            fx_snapshot=fx_snapshot,
+        )
+
+    # Combine: vendor rows first, then human-confirmed and auto-included AI
+    # overlays, then deterministic public rows. No overlay changes Machine
+    # Price membership.
     projection = CompactQuoteProjection(
-        rows=tuple(vendor_rows) + human_confirmed_rows + public_rows
+        rows=(
+            tuple(vendor_rows)
+            + human_confirmed_rows
+            + ai_assisted_rows
+            + public_rows
+        )
     )
 
     return CompactQuoteReplayResult(
