@@ -74,7 +74,7 @@
 {% endif %}
 
 {% if compact_quote or compact_quote_unavailable %}
-<h2>Compact quote summary</h2>
+<h2>Quote &amp; Market Summary</h2>
 
 {% if compact_quote %}
   {% if not vendor_commercial_access_allowed %}
@@ -82,190 +82,301 @@
       Internal commercial pricing is unavailable for this connection.
     </p>
   {% endif %}
+
   {% if compact_quote.rows %}
+    <dl>
+      <dt>Quotes found</dt>
+      <dd>{{ compact_quote.quote_count }}</dd>
+
+      <dt>In stock</dt>
+      <dd>{{ compact_quote.in_stock_count }}</dd>
+
+      <dt>Lowest in-stock quote</dt>
+      <dd>
+        {% if compact_quote.lowest_in_stock_price %}
+          {{ compact_quote.lowest_in_stock_price }}
+          &mdash; {{ compact_quote.lowest_in_stock_source }}
+        {% else %}
+          <span class="absent">No in-stock quote with a USD-equivalent value</span>
+        {% endif %}
+      </dd>
+
+      <dt>Observed quote span</dt>
+      <dd>
+        {% if compact_quote.quote_span_low %}
+          {{ compact_quote.quote_span_low }} &mdash; {{ compact_quote.quote_span_high }}
+        {% else %}
+          <span class="absent">Unavailable</span>
+        {% endif %}
+      </dd>
+    </dl>
+
+    <p class="notice">
+      Quote span summarizes the rows in this table that have a USD-equivalent
+      value. It is not the strict public-market range and does not expand
+      Machine Price authority.
+    </p>
+
+    {% if compact_quote.market_groups %}
+      <h3>Strict public market</h3>
+      {% for group in compact_quote.market_groups %}
+        <div class="bucket-entry">
+          <p>
+            <strong>{{ group.condition }}</strong>
+            &mdash; {{ group.count }} comparable public
+            listing{{ group.count|pluralize }}
+          </p>
+          <p>
+            <strong>Observed span:</strong>
+            {{ group.currency_code }} {{ group.low }}
+            &mdash; {{ group.currency_code }} {{ group.high }}
+          </p>
+          {% if group.median %}
+            <p>
+              <strong>Median:</strong>
+              {{ group.currency_code }} {{ group.median }}
+            </p>
+          {% else %}
+            <p class="notice">
+              Median not shown &mdash; fewer than 3 comparable listings.
+            </p>
+          {% endif %}
+        </div>
+      {% endfor %}
+    {% else %}
+      <p class="notice">
+        No strict deterministic public-market group was established.
+        Vendor and AI-assisted quote evidence may still appear below.
+      </p>
+    {% endif %}
+
+    <h3>Quote evidence</h3>
     <div class="spec-table-wrapper">
       <table class="spec-table">
         <thead>
           <tr>
             <th>Source</th>
             <th>Price</th>
-            <th>USD Equivalent</th>
-            <th>Inventory</th>
-            <th>Brand New</th>
-            <th>Note</th>
+            {% if compact_quote.show_usd_equivalent %}
+              <th>USD Equivalent</th>
+            {% endif %}
+            <th>Availability</th>
+            <th>Condition</th>
+            <th>Match / Evidence</th>
+            <th>Market Use</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
           {% for row in compact_quote.rows %}
-          <tr>
+          <tr{% if row.candidate_id %} id="quote-candidate-{{ row.candidate_id }}"{% endif %}>
             <td>
               {% if row.source_url_safe %}
-                <a href="{{ row.source_url }}">{{ row.source_display }}</a>
+                <a href="{{ row.source_url }}" target="_blank" rel="noopener noreferrer">{{ row.source_display }}</a>
               {% else %}
                 {{ row.source_display }}
               {% endif %}
             </td>
             <td>{{ row.price }}</td>
-            <td>{{ row.usd_equivalent }}</td>
+            {% if compact_quote.show_usd_equivalent %}
+              <td>{{ row.usd_equivalent }}</td>
+            {% endif %}
             <td>{{ row.inventory }}</td>
-            <td>{{ row.brand_new }}</td>
-            <td>{{ row.note|default_if_none:"" }}</td>
+            <td>{{ row.condition }}</td>
+            <td>{{ row.match_evidence }}</td>
+            <td>{{ row.market_use }}</td>
+            <td>
+              {% if row.source_url_safe %}
+                <a href="{{ row.source_url }}" target="_blank" rel="noopener noreferrer">Open source</a>
+              {% endif %}
+              {% if row.review_anchor %}
+                {% if row.source_url_safe %}&nbsp;|&nbsp;{% endif %}
+                <a href="#{{ row.review_anchor }}">Review evidence</a>
+              {% endif %}
+              {% if row.can_remove and row.candidate_id %}
+                <form method="post"
+                      action="{% url 'research-review' run_id=run.id candidate_id=row.candidate_id %}"
+                      style="display: inline;">
+                  {% csrf_token %}
+                  <button type="submit" name="action" value="remove">Remove</button>
+                </form>
+              {% endif %}
+            </td>
           </tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
   {% else %}
-    <p class="notice">No compact quote evidence is available.</p>
+    <p class="notice">No quote evidence is available.</p>
   {% endif %}
 {% elif compact_quote_unavailable %}
-  <p class="notice">Compact quote summary unavailable.</p>
+  <p class="notice">Quote &amp; Market Summary unavailable.</p>
 {% endif %}
 {% endif %}
 
-{% if review_candidates %}
-  <h2>AI-assisted semantic matches</h2>
+{% if ai_quote_candidates %}
+  <h2>AI-selected quote sources</h2>
   <p>
-    These listings were not deterministically matched but the semantic
-    model found evidence of a match. You can confirm or reject each one.
-    Confirmed listings may contribute to the reviewed price below.
+    These sources are already represented in the Working Quote above.
+    AI-selected rows remain identifiable as not human verified until a person
+    confirms them. Open the original source before removing or confirming a row.
   </p>
 
-  {% for candidate in review_candidates %}
-    {% with candidate_binding_valid=candidate.binding_valid %}
-    <div class="evidence-entry review-candidate {% if not candidate_binding_valid %}unavailable{% endif %}">
-      {% if not candidate_binding_valid %}
-        {# --- Unavailable/stale candidate: neutral "evidence unavailable" display --- #}
-        <p class="notice">
-          <strong>Review evidence unavailable.</strong>
-          The snapshot evidence for this candidate could not be verified.
-          No review action is available.
-        </p>
-        <dl>
-          <dt>Source</dt>
-          <dd>{{ candidate.source_url }}</dd>
-          <dt>Review state</dt>
-          <dd>
-            {% if candidate.review_state == "CONFIRMED" %}
-              <strong style="color: green;">CONFIRMED</strong>
-            {% elif candidate.review_state == "REJECTED" %}
-              <strong style="color: red;">REJECTED</strong>
-            {% else %}
-              <span style="color: orange;">UNREVIEWED</span>
-            {% endif %}
-          </dd>
-          {% if candidate.reviewed_at %}
-            <dt>Reviewed at</dt>
-            <dd>{{ candidate.reviewed_at|date:"Y-m-d H:i:s T" }}</dd>
-          {% endif %}
-        </dl>
-      {% else %}
-        {# --- Valid binding: full snapshot-backed display --- #}
-        <dl>
-          <dt>Seller</dt>
-          <dd>{{ candidate.seller_name|default:"Not identified" }}</dd>
-
-          <dt>Price</dt>
-          <dd>
-            {% if candidate.normalized_price %}
-              {{ candidate.currency_code }} {{ candidate.normalized_price }}
-            {% else %}
-              <span class="absent">Not available</span>
-            {% endif %}
-          </dd>
-
-          <dt>Condition</dt>
-          <dd>{{ candidate.condition }}</dd>
-
-          <dt>Product title</dt>
-          <dd>{{ candidate.product_title }}</dd>
-
-          <dt>Source URL</dt>
-          <dd>
-            {% if candidate.source_url %}
-              {% if candidate.source_url_safe %}
-              <a href="{{ candidate.source_url }}" target="_blank" rel="noopener noreferrer">{{ candidate.source_url }}</a>
-              {% else %}
-              {{ candidate.source_url }}
-              {% endif %}
-            {% else %}
-              <span class="absent">No URL</span>
-            {% endif %}
-          </dd>
-
-          <dt>MPN evidence</dt>
-          <dd>
-            {% if candidate.candidate_mpn_field %}{{ candidate.candidate_mpn_field }}
-            {% else %}<span class="absent">None</span>{% endif %}
-          </dd>
-
-          <dt>SKU evidence</dt>
-          <dd>
-            {% if candidate.candidate_sku %}{{ candidate.candidate_sku }}
-            {% else %}<span class="absent">None</span>{% endif %}
-          </dd>
-
-          <dt>Semantic confidence</dt>
-          <dd>
-            {% if candidate.semantic_confidence %}{{ candidate.semantic_confidence }}
-            {% else %}<span class="absent">None</span>{% endif %}
-          </dd>
-
-          <dt>Semantic reason</dt>
-          <dd>
-            {% if candidate.semantic_reason_code %}{{ candidate.semantic_reason_code }}
-            {% else %}<span class="absent">None</span>{% endif %}
-          </dd>
-
-          <dt>Matched attributes</dt>
-          <dd>
-            {% if candidate.semantic_matched_attributes %}
-              {{ candidate.semantic_matched_attributes|join:", " }}
-            {% else %}<span class="absent">None</span>{% endif %}
-          </dd>
-
-          <dt>Conflicting attributes</dt>
-          <dd>
-            {% if candidate.semantic_conflicting_attributes %}
-              {{ candidate.semantic_conflicting_attributes|join:", " }}
-            {% else %}<span class="absent">None</span>{% endif %}
-          </dd>
-
-          <dt>Provider / Model</dt>
-          <dd>{{ candidate.actual_provider }} / {{ candidate.actual_model }}</dd>
-
-          <dt>Review state</dt>
-          <dd>
-            {% if candidate.review_state == "CONFIRMED" %}
-              <strong style="color: green;">CONFIRMED</strong>
-            {% elif candidate.review_state == "REJECTED" %}
-              <strong style="color: red;">REJECTED</strong>
-            {% else %}
-              <span style="color: orange;">UNREVIEWED</span>
-            {% endif %}
-          </dd>
-
-          {% if candidate.reviewed_at %}
-            <dt>Reviewed at</dt>
-            <dd>{{ candidate.reviewed_at|date:"Y-m-d H:i:s T" }}</dd>
-          {% endif %}
-        </dl>
-
-        <form method="post" action="{% url "research-review" run_id=run.id candidate_id=candidate.candidate_id %}" style="display: inline;">
-          {% csrf_token %}
-          {% if candidate.review_state == "CONFIRMED" %}
-            <button type="submit" name="action" value="undo">Undo confirmation</button>
-          {% elif candidate.review_state == "REJECTED" %}
-            <button type="submit" name="action" value="undo">Undo rejection</button>
-          {% else %}
-            <button type="submit" name="action" value="confirm">Confirm match</button>
-            <button type="submit" name="action" value="reject">Reject</button>
-          {% endif %}
-        </form>
+  {% for candidate in ai_quote_candidates %}
+    <div class="evidence-entry review-candidate"
+         id="ai-candidate-{{ candidate.candidate_id }}">
+      <p>
+        <strong>{{ candidate.seller_name|default:"Source not identified" }}</strong>
+        {% if candidate.normalized_price %}
+          &mdash; {{ candidate.currency_code }} {{ candidate.normalized_price }}
+        {% endif %}
+      </p>
+      <p><strong>Condition:</strong> {{ candidate.condition_display|default:"Not stated" }}</p>
+      <p><strong>Product title:</strong> {{ candidate.product_title }}</p>
+      <p>
+        <strong>AI evidence:</strong>
+        {{ candidate.semantic_confidence|default:"Unrated" }}
+        {% if candidate.semantic_reason_code %}&mdash; {{ candidate.semantic_reason_code }}{% endif %}
+      </p>
+      {% if candidate.semantic_conflicting_attributes %}
+        <p><strong>Conflicts:</strong> {{ candidate.semantic_conflicting_attributes|join:", " }}</p>
       {% endif %}
+      <p>
+        {% if candidate.source_url_safe %}
+          <a href="{{ candidate.source_url }}" target="_blank" rel="noopener noreferrer">Open source</a>
+          &nbsp;|&nbsp;
+        {% endif %}
+        <a href="#quote-candidate-{{ candidate.candidate_id }}">Back to quote row</a>
+      </p>
+      <form method="post"
+            action="{% url 'research-review' run_id=run.id candidate_id=candidate.candidate_id %}"
+            style="display: inline;">
+        {% csrf_token %}
+        {% if candidate.review_state == "CONFIRMED" %}
+          <button type="submit" name="action" value="remove">Remove</button>
+          <button type="submit" name="action" value="undo">Mark not reviewed</button>
+        {% else %}
+          <button type="submit" name="action" value="confirm">Confirm match</button>
+          <button type="submit" name="action" value="remove">Remove</button>
+        {% endif %}
+      </form>
     </div>
-    {% endwith %}
   {% endfor %}
+{% endif %}
+
+{% if ai_needs_review_candidates %}
+  <h2>Possible matches &mdash; needs review ({{ ai_needs_review_candidates|length }})</h2>
+  <p>
+    HIGH candidates without the stronger auto-include proof and MEDIUM
+    candidates stay out of the Working Quote until you verify them.
+  </p>
+  {% for candidate in ai_needs_review_candidates %}
+    <div class="evidence-entry review-candidate"
+         id="ai-candidate-{{ candidate.candidate_id }}">
+      <p>
+        <strong>{{ candidate.seller_name|default:"Source not identified" }}</strong>
+        {% if candidate.normalized_price %}
+          &mdash; {{ candidate.currency_code }} {{ candidate.normalized_price }}
+        {% endif %}
+      </p>
+      <p><strong>Condition:</strong> {{ candidate.condition_display|default:"Not stated" }}</p>
+      <p><strong>Product title:</strong> {{ candidate.product_title }}</p>
+      <p>
+        <strong>AI evidence:</strong>
+        {{ candidate.semantic_confidence|default:"Unrated" }}
+        {% if candidate.semantic_reason_code %}&mdash; {{ candidate.semantic_reason_code }}{% endif %}
+      </p>
+      {% if candidate.semantic_matched_attributes %}
+        <p><strong>Matched:</strong> {{ candidate.semantic_matched_attributes|join:", " }}</p>
+      {% endif %}
+      {% if candidate.semantic_conflicting_attributes %}
+        <p><strong>Conflicts:</strong> {{ candidate.semantic_conflicting_attributes|join:", " }}</p>
+      {% endif %}
+      <p>
+        {% if candidate.source_url_safe %}
+          <a href="{{ candidate.source_url }}" target="_blank" rel="noopener noreferrer">Open source</a>
+        {% endif %}
+      </p>
+      <form method="post"
+            action="{% url 'research-review' run_id=run.id candidate_id=candidate.candidate_id %}"
+            style="display: inline;">
+        {% csrf_token %}
+        <button type="submit" name="action" value="confirm">Include / Confirm</button>
+        <button type="submit" name="action" value="reject">Reject</button>
+      </form>
+    </div>
+  {% endfor %}
+{% endif %}
+
+{% if ai_other_possible_candidates %}
+  <details>
+    <summary><strong>Other possible sources ({{ ai_other_possible_candidates|length }})</strong></summary>
+    <p>
+      These LOW-confidence semantic matches are preserved for recall but are
+      not included or rejected automatically.
+    </p>
+    {% for candidate in ai_other_possible_candidates %}
+      <div class="evidence-entry review-candidate"
+           id="ai-candidate-{{ candidate.candidate_id }}">
+        <p>
+          <strong>{{ candidate.seller_name|default:"Source not identified" }}</strong>
+          {% if candidate.normalized_price %}
+            &mdash; {{ candidate.currency_code }} {{ candidate.normalized_price }}
+          {% endif %}
+        </p>
+        <p><strong>Product title:</strong> {{ candidate.product_title }}</p>
+        <p>
+          <strong>AI evidence:</strong>
+          {{ candidate.semantic_confidence|default:"LOW" }}
+          {% if candidate.semantic_reason_code %}&mdash; {{ candidate.semantic_reason_code }}{% endif %}
+        </p>
+        <p>
+          {% if candidate.source_url_safe %}
+            <a href="{{ candidate.source_url }}" target="_blank" rel="noopener noreferrer">Open source</a>
+          {% endif %}
+        </p>
+        <form method="post"
+              action="{% url 'research-review' run_id=run.id candidate_id=candidate.candidate_id %}"
+              style="display: inline;">
+          {% csrf_token %}
+          <button type="submit" name="action" value="confirm">Include / Confirm</button>
+          <button type="submit" name="action" value="reject">Reject</button>
+        </form>
+      </div>
+    {% endfor %}
+  </details>
+{% endif %}
+
+{% if ai_removed_candidates %}
+  <details>
+    <summary><strong>Removed AI sources ({{ ai_removed_candidates|length }})</strong></summary>
+    {% for candidate in ai_removed_candidates %}
+      <div class="evidence-entry review-candidate"
+           id="ai-candidate-{{ candidate.candidate_id }}">
+        <p><strong>{{ candidate.product_title }}</strong></p>
+        {% if candidate.source_url_safe %}
+          <p><a href="{{ candidate.source_url }}" target="_blank" rel="noopener noreferrer">Open source</a></p>
+        {% endif %}
+        <form method="post"
+              action="{% url 'research-review' run_id=run.id candidate_id=candidate.candidate_id %}"
+              style="display: inline;">
+          {% csrf_token %}
+          <button type="submit" name="action" value="undo">Restore</button>
+        </form>
+      </div>
+    {% endfor %}
+  </details>
+{% endif %}
+
+{% if ai_unavailable_candidates %}
+  <details>
+    <summary><strong>Unavailable AI review evidence ({{ ai_unavailable_candidates|length }})</strong></summary>
+    <p class="notice">
+      These persisted candidates could not be safely rebound to their snapshot
+      evidence. No review action is available.
+    </p>
+  </details>
 {% endif %}
 
 {% if micron_alias or micron_alias_unavailable %}
@@ -433,7 +544,13 @@
 {% endif %}
 {% endif %}
 
-<h2>Price intelligence</h2>
+<details class="advanced-evidence">
+  <summary><strong>Advanced Evidence &amp; Audit</strong></summary>
+  <p class="notice">
+    Technical matching, aggregation, exclusion, and snapshot details are kept
+    here for traceability. The business-facing quote and market summary is above.
+  </p>
+<h3>Deterministic price aggregation audit</h3>
 
 {% if snapshot_error %}
   <p class="notice">
@@ -780,7 +897,7 @@
 {% endif %}
 
 {% if reviewed_result and confirmed_count > 0 %}
-  <h2>Reviewed price</h2>
+  <h3>Reviewed price audit</h3>
   {% if reviewed_confirmed_price_count > 0 %}
   <p>
     This price includes {{ reviewed_confirmed_price_count }}
@@ -868,6 +985,9 @@
     </div>
   {% endfor %}
 {% endif %}
+
+
+</details>
 
 {# ================================================================ #}
 {# BLOCKER 4: Comparable section AFTER existing review content      #}
