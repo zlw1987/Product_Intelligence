@@ -200,6 +200,13 @@
     {% endfor %}
   {% endif %}
 
+  {% if ai_evidence_only_candidates %}
+    <h3>AI-assisted evidence without usable quote price</h3>
+    {% for candidate in ai_evidence_only_candidates %}
+      {% include "web/_ai_candidate_card.html" with candidate=candidate %}
+    {% endfor %}
+  {% endif %}
+
   {% if ai_needs_review_candidates %}
     <h3>Possible matches — needs review</h3>
     {% for candidate in ai_needs_review_candidates %}
