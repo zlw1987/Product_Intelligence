@@ -563,3 +563,171 @@ class TestAuthorityIsolation:
         assert project_human_confirmed_rows(result, frozenset()) == ()
         # And the public (Machine Price) projection excludes it entirely
         assert project_public_rows(result) == ()
+
+# ---------------------------------------------------------------------------
+# AI Working Quote policy / unreviewed HIGH projection
+# ---------------------------------------------------------------------------
+
+
+class TestAiWorkingQuotePolicy:
+    def test_high_exact_sku_no_conflict_auto_includes_unverified(self) -> None:
+        from dataclasses import replace
+        from product_intelligence.research.working_quote_policy import (
+            AiWorkingQuoteDisposition,
+            classify_ai_match_for_working_quote,
+        )
+
+        base = _semantic_assessment(
+            MPN,
+            source_url="https://auto.example.com/item",
+            price_amount=Decimal("1890.00"),
+            evidence_source=EvidenceSource.SKU_FIELD,
+        )
+        assessment = replace(
+            base,
+            normalized_listing=replace(
+                base.normalized_listing,
+                observation=replace(
+                    base.normalized_listing.observation,
+                    sku_text=MPN,
+                ),
+            ),
+        )
+        assert classify_ai_match_for_working_quote(
+            assessment,
+            review_state="UNREVIEWED",
+            semantic_confidence="HIGH",
+            candidate_sku=MPN,
+            target_mpn=MPN,
+            conflicting_attributes=(),
+        ) is AiWorkingQuoteDisposition.AUTO_INCLUDE_UNVERIFIED
+
+    def test_high_title_only_needs_review(self) -> None:
+        from product_intelligence.research.working_quote_policy import (
+            AiWorkingQuoteDisposition,
+            classify_ai_match_for_working_quote,
+        )
+
+        assessment = _semantic_assessment(
+            MPN,
+            source_url="https://title.example.com/item",
+            evidence_source=EvidenceSource.TITLE_TEXT,
+        )
+        assert classify_ai_match_for_working_quote(
+            assessment,
+            review_state="UNREVIEWED",
+            semantic_confidence="HIGH",
+            candidate_sku="",
+            target_mpn=MPN,
+            conflicting_attributes=(),
+        ) is AiWorkingQuoteDisposition.NEEDS_REVIEW
+
+    def test_medium_low_and_conflict_are_not_auto_included(self) -> None:
+        from dataclasses import replace
+        from product_intelligence.research.working_quote_policy import (
+            AiWorkingQuoteDisposition,
+            classify_ai_match_for_working_quote,
+        )
+
+        base = _semantic_assessment(
+            MPN,
+            source_url="https://tier.example.com/item",
+            evidence_source=EvidenceSource.SKU_FIELD,
+        )
+        assessment = replace(
+            base,
+            normalized_listing=replace(
+                base.normalized_listing,
+                observation=replace(
+                    base.normalized_listing.observation,
+                    sku_text=MPN,
+                ),
+            ),
+        )
+        common = dict(
+            assessment=assessment,
+            review_state="UNREVIEWED",
+            candidate_sku=MPN,
+            target_mpn=MPN,
+        )
+        assert classify_ai_match_for_working_quote(
+            semantic_confidence="MEDIUM",
+            conflicting_attributes=(),
+            **common,
+        ) is AiWorkingQuoteDisposition.NEEDS_REVIEW
+        assert classify_ai_match_for_working_quote(
+            semantic_confidence="LOW",
+            conflicting_attributes=(),
+            **common,
+        ) is AiWorkingQuoteDisposition.LOW_CONFIDENCE
+        assert classify_ai_match_for_working_quote(
+            semantic_confidence="HIGH",
+            conflicting_attributes=("capacity",),
+            **common,
+        ) is AiWorkingQuoteDisposition.NEEDS_REVIEW
+
+    def test_review_state_overrides_confidence(self) -> None:
+        from product_intelligence.research.working_quote_policy import (
+            AiWorkingQuoteDisposition,
+            classify_ai_match_for_working_quote,
+        )
+
+        assessment = _semantic_assessment(
+            MPN,
+            source_url="https://state.example.com/item",
+        )
+        kwargs = dict(
+            assessment=assessment,
+            semantic_confidence="LOW",
+            candidate_sku="",
+            target_mpn=MPN,
+            conflicting_attributes=(),
+        )
+        assert classify_ai_match_for_working_quote(
+            review_state="CONFIRMED", **kwargs
+        ) is AiWorkingQuoteDisposition.CONFIRMED
+        assert classify_ai_match_for_working_quote(
+            review_state="REJECTED", **kwargs
+        ) is AiWorkingQuoteDisposition.REJECTED
+
+
+class TestAiAssistedUnreviewedProjection:
+    def test_row_preserves_persisted_price_condition_availability(self) -> None:
+        from product_intelligence.research.compact_quote import (
+            project_ai_assisted_unreviewed_rows,
+        )
+
+        assessment = _semantic_assessment(
+            MPN,
+            source_url="https://auto.example.com/item",
+            price_amount=Decimal("1890.00"),
+            condition=NormalizedCondition.UNKNOWN,
+            availability=NormalizedAvailability.IN_STOCK,
+        )
+        result = _make_result(MPN, (assessment,))
+        rows = project_ai_assisted_unreviewed_rows(
+            result,
+            frozenset({0}),
+        )
+        assert len(rows) == 1
+        row = rows[0]
+        assert row.source_type == "AI_ASSISTED_UNVERIFIED"
+        assert row.price_amount == Decimal("1890.00")
+        assert row.brand_new == "Unknown"
+        assert row.inventory == "In Stock"
+        assert row.note == "AI High — Not human verified"
+
+    def test_deterministic_accepted_row_cannot_enter_ai_projection(self) -> None:
+        from product_intelligence.research.compact_quote import (
+            CompactQuoteProjectionError,
+            project_ai_assisted_unreviewed_rows,
+        )
+
+        accepted = _accepted_assessment(
+            MPN,
+            source_url="https://det.example.com/item",
+        )
+        result = _make_result(MPN, (accepted,))
+        with pytest.raises(CompactQuoteProjectionError, match="human-review"):
+            project_ai_assisted_unreviewed_rows(result, frozenset({0}))
+

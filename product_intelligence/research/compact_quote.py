@@ -302,11 +302,13 @@ class CompactQuoteRow:
             "VENDOR_API",
             "PUBLIC_LISTING",
             "PUBLIC_QUOTE_ONLY",
+            "AI_ASSISTED_UNVERIFIED",
             "HUMAN_CONFIRMED",
         ):
             raise ValueError(
                 "source_type must be VENDOR_API, PUBLIC_LISTING, "
-                "PUBLIC_QUOTE_ONLY, or HUMAN_CONFIRMED; "
+                "PUBLIC_QUOTE_ONLY, AI_ASSISTED_UNVERIFIED, or "
+                "HUMAN_CONFIRMED; "
                 f"got {self.source_type!r}"
             )
 
@@ -773,6 +775,94 @@ def project_condition_unknown_quote_rows(
                 fx_snapshot,
                 source_type="PUBLIC_QUOTE_ONLY",
                 note="Quote only — condition not stated",
+            )
+        )
+    return tuple(rows)
+
+
+def project_ai_assisted_unreviewed_rows(
+    price_result: object,
+    assessment_indices: frozenset[int],
+    fx_snapshot: FxObservationSnapshot | None = None,
+) -> tuple[CompactQuoteRow, ...]:
+    """Project an ALREADY-AUTHORIZED unreviewed AI Working Quote set.
+
+    The execution replay boundary owns the policy decision and must prove
+    run-scoped candidate state, full provenance binding, HIGH semantic MATCH,
+    exact/normalized-exact target SKU evidence, and no semantic conflicts.
+    This helper formats persisted facts only and cannot mint authority from
+    a bare index. Frozen EvidenceDecision and 4A aggregation are untouched.
+    """
+    from product_intelligence.research.aggregation import PriceAggregationResult
+    from product_intelligence.research.matching import (
+        is_human_review_eligible_assessment,
+    )
+
+    if not isinstance(price_result, PriceAggregationResult):
+        raise CompactQuoteProjectionError(
+            "AI-assisted Working Quote projection requires a "
+            f"PriceAggregationResult instance; got {type(price_result).__name__!r}."
+        )
+    if not isinstance(assessment_indices, frozenset):
+        raise CompactQuoteProjectionError(
+            "assessment_indices must be a frozenset of exact int indices"
+        )
+
+    assessments = price_result.assessments
+    for idx in assessment_indices:
+        if type(idx) is not int:
+            raise CompactQuoteProjectionError(
+                "assessment_indices must contain exact ints"
+            )
+        if idx < 0 or idx >= len(assessments):
+            raise CompactQuoteProjectionError(
+                f"AI-assisted assessment index {idx} is out of range"
+            )
+        if not is_human_review_eligible_assessment(assessments[idx]):
+            raise CompactQuoteProjectionError(
+                f"AI-assisted assessment index {idx} is not human-review eligible"
+            )
+
+    rows: list[CompactQuoteRow] = []
+    for idx in sorted(assessment_indices):
+        assessment = assessments[idx]
+        norm = assessment.normalized_listing
+        if norm.price_amount is None or norm.currency_code is None:
+            continue
+
+        observation = norm.observation
+        source_url = observation.source_url if observation is not None else ""
+        usd_result = compute_usd_equivalent(
+            amount=norm.price_amount,
+            currency=norm.currency_code,
+            fx_snapshot=fx_snapshot,
+        )
+        if usd_result.conversion_available:
+            usd_equiv_str = _format_price(usd_result.usd_equivalent, "USD")
+            usd_equiv_amount = usd_result.usd_equivalent
+        else:
+            usd_equiv_str = "Unavailable"
+            usd_equiv_amount = None
+
+        inventory_label, inventory_note = _map_public_listing_inventory(
+            norm.availability
+        )
+        brand_new_display = _map_public_listing_brand_new(norm.condition)
+        rows.append(
+            CompactQuoteRow(
+                source=_public_source_label(source_url),
+                source_type="AI_ASSISTED_UNVERIFIED",
+                price_original=_format_price(norm.price_amount, norm.currency_code),
+                price_amount=norm.price_amount,
+                price_currency=norm.currency_code.upper(),
+                usd_equivalent=usd_equiv_str,
+                usd_equivalent_amount=usd_equiv_amount,
+                inventory=inventory_label,
+                brand_new=brand_new_display,
+                note=_combine_notes(
+                    inventory_note,
+                    "AI High — Not human verified",
+                ),
             )
         )
     return tuple(rows)
