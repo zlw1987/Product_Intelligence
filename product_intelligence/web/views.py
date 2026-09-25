@@ -399,6 +399,27 @@ def research_detail(request: HttpRequest, run_id: uuid.UUID) -> HttpResponse:
     ]
 
 
+    ai_working_quote_candidates = [
+        c for c in review_candidates
+        if c.working_quote_disposition in (
+            "AUTO_INCLUDE_UNVERIFIED",
+            "CONFIRMED",
+        )
+    ]
+    ai_needs_review_candidates = [
+        c for c in review_candidates
+        if c.working_quote_disposition == "NEEDS_REVIEW"
+    ]
+    ai_low_confidence_candidates = [
+        c for c in review_candidates
+        if c.working_quote_disposition == "LOW_CONFIDENCE"
+    ]
+    ai_rejected_candidates = [
+        c for c in review_candidates
+        if c.working_quote_disposition == "REJECTED"
+    ]
+
+
     # Validate candidate -> snapshot binding before aggregation
     confirmed_indices = frozenset()
     if confirmed_candidates and decoded_result is not None:
@@ -512,6 +533,7 @@ def research_detail(request: HttpRequest, run_id: uuid.UUID) -> HttpResponse:
                 projection=projection,
                 price_result=decoded_result,
                 confirmed_assessment_indices=confirmed_indices or None,
+                review_candidate_presentations=review_candidates,
             )
         except (
             CompactQuoteProjectionError,
@@ -618,6 +640,10 @@ def research_detail(request: HttpRequest, run_id: uuid.UUID) -> HttpResponse:
         "start_error": start_error,
         "retry_error": retry_error,
         "review_candidates": review_candidates,
+        "ai_working_quote_candidates": ai_working_quote_candidates,
+        "ai_needs_review_candidates": ai_needs_review_candidates,
+        "ai_low_confidence_candidates": ai_low_confidence_candidates,
+        "ai_rejected_candidates": ai_rejected_candidates,
         "reviewed_result": reviewed_result,
         "confirmed_count": confirmed_count,
         # FU1 presentation accuracy: truthful price-contributing counts
