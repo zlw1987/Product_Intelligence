@@ -84,19 +84,21 @@ from product_intelligence.research.normalization import (
 
 
 class PriceAggregationExclusionReason(str, Enum):
-    """Why one identity-accepted listing was excluded from price arithmetic.
+    """Why one listing was excluded from price arithmetic.
 
-    The four members correspond to the eligibility checks in
-    ``_determine_eligibility``, in the order they fire:
+    Current execution eligibility uses three reasons, in precedence order:
 
     1. ``IDENTITY_NOT_ACCEPTED`` — 3C did not accept this listing.
     2. ``NO_NUMERIC_PRICE`` — identity accepted but no Decimal price.
     3. ``NO_COMPARABLE_CURRENCY`` — price present but currency absent or
        conflicted (3B produced ``currency_code=None``).
-    4. ``UNKNOWN_CONDITION`` — price and currency present but condition
-       was not confidently mapped by 3B.
 
-    Reason precedence is the eligibility order above. If identity is
+    ``UNKNOWN_CONDITION`` is retained as a legacy codec/audit vocabulary
+    member so historical V1 snapshots remain decodable. New aggregation no
+    longer emits it: an unstated condition forms its own UNKNOWN-condition
+    bucket and is never blended with NEW/USED/REFURBISHED.
+
+    Reason precedence is the current eligibility order above. If identity is
     rejected AND price is missing, the reason is
     ``IDENTITY_NOT_ACCEPTED`` because price arithmetic was never eligible.
 
