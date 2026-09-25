@@ -57,6 +57,7 @@ from product_intelligence.execution import (
     replay_public_compact_quote_projection,
 )
 from product_intelligence.execution.compact_quote_replay import (
+    derive_ai_auto_included_assessment_indices,
     derive_human_confirmed_assessment_indices,
 )
 from product_intelligence.execution import semantic_integration
@@ -237,7 +238,14 @@ def _make_completed_run(
     return run, obs
 
 
-def _make_candidate(run: ResearchRun, obs: ListingObservation, index: int) -> AiAssistedReviewCandidate:
+def _make_candidate(
+    run: ResearchRun,
+    obs: ListingObservation,
+    index: int,
+    *,
+    confidence: str = "",
+    conflicts: list[str] | None = None,
+) -> AiAssistedReviewCandidate:
     """A binding-exact review candidate for one semantic observation."""
     return AiAssistedReviewCandidate.objects.create(
         run=run,
@@ -249,6 +257,8 @@ def _make_candidate(run: ResearchRun, obs: ListingObservation, index: int) -> Ai
         candidate_mpn_field=obs.manufacturer_part_number_text or "",
         candidate_sku=obs.sku_text or "",
         evidence_source="TITLE_TEXT",
+        semantic_confidence=confidence,
+        semantic_conflicting_attributes=[] if conflicts is None else conflicts,
         actual_provider="amax",
         actual_model="nemotron-3-super",
         prompt_version="v1.1",
@@ -668,3 +678,132 @@ class TestMachinePriceAndDerivationContract(TestCase):
         # ...but the projection produces NO row (no persisted price).
         rows = _human_rows(run)
         self.assertEqual(rows, [])
+
+
+# ---------------------------------------------------------------------------
+# AI-assisted Working Quote: HIGH auto-include / MEDIUM review / LOW preserve
+# ---------------------------------------------------------------------------
+
+
+class TestAiWorkingQuotePersistedPolicy(TestCase):
+    def _ai_rows(self, run: ResearchRun):
+        replay = replay_compact_quote_projection(str(run.id))
+        return [r for r in replay.projection.rows if r.source_type == "AI_ASSISTED"]
+
+    def test_unreviewed_high_exact_title_auto_includes_on_both_replays(self) -> None:
+        run, obs = _make_completed_run(
+            semantic_url="https://high.example.com/u",
+            accepted_url="https://high.example.com/a",
+        )
+        cand = _make_candidate(run, obs, 0, confidence="HIGH")
+        self.assertEqual(cand.review_state, "UNREVIEWED")
+
+        decoded = _decoded_price(run)
+        self.assertEqual(
+            derive_ai_auto_included_assessment_indices(
+                run, decoded.assessments
+            ),
+            frozenset({0}),
+        )
+        rows = self._ai_rows(run)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0].assessment_index, 0)
+        self.assertEqual(rows[0].price_amount, Decimal("1890.00"))
+        self.assertEqual(rows[0].condition, "UNKNOWN")
+
+        pub = replay_public_compact_quote_projection(run=run)
+        pub_rows = [
+            r for r in pub.projection.rows if r.source_type == "AI_ASSISTED"
+        ]
+        self.assertEqual(len(pub_rows), 1)
+        self.assertNotIn("VENDOR_API", [r.source_type for r in pub.projection.rows])
+
+    def test_reject_high_removes_auto_included_row(self) -> None:
+        run, obs = _make_completed_run(
+            semantic_url="https://high-reject.example.com/u",
+            accepted_url="https://high-reject.example.com/a",
+        )
+        cand = _make_candidate(run, obs, 0, confidence="HIGH")
+        self.assertEqual(len(self._ai_rows(run)), 1)
+
+        reject_candidate(cand.id, run_id=run.id)
+        self.assertEqual(self._ai_rows(run), [])
+        self.assertEqual(_human_rows(run), [])
+
+    def test_confirm_high_changes_provenance_without_duplicate_row(self) -> None:
+        run, obs = _make_completed_run(
+            semantic_url="https://high-confirm.example.com/u",
+            accepted_url="https://high-confirm.example.com/a",
+        )
+        cand = _make_candidate(run, obs, 0, confidence="HIGH")
+        self.assertEqual(len(self._ai_rows(run)), 1)
+
+        confirm_candidate(cand.id, run_id=run.id)
+        replay = replay_compact_quote_projection(str(run.id))
+        self.assertEqual(
+            len([r for r in replay.projection.rows if r.source_type == "AI_ASSISTED"]),
+            0,
+        )
+        human = [
+            r for r in replay.projection.rows if r.source_type == "HUMAN_CONFIRMED"
+        ]
+        self.assertEqual(len(human), 1)
+        self.assertEqual(human[0].assessment_index, 0)
+
+    def test_undo_confirmed_high_returns_to_auto_included_state(self) -> None:
+        run, obs = _make_completed_run(
+            semantic_url="https://high-undo.example.com/u",
+            accepted_url="https://high-undo.example.com/a",
+        )
+        cand = _make_candidate(run, obs, 0, confidence="HIGH")
+        confirm_candidate(cand.id, run_id=run.id)
+        self.assertEqual(len(_human_rows(run)), 1)
+
+        undo_review(cand.id, run_id=run.id)
+        self.assertEqual(_human_rows(run), [])
+        self.assertEqual(len(self._ai_rows(run)), 1)
+
+    def test_medium_and_low_unreviewed_never_auto_include(self) -> None:
+        for confidence in ("MEDIUM", "LOW"):
+            run, obs = _make_completed_run(
+                semantic_url=f"https://{confidence.lower()}.example.com/u",
+                accepted_url=f"https://{confidence.lower()}.example.com/a",
+            )
+            _make_candidate(run, obs, 0, confidence=confidence)
+            self.assertEqual(self._ai_rows(run), [])
+            self.assertEqual(
+                derive_ai_auto_included_assessment_indices(
+                    run, _decoded_price(run).assessments
+                ),
+                frozenset(),
+            )
+
+    def test_high_with_conflict_never_auto_includes(self) -> None:
+        run, obs = _make_completed_run(
+            semantic_url="https://high-conflict.example.com/u",
+            accepted_url="https://high-conflict.example.com/a",
+        )
+        _make_candidate(
+            run, obs, 0, confidence="HIGH", conflicts=["capacity"]
+        )
+        self.assertEqual(self._ai_rows(run), [])
+
+    def test_high_auto_include_historical_replay_remains_zero_live(self) -> None:
+        run, obs = _make_completed_run(
+            semantic_url="https://high-armed.example.com/u",
+            accepted_url="https://high-armed.example.com/a",
+        )
+        _make_candidate(run, obs, 0, confidence="HIGH")
+
+        with _armed_live_boundaries():
+            full = replay_compact_quote_projection(str(run.id))
+            public = replay_public_compact_quote_projection(run=run)
+
+        self.assertEqual(
+            len([r for r in full.projection.rows if r.source_type == "AI_ASSISTED"]),
+            1,
+        )
+        self.assertEqual(
+            len([r for r in public.projection.rows if r.source_type == "AI_ASSISTED"]),
+            1,
+        )
