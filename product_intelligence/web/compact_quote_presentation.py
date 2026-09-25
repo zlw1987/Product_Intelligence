@@ -30,6 +30,9 @@ Display rules:
   the "Human Confirmed" provenance note passes through verbatim from the
   frozen row. They are identity-authority overlays on public evidence —
   never vendor data, never a re-derivation of price/condition.
+* Public quote-only rows use the same safe public-link rules, but may
+  reconcile only to frozen 4A UNKNOWN_CONDITION exclusions. They remain
+  excluded from market arithmetic.
 * Public row URL association is mechanically reconciled with the frozen
   4A bucket assessments in deterministic iteration order (bucket by
   bucket, assessment by assessment — the same order the frozen

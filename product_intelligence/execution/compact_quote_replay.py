@@ -136,8 +136,10 @@ def replay_compact_quote_projection(
     It does NOT render HTML.
 
     Authority rules:
-    * Public rows: only from frozen 4A bucket membership
+    * Public market rows: only from frozen 4A bucket membership
       (via project_public_rows which reads PriceAggregationResult.buckets)
+    * Public quote-only rows: only from frozen 4A UNKNOWN_CONDITION
+      exclusions; they never become market buckets or statistics
     * Vendor rows: only from actual SupplementSourceObservation instances
       with EXACT/NORMALIZED_EXACT match type and brand_new=True/VENDOR_API_POLICY
     * Human-confirmed rows (PROD-FIX1, FU1 authority ownership): derived

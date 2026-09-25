@@ -8,8 +8,8 @@ FU2 authority ownership: the replay loads and decodes the run's OWN
 persisted ``PriceIntelligenceSnapshot`` itself; no caller-supplied price
 aggregation result is an authority source (the ``price_result`` parameter
 was removed). These tests prove:
-* PUBLIC_LISTING rows only — vendor rows can never appear, even when a
-  real ResearchSupplementSnapshot exists for the run
+* persisted public rows only (market or explicit quote-only) — vendor rows
+  can never appear, even when a real ResearchSupplementSnapshot exists
 * the supplemental artifact access path is NEVER touched (armed with
   RuntimeError fail-fast sentinels)
 * ZERO live provider/network/semantic work (armed fail-fast sentinels)

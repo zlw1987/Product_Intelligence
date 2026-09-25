@@ -6,10 +6,9 @@ compact quote summary browser rendering.
 The 4D-C security decision occurs in the web view BEFORE any vendor
 supplemental artifact is read, decoded, or projected. This module is the
 denied branch: it produces a ``CompactQuoteProjection`` containing NO
-vendor rows — only rows derived from the public listing evidence and the
-persisted FX evidence, plus (PROD-FIX1) run-scoped human-CONFIRMED
-semantic rows whose identity authority is a persisted review-state fact
-about the run (never vendor data).
+vendor rows — only rows derived from persisted public evidence and FX,
+including frozen-4A market rows, explicit UNKNOWN_CONDITION quote-only
+rows, and (PROD-FIX1) run-scoped human-CONFIRMED semantic rows.
 
 FU2 authority ownership (PROD-FIX1 final review blocker): the public
 replay now OWNS its price/currency/condition evidence authority exactly
@@ -34,7 +33,8 @@ What this module does:
   request-provenance-corrupt snapshot fails closed)
 * read the persisted ``ResearchFxSnapshot`` (optional) and decode it
   through the frozen V1 FX codec
-* project public rows through the frozen ``project_public_rows``
+* project public market rows through the frozen ``project_public_rows``
+* project UNKNOWN_CONDITION exclusions through the bounded quote-only path
 * derive the human-confirmed selection from persisted state via the
   shared ``derive_human_confirmed_assessment_indices`` and project it
   through ``project_human_confirmed_rows``
@@ -49,9 +49,9 @@ What this module does NOT do (binding):
 * render HTML or any browser-visible format
 * change Machine Price, Reviewed Price, or any authority
 
-The frozen authorized-path replay (``execution/compact_quote_replay.py``)
-is unchanged. This is a bounded correction of the denied-path
-authority source, not a refactor of the authorized path.
+The authorized and denied replay paths share the same bounded
+UNKNOWN_CONDITION quote-only policy. Neither path changes frozen 4A
+aggregation or reads live evidence for this projection.
 """
 
 from __future__ import annotations
@@ -91,8 +91,9 @@ class PublicCompactQuoteReplayResult:
     """The result of a public-only compact quote replay.
 
     Attributes:
-        projection: CompactQuoteProjection containing public listing rows
-            plus (PROD-FIX1) human-confirmed rows — zero vendor rows.
+        projection: CompactQuoteProjection containing public market rows,
+            UNKNOWN_CONDITION quote-only rows, and (PROD-FIX1)
+            human-confirmed rows — zero vendor rows.
         fx_snapshot: Decoded persisted FX observation snapshot, or None
             when no FX evidence is persisted for this run.
         run: The ResearchRun this replay is for.
@@ -123,8 +124,11 @@ def replay_public_compact_quote_projection(
     * Request provenance: the decoded persisted result must satisfy
       ``decoded.request == run.to_research_request()`` or the replay
       fails closed (``CompactQuoteProjectionError``).
-    * Public rows: only from frozen 4A bucket membership of the decoded
-      persisted result, via the frozen ``project_public_rows``.
+    * Public market rows: only from frozen 4A bucket membership of the
+      decoded persisted result, via the frozen ``project_public_rows``.
+    * Public quote-only rows: only from exact frozen 4A
+      ``UNKNOWN_CONDITION`` exclusions; display evidence, not market-price
+      authority.
     * Human-confirmed rows (PROD-FIX1, FU1 authority ownership): derived
       EXCLUSIVELY from persisted state by the shared
       ``derive_human_confirmed_assessment_indices`` — a CONFIRMED run-scoped

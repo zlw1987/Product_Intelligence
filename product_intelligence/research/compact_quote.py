@@ -267,8 +267,10 @@ class CompactQuoteRow:
     Attributes:
         source: The display source label (e.g. "Ingram", "CDW",
                 or the public listing source name).
-        source_type: "VENDOR_API", "PUBLIC_LISTING", or
-                "HUMAN_CONFIRMED" (run-scoped human-confirmed semantic
+        source_type: "VENDOR_API", "PUBLIC_LISTING",
+                "PUBLIC_QUOTE_ONLY" (deterministic identity accepted,
+                condition not stated, excluded from market arithmetic),
+                or "HUMAN_CONFIRMED" (run-scoped human-confirmed semantic
                 candidate; identity authority only — PROD-FIX1).
         price_original: The original price string (e.g. "$2,023.27 USD").
         price_amount: The original price amount as Decimal.
@@ -636,7 +638,8 @@ def project_public_rows(
     * Each bucket member's price/currency/condition was already verified
       by 4A before the bucket was constructed
     * UNKNOWN_CONDITION exclusions (if any) are NOT in buckets — they
-      cannot be projected
+      cannot be projected as PUBLIC_LISTING market rows; the separate
+      quote-only projector may surface them without changing frozen 4A
     * REJECTED assessments are NOT in buckets — they cannot be projected
     * USD buckets work the same as any other currency bucket
 

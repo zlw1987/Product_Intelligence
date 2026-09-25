@@ -1475,6 +1475,11 @@ class TestProjectPublicRowsAuthority:
         rows = project_public_rows(result)
         assert rows == ()
 
+        from product_intelligence.research.compact_quote import (
+            project_condition_unknown_quote_rows,
+        )
+        assert project_condition_unknown_quote_rows(result) == ()
+
 
 class TestStandaloneAssessmentRejection:
     """STANDALONE ASSESSMENT NEGATIVE — BLOCKER 2 (FU3).
