@@ -408,7 +408,12 @@ def test_accepted_conflicting_currency() -> None:
 
 
 def test_unknown_condition_excluded() -> None:
-    """ACCEPTED + price + currency but UNKNOWN condition -> excluded."""
+    """Historical node name retained: UNKNOWN now forms a separate bucket.
+
+    The requirement intentionally changed for pilot recall: an unstated
+    condition must not be guessed as NEW, but a valid exact-identity price must
+    no longer disappear solely because the source omitted condition.
+    """
     request = ResearchRequest("ABC-123", "SSD")
     obs = _make_observation(
         price_text="300", currency_text="USD", condition_text=None, mpn_text="ABC-123"
@@ -428,9 +433,50 @@ def test_unknown_condition_excluded() -> None:
 
     result = aggregate_listing_prices(request, (assessment,))
 
-    assert len(result.buckets) == 0
-    assert len(result.exclusions) == 1
-    assert result.exclusions[0].reason is PriceAggregationExclusionReason.UNKNOWN_CONDITION
+    assert len(result.buckets) == 1
+    assert len(result.exclusions) == 0
+    bucket = result.buckets[0]
+    assert bucket.currency_code == "USD"
+    assert bucket.condition is NormalizedCondition.UNKNOWN
+    assert bucket.count == 1
+    assert bucket.low == Decimal("300")
+    assert bucket.median == Decimal("300")
+    assert bucket.high == Decimal("300")
+    assert result.verification_status is VerificationStatus.VERIFIED
+
+
+def test_unknown_and_new_conditions_never_mix() -> None:
+    """Condition-not-stated is useful evidence but never NEW evidence."""
+    request = ResearchRequest("ABC-123", "SSD")
+    assessments = (
+        _make_accepted_assessment(
+            request,
+            Decimal("300"),
+            condition=NormalizedCondition.UNKNOWN,
+            source_url="https://unknown.example/product",
+        ),
+        _make_accepted_assessment(
+            request,
+            Decimal("500"),
+            condition=NormalizedCondition.NEW,
+            source_url="https://new.example/product",
+        ),
+    )
+
+    result = aggregate_listing_prices(request, assessments)
+
+    assert len(result.buckets) == 2
+    assert result.verification_status is VerificationStatus.AMBIGUOUS
+    unknown_bucket = next(
+        bucket for bucket in result.buckets
+        if bucket.condition is NormalizedCondition.UNKNOWN
+    )
+    new_bucket = next(
+        bucket for bucket in result.buckets
+        if bucket.condition is NormalizedCondition.NEW
+    )
+    assert unknown_bucket.median == Decimal("300")
+    assert new_bucket.median == Decimal("500")
 
 
 # ---------------------------------------------------------------------------
