@@ -16,12 +16,20 @@ research core testable with a string literal and free of a network stack.
 What it will and will not read
 ------------------------------
 
-**Structured data only.** Two mechanisms are implemented, in order:
+**Structured offer data first.** Two primary mechanisms are implemented, in order:
 
 1. `application/ld+json` blocks — `schema.org` `Product` nodes and the
    `Offer` / `AggregateOffer` attached to them;
 2. flat `<meta>` tags — the `name="price"` / `name="mpn"` / `name="sku"`
    family and the OpenGraph `og:price:amount` / `og:price:currency` pair.
+
+A third, deliberately narrow identity-only enrichment may fill a missing MPN
+on an observation that already exists: visible product-detail text with an
+approved explicit manufacturer/model label such as `MPN:`, `Manufacturer Part
+Number:`, or `Model #:`. It never creates a listing by itself, never extracts a
+price, never overrides a structured MPN, and fails closed when approved labels
+publish conflicting values. Retailer-local labels such as `Item #` and `SKU`
+are not manufacturer-part-number authority.
 
 Both were added because sampled real pages publish them. The meta mechanism in
 particular is not speculative: one retailer page in the recorded fixtures
@@ -30,8 +38,9 @@ carries **no JSON-LD at all** and publishes its entire product record —
 that path, a page that plainly states its part number and its price would
 produce nothing.
 
-**Never arbitrary rendered text.** There is deliberately no scan of visible
-HTML for currency-shaped substrings, and there never may be. One sampled retail
+**Never arbitrary rendered price text.** The visible-text exception above is
+identity-only and label-bounded. There is deliberately no scan of visible HTML
+for currency-shaped substrings, and there never may be. One sampled retail
 page contains fourteen distinct dollar amounts in its markup: a free-shipping
 threshold, a financing minimum, a rewards balance, several unrelated
 recommended products, and — somewhere among them — the actual price of the
@@ -93,6 +102,7 @@ Robustness rules, each with a real reason
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from html.parser import HTMLParser
 
 from product_intelligence.research.listings import ExtractionMethod, ListingObservation
@@ -140,26 +150,48 @@ META_PROPERTY_FIELDS: dict[str, str] = {
     "product:retailer_part_no": "manufacturer_part_number_text",
 }
 
+# Visible text is permitted only for bounded identity enrichment. These labels
+# explicitly describe manufacturer/model identity. Ambiguous retailer-local
+# identifiers ("Item #", "SKU", "Stock #", UPC/EAN) are intentionally absent.
+VISIBLE_MPN_LABELS: tuple[str, ...] = (
+    "mpn",
+    "manufacturer part number",
+    "manufacturer part #",
+    "mfr part number",
+    "mfr part #",
+    "model #",
+    "model number",
+)
+
+MAX_VISIBLE_IDENTITY_CHUNKS = 512
+MAX_VISIBLE_IDENTITY_CHARS = 32768
+MAX_VISIBLE_IDENTITY_CHUNK_LENGTH = 512
+MAX_VISIBLE_IDENTITY_VALUE_LENGTH = 160
+_SUPPRESSED_VISIBLE_TAGS = frozenset({"script", "style", "noscript", "template"})
+
 
 class _StructuredDataCollector(HTMLParser):
-    """Collect `ld+json` block text and `meta` attributes, and nothing else.
+    """Collect structured data plus bounded visible identity-label text.
 
-    A parser rather than a regular expression, because a regular expression over
-    HTML gets the easy cases right and then quietly mis-slices a page with a
-    `</script>` inside a string literal. `HTMLParser` treats `script` as CDATA,
-    so a block's contents arrive verbatim and un-unescaped, which is what a
-    JSON parser needs.
+    Visible text is retained only as short data chunks for the MPN-label
+    enrichment pass. Script/style/noscript/template content is never eligible,
+    and no visible text is interpreted as price data.
     """
 
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
         self.json_ld_blocks: list[str] = []
         self.meta_tags: list[dict[str, str]] = []
+        self.visible_text_chunks: list[str] = []
+        self._visible_text_chars = 0
+        self._suppressed_visible_depth = 0
         self._in_json_ld = False
         self._buffer: list[str] = []
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         attributes = {name.lower(): (value or "") for name, value in attrs}
+        if tag in _SUPPRESSED_VISIBLE_TAGS:
+            self._suppressed_visible_depth += 1
         if tag == "script":
             declared = attributes.get("type", "").split(";", 1)[0].strip().lower()
             if declared == "application/ld+json":
@@ -177,6 +209,18 @@ class _StructuredDataCollector(HTMLParser):
     def handle_data(self, data: str) -> None:
         if self._in_json_ld:
             self._buffer.append(data)
+            return
+        if self._suppressed_visible_depth:
+            return
+        chunk = " ".join(data.split())
+        if not chunk or len(chunk) > MAX_VISIBLE_IDENTITY_CHUNK_LENGTH:
+            return
+        if len(self.visible_text_chunks) >= MAX_VISIBLE_IDENTITY_CHUNKS:
+            return
+        if self._visible_text_chars + len(chunk) > MAX_VISIBLE_IDENTITY_CHARS:
+            return
+        self.visible_text_chunks.append(chunk)
+        self._visible_text_chars += len(chunk)
 
     def handle_endtag(self, tag: str) -> None:
         if tag == "script" and self._in_json_ld:
@@ -184,6 +228,8 @@ class _StructuredDataCollector(HTMLParser):
             if len(self.json_ld_blocks) < MAX_JSON_LD_BLOCKS:
                 self.json_ld_blocks.append("".join(self._buffer))
             self._buffer = []
+        if tag in _SUPPRESSED_VISIBLE_TAGS and self._suppressed_visible_depth:
+            self._suppressed_visible_depth -= 1
 
 
 def _parse_document(document: str) -> _StructuredDataCollector:
@@ -202,6 +248,85 @@ def _parse_document(document: str) -> _StructuredDataCollector:
     except Exception:  # noqa: BLE001 - untrusted input; keep the partial result
         pass
     return collector
+
+
+def _canonical_visible_label(text: str) -> str:
+    """Canonicalize only the label side of a visible identity field."""
+    return " ".join(text.split()).rstrip(":").strip().casefold()
+
+
+def _bounded_visible_identity_value(text: str) -> str | None:
+    """Return one bounded raw identity value, or refuse an ambiguous chunk."""
+    value = " ".join(text.split()).strip()
+    if not value or len(value) > MAX_VISIBLE_IDENTITY_VALUE_LENGTH:
+        return None
+    # A second label/value pair inside the same data chunk is ambiguous. MPNs
+    # observed by this system do not require a colon, so fail closed here.
+    if ":" in value:
+        return None
+    return value
+
+
+def _extract_visible_labeled_mpn(chunks: list[str]) -> str | None:
+    """Extract one unambiguous visible MPN from approved explicit labels.
+
+    Supports both a same-chunk form and adjacent DOM text nodes. Multiple
+    identical claims are fine; conflicting approved claims fail closed.
+    """
+    approved = {label.casefold() for label in VISIBLE_MPN_LABELS}
+    found: list[str] = []
+
+    for index, chunk in enumerate(chunks):
+        normalized = " ".join(chunk.split())
+        if not normalized:
+            continue
+
+        if ":" in normalized:
+            left, right = normalized.split(":", 1)
+            if _canonical_visible_label(left) in approved:
+                value = _bounded_visible_identity_value(right)
+                if value is not None:
+                    found.append(value)
+                continue
+
+        if _canonical_visible_label(normalized) not in approved:
+            continue
+
+        next_index = index + 1
+        if next_index < len(chunks) and chunks[next_index] == ":":
+            next_index += 1
+        if next_index >= len(chunks):
+            continue
+        value = _bounded_visible_identity_value(chunks[next_index])
+        if value is not None:
+            found.append(value)
+
+    if not found:
+        return None
+    first = found[0]
+    if any(value != first for value in found[1:]):
+        return None
+    return first
+
+
+def _enrich_missing_mpn_from_visible_label(
+    observations: list[ListingObservation],
+    visible_text_chunks: list[str],
+) -> list[ListingObservation]:
+    """Fill only missing MPN fields; never create, override, or duplicate rows."""
+    if not observations:
+        return observations
+    visible_mpn = _extract_visible_labeled_mpn(visible_text_chunks)
+    if visible_mpn is None:
+        return observations
+    return [
+        (
+            replace(observation, manufacturer_part_number_text=visible_mpn)
+            if observation.manufacturer_part_number_text is None
+            else observation
+        )
+        for observation in observations
+    ]
 
 
 def _type_names(node: dict) -> set[str]:
@@ -490,8 +615,20 @@ def extract_listing_observations(
         collector.json_ld_blocks, source_url=source_url
     )
     if observations:
-        return tuple(observations)
+        return tuple(
+            _enrich_missing_mpn_from_visible_label(
+                observations,
+                collector.visible_text_chunks,
+            )
+        )
 
     # Only when the richer source produced nothing — see the module docstring on
-    # why both never run for one document.
-    return tuple(_extract_from_meta(collector.meta_tags, source_url=source_url))
+    # why both never run for one document. Visible labels may enrich this one
+    # structured/meta observation, but they never create a new observation.
+    meta_observations = _extract_from_meta(collector.meta_tags, source_url=source_url)
+    return tuple(
+        _enrich_missing_mpn_from_visible_label(
+            meta_observations,
+            collector.visible_text_chunks,
+        )
+    )
