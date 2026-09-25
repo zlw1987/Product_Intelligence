@@ -8,7 +8,8 @@ supplemental artifact is read, decoded, or projected. This module is the
 denied branch: it produces a ``CompactQuoteProjection`` containing NO
 vendor rows — only rows derived from persisted public evidence and FX,
 including frozen-4A market rows, explicit UNKNOWN_CONDITION quote-only
-rows, and (PROD-FIX1) run-scoped human-CONFIRMED semantic rows.
+rows, bounded run-scoped UNREVIEWED AI Working Quote rows, and
+(PROD-FIX1) run-scoped human-CONFIRMED semantic rows.
 
 FU2 authority ownership (PROD-FIX1 final review blocker): the public
 replay now OWNS its price/currency/condition evidence authority exactly
@@ -35,6 +36,8 @@ What this module does:
   through the frozen V1 FX codec
 * project public market rows through the frozen ``project_public_rows``
 * project UNKNOWN_CONDITION exclusions through the bounded quote-only path
+* derive bounded UNREVIEWED AI Working Quote rows from persisted state
+  using the same run-scoped binding plus the pure confidence-tier policy
 * derive the human-confirmed selection from persisted state via the
   shared ``derive_human_confirmed_assessment_indices`` and project it
   through ``project_human_confirmed_rows``
@@ -131,6 +134,9 @@ def replay_public_compact_quote_projection(
     * Public quote-only rows: only from exact frozen 4A
       ``UNKNOWN_CONDITION`` exclusions; display evidence, not market-price
       authority.
+    * Unreviewed AI Working Quote rows: only run-scoped, binding-valid
+      UNREVIEWED candidates passing the bounded HIGH/exact-SKU/no-conflict
+      policy. They never become strict public market authority.
     * Human-confirmed rows (PROD-FIX1, FU1 authority ownership): derived
       EXCLUSIVELY from persisted state by the shared
       ``derive_human_confirmed_assessment_indices`` — a CONFIRMED run-scoped

@@ -25,6 +25,9 @@ Display rules:
 * Public rows: display hostname with leading ``www.`` stripped; the full
   SAFE source URL — taken from the paired frozen 4A bucket-member
   assessment — remains the link target.
+* Auto-included AI rows: public-listing display rules apply only after the
+  replay has authorized them from persisted candidate state. This module
+  associates safe links/actions but cannot create AI quote authority.
 * Human-confirmed rows (PROD-FIX1): public-listing display rules apply
   (www.-stripped hostname; SAFE persisted-assessment URL as link target);
   the "Human Confirmed" provenance note passes through verbatim from the
@@ -243,8 +246,9 @@ class CompactQuotePresentation:
     """Complete display-only presentation of one CompactQuoteProjection.
 
     Rows are preserved in the exact order produced by the server-side
-    replay (vendor rows first when authorized, public rows only when
-    denied). No row is added, removed, reordered, or re-derived.
+    replay. The denied path is vendor-free but may contain persisted
+    public, quote-only, and bounded AI-assisted rows. No row is added,
+    removed, reordered, or re-derived here.
     """
 
     rows: tuple[CompactQuoteRowDisplay, ...]

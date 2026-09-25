@@ -17,6 +17,8 @@ What this module does:
 * Read ResearchFxSnapshot if present
 * Decode each through the canonical versioned codec
 * Build the authority-safe CompactQuoteProjection
+* Derive bounded UNREVIEWED AI Working Quote rows from persisted candidate
+  state only (HIGH + exact target SKU + no conflicts + full binding)
 * Perform NO live provider or semantic work
 
 What this module does NOT do:
@@ -183,6 +185,10 @@ def replay_compact_quote_projection(
       exclusions; they never become market buckets or statistics
     * Vendor rows: only from actual SupplementSourceObservation instances
       with EXACT/NORMALIZED_EXACT match type and brand_new=True/VENDOR_API_POLICY
+    * Unreviewed AI Working Quote rows: derived only from run-scoped
+      UNREVIEWED candidates with full provenance binding and the pure
+      bounded policy (HIGH + exact target SKU + no conflicts). They remain
+      AI-assisted display evidence and never enter frozen 4A market buckets.
     * Human-confirmed rows (PROD-FIX1, FU1 authority ownership): derived
       EXCLUSIVELY from persisted state by
       ``derive_human_confirmed_assessment_indices`` — a CONFIRMED

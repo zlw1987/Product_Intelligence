@@ -270,7 +270,9 @@ class CompactQuoteRow:
         source_type: "VENDOR_API", "PUBLIC_LISTING",
                 "PUBLIC_QUOTE_ONLY" (deterministic identity accepted,
                 condition not stated, excluded from market arithmetic),
-                or "HUMAN_CONFIRMED" (run-scoped human-confirmed semantic
+                "AI_ASSISTED_UNVERIFIED" (run-scoped semantic MATCH
+                auto-included by the bounded Working Quote policy), or
+                "HUMAN_CONFIRMED" (run-scoped human-confirmed semantic
                 candidate; identity authority only — PROD-FIX1).
         price_original: The original price string (e.g. "$2,023.27 USD").
         price_amount: The original price amount as Decimal.

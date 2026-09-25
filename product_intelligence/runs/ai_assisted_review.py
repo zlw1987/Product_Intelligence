@@ -260,8 +260,10 @@ def _update_review_state(
     Args:
         candidate_id: The UUID of the candidate.
         target_state: The target review state string.
-        action: The action name ('confirm', 'reject', 'undo').
+        action: The action name ('confirm', 'reject', 'remove', 'undo').
         expected_run_id: If provided, the candidate must belong to this run.
+        allow_confirmed_reject: Internal switch used only by the Working
+            Quote remove action so CONFIRMED may transition to REJECTED.
 
     Returns:
         The refreshed AiAssistedReviewCandidate after the update.
