@@ -161,6 +161,8 @@ VISIBLE_MPN_LABELS: tuple[str, ...] = (
     "mfr part #",
     "model #",
     "model number",
+    "part #",
+    "part number",
 )
 
 MAX_VISIBLE_IDENTITY_CHUNKS = 512
