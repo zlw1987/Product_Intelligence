@@ -593,14 +593,14 @@ class TestAuthorizedVendorTable:
         assert "(Vendor API) (Vendor API)" not in html
 
         # --- Unified business summary ---
-        assert "Quote &amp; Market Summary" in html
+        assert "Quote & Market Summary" in html
         assert "<dt>Quotes found</dt>" in html
         assert "<dd>4</dd>" in html
         assert "Lowest in-stock quote" in html
         assert "Comparable public market" in html
         assert "fewer than 3 comparable NEW listings" in html
         # Primary summary does not expose a two-observation/one-observation median.
-        primary = html.split("Quote &amp; Market Summary", 1)[1].split(
+        primary = html.split("Quote & Market Summary", 1)[1].split(
             "AI-assisted semantic matches", 1
         )[0]
         assert "<strong>Median:</strong> €1,500.00 EUR" not in primary
@@ -721,7 +721,7 @@ class TestNoteCellNoneRendersBlank:
 
         # 3. Synnex real bounded note still renders in its Note cell
         synnex_row = data_rows[2]
-        assert len(synnex_row) == 6
+        assert len(synnex_row) == 7
         assert "NO_RETURNS" in synnex_row[6]
 
         # 4. No Vendor/security behavior changes: remaining columns of

@@ -662,15 +662,18 @@ class TestQuoteMarketBusinessSummary:
             price_amount=Decimal("100.00"),
             currency_code="USD",
         )
-        bucket = _make_bucket(
-            currency="USD",
-            condition="NEW",
-            assessments=(assessment,),
+        bucket = _single_bucket(
+            MPN,
+            assessment,
+            "USD",
+            Decimal("100.00"),
         )
         result = _make_result(MPN, (assessment,), (bucket,))
         row = _public_row(
             source="www.example.com",
-            price="$100.00 USD",
+            price_amount=Decimal("100.00"),
+            currency="USD",
+            price_original="$100.00 USD",
             usd_equivalent="$100.00 USD",
             usd_amount=Decimal("100.00"),
         )
