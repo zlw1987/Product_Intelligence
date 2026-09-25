@@ -233,6 +233,9 @@ class CompactQuoteRowDisplay:
     market_use: str
     brand_new: str
     note: "str | None"
+    review_candidate_id: "str | None"
+    review_state: "str | None"
+    working_quote_disposition: "str | None"
 
 
 @dataclass(frozen=True)
@@ -269,6 +272,7 @@ def build_compact_quote_presentation(
     projection: Any,
     price_result: Any,
     confirmed_assessment_indices: "frozenset[int] | None" = None,
+    review_candidate_presentations: "list[Any] | None" = None,
 ) -> CompactQuotePresentation:
     """Build display-only rows from a CompactQuoteProjection.
 
@@ -295,6 +299,13 @@ def build_compact_quote_presentation(
     CompactQuotePresentation
         Immutable display-only rows for the template.
     """
+    candidate_presentations = review_candidate_presentations or []
+    candidate_by_index = {
+        c.assessment_index: c
+        for c in candidate_presentations
+        if c.binding_valid
+    }
+
     # Reconcile public rows with the frozen 4A bucket membership in
     # deterministic iteration order. FAIL CLOSED on any mismatch: a
     # public row that cannot be mechanically reconciled simply loses its
@@ -345,44 +356,75 @@ def build_compact_quote_presentation(
             if source_url is not None and _is_safe_href_url(source_url):
                 quote_only_links[id(row)] = (source_url, True)
 
-    # (PROD-FIX1) Reconcile human-confirmed rows with their persisted
-    # assessments in the exact deterministic order the projection used:
-    # ascending index, skipping assessments without persisted price or
-    # currency (confirmation cannot create such evidence, so no row was
-    # projected for them). FAIL CLOSED on any count mismatch or source
-    # label mismatch: the link is withheld, never guessed.
+    # Reconcile human-confirmed rows with persisted assessments and the
+    # corresponding binding-valid candidate presentation.
     human_rows = [
         row for row in projection.rows if row.source_type == "HUMAN_CONFIRMED"
     ]
     human_links: dict[int, tuple["str | None", bool]] = {}
     human_assessment_by_row: dict[int, Any] = {}
-    if human_rows:
-        expected_assessments: list[Any] = []
-        if confirmed_assessment_indices:
-            assessments = price_result.assessments
-            for idx in sorted(confirmed_assessment_indices):
-                if 0 <= idx < len(assessments):
-                    norm = assessments[idx].normalized_listing
-                    if (
-                        norm.price_amount is not None
-                        and norm.currency_code is not None
-                    ):
-                        expected_assessments.append(assessments[idx])
-        if len(expected_assessments) == len(human_rows):
-            for row, assessment in zip(human_rows, expected_assessments):
-                normalized_listing = assessment.normalized_listing
-                observation = normalized_listing.observation
-                source_url = (
-                    observation.source_url if observation is not None else None
-                )
-                if _expected_public_source_from_url(source_url) != row.source:
-                    continue  # mapping mismatch — withhold the link
-                human_assessment_by_row[id(row)] = assessment
-                if source_url is not None and _is_safe_href_url(source_url):
-                    human_links[id(row)] = (source_url, True)
+    human_candidate_by_row: dict[int, Any] = {}
+    expected_human_pairs: list[tuple[int, Any]] = []
+    if confirmed_assessment_indices:
+        assessments = price_result.assessments
+        for idx in sorted(confirmed_assessment_indices):
+            if 0 <= idx < len(assessments):
+                norm = assessments[idx].normalized_listing
+                if norm.price_amount is not None and norm.currency_code is not None:
+                    expected_human_pairs.append((idx, assessments[idx]))
+    if len(expected_human_pairs) == len(human_rows):
+        for row, (idx, assessment) in zip(human_rows, expected_human_pairs):
+            observation = assessment.normalized_listing.observation
+            source_url = observation.source_url if observation is not None else None
+            if _expected_public_source_from_url(source_url) != row.source:
+                continue
+            human_assessment_by_row[id(row)] = assessment
+            candidate = candidate_by_index.get(idx)
+            if candidate is not None and candidate.working_quote_disposition == "CONFIRMED":
+                human_candidate_by_row[id(row)] = candidate
+            if source_url is not None and _is_safe_href_url(source_url):
+                human_links[id(row)] = (source_url, True)
+
+    # Reconcile auto-included unreviewed AI rows. Replay already established
+    # their run-scoped authority; this layer only attaches display actions.
+    ai_unreviewed_rows = [
+        row for row in projection.rows
+        if row.source_type == "AI_ASSISTED_UNVERIFIED"
+    ]
+    expected_ai_candidates = sorted(
+        (
+            c for c in candidate_presentations
+            if c.binding_valid
+            and c.working_quote_disposition == "AUTO_INCLUDE_UNVERIFIED"
+            and c.normalized_price is not None
+            and c.currency_code is not None
+        ),
+        key=lambda c: c.assessment_index,
+    )
+    ai_links: dict[int, tuple["str | None", bool]] = {}
+    ai_assessment_by_row: dict[int, Any] = {}
+    ai_candidate_by_row: dict[int, Any] = {}
+    if len(expected_ai_candidates) == len(ai_unreviewed_rows):
+        for row, candidate in zip(ai_unreviewed_rows, expected_ai_candidates):
+            idx = candidate.assessment_index
+            if not (0 <= idx < len(price_result.assessments)):
+                continue
+            assessment = price_result.assessments[idx]
+            observation = assessment.normalized_listing.observation
+            source_url = observation.source_url if observation is not None else None
+            if _expected_public_source_from_url(source_url) != row.source:
+                continue
+            ai_assessment_by_row[id(row)] = assessment
+            ai_candidate_by_row[id(row)] = candidate
+            if source_url is not None and _is_safe_href_url(source_url):
+                ai_links[id(row)] = (source_url, True)
 
     rows: list[CompactQuoteRowDisplay] = []
     for row in projection.rows:
+        review_candidate_id: "str | None" = None
+        review_state: "str | None" = None
+        working_quote_disposition: "str | None" = None
+
         if row.source_type == "VENDOR_API":
             # Vendor rows never receive a public source URL.
             source_display = _vendor_source_display(row.source)
@@ -402,6 +444,22 @@ def build_compact_quote_presentation(
             condition = "Not stated"
             match_evidence = _deterministic_match_display(assessment)
             market_use = "Quote only — condition not stated"
+        elif row.source_type == "AI_ASSISTED_UNVERIFIED":
+            source_display = _public_source_display(row.source)
+            link = ai_links.get(id(row))
+            if link is not None:
+                source_url, source_url_safe = link
+            else:
+                source_url, source_url_safe = None, False
+            assessment = ai_assessment_by_row.get(id(row))
+            candidate = ai_candidate_by_row.get(id(row))
+            condition = _condition_display(assessment)
+            match_evidence = "AI High — Not human verified"
+            market_use = "Quote only — AI-assisted"
+            if candidate is not None:
+                review_candidate_id = candidate.candidate_id
+                review_state = candidate.review_state
+                working_quote_disposition = candidate.working_quote_disposition
         elif row.source_type == "HUMAN_CONFIRMED":
             # Human-confirmed rows are public-listing evidence: the
             # www.-stripped hostname display applies, and the link target
@@ -415,7 +473,19 @@ def build_compact_quote_presentation(
                 source_url, source_url_safe = None, False
             assessment = human_assessment_by_row.get(id(row))
             condition = _condition_display(assessment)
-            match_evidence = "AI-assisted — Human confirmed"
+            candidate = human_candidate_by_row.get(id(row))
+            if candidate is not None:
+                confidence = (candidate.semantic_confidence or "").title()
+                match_evidence = (
+                    f"AI {confidence} — Human confirmed"
+                    if confidence
+                    else "AI-assisted — Human confirmed"
+                )
+                review_candidate_id = candidate.candidate_id
+                review_state = candidate.review_state
+                working_quote_disposition = candidate.working_quote_disposition
+            else:
+                match_evidence = "AI-assisted — Human confirmed"
             market_use = "Quote only — AI-assisted"
         else:
             source_display = _public_source_display(row.source)
@@ -444,6 +514,9 @@ def build_compact_quote_presentation(
                 market_use=market_use,
                 brand_new=row.brand_new,
                 note=row.note,
+                review_candidate_id=review_candidate_id,
+                review_state=review_state,
+                working_quote_disposition=working_quote_disposition,
             )
         )
 
