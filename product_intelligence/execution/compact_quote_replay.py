@@ -34,6 +34,7 @@ from dataclasses import dataclass
 from product_intelligence.research.compact_quote import (
     CompactQuoteProjection,
     CompactQuoteRow,
+    project_ai_assisted_unreviewed_rows,
     project_condition_unknown_quote_rows,
     project_human_confirmed_rows,
     project_public_rows,
@@ -44,6 +45,10 @@ from product_intelligence.research.fx_codec import (
     decode_fx_observation,
 )
 from product_intelligence.research.matching import is_review_candidate_binding_valid
+from product_intelligence.research.working_quote_policy import (
+    AiWorkingQuoteDisposition,
+    classify_ai_match_for_working_quote,
+)
 from product_intelligence.research.price_result_codec import (
     decode_price_aggregation_result,
 )
@@ -118,6 +123,42 @@ def derive_human_confirmed_assessment_indices(
         if not is_review_candidate_binding_valid(candidate, assessments[idx]):
             continue  # tampered / foreign / non-eligible binding: fail closed
         valid_indices.add(idx)
+    return frozenset(valid_indices)
+
+
+def derive_ai_working_quote_unreviewed_indices(
+    run: ResearchRun,
+    assessments: tuple,
+) -> frozenset[int]:
+    """Derive auto-included UNREVIEWED AI Working Quote assessment indices.
+
+    Every candidate is run-scoped and must pass the same full binding used by
+    human review. The pure policy then requires HIGH confidence, exact target
+    SKU evidence, and no conflicts. Anything else fails closed out of the
+    Working Quote.
+    """
+    candidates = AiAssistedReviewCandidate.objects.filter(
+        run=run,
+        review_state=AiAssistedReviewCandidate.REVIEW_STATE_UNREVIEWED,
+    )
+    valid_indices: set[int] = set()
+    for candidate in candidates:
+        idx = candidate.assessment_index
+        if type(idx) is not int or idx < 0 or idx >= len(assessments):
+            continue
+        assessment = assessments[idx]
+        if not is_review_candidate_binding_valid(candidate, assessment):
+            continue
+        disposition = classify_ai_match_for_working_quote(
+            assessment,
+            review_state=candidate.review_state,
+            semantic_confidence=candidate.semantic_confidence,
+            candidate_sku=candidate.candidate_sku,
+            target_mpn=candidate.target_mpn,
+            conflicting_attributes=candidate.semantic_conflicting_attributes,
+        )
+        if disposition is AiWorkingQuoteDisposition.AUTO_INCLUDE_UNVERIFIED:
+            valid_indices.add(idx)
     return frozenset(valid_indices)
 
 
@@ -259,12 +300,24 @@ def replay_compact_quote_projection(
             fx_snapshot=fx_snapshot,
         )
 
+    ai_unreviewed_rows: tuple[CompactQuoteRow, ...] = ()
+    ai_unreviewed_indices = derive_ai_working_quote_unreviewed_indices(
+        run, decoded_price.assessments
+    )
+    if ai_unreviewed_indices:
+        ai_unreviewed_rows = project_ai_assisted_unreviewed_rows(
+            decoded_price,
+            ai_unreviewed_indices,
+            fx_snapshot=fx_snapshot,
+        )
+
     # Combine: vendor rows first, then human-confirmed rows, then public
     # rows (deterministic order; frozen 4D-C vendor-first rule preserved)
     projection = CompactQuoteProjection(
         rows=(
             tuple(vendor_rows)
             + human_confirmed_rows
+            + ai_unreviewed_rows
             + public_rows
             + quote_only_rows
         )

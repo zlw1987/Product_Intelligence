@@ -61,6 +61,7 @@ from dataclasses import dataclass
 from product_intelligence.research.compact_quote import (
     CompactQuoteProjection,
     CompactQuoteProjectionError,
+    project_ai_assisted_unreviewed_rows,
     project_condition_unknown_quote_rows,
     project_human_confirmed_rows,
     project_public_rows,
@@ -82,6 +83,7 @@ from product_intelligence.runs.models import (
 # authorized-path replay (ONE code path proves the persisted CONFIRMED
 # candidates; the two DENIED/ALLOWED branches must not diverge).
 from product_intelligence.execution.compact_quote_replay import (
+    derive_ai_working_quote_unreviewed_indices,
     derive_human_confirmed_assessment_indices,
 )
 
@@ -240,9 +242,21 @@ def replay_public_compact_quote_projection(
             fx_snapshot=fx_snapshot,
         )
 
+    ai_unreviewed_rows: tuple = ()
+    ai_unreviewed_indices = derive_ai_working_quote_unreviewed_indices(
+        run, price_result.assessments
+    )
+    if ai_unreviewed_indices:
+        ai_unreviewed_rows = project_ai_assisted_unreviewed_rows(
+            price_result,
+            ai_unreviewed_indices,
+            fx_snapshot=fx_snapshot,
+        )
+
     projection = CompactQuoteProjection(
         rows=(
             tuple(human_confirmed_rows)
+            + tuple(ai_unreviewed_rows)
             + tuple(public_rows)
             + tuple(quote_only_rows)
         )
