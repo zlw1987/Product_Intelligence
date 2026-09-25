@@ -416,6 +416,40 @@ def _extract_visible_mpn_evidence(
 
     return next(iter(by_value.values()))
 
+def _page_visible_mpn_is_unambiguous(
+    observations: list[ListingObservation],
+) -> bool:
+    """Return whether one page-level visible MPN can safely enrich all rows.
+
+    A visible field is page-level evidence. It may be applied only when every
+    structured observation lacks an MPN and all observations identify the same
+    product by the non-price tuple (title, SKU, brand). Multiple offers for that
+    same product remain eligible; multiple Product nodes or an identity-free
+    set fail closed.
+    """
+    if not observations:
+        return False
+    if any(
+        observation.manufacturer_part_number_text is not None
+        for observation in observations
+    ):
+        return False
+
+    signatures = {
+        (
+            observation.product_title,
+            observation.sku_text,
+            observation.brand_text,
+        )
+        for observation in observations
+    }
+    if len(signatures) != 1:
+        return False
+
+    only_signature = next(iter(signatures))
+    return any(value is not None for value in only_signature)
+
+
 def _enrich_observation_with_visible_mpn(
     observation: ListingObservation,
     *,
@@ -743,7 +777,10 @@ def extract_listing_observations(
     visible_mpn = _extract_visible_mpn_evidence(
         collector.visible_identity_elements
     )
-    if visible_mpn is not None and observations:
+    if (
+        visible_mpn is not None
+        and _page_visible_mpn_is_unambiguous(observations)
+    ):
         label, value = visible_mpn
         observations = [
             _enrich_observation_with_visible_mpn(

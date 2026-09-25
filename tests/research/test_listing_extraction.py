@@ -691,6 +691,112 @@ class TestVisibleLabeledIdentityEnrichment:
         assert observation.manufacturer_part_number_text == "ABC-123"
         assert observation.extraction_method is ExtractionMethod.JSON_LD_WITH_VISIBLE_MPN
 
+    def test_page_level_visible_mpn_does_not_cross_multiple_products(self) -> None:
+        document = _page(
+            _json_ld(
+                [
+                    {
+                        "@type": "Product",
+                        "name": "Product A",
+                        "sku": "SHOP-A",
+                        "offers": {
+                            "@type": "Offer",
+                            "price": "100",
+                            "priceCurrency": "USD",
+                        },
+                    },
+                    {
+                        "@type": "Product",
+                        "name": "Product B",
+                        "sku": "SHOP-B",
+                        "offers": {
+                            "@type": "Offer",
+                            "price": "200",
+                            "priceCurrency": "USD",
+                        },
+                    },
+                ]
+            )
+        ).replace(
+            "</body>",
+            "<div>Model #: ABC-123</div></body>",
+        )
+
+        observations = _extract(document)
+
+        assert len(observations) == 2
+        assert all(
+            observation.manufacturer_part_number_text is None
+            for observation in observations
+        )
+        assert all(
+            observation.extraction_method is ExtractionMethod.JSON_LD
+            for observation in observations
+        )
+
+    def test_one_product_with_multiple_offers_can_share_visible_mpn(self) -> None:
+        document = _page(
+            _json_ld(
+                {
+                    "@type": "Product",
+                    "name": "Product A",
+                    "sku": "SHOP-A",
+                    "offers": [
+                        {
+                            "@type": "Offer",
+                            "price": "100",
+                            "priceCurrency": "USD",
+                        },
+                        {
+                            "@type": "Offer",
+                            "price": "110",
+                            "priceCurrency": "USD",
+                        },
+                    ],
+                }
+            )
+        ).replace(
+            "</body>",
+            "<div>Model #: ABC-123</div></body>",
+        )
+
+        observations = _extract(document)
+
+        assert len(observations) == 2
+        assert {
+            observation.manufacturer_part_number_text
+            for observation in observations
+        } == {"ABC-123"}
+        assert all(
+            observation.extraction_method
+            is ExtractionMethod.JSON_LD_WITH_VISIBLE_MPN
+            for observation in observations
+        )
+
+    def test_identity_free_multiple_rows_fail_closed(self) -> None:
+        document = _page(
+            _json_ld(
+                {
+                    "@type": "Product",
+                    "offers": [
+                        {"@type": "Offer", "price": "100"},
+                        {"@type": "Offer", "price": "110"},
+                    ],
+                }
+            )
+        ).replace(
+            "</body>",
+            "<div>Model #: ABC-123</div></body>",
+        )
+
+        observations = _extract(document)
+
+        assert len(observations) == 2
+        assert all(
+            observation.manufacturer_part_number_text is None
+            for observation in observations
+        )
+
     def test_visible_identity_alone_never_creates_a_listing(self) -> None:
         document = "<html><body><div>Model #: ABC-123</div></body></html>"
 
