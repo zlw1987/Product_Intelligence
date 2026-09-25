@@ -14,6 +14,18 @@ paragraph opener (``<p>Ingram Product: ...</p>``); the scanner recognizes
 that exact literal prefix in addition to the plain line-anchored form —
 NOT a generic HTML parser.
 
+FU4: the production smoke of FU3 revealed the remaining difference is
+INSIDE the section literal representation: the observed text/html
+transport encodes three characters of the paragraph-form section value
+with exact named-entity literals (``&quot;`` / ``&nbsp;`` / ``&cr;``),
+decoded as ``"`` (U+0022) / LF (U+000A) / CR (U+000D) — only on the
+paragraph path, nothing broader (no html.unescape, no other named or
+numeric entity, no case variant; the plain-text form is never decoded).
+FU4 also supports the current real nested Synnex wire type:
+``OnlineCheck.Item.AvailabilityTotal`` as a non-negative integer,
+observed as an ASCII decimal digit string (narrow Synnex-specific
+reading; the global ``_safe_int`` still rejects strings).
+
 These tests cover:
 * the exact three bounded section labels (and refusal of arbitrary labels)
 * the strict bounded literal parser (no eval / literal_eval / code execution)
@@ -66,6 +78,7 @@ from product_intelligence.providers.internal_vendor import (
     _map_cdw,
     _map_ingram,
     _map_synnex_eu,
+    _safe_int,
     _SectionValueParseError,
 )
 
@@ -1347,3 +1360,325 @@ class TestParagraphEnvelope:
         response, _ = _lookup_body(body)
         assert response.status == LookupStatus.FAILED
         assert response.retrieved_at is None
+
+
+# ---------------------------------------------------------------------------
+# FU4: the CURRENT observed production representation — the exact <p>
+# wrapper PLUS the observed paragraph-envelope entity encoding: every
+# literal double quote is &quot;-encoded, and the observed &nbsp; / &cr;
+# literals carry LF / CR (here in a non-authoritative synthetic Ingram
+# field). The nested Synnex UnitPriceAmount is the production-observed
+# numeric string and the nested AvailabilityTotal is the production-
+# observed digit string "0". Same synthetic source payload / fake
+# sentinels as SECTION_BODY_HYBRID_PARAGRAPH. The live production price
+# is mutable upstream commercial data; the values here are explicitly
+# synthetic and deterministic.
+# ---------------------------------------------------------------------------
+SECTION_BODY_PARAGRAPH_ENTITY = (
+    "<p>Ingram Product: {&quot;vendorPartNumber&quot;: &quot;"
+    + MPN
+    + "&quot;, &quot;pricing&quot;: {&quot;customerPrice&quot;: 1515.72, "
+    "&quot;retailPrice&quot;: 2036.36, &quot;currencyCode&quot;: &quot;USD&quot;}, "
+    "&quot;availability&quot;: False, &quot;Avl_Quantity&quot;: 0, "
+    "&quot;vendorName&quot;: &quot;FAKE-VENDOR-NAME&nbsp;lf&nbsp;&cr;cr&quot;}</p>\n"
+    "\n"
+    "<p>CDW Product: {Not Found}</p>\n"
+    "\n"
+    "<p>Synnex EU Product: {&quot;OnlineCheck&quot;: {&quot;Header&quot;: "
+    "{&quot;CurrencyCode&quot;: &quot;EUR&quot;, &quot;SessionId&quot;: "
+    "&quot;FAKE-SESSION-000&quot;, &quot;BuyerAccountId&quot;: "
+    "&quot;FAKE-ACCOUNT-000&quot;, &quot;SystemId&quot;: "
+    "&quot;FAKE-SYSTEM-000&quot;}, &quot;Item&quot;: "
+    "{&quot;ManufacturerItemIdentifier&quot;: &quot;"
+    + MPN
+    + "&quot;, &quot;UnitPriceAmount&quot;: &quot;962.86&quot;, "
+    "&quot;AvailabilityTotal&quot;: &quot;0&quot;}}}}</p>\n"
+)
+
+
+# ---------------------------------------------------------------------------
+# FU4: exact observed paragraph-envelope entity decoding (bounded)
+# ---------------------------------------------------------------------------
+
+
+class TestParagraphEntityDecoding:
+    """FU4: the exact observed production paragraph-envelope entity
+    encoding (``&quot;`` / ``&nbsp;`` / ``&cr;``) is decoded ONLY on the
+    FU3 exact paragraph path, with nothing broader — no html.unescape,
+    no other named/numeric entity, no case/format variant. The retained
+    plain-text section contract is never decoded, and the strict bounded
+    literal parser is unchanged.
+    """
+
+    # -- exact observed entity decoding (paragraph path) -------------------
+
+    def test_quoted_entity_decoded_to_double_quote(self) -> None:
+        # The observed transport encodes every literal double quote as
+        # &quot;; after the bounded decoding the unchanged strict parser
+        # sees a normal double-quoted bounded literal.
+        body = '<p>Ingram Product: {&quot;a&quot;: &quot;x&quot;}</p>\n'
+        sections = _scan_section_oriented_body(body)
+        assert sections is not None
+        assert sections[0][0] == "Ingram"
+        # The exact &quot; literal was decoded; the trailing </p> remains
+        # post-literal interstitial material (never data, as FU3 defined).
+        assert sections[0][1].strip() == '{"a": "x"}</p>'
+        kind, value = _parse_section_value(sections[0][1])
+        assert kind == "mapping"
+        assert value == {"a": "x"}
+
+    def test_nbsp_and_cr_entities_decoded_to_lf_and_cr(self) -> None:
+        body = "<p>Ingram Product: {'a': 'x&nbsp;y&cr;z'}</p>\n"
+        sections = _scan_section_oriented_body(body)
+        assert sections[0][1].strip() == "{'a': 'x\ny\rz'}</p>"
+        kind, value = _parse_section_value(sections[0][1])
+        assert kind == "mapping"
+        assert value == {"a": "x\ny\rz"}
+
+    def test_plain_form_section_values_are_never_decoded(self) -> None:
+        # FU4 boundary: even the three approved entity literals are NOT
+        # decoded on the retained plain-text contract — literal entity
+        # spellings remain plain text, unchanged from pre-FU4 behavior.
+        body = "Ingram Product: {'a': 'x&nbsp;y', 'b': 'q&quot;r'}\n"
+        sections = _scan_section_oriented_body(body)
+        assert sections[0][1].strip() == "{'a': 'x&nbsp;y', 'b': 'q&quot;r'}"
+        kind, value = _parse_section_value(sections[0][1])
+        assert kind == "mapping"
+        assert value == {"a": "x&nbsp;y", "b": "q&quot;r"}
+
+    # -- adversarial: NO broader HTML/entity support ----------------------
+
+    def test_unapproved_named_entities_are_never_decoded(self) -> None:
+        # &apos; / &lsquo; / &rsquo; / &amp; / &lt; / &gt; have no
+        # production evidence: left untouched (no generic HTML decoding).
+        # Inside a bounded string they are inert raw text, never
+        # interpreted.
+        body = (
+            "<p>Ingram Product: {'a': '&apos;&lsquo;&rsquo;&amp;&lt;&gt;'}"
+            "</p>\n"
+        )
+        sections = _scan_section_oriented_body(body)
+        raw = sections[0][1]
+        for entity in ("&apos;", "&lsquo;", "&rsquo;", "&amp;", "&lt;", "&gt;"):
+            assert entity in raw
+        kind, value = _parse_section_value(raw)
+        assert kind == "mapping"
+        assert value == {"a": "&apos;&lsquo;&rsquo;&amp;&lt;&gt;"}
+
+    def test_unapproved_numeric_entity_is_never_decoded_fail_closed(self) -> None:
+        # An arbitrary numeric entity (&#123; is '{') is NOT decoded: the
+        # bare '&' token is rejected by the unchanged strict grammar, so
+        # the section fails closed (MALFORMED_SECTION at the adapter
+        # level) rather than being generically interpreted.
+        body = "<p>Ingram Product: {'k': &#123;'a': 1&#125;}</p>\n"
+        sections = _scan_section_oriented_body(body)
+        assert sections is not None
+        assert "&#123;" in sections[0][1]  # not decoded
+        with pytest.raises(_SectionValueParseError):
+            _parse_section_value(sections[0][1])
+        response, _ = _lookup_body(body, mpn="A")
+        issues = {i.source_name: i.outcome for i in response.issues}
+        assert issues == {"Ingram": SourceOutcome.MALFORMED_SECTION}
+
+    def test_entity_case_variant_is_never_decoded_fail_closed(self) -> None:
+        # &Quot; is a case variant without production evidence: not
+        # accepted; the section fails closed under the strict grammar.
+        body = "<p>Ingram Product: {'a': &Quot;x&Quot;}</p>\n"
+        sections = _scan_section_oriented_body(body)
+        assert "&Quot;" in sections[0][1]
+        with pytest.raises(_SectionValueParseError):
+            _parse_section_value(sections[0][1])
+
+    # -- faithful production-shaped full adapter --------------------------
+
+    def test_production_shape_entity_envelope_full_adapter_maps(self) -> None:
+        """The CURRENT observed production representation (exact <p>
+        wrapper + &quot; encoded quoted strings + &nbsp; / &cr; in a
+        non-authoritative synthetic field + CDW {Not Found} + nested
+        Synnex OnlineCheck with fake sentinels, numeric-string price and
+        digit-string availability) maps through the existing bounded
+        grammar and source mappers."""
+        response, mock_opener = _lookup_body(SECTION_BODY_PARAGRAPH_ENTITY)
+        assert response.status == LookupStatus.PARTIAL
+        assert response.retrieved_at is not None
+        # Exactly ONE network call
+        assert mock_opener.open.call_count == 1
+
+        candidates = {c.source_name: c for c in response.candidates}
+        assert set(candidates) == {"Ingram", "Synnex EU"}
+
+        # Ingram: exact requested MPN, 1515.72 USD, CUSTOMER_PRICE,
+        # OUT_OF_STOCK, quantity 0.
+        ingram = candidates["Ingram"]
+        assert ingram.explicit_candidate_mpn == MPN
+        assert ingram.price_amount == Decimal("1515.72")
+        assert ingram.price_basis == CommercialPriceBasis.CUSTOMER_PRICE
+        assert ingram.currency_code == "USD"
+        assert ingram.availability == CommercialAvailability.OUT_OF_STOCK
+        assert ingram.quantity == 0
+
+        # Synnex EU: exact MPN, deterministic synthetic EUR price from the
+        # production-observed numeric string, LIST_PRICE, OUT_OF_STOCK,
+        # quantity 0 from the production-observed digit string "0".
+        synnex = candidates["Synnex EU"]
+        assert synnex.explicit_candidate_mpn == MPN
+        assert synnex.price_amount == Decimal("962.86")
+        assert synnex.price_basis == CommercialPriceBasis.LIST_PRICE
+        assert synnex.currency_code == "EUR"
+        assert synnex.availability == CommercialAvailability.OUT_OF_STOCK
+        assert synnex.quantity == 0
+
+        # CDW: the exact bounded {Not Found} marker is unchanged.
+        issues = {i.source_name: i for i in response.issues}
+        assert set(issues) == {"CDW"}
+        assert issues["CDW"].outcome == SourceOutcome.NOT_FOUND
+
+        # Sensitive + non-authoritative metadata absent from the whole
+        # normalized response (allowlist boundary), and the observed
+        # entity spellings never survive into normalized output.
+        rendered = str(response)
+        for sentinel in (
+            FAKE_SESSION_ID,
+            FAKE_BUYER_ACCOUNT_ID,
+            FAKE_SYSTEM_ID,
+            "SessionId",
+            "BuyerAccountId",
+            "SystemId",
+            "FAKE-VENDOR-NAME",
+            "vendorName",
+            "retailPrice",
+            "2036.36",
+            "&quot;",
+            "&nbsp;",
+            "&cr;",
+        ):
+            assert sentinel not in rendered
+
+
+# ---------------------------------------------------------------------------
+# FU4: Synnex nested AvailabilityTotal production-observed string form
+# ---------------------------------------------------------------------------
+
+
+class TestSynnexAvailabilityTotalString:
+    """FU4: the current real nested Synnex wire represents
+    ``OnlineCheck.Item.AvailabilityTotal`` as a non-negative integer,
+    observed as the ASCII decimal digit string "0". The narrow Synnex-
+    specific reading accepts exactly that production-observed string form
+    on the REAL nested path; the GLOBAL ``_safe_int`` contract is
+    unchanged (it still rejects strings everywhere else).
+    """
+
+    def _nested(self, avail):
+        return _map_synnex_eu(
+            {
+                "OnlineCheck": {
+                    "Header": {"CurrencyCode": "EUR"},
+                    "Item": {
+                        "ManufacturerItemIdentifier": "A",
+                        "UnitPriceAmount": "962.86",
+                        "AvailabilityTotal": avail,
+                    },
+                }
+            }
+        )
+
+    def test_string_zero_maps_out_of_stock(self) -> None:
+        result = self._nested("0")
+        assert isinstance(result, CommercialSourceCandidate)
+        assert result.price_amount == Decimal("962.86")
+        assert result.availability == CommercialAvailability.OUT_OF_STOCK
+        assert result.quantity == 0
+
+    def test_string_positive_maps_in_stock(self) -> None:
+        result = self._nested("12")
+        assert isinstance(result, CommercialSourceCandidate)
+        assert result.availability == CommercialAvailability.IN_STOCK
+        assert result.quantity == 12
+
+    def test_int_and_decimal_readings_unchanged(self) -> None:
+        # The existing _safe_int readings (non-negative int / finite
+        # integral Decimal) are retained on the nested path.
+        result = self._nested(0)
+        assert isinstance(result, CommercialSourceCandidate)
+        assert result.availability == CommercialAvailability.OUT_OF_STOCK
+        assert result.quantity == 0
+
+        result = self._nested(5)
+        assert isinstance(result, CommercialSourceCandidate)
+        assert result.availability == CommercialAvailability.IN_STOCK
+        assert result.quantity == 5
+
+        result = self._nested(Decimal("7"))
+        assert isinstance(result, CommercialSourceCandidate)
+        assert result.availability == CommercialAvailability.IN_STOCK
+        assert result.quantity == 7
+
+        # Fractional Decimal is still rejected (no truncation).
+        result = self._nested(Decimal("7.5"))
+        assert isinstance(result, CommercialSourceCandidate)
+        assert result.availability == CommercialAvailability.UNKNOWN
+        assert result.quantity is None
+
+    def test_string_rejects_sign_dot_exponent_whitespace_and_text(self) -> None:
+        for bad in ("-1", "+1", "1.0", "1e2", " 0", "0 ", " 0 ", "", "abc", "0x1"):
+            result = self._nested(bad)
+            assert isinstance(result, CommercialSourceCandidate), bad
+            # No stock state is fabricated when the string fails the
+            # narrow integer grammar.
+            assert result.availability == CommercialAvailability.UNKNOWN, bad
+            assert result.quantity is None, bad
+
+    def test_string_rejects_non_string_invalid_types(self) -> None:
+        for bad in (True, False, 0.0, [], {}, None):
+            result = self._nested(bad)
+            assert isinstance(result, CommercialSourceCandidate), bad
+            assert result.availability == CommercialAvailability.UNKNOWN, bad
+            assert result.quantity is None, bad
+
+    def test_string_over_bounded_length_rejected(self) -> None:
+        # Bounded digit length: 15 digits accepted, 16 rejected.
+        result = self._nested("999999999999999")
+        assert isinstance(result, CommercialSourceCandidate)
+        assert result.availability == CommercialAvailability.IN_STOCK
+        assert result.quantity == 999999999999999
+
+        result = self._nested("9999999999999999")
+        assert isinstance(result, CommercialSourceCandidate)
+        assert result.availability == CommercialAvailability.UNKNOWN
+        assert result.quantity is None
+
+    def test_flat_synnex_availability_total_string_still_rejected(self) -> None:
+        # The narrow reading is scoped to the REAL nested path; the flat
+        # compatibility form keeps the unchanged _safe_int contract
+        # (strings rejected there).
+        text = (
+            "{'ManufacturerItemIdentifier': 'A', 'UnitPriceAmount': 100, "
+            "'currency': 'EUR', 'AvailabilityTotal': '0'}"
+        )
+        result = _parse_and_map_section("Synnex EU", text)
+        assert isinstance(result, CommercialSourceCandidate)
+        assert result.availability == CommercialAvailability.UNKNOWN
+        assert result.quantity is None
+
+    def test_global_safe_int_still_rejects_strings(self) -> None:
+        # The GLOBAL _safe_int contract is unchanged by FU4: it still
+        # rejects strings (and every other non-allowlisted type), and
+        # still accepts exactly what it always accepted.
+        assert _safe_int("0") is None
+        assert _safe_int("12") is None
+        assert _safe_int("-1") is None
+        assert _safe_int(" 0 ") is None
+        assert _safe_int("") is None
+        assert _safe_int(True) is None
+        assert _safe_int(3.0) is None
+        assert _safe_int([0]) is None
+        assert _safe_int({"a": 1}) is None
+        assert _safe_int(None) is None
+        assert _safe_int(0) == 0
+        assert _safe_int(7) == 7
+        assert _safe_int(Decimal("7")) == 7
+        assert _safe_int(Decimal("7.0")) == 7
+        assert _safe_int(-1) is None
+        assert _safe_int(Decimal("-2")) is None
+        assert _safe_int(Decimal("3.7")) is None

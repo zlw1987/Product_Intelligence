@@ -2,6 +2,120 @@
 
 ## Current state
 
+**PRODUCT-INTEL.PILOT-RELEASE-2-PROD-FIX1-FU4 (Vendor Paragraph
+Entity Decoding + Synnex Availability Wire Type) — IMPLEMENTED /
+PENDING FINAL REVIEW**
+
+Bounded append-only corrective follow-up to the FU3 commit (SHA
+2f8c693bd428527d17fb7268eee1b0fba5c014e6). FU3 has been independently
+source-reviewed, deployed, and production-smoked. The production smoke
+run a05a0aec-6f83-43d9-a3be-f9b41797f610 (requested MPN
+`MTFDKBA480TFR-1BC1ZABYYR`, Micron 7450 PRO 480GB NVMe M.2 Non-SED)
+completed with `ResearchRunState.COMPLETED`, but the persisted Vendor
+result was `lookup_status=PARTIAL` / `retrieved_at=2026-09-25
+02:16:02+00:00` / `observations=[]` / Ingram -> MALFORMED_SECTION /
+CDW -> NOT_FOUND / Synnex EU -> MALFORMED_SECTION (no ResearchFx
+Snapshot, because there were no usable Vendor observations). The FU3
+outer-envelope fix DID work: the scanner now recognizes exactly
+`<p>Ingram Product:` / `<p>CDW Product:` / `<p>Synnex EU Product:`.
+The remaining failure was INSIDE the section literal representation —
+two exact production-wire differences that FU3 did not cover, corrected
+here with the narrowest bounded support. The previous implementation is
+retained; no FU3 redesign; no deployment performed in this commit;
+final approval remains with ChatGPT after independent GitHub review and
+a later production smoke. (Canonical spec: PLAN §26.14.)
+
+1. **Observed paragraph-envelope entity encoding (production-safe
+   probe; structure/vocabulary only)** — the exact entity vocabulary
+   inside the section values of the observed response (HTTP 200;
+   `Content-Type: text/html; charset=utf-8`; approximately 5485 bytes;
+   5 lines): Ingram — `&quot;` (166 occurrences), `&nbsp;`, `&cr;`; CDW
+   — none; Synnex EU — `&quot;` (154 occurrences). No `&apos;` /
+   `&lsquo;` / `&rsquo;` / `&amp;` / `&lt;` / `&gt;` and no numeric
+   entity observed. After EXACTLY `&quot;` -> `"` (U+0022), `&nbsp;`
+   -> LF (U+000A), `&cr;` -> CR (U+000D) — and nothing else — no
+   recognized HTML entity remained and the UNCHANGED strict bounded
+   literal parser succeeded: Ingram -> mapping (27 top-level keys),
+   CDW -> not_found, Synnex EU -> mapping (2 top-level keys). At probe
+   time Ingram mapped to 1515.72 USD CUSTOMER_PRICE OUT_OF_STOCK
+   quantity 0 and Synnex to 966.58 EUR LIST_PRICE with
+   `UnitPriceAmount` observed as the numeric string "966.58" (the
+   existing `_safe_decimal` already supports numeric strings — no new
+   generic price behavior) and `AvailabilityTotal` observed as the
+   string "0". The old 962.86 EUR observation is historical; the
+   962.86 vs 966.58 difference is mutable upstream commercial data, NOT
+   an implementation acceptance invariant. The production contract is:
+   exact requested MPN + valid finite non-negative price + EUR currency
+   + LIST_PRICE + correct availability from the documented
+   AvailabilityTotal semantics.
+2. **Correction A: exact paragraph entity decoding (bounded)** — on
+   the FU3 exact paragraph-envelope path ONLY, the section value text
+   is normalized by EXACTLY three bounded literal replacements before
+   the unchanged strict parser runs. This is NOT html.unescape, NOT a
+   generic entity table, NOT an arbitrary entity regex: no other named
+   entity (`&apos;` / `&lsquo;` / `&rsquo;` / `&amp;` / `&lt;` /
+   `&gt;` / ...), no numeric entity (`&#...;`), no case/format variant
+   is decoded — adversarially tested. The retained plain-text section
+   contract is unchanged: literal entity spellings in a plain section
+   remain plain text and are never decoded. Unknown/unapproved entity
+   forms inside an authoritative literal remain fail-closed (a bare
+   entity token outside a string fails the strict grammar ->
+   MALFORMED_SECTION; inside a string it is inert raw text, never
+   interpreted). A trailing `</p>` after a COMPLETE parsed value
+   remains non-data interstitial material exactly as FU3 defined. The
+   strict bounded literal grammar, the `{Not Found}` marker, the
+   three-label allowlist, duplicate-label first-wins, max body size,
+   one-network-call, no-redirect / no-proxy / no-eval / no-
+   literal_eval behavior are all unchanged (re-proven). The raw Vendor
+   body is never logged, persisted, put into exception detail, or
+   exposed to user output.
+3. **Correction B: Synnex nested string availability** — the current
+   real nested Synnex wire represents
+   `OnlineCheck.Item.AvailabilityTotal` as a non-negative integer,
+   observed as the ASCII decimal digit STRING `"0"`. A narrow
+   Synnex-specific reading (`_synnex_availability_total`) applied to
+   the REAL nested path only accepts the existing `_safe_int` readings
+   (non-negative int / finite integral Decimal) plus exactly the
+   production-observed string form: ASCII decimal digits only,
+   non-negative, no sign, no decimal point, no exponent, no whitespace
+   coercion, bounded digit length ("0" -> 0, "12" -> 12). The GLOBAL
+   `_safe_int` contract is UNCHANGED — it still rejects strings
+   everywhere else (Ingram / CDW / flat Synnex compatibility form /
+   other code paths). Rejected string forms ("-1" / "+1" / "1.0" /
+   "1e2" / " 0 " / "" / "abc" / bool / float / list / dict /
+   over-bounded) fail to UNKNOWN with quantity None — no stock state
+   is fabricated.
+4. **Faithful production-shaped full-adapter test (synthetic)** — the
+   new fixture mirrors the CURRENT observed representation: exact `<p>`
+   wrapper, `&quot;`-encoded quoted strings, `&nbsp;` / `&cr;` in a
+   non-authoritative synthetic Ingram field, CDW `{Not Found}`, nested
+   Synnex OnlineCheck with fake SessionId / BuyerAccountId / SystemId
+   sentinels, numeric-string `UnitPriceAmount`, digit-string `"0"`
+   `AvailabilityTotal`. Deterministic synthetic mapping: Ingram exact
+   MPN / 1515.72 USD / CUSTOMER_PRICE / OUT_OF_STOCK / quantity 0;
+   Synnex exact MPN / 962.86 EUR (explicitly synthetic) / LIST_PRICE /
+   OUT_OF_STOCK / quantity 0; CDW NOT_FOUND; exactly one network call;
+   sentinels and entity spellings absent from the normalized response.
+5. **Full execution integration + authority proofs (encoded fixture)**
+   — REAL `execute_research_run`: one Vendor network call; run
+   COMPLETED; ResearchSupplementSnapshot PARTIAL with retrieved_at
+   non-null, Ingram observation present, Synnex observation present
+   (OUT_OF_STOCK / quantity 0 from the string "0"), CDW NOT_FOUND
+   issue present; sensitive metadata absent from the persisted
+   supplement; Machine Price immutable (deterministic zero-public-
+   search fixture: zero buckets, no vendor values in the artifact);
+   Vendor supplemental only (paid search not suppressed; no semantic
+   input; no public-search authority; no human-confirmed authority);
+   the usable Synnex EUR observation triggers the EXISTING 4D-C
+   execution-time currency discovery (exactly EUR + USD requested from
+   the deterministic injected FX provider; ResearchFxSnapshot persists
+   EUR + USD) — no FX production code modification; Compact Quote
+   historical replay (armed fail-fast zero-live Search / Page / Vendor
+   / ECB constructor+fetch / semantic / urllib boundaries, exactly as
+   the existing FU3 zero-live test): Ingram Vendor row present, Synnex
+   Vendor row present, CDW row absent, Synnex USD Equivalent from the
+   persisted ResearchFxSnapshot.
+
 **PRODUCT-INTEL.PILOT-RELEASE-2-PROD-FIX1-FU3 (Vendor Paragraph
 Envelope) — IMPLEMENTED / PENDING FINAL REVIEW**
 
@@ -402,9 +516,11 @@ Audit)** — PLANNED
 The production-correction phase PRODUCT-INTEL.PILOT-RELEASE-2-PROD-FIX1
 (above) and its bounded review-blocker closures PRODUCT-INTEL.PILOT-
 RELEASE-2-PROD-FIX1-FU1 and PRODUCT-INTEL.PILOT-RELEASE-2-PROD-FIX1-FU2
-(and the FU3 paragraph-envelope closure) are PENDING FINAL REVIEW and do
-NOT change the next-architecture-delivery selection below. 8A caching is
-NOT implemented in PROD-FIX1, FU1, FU2, or FU3.
+(and the FU3 paragraph-envelope closure and the FU4 vendor paragraph
+entity decoding + Synnex availability wire-type closure) are PENDING
+FINAL REVIEW and do NOT change the next-architecture-delivery selection
+below. 8A caching is NOT implemented in PROD-FIX1, FU1, FU2, FU3, or
+FU4.
 
 The previous "post-UAT next is undecided" gate is closed: the
 production deployment/smoke evidence now exists and the project lead
@@ -1245,6 +1361,72 @@ Not eligible:
 
 
 ## Validation results
+
+### PROD-FIX1-FU4 CANDIDATE ACCEPTANCE SNAPSHOT (PENDING FINAL REVIEW)
+
+| Metric | Count |
+| --- | --- |
+| Collected | 5347 |
+| Passed | 5336 |
+| Failed | 11 (exactly the fixed allowlist; non-deterministic) |
+| Unexpected failures | 0 |
+| Skipped | 0 |
+| Xfailed | 0 |
+| Deselected | 0 |
+| Subtests passed | 39 |
+
+Full-suite execution of the final FU4 tree (zero deselection, no
+skip/xfail injection; JUnit report): 5347 tests + 39 subtests
+executed; 5336 passed, 11 failed — the 11 failures are EXACTLY the
+members of the fixed eleven-node Windows/Python 3.14 subprocess-boundary
+flake allowlist (every one failed in this run), each with the recorded
+signature `subprocess.run -> Popen -> _winapi.DuplicateHandle ->
+OSError: [WinError 6] The handle is invalid` (2) / `[WinError 50] The
+request is not supported` (9), and NO node outside that allowlist
+failed. The allowlist is non-deterministic by nature, exactly as
+recorded for every prior phase; the fixed allowlist remains exactly
+11 nodes (not expanded).
+
+Collection accounting: 5326 FU3 baseline + 21 FU4 net-new nodes
+= 5347 collected. Net-new: tests/providers/test_vendor_section_
+response.py +15 (TestParagraphEntityDecoding: exact `&quot;` /
+`&nbsp;` / `&cr;` decoding on the paragraph path, plain-form non-
+decoding, adversarial unapproved named/numeric/case-variant entity
+non-decoding with fail-closed parsing, faithful production-shaped full
+adapter mapping; TestSynnexAvailabilityTotalString: `"0"` -> OOS/0,
+positive digit string -> IN_STOCK/qty, int/Decimal readings unchanged,
+string grammar rejections, over-bounded length, flat-form scope, global
+`_safe_int` still rejects strings), tests/execution/test_4d_b_vendor_
+section_integration.py +6 (TestVendorParagraphEntitySectionIntegration:
+full execute_research_run on the encoded fixture, persisted-snapshot
+sensitive-metadata + entity-spelling absence, Machine Price
+immutability, armed zero-live Compact Quote replay rows, execution-time
+4D-C FX currency discovery EUR + USD with persisted ResearchFxSnapshot,
+supplemental-only vendor authority). No boundary parameterization
+expansion (no new production files; only existing files modified).
+
+All 5326 FU3 baseline nodes remain collected. No existing test
+deleted, renamed, skipped, xfailed, deselected, or weakened. Exact
+disclosed test-file touches (safety contracts preserved):
+
+* `tests/providers/test_vendor_section_response.py` — module docstring
+  notes the FU4 observed entity encoding and Synnex availability wire
+  type; NEW fixture `SECTION_BODY_PARAGRAPH_ENTITY` (production-shaped
+  encoded wire; fake sentinels only; deterministic synthetic values);
+  NEW class `TestParagraphEntityDecoding` (7 nodes); NEW class
+  `TestSynnexAvailabilityTotalString` (8 nodes); `_safe_int` added to
+  the test-only private import list. No existing node altered.
+* `tests/execution/test_4d_b_vendor_section_integration.py` — module
+  docstring notes the FU4 encoded-wire proofs; NEW fixture
+  `SECTION_BODY_PARAGRAPH_ENTITY` (same synthetic payload as
+  `SECTION_BODY_PARAGRAPH` with the observed entity encoding plus the
+  production-observed Synnex numeric-string price and digit-string
+  availability); NEW class `TestVendorParagraphEntitySectionIntegration`
+  (6 nodes). No existing node altered.
+
+`python manage.py check`: System check identified no issues
+(0 silenced). `python manage.py makemigrations --check --dry-run`:
+No changes detected.
 
 ### PROD-FIX1-FU3 CANDIDATE ACCEPTANCE SNAPSHOT (PENDING FINAL REVIEW)
 

@@ -25,8 +25,8 @@ Key constraints:
 * Response body: one of two bounded upstream contracts (Decimal-aware parse
   for monetary values in both):
   1. the canonical JSON wrapper document, or
-  2. (PROD-FIX1; FU1; FU3) the exact production section-oriented body
-     (``Ingram Product: { ... }`` / ``CDW Product: {Not Found}`` /
+  2. (PROD-FIX1; FU1; FU3; FU4) the exact production section-oriented
+     body (``Ingram Product: { ... }`` / ``CDW Product: {Not Found}`` /
      ``Synnex EU Product: { ... }``) parsed by a strict bounded
      recursive-descent literal parser — no eval, no literal_eval,
      no generic HTML scraping. FU3: the observed production endpoint
@@ -36,7 +36,20 @@ Key constraints:
      observed literal only — optional leading whitespace + optional
      exact ``<p>`` + exact known label. It is NOT a generic HTML parser:
      no other tags, no attributes, no nesting, no tag stripping, no
-     HTML unescaping. The ACTUAL production Ingram placement is
+     generic HTML unescaping. FU4: the observed text/html transport
+     additionally encodes three characters of the paragraph-form
+     section value text with exact named-entity literals — ``&quot;``
+     (decoded as U+0022), ``&nbsp;`` (decoded as LF U+000A), ``&cr;``
+     (decoded as CR U+000D); ONLY those three exact literals are
+     decoded, and ONLY on the FU3 exact paragraph-envelope path (the
+     retained plain-text form is never decoded) — still no
+     html.unescape, no other named or numeric entity, no case/format
+     variant. FU4: the current real nested Synnex wire represents
+     ``OnlineCheck.Item.AvailabilityTotal`` as a non-negative integer,
+     observed as an ASCII decimal digit string; a narrow Synnex-
+     specific reading accepts that exact string form on the REAL
+     nested path only — the global ``_safe_int`` contract is unchanged
+     and still rejects strings. The ACTUAL production Ingram placement is
      the hybrid form (explicit vendorPartNumber + nested pricing block +
      top-level boolean availability + top-level Avl_Quantity); the flat
      field forms remain supported as separately tested compatibility
@@ -735,6 +748,43 @@ def _map_cdw(source_section: dict[str, Any]) -> CommercialSourceCandidate | Comm
     )
 
 
+# FU4: the current real nested Synnex wire represents
+# OnlineCheck.Item.AvailabilityTotal as a non-negative integer, and the
+# observed production value is the ASCII decimal digit STRING "0" (the
+# observed UnitPriceAmount is likewise a numeric string, already
+# supported by the existing _safe_decimal). The narrow Synnex-specific
+# reading below accepts exactly that production-observed string form IN
+# ADDITION to the existing _safe_int readings (non-negative int / finite
+# integral Decimal). The GLOBAL _safe_int contract is UNCHANGED: it
+# still rejects strings everywhere else (Ingram / CDW / flat Synnex /
+# all other code paths).
+_SYNNEX_AVAILABILITY_DIGITS_RE = re.compile(r"[0-9]{1,15}")
+
+
+def _synnex_availability_total(value: Any) -> int | None:
+    """Narrow Synnex-specific reading of the REAL nested wire field
+    ``OnlineCheck.Item.AvailabilityTotal`` (FU4).
+
+    Accepted:
+    - non-negative int (exact type; bool rejected) — via _safe_int
+    - finite integral, non-negative Decimal — via _safe_int
+    - str: ASCII decimal digits only, non-negative, no sign, no decimal
+      point, no exponent, no whitespace coercion, bounded to 15 digits
+      ("0" -> 0, "1" -> 1, "12" -> 12)
+
+    Rejected (returns None; the mapper then fails to UNKNOWN and never
+    fabricates a stock state):
+    - "-1" / "+1" / "1.0" / "1e2" / " 0 " / "" / "abc" / any non-digit
+      character / over-bounded digit strings
+    - bool, float, list, dict, None
+    """
+    if type(value) is str:
+        if _SYNNEX_AVAILABILITY_DIGITS_RE.fullmatch(value) is None:
+            return None
+        return int(value)
+    return _safe_int(value)
+
+
 def _map_synnex_eu(source_section: dict[str, Any]) -> CommercialSourceCandidate | CommercialSourceIssue:
     """Map one Synnex EU source section from the Vendor API response.
 
@@ -916,9 +966,12 @@ def _map_synnex_eu(source_section: dict[str, Any]) -> CommercialSourceCandidate 
             outcome=SourceOutcome.MALFORMED_SECTION)
 
 
-    # Availability
+    # Availability (FU4: the current real nested wire represents
+    # AvailabilityTotal as a non-negative integer, sometimes as an ASCII
+    # decimal digit string — narrow Synnex-specific reading; the global
+    # _safe_int contract is unchanged).
     avail_raw = item.get("AvailabilityTotal")
-    avail_int = _safe_int(avail_raw)
+    avail_int = _synnex_availability_total(avail_raw)
     if avail_int is not None:
         if avail_int > 0:
             availability = CommercialAvailability.IN_STOCK
@@ -1018,7 +1071,12 @@ def _identify_and_map_source(source_section: dict[str, Any]) -> CommercialSource
 # (plus the retained plain line-anchored forms). The paragraph support is
 # the EXACT literal "<p>" immediately before a known label — NOT a generic
 # HTML parser: no other tags, no attributes, no nesting, no stripping,
-# no unescaping, no DOM search.
+# no generic unescaping, no DOM search. FU4: the observed text/html
+# transport encodes three characters of the paragraph-form section value
+# text with exact named-entity literals (&quot; / &nbsp; / &cr;); ONLY
+# those three exact literals are decoded on the paragraph path — still
+# not a generic HTML unescape — and the retained plain-text form is never
+# decoded.
 #
 # Each section value is either the exact bounded not-found marker
 # ``{Not Found}`` or a bounded literal mapping whose fields are read by the
@@ -1042,6 +1100,47 @@ _SECTION_HEADER_TO_SOURCE = (
 # recognized as the observed HTML paragraph-prefix form. Nothing broader:
 # no other tag, no attributes, no nesting, no stripping, no unescaping.
 _PARAGRAPH_PREFIX = "<p>"
+
+# FU4: the EXACT observed production paragraph-envelope entity literals.
+# A production-safe read-only probe of the observed response (Content-
+# Type: text/html; charset=utf-8) established the exact entity
+# vocabulary inside the section values: Ingram — &quot; (166
+# occurrences), &nbsp;, &cr;; CDW — none; Synnex EU — &quot; (154
+# occurrences). No other named entity (&apos; / &lsquo; / &rsquo; /
+# &amp; / &lt; / &gt; / ...) and no numeric entity (&#...;) was
+# observed. After replacing EXACTLY these three literals — &quot; ->
+# U+0022 (literal double quote), &nbsp; -> U+000A (LF), &cr; -> U+000D
+# (CR) — no recognized HTML entity remained and the unchanged strict
+# bounded literal parser succeeded. These three exact literals are the
+# ONLY decodings (see _decode_paragraph_entities): no html.unescape,
+# no generic entity table, no arbitrary entity regex, no case/format
+# variant. Decoding applies ONLY on the FU3 exact paragraph-envelope
+# path; the retained plain-text section form is never decoded.
+_PARAGRAPH_ENTITY_LITERALS: tuple[tuple[str, str], ...] = (
+    ("&quot;", '"'),
+    ("&nbsp;", "\n"),
+    ("&cr;", "\r"),
+)
+
+
+def _decode_paragraph_entities(text: str) -> str:
+    """Apply ONLY the FU4 observed exact paragraph-envelope entity
+    decodings to one paragraph-form section value text.
+
+    Exactly three bounded literal replacements (see
+    ``_PARAGRAPH_ENTITY_LITERALS``): ``&quot;`` -> U+0022, ``&nbsp;`` ->
+    U+000A (LF), ``&cr;`` -> U+000D (CR). Nothing broader is decoded —
+    this is not html.unescape, not a generic entity table, and not a
+    regex over arbitrary entities. The replacement targets contain no
+    ``&`` or ``;`` characters, so the three replacements cannot cascade
+    into or create new entity-like sequences. Unknown/unapproved entity
+    forms are left untouched and remain fail-closed under the strict
+    bounded literal grammar.
+    """
+    for literal, decoded in _PARAGRAPH_ENTITY_LITERALS:
+        text = text.replace(literal, decoded)
+    return text
+
 
 # Bounded parse limits (external content must not recurse/expand unbounded)
 _SECTION_MAX_DEPTH = 32
@@ -1322,8 +1421,19 @@ def _scan_section_oriented_body(body_text: str) -> list | None:
       label``. Nothing broader: no other tags (``<div>`` / ``<span>`` /
       ``<script>`` / ...), no attributes (``<p class=...>``), no nesting
       (``<p><span>``), no case variants, no text before ``<p>`` on the
-      line, no HTML stripping or unescaping — this is NOT a generic HTML
-      parser.
+      line, no HTML stripping or generic unescaping — this is NOT a
+      generic HTML parser.
+    * FU4: the observed text/html transport encodes three characters of
+      the paragraph-form section value text with exact named-entity
+      literals; ONLY those three exact literals are decoded, and ONLY
+      on this paragraph path: ``&quot;`` -> U+0022, ``&nbsp;`` -> U+000A
+      (LF), ``&cr;`` -> U+000D (CR). No html.unescape, no other named
+      or numeric entity, no case/format variant — the retained plain-
+      text section form is NEVER decoded. Unknown/unapproved entity
+      forms are left raw and remain fail-closed under the strict
+      bounded literal grammar (a bare entity token outside a string
+      fails the parse; inside a string it is inert raw text, never
+      interpreted).
     * A section's value text is the remainder of the header line plus all
       following lines up to the next recognized label line (or end of
       body). Unknown labels and interstitial lines inside that range are
@@ -1366,6 +1476,11 @@ def _scan_section_oriented_body(body_text: str) -> list | None:
         prefix_len = len(line) - len(line.lstrip())
         remainder = line[prefix_len + para_len + len(label) + 1:]
         value_text = "\n".join([remainder] + lines[idx + 1:end_idx])
+        if para_len:
+            # FU4: the observed transport entity encoding exists ONLY on
+            # the exact paragraph-envelope path. The retained plain-text
+            # form is never decoded.
+            value_text = _decode_paragraph_entities(value_text)
         sections.append((source, value_text))
     return sections
 

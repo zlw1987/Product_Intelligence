@@ -5477,8 +5477,13 @@ exact bounded known label`. The HTML support is deliberately narrow:
   `<script>`, ...), no attributes (`<p class=...>`), no nesting
   (`<p><span>...`), no case variants, no text before `<p>` on the line
 * NO BeautifulSoup, NO HTMLParser as a generic document parser, NO
-  arbitrary tag stripping, NO HTML unescaping of the body, NO arbitrary
-  DOM text search, NO regex scraping of generic HTML
+  arbitrary tag stripping, NO generic HTML unescaping of the body
+  (**FU4 correction, see §26.14:** the three exact observed
+  paragraph-envelope entity literals — `&quot;` / `&nbsp;` / `&cr;` —
+  are now decoded ONLY on the paragraph path; still no html.unescape,
+  no other named or numeric entity, no case/format variant, and the
+  retained plain-text form is never decoded), NO arbitrary DOM text
+  search, NO regex scraping of generic HTML
 * the existing three-label allowlist remains the authority; unknown
   labels (with or without `<p>`) remain untrusted and ignored
 * the existing strict bounded literal parser remains responsible for the
@@ -5549,3 +5554,142 @@ snapshot (no FX production code altered by this phase).
 currency discovery requesting EUR + USD; the injected deterministic
 provider's success persists a ResearchFxSnapshot; the Synnex EUR
 Compact Quote row receives the persisted USD Equivalent.
+
+### 26.14 PILOT-RELEASE-2-PROD-FIX1-FU4: Vendor Paragraph Entity
+Decoding + Synnex Availability Wire Type
+
+**Status: IMPLEMENTED / PENDING FINAL REVIEW.** Bounded append-only
+corrective follow-up on the FU3 commit (SHA
+2f8c693bd428527d17fb7268eee1b0fba5c014e6). FU3 was independently
+source-reviewed, deployed, and production-smoked; the smoke run
+`a05a0aec-6f83-43d9-a3be-f9b41797f610` for
+`MTFDKBA480TFR-1BC1ZABYYR` (Micron 7450 PRO 480GB NVMe M.2 Non-SED)
+completed with `ResearchRunState.COMPLETED` but persisted the Vendor
+result as `lookup_status=PARTIAL` / `observations=[]` / Ingram ->
+MALFORMED_SECTION / CDW -> NOT_FOUND / Synnex EU -> MALFORMED_SECTION:
+the FU3 outer-envelope fix worked (the scanner now recognizes exactly
+`<p>Ingram Product:` / `<p>CDW Product:` / `<p>Synnex EU Product:`),
+and the remaining defect was INSIDE the section literal
+representation. Two exact production-wire differences, both corrected
+with the narrowest bounded support; the FU3 implementation is retained
+and no FU3 decision is redesigned. No deployment; no 8A caching; no
+Vendor adapter redesign; final approval remains with the project lead
+after independent GitHub review and a later production smoke.
+
+**1. Observed paragraph-envelope entity encoding (production-safe
+probe; structure/vocabulary only).** A read-only production probe
+established the exact entity vocabulary inside the section values of
+the observed response (HTTP 200; `Content-Type: text/html;
+charset=utf-8`; approximately 5485 bytes; 5 lines): Ingram — `&quot;`
+(166 occurrences), `&nbsp;`, `&cr;`; CDW — none; Synnex EU — `&quot;`
+(154 occurrences). No `&apos;` / `&lsquo;` / `&rsquo;` / `&amp;` /
+`&lt;` / `&gt;` and no numeric entity was observed. Replacing EXACTLY
+`&quot;` -> `"` (U+0022), `&nbsp;` -> LF (U+000A), `&cr;` -> CR
+(U+000D) left no recognized HTML entity in any section, and the
+UNCHANGED strict bounded literal parser then succeeded: Ingram ->
+mapping (27 top-level keys), CDW -> not_found, Synnex EU -> mapping
+(2 top-level keys). The mapped production values are mutable upstream
+commercial data (at probe time: Ingram 1515.72 USD CUSTOMER_PRICE
+OUT_OF_STOCK quantity 0; Synnex 966.58 EUR LIST_PRICE — the old
+962.86 EUR observation is historical and is NOT an acceptance
+invariant; the production contract is exact requested MPN + valid
+finite non-negative price + EUR + LIST_PRICE + correct documented
+AvailabilityTotal semantics).
+
+**2. Correction A (exact paragraph entity decoding, narrowest
+possible).** On the FU3 exact paragraph-envelope path only, the
+section value text is normalized by EXACTLY three bounded literal
+replacements — `&quot;` -> U+0022, `&nbsp;` -> U+000A (LF), `&cr;` ->
+U+000D (CR) — before the unchanged strict recursive-descent parser
+runs. This is NOT html.unescape, NOT a generic entity table, and NOT a
+regex over arbitrary entities: no other named entity (`&apos;` /
+`&lsquo;` / `&rsquo;` / `&amp;` / `&lt;` / `&gt;` / ...), no numeric
+entity (`&#...;`), no case/format variant is decoded (adversarially
+tested). The retained plain-text section form is NEVER decoded (a
+literal `&quot;` / `&nbsp;` / `&cr;` spelling in the legacy plain
+contract remains plain text, unchanged). Unknown/unapproved entity
+forms inside an authoritative literal remain fail-closed: a bare
+entity token outside a string fails the strict grammar
+(MALFORMED_SECTION); inside a string it is inert raw text, never
+interpreted. The three replacement targets contain no `&` or `;`
+characters, so the decodings cannot cascade into or create new
+entity-like sequences. The strict bounded literal parser, the exact
+`{Not Found}` marker, the three-label allowlist, duplicate-label
+first-wins, max body size, exactly-one-network-call, no-redirect /
+no-proxy / no-eval / no-literal_eval, and the trailing-`</p>`
+interstitial contract (a trailing `</p>` after a COMPLETE parsed value
+remains non-data interstitial material, exactly as FU3 defined) are
+all UNCHANGED (re-proven). The raw Vendor body is still never logged,
+persisted, put into exception detail, or exposed to user output.
+
+**3. Correction B (Synnex nested string availability).** The current
+real nested Synnex wire represents `OnlineCheck.Item.AvailabilityTotal`
+as a non-negative integer, observed as the ASCII decimal digit STRING
+`"0"` (with `UnitPriceAmount` observed as a numeric string — already
+supported by the existing `_safe_decimal`, so no new generic price
+behavior). A narrow Synnex-specific reading (`
+_synnex_availability_total`) is applied to the REAL nested path only:
+it accepts the existing `_safe_int` readings (non-negative int /
+finite integral Decimal) plus exactly the production-observed string
+form — ASCII decimal digits only, non-negative, no sign, no decimal
+point, no exponent, no whitespace coercion, bounded digit length
+(`"0"` -> 0, `"1"` -> 1, `"12"` -> 12). The GLOBAL `_safe_int`
+contract is UNCHANGED: it still rejects strings everywhere else
+(Ingram / CDW / flat Synnex compatibility form / all other code
+paths). Rejected string forms (`"-1"` / `"+1"` / `"1.0"` / `"1e2"` /
+`" 0 "` / `""` / `"abc"` / bool / float / list / dict / over-bounded
+digit strings) fail to UNKNOWN with quantity None — no stock state is
+fabricated.
+
+**4. Expected normalized result (synthetic production-shaped
+fixtures).** The new full-adapter and full-execution fixtures mirror
+the CURRENT observed representation: exact `<p>` wrapper, `&quot;`-
+encoded quoted strings, `&nbsp;` / `&cr;` in a non-authoritative
+synthetic Ingram field, CDW `{Not Found}`, nested Synnex OnlineCheck
+with fake SessionId / BuyerAccountId / SystemId sentinels, Synnex
+`UnitPriceAmount` as a numeric string, Synnex `AvailabilityTotal` as
+the digit string `"0"`. Deterministic synthetic values: Ingram
+1515.72 USD CUSTOMER_PRICE OUT_OF_STOCK quantity 0; Synnex 962.86 EUR
+LIST_PRICE OUT_OF_STOCK quantity 0 (explicitly synthetic — the live
+production price is mutable commercial data and is NOT a permanent
+expected production price); CDW NOT_FOUND. Sensitive fake sentinel
+values and field names, and the entity spellings, remain absent from
+the normalized output and the persisted supplement where the existing
+contract requires absence.
+
+**5. Proof levels (new tests).** (1) Exact observed entity decoding on
+the paragraph path (Ingram `&quot;` / `&nbsp;` / `&cr;`; Synnex
+`&quot;`; CDW `{Not Found}` unchanged) through the unchanged bounded
+grammar and source mappers. (2) Adversarial non-decoding: `&apos;` /
+`&lsquo;` / `&rsquo;` / `&amp;` / `&lt;` / `&gt;`, an arbitrary
+numeric entity, and a case variant remain raw and fail-closed; the
+plain-text form is never decoded; FU4 did NOT become generic HTML
+handling. (3) The full FU3 HTML boundary set (`<div>` / `<span>` /
+`<script>` / `<p class="x">` / `<p><span>` / `prefix<p>` / `<p> `
+/ `<P>` / `<p >` / `<p/>` / unknown labels / wrong case) is retained
+and re-proven unchanged. (4) Faithful production-shaped full adapter
+mapping (entity-encoded wire). (5) Synnex availability string grammar
+(accept `"0"` / positive digit string; reject signed / decimal /
+exponent / whitespace / empty / text / non-string / over-bounded;
+flat form unchanged; global `_safe_int` still rejects strings).
+(6) Full `execute_research_run` integration on the encoded fixture:
+one Vendor call, COMPLETED, PARTIAL, both observations, CDW NOT_FOUND,
+sensitive metadata absent from the persisted supplement, Machine
+Price immutable (deterministic zero-public-search fixture; zero
+buckets; no vendor value in the artifact), supplemental-only vendor
+(paid search not suppressed; no semantic input; no public-search
+authority; no human-confirmed authority). (7) FX: the usable Synnex
+EUR observation triggers the EXISTING 4D-C execution-time currency
+discovery (EUR + USD requested; deterministic injected provider;
+ResearchFxSnapshot persisted) — no FX production code modified.
+(8) Compact Quote historical replay (armed fail-fast zero-live
+boundaries exactly as FU3): Ingram + Synnex Vendor rows, CDW row
+absent, USD Equivalent from the persisted ResearchFxSnapshot.
+
+**6. Unchanged.** Machine Price authority; Reviewed Price authority;
+human-confirmed authority; public-search authority; semantic matching
+authority; 2A exact / normalized-exact binding semantics;
+orchestration; Compact Quote authority/projection semantics; replay
+semantics; FX production implementation; historical replay
+zero-live behavior; Search/Page/Vendor/FX/Semantic replay
+boundaries; migrations/models; dependencies; no 8A caching.
