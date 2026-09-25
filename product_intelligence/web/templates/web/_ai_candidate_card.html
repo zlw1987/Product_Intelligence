@@ -48,19 +48,30 @@
       {% csrf_token %}
       {% if candidate.review_state == "REJECTED" %}
         <button type="submit" name="action" value="undo">Restore</button>
+      {% elif not candidate.quote_price_available %}
+        {% if candidate.review_state == "CONFIRMED" %}
+          <button type="submit" name="action" value="undo">Undo confirmation</button>
+        {% else %}
+          <button type="submit" name="action" value="confirm">Confirm match</button>
+          <button type="submit" name="action" value="reject">Reject</button>
+        {% endif %}
       {% elif candidate.working_quote_disposition == "AUTO_INCLUDE_UNVERIFIED" %}
         <button type="submit" name="action" value="confirm">Verify / Confirm</button>
         <button type="submit" name="action" value="remove">Remove</button>
       {% elif candidate.review_state == "CONFIRMED" %}
         <button type="submit" name="action" value="remove">Remove from quote</button>
+      {% elif candidate.working_quote_disposition == "LOW_CONFIDENCE" %}
+        <button type="submit" name="action" value="confirm">Include</button>
       {% else %}
         <button type="submit" name="action" value="confirm">Include</button>
         <button type="submit" name="action" value="reject">Reject</button>
       {% endif %}
     </form>
 
-    {% if candidate.working_quote_disposition == "AUTO_INCLUDE_UNVERIFIED" or candidate.working_quote_disposition == "CONFIRMED" %}
-      <a href="#quote-row-{{ candidate.candidate_id }}">Back to quote</a>
+    {% if candidate.quote_price_available %}
+      {% if candidate.working_quote_disposition == "AUTO_INCLUDE_UNVERIFIED" or candidate.working_quote_disposition == "CONFIRMED" %}
+        <a href="#quote-row-{{ candidate.candidate_id }}">Back to quote</a>
+      {% endif %}
     {% endif %}
   {% endif %}
 </div>

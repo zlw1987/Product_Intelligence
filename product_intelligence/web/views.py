@@ -383,6 +383,7 @@ def research_detail(request: HttpRequest, run_id: uuid.UUID) -> HttpResponse:
                 candidate_sku=candidate.candidate_sku,
                 evidence_source=candidate.evidence_source,
                 working_quote_disposition="UNAVAILABLE",
+                quote_price_available=False,
                 semantic_confidence=candidate.semantic_confidence,
                 semantic_reason_code=candidate.semantic_reason_code,
                 semantic_matched_attributes=list(candidate.semantic_matched_attributes),
@@ -403,7 +404,17 @@ def research_detail(request: HttpRequest, run_id: uuid.UUID) -> HttpResponse:
 
     ai_working_quote_candidates = [
         c for c in review_candidates
-        if c.working_quote_disposition in (
+        if c.quote_price_available
+        and c.working_quote_disposition in (
+            "AUTO_INCLUDE_UNVERIFIED",
+            "CONFIRMED",
+        )
+    ]
+    ai_evidence_only_candidates = [
+        c for c in review_candidates
+        if c.binding_valid
+        and not c.quote_price_available
+        and c.working_quote_disposition in (
             "AUTO_INCLUDE_UNVERIFIED",
             "CONFIRMED",
         )
@@ -494,7 +505,8 @@ def research_detail(request: HttpRequest, run_id: uuid.UUID) -> HttpResponse:
     # * DENIED (False):
     #     the new public-only replay
     #     (replay_public_compact_quote_projection) builds a
-    #     PUBLIC_LISTING-only projection from THIS run's own persisted
+    #     vendor-free projection from THIS run's own persisted public and
+    #     AI-review evidence; no vendor row can enter this branch
     #     PriceIntelligenceSnapshot (loaded, decoded, and
     #     request-provenance-verified by the replay itself — FU2
     #     authority ownership: no caller-supplied price result can
@@ -647,6 +659,7 @@ def research_detail(request: HttpRequest, run_id: uuid.UUID) -> HttpResponse:
         "retry_error": retry_error,
         "review_candidates": review_candidates,
         "ai_working_quote_candidates": ai_working_quote_candidates,
+        "ai_evidence_only_candidates": ai_evidence_only_candidates,
         "ai_needs_review_candidates": ai_needs_review_candidates,
         "ai_low_confidence_candidates": ai_low_confidence_candidates,
         "ai_rejected_candidates": ai_rejected_candidates,

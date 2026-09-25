@@ -151,6 +151,9 @@ def derive_ai_working_quote_unreviewed_indices(
         assessment = assessments[idx]
         if not is_review_candidate_binding_valid(candidate, assessment):
             continue
+        norm = assessment.normalized_listing
+        if norm.price_amount is None or norm.currency_code is None:
+            continue
         disposition = classify_ai_match_for_working_quote(
             assessment,
             review_state=candidate.review_state,

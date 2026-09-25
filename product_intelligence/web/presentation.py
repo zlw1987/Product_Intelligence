@@ -115,6 +115,7 @@ class ReviewCandidatePresentation:
 
     # Working Quote workflow tier (display policy, not price authority)
     working_quote_disposition: str
+    quote_price_available: bool
 
     # Semantic provenance
     semantic_confidence: str
@@ -200,6 +201,10 @@ def _build_review_candidate_presentations(
                 candidate_sku=candidate.candidate_sku,
                 evidence_source=candidate.evidence_source,
                 working_quote_disposition=disposition,
+                quote_price_available=(
+                    norm.price_amount is not None
+                    and norm.currency_code is not None
+                ),
                 semantic_confidence=candidate.semantic_confidence,
                 semantic_reason_code=candidate.semantic_reason_code,
                 semantic_matched_attributes=list(candidate.semantic_matched_attributes),
@@ -230,6 +235,7 @@ def _build_review_candidate_presentations(
                 candidate_sku=candidate.candidate_sku,
                 evidence_source=candidate.evidence_source,
                 working_quote_disposition="UNAVAILABLE",
+                quote_price_available=False,
                 semantic_confidence=candidate.semantic_confidence,
                 semantic_reason_code=candidate.semantic_reason_code,
                 semantic_matched_attributes=list(candidate.semantic_matched_attributes),
