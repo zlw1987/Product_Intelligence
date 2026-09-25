@@ -48,7 +48,10 @@ from product_intelligence.providers.fx import (
     EcbFxProvider,
     FxRateObservation,
 )
-from product_intelligence.research import encode_price_aggregation_result
+from product_intelligence.research import (
+    decode_price_aggregation_result,
+    encode_price_aggregation_result,
+)
 from product_intelligence.research.aggregation import (
     PriceAggregateBucket,
     PriceAggregationResult,
@@ -315,6 +318,72 @@ class TestPublicOnlyReplay:
         row = replay.projection.rows[0]
         assert row.usd_equivalent_amount == Decimal("109.99")
         assert row.price_amount == Decimal("109.99")
+
+    def test_unknown_condition_exact_match_is_quote_only_on_both_replays(self) -> None:
+        """UNKNOWN_CONDITION is quote-only and never a market row."""
+        from dataclasses import replace
+
+        from product_intelligence.execution.compact_quote_replay import (
+            replay_compact_quote_projection,
+        )
+        from product_intelligence.research.aggregation import (
+            PriceAggregationExclusionReason,
+            aggregate_listing_prices,
+        )
+
+        run = _create_run()
+        base = _make_public_result(
+            run,
+            source_url="https://condition.example.com/product",
+            price_text="3149.99",
+            currency_text="USD",
+            price_amount=Decimal("3149.99"),
+            currency_code="USD",
+        )
+        original = base.assessments[0]
+        original_norm = original.normalized_listing
+        unknown_assessment = replace(
+            original,
+            normalized_listing=replace(
+                original_norm,
+                observation=replace(original_norm.observation, condition_text=None),
+                condition=NormalizedCondition.UNKNOWN,
+            ),
+        )
+        result = aggregate_listing_prices(
+            run.to_research_request(),
+            (unknown_assessment,),
+        )
+        assert result.buckets == ()
+        assert (
+            result.exclusions[0].reason
+            is PriceAggregationExclusionReason.UNKNOWN_CONDITION
+        )
+        _persist_price(run, result)
+
+        denied = replay_public_compact_quote_projection(run=run)
+        allowed = replay_compact_quote_projection(str(run.id))
+        for replay in (denied, allowed):
+            assert len(replay.projection.rows) == 1
+            row = replay.projection.rows[0]
+            assert row.source_type == "PUBLIC_QUOTE_ONLY"
+            assert row.price_amount == Decimal("3149.99")
+            assert row.price_currency == "USD"
+            assert row.brand_new == "Unknown"
+            assert row.note == "Quote only — condition not stated"
+            assert all(r.source_type != "PUBLIC_LISTING" for r in replay.projection.rows)
+            assert all(r.source_type != "VENDOR_API" for r in replay.projection.rows)
+
+        persisted = PriceIntelligenceSnapshot.objects.get(run=run)
+        decoded = decode_price_aggregation_result(
+            persisted.payload,
+            schema_version=persisted.schema_version,
+        )
+        assert decoded.buckets == ()
+        assert (
+            decoded.exclusions[0].reason
+            is PriceAggregationExclusionReason.UNKNOWN_CONDITION
+        )
 
     def test_empty_bucket_result_projects_zero_rows(self) -> None:
         run = _create_run()

@@ -1409,9 +1409,34 @@ class TestProjectPublicRowsAuthority:
         # No bucket (UNKNOWN condition is excluded from buckets per 4A)
         assert result.buckets == ()
 
-        # project_public_rows reads only buckets — exclusion means no row
+        # project_public_rows reads only buckets — exclusion means no MARKET row
         rows = project_public_rows(result)
         assert rows == ()
+
+        from product_intelligence.research.compact_quote import (
+            project_condition_unknown_quote_rows,
+        )
+
+        quote_rows = project_condition_unknown_quote_rows(result)
+        assert len(quote_rows) == 1
+        quote = quote_rows[0]
+        assert quote.source_type == "PUBLIC_QUOTE_ONLY"
+        assert quote.price_amount == Decimal("2000.00")
+        assert quote.price_currency == "USD"
+        assert quote.brand_new == "Unknown"
+        assert quote.note == "Quote only — condition not stated"
+        assert result.buckets == ()
+        assert result.verification_status is VerificationStatus.UNKNOWN
+
+    def test_quote_only_projection_rejects_non_price_result(self) -> None:
+        from product_intelligence.research.compact_quote import (
+            project_condition_unknown_quote_rows,
+        )
+        with pytest.raises(
+            CompactQuoteProjectionError,
+            match="PriceAggregationResult",
+        ):
+            project_condition_unknown_quote_rows(object())
 
     def test_exclusion_not_in_bucket_produces_no_row(self) -> None:
         """BLOCKER 2 (FU3): Real excluded assessment -> no bucket membership -> no row.

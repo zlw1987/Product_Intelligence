@@ -586,3 +586,67 @@ class TestNoAuthorityRecomputation:
             price_result=result,
         )
         assert presentation.rows[0].note is None
+
+# ---------------------------------------------------------------------------
+# Public quote-only rows
+# ---------------------------------------------------------------------------
+
+
+class TestPublicQuoteOnlyRowDisplay:
+    def test_quote_only_row_gets_exact_safe_source(self) -> None:
+        from dataclasses import replace
+
+        from product_intelligence.research.aggregation import (
+            PriceAggregationExclusion,
+            PriceAggregationExclusionReason,
+        )
+        from product_intelligence.research.compact_quote import (
+            project_condition_unknown_quote_rows,
+        )
+
+        base = _make_assessment(
+            MPN,
+            source_url="https://www.example.com/condition-unstated",
+            price_amount=Decimal("3149.99"),
+            currency_code="USD",
+        )
+        base_norm = base.normalized_listing
+        unknown = replace(
+            base,
+            normalized_listing=replace(
+                base_norm,
+                observation=replace(base_norm.observation, condition_text=None),
+                condition=NormalizedCondition.UNKNOWN,
+            ),
+        )
+        result = PriceAggregationResult(
+            request=ResearchRequest(
+                manufacturer_part_number=MPN,
+                description="x",
+            ),
+            assessments=(unknown,),
+            exclusions=(
+                PriceAggregationExclusion(
+                    assessment=unknown,
+                    reason=PriceAggregationExclusionReason.UNKNOWN_CONDITION,
+                ),
+            ),
+            buckets=(),
+            verification_status=VerificationStatus.UNKNOWN,
+        )
+        projection = CompactQuoteProjection(
+            rows=project_condition_unknown_quote_rows(result)
+        )
+        presentation = build_compact_quote_presentation(
+            projection=projection,
+            price_result=result,
+        )
+        assert len(presentation.rows) == 1
+        display = presentation.rows[0]
+        assert display.source_display == "example.com"
+        assert display.source_url == "https://www.example.com/condition-unstated"
+        assert display.source_url_safe is True
+        assert display.brand_new == "Unknown"
+        assert display.note == "Quote only — condition not stated"
+
+

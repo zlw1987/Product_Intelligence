@@ -129,6 +129,16 @@ def _ordered_bucket_assessments(price_result: Any) -> list[Any]:
     return ordered
 
 
+def _ordered_condition_unknown_assessments(price_result: Any) -> list[Any]:
+    """Return frozen 4A UNKNOWN_CONDITION exclusions in persisted order."""
+    ordered: list[Any] = []
+    for exclusion in price_result.exclusions:
+        reason = getattr(exclusion.reason, "value", exclusion.reason)
+        if reason == "UNKNOWN_CONDITION":
+            ordered.append(exclusion.assessment)
+    return ordered
+
+
 # ---------------------------------------------------------------------------
 # Display data structures
 # ---------------------------------------------------------------------------
@@ -238,6 +248,26 @@ def build_compact_quote_presentation(
             # display row then renders the source as plain text and the
             # raw unsafe string never enters the template context.
 
+    # Quote-only public rows may receive a source link only when they
+    # mechanically reconcile with the exact persisted UNKNOWN_CONDITION
+    # exclusions that authorized those rows.
+    quote_only_rows = [
+        row for row in projection.rows if row.source_type == "PUBLIC_QUOTE_ONLY"
+    ]
+    quote_only_assessments = _ordered_condition_unknown_assessments(price_result)
+    quote_only_links: dict[int, tuple["str | None", bool]] = {}
+    if len(quote_only_rows) == len(quote_only_assessments):
+        for row, assessment in zip(quote_only_rows, quote_only_assessments):
+            normalized_listing = assessment.normalized_listing
+            observation = normalized_listing.observation
+            source_url = (
+                observation.source_url if observation is not None else None
+            )
+            if _expected_public_source_from_url(source_url) != row.source:
+                continue
+            if source_url is not None and _is_safe_href_url(source_url):
+                quote_only_links[id(row)] = (source_url, True)
+
     # (PROD-FIX1) Reconcile human-confirmed rows with their persisted
     # assessments in the exact deterministic order the projection used:
     # ascending index, skipping assessments without persisted price or
@@ -279,6 +309,13 @@ def build_compact_quote_presentation(
             source_display = _vendor_source_display(row.source)
             source_url: "str | None" = None
             source_url_safe = False
+        elif row.source_type == "PUBLIC_QUOTE_ONLY":
+            source_display = _public_source_display(row.source)
+            link = quote_only_links.get(id(row))
+            if link is not None:
+                source_url, source_url_safe = link
+            else:
+                source_url, source_url_safe = None, False
         elif row.source_type == "HUMAN_CONFIRMED":
             # Human-confirmed rows are public-listing evidence: the
             # www.-stripped hostname display applies, and the link target

@@ -61,6 +61,7 @@ from dataclasses import dataclass
 from product_intelligence.research.compact_quote import (
     CompactQuoteProjection,
     CompactQuoteProjectionError,
+    project_condition_unknown_quote_rows,
     project_human_confirmed_rows,
     project_public_rows,
 )
@@ -211,6 +212,13 @@ def replay_public_compact_quote_projection(
     # summary).
     public_rows = project_public_rows(price_result, fx_snapshot=fx_snapshot)
 
+    # Public UNKNOWN_CONDITION evidence is useful as a quote, but remains
+    # excluded from frozen 4A market arithmetic.
+    quote_only_rows = project_condition_unknown_quote_rows(
+        price_result,
+        fx_snapshot=fx_snapshot,
+    )
+
     # Human-confirmed rows (FU1 authority ownership): the effective
     # human-confirmed selection is derived from PERSISTED state via the
     # shared derivation helper (CONFIRMED run-scoped candidates with
@@ -229,7 +237,11 @@ def replay_public_compact_quote_projection(
         )
 
     projection = CompactQuoteProjection(
-        rows=tuple(human_confirmed_rows) + tuple(public_rows)
+        rows=(
+            tuple(human_confirmed_rows)
+            + tuple(public_rows)
+            + tuple(quote_only_rows)
+        )
     )
 
     return PublicCompactQuoteReplayResult(

@@ -296,10 +296,16 @@ class CompactQuoteRow:
         if not isinstance(self.source, str) or not self.source.strip():
             raise ValueError("source must be a non-empty string")
 
-        if self.source_type not in ("VENDOR_API", "PUBLIC_LISTING", "HUMAN_CONFIRMED"):
+        if self.source_type not in (
+            "VENDOR_API",
+            "PUBLIC_LISTING",
+            "PUBLIC_QUOTE_ONLY",
+            "HUMAN_CONFIRMED",
+        ):
             raise ValueError(
-                f"source_type must be VENDOR_API, PUBLIC_LISTING, or "
-                f"HUMAN_CONFIRMED, got {self.source_type!r}"
+                "source_type must be VENDOR_API, PUBLIC_LISTING, "
+                "PUBLIC_QUOTE_ONLY, or HUMAN_CONFIRMED; "
+                f"got {self.source_type!r}"
             )
 
         if not isinstance(self.price_amount, Decimal):
@@ -433,6 +439,8 @@ def _build_public_listing_row(
     availability: str,
     condition: str,
     fx_snapshot: FxObservationSnapshot | None = None,
+    source_type: str = "PUBLIC_LISTING",
+    note: str | None = None,
 ) -> CompactQuoteRow:
     """PRIVATE scalar builder — cannot establish reportability.
 
@@ -468,7 +476,7 @@ def _build_public_listing_row(
 
     return CompactQuoteRow(
         source=source_name.strip() if source_name.strip() else "Unknown Source",
-        source_type="PUBLIC_LISTING",
+        source_type=source_type,
         price_original=price_original,
         price_amount=price_amount,
         price_currency=currency_code.upper(),
@@ -476,7 +484,7 @@ def _build_public_listing_row(
         usd_equivalent_amount=usd_equiv_amount,
         inventory=inventory_label,
         brand_new=brand_new_display,
-        note=inventory_note,
+        note=_combine_notes(inventory_note, note),
     )
 
 
@@ -673,6 +681,9 @@ def project_public_rows(
 def _project_one_public_listing_row(
     assessment: object,
     fx_snapshot: FxObservationSnapshot | None,
+    *,
+    source_type: str = "PUBLIC_LISTING",
+    note: str | None = None,
 ) -> CompactQuoteRow:
     """Private helper: project one bucket-member assessment to a row.
 
@@ -720,7 +731,48 @@ def _project_one_public_listing_row(
         availability=availability or "UNKNOWN",
         condition=condition,
         fx_snapshot=fx_snapshot,
+        source_type=source_type,
+        note=note,
     )
+
+
+def project_condition_unknown_quote_rows(
+    price_result: object,
+    fx_snapshot: FxObservationSnapshot | None = None,
+) -> tuple[CompactQuoteRow, ...]:
+    """Project deterministic condition-unstated listings as quote-only rows.
+
+    Frozen 4A remains authoritative for market arithmetic. This helper reads
+    only persisted UNKNOWN_CONDITION exclusions, whose own invariant proves
+    accepted identity plus persisted price and currency. It exposes those
+    values as Working Quote evidence only. It creates no market bucket,
+    median, confidence, Machine Price, or Reviewed Price authority.
+    """
+    from product_intelligence.research.aggregation import (
+        PriceAggregationExclusionReason,
+        PriceAggregationResult,
+    )
+
+    if not isinstance(price_result, PriceAggregationResult):
+        raise CompactQuoteProjectionError(
+            "Condition-unknown quote projection requires a "
+            f"PriceAggregationResult instance; got {type(price_result).__name__!r}. "
+            "A duck-typed object cannot be the frozen 4A authority source."
+        )
+
+    rows: list[CompactQuoteRow] = []
+    for exclusion in price_result.exclusions:
+        if exclusion.reason is not PriceAggregationExclusionReason.UNKNOWN_CONDITION:
+            continue
+        rows.append(
+            _project_one_public_listing_row(
+                exclusion.assessment,
+                fx_snapshot,
+                source_type="PUBLIC_QUOTE_ONLY",
+                note="Quote only — condition not stated",
+            )
+        )
+    return tuple(rows)
 
 
 def project_human_confirmed_rows(

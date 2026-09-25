@@ -34,6 +34,7 @@ from dataclasses import dataclass
 from product_intelligence.research.compact_quote import (
     CompactQuoteProjection,
     CompactQuoteRow,
+    project_condition_unknown_quote_rows,
     project_human_confirmed_rows,
     project_public_rows,
     project_vendor_api_row,
@@ -215,6 +216,14 @@ def replay_compact_quote_projection(
         fx_snapshot=fx_snapshot,
     )
 
+    # Exact-identity listings with persisted price/currency but UNKNOWN
+    # condition remain outside frozen 4A market arithmetic. Surface them
+    # only as explicit quote-only evidence.
+    quote_only_rows = project_condition_unknown_quote_rows(
+        decoded_price,
+        fx_snapshot=fx_snapshot,
+    )
+
     # Project vendor API rows from supplemental result
     # Only usable observations (EXACT/NORMALIZED_EXACT, brand_new=True)
     # can become rows
@@ -251,7 +260,12 @@ def replay_compact_quote_projection(
     # Combine: vendor rows first, then human-confirmed rows, then public
     # rows (deterministic order; frozen 4D-C vendor-first rule preserved)
     projection = CompactQuoteProjection(
-        rows=tuple(vendor_rows) + human_confirmed_rows + public_rows
+        rows=(
+            tuple(vendor_rows)
+            + human_confirmed_rows
+            + public_rows
+            + quote_only_rows
+        )
     )
 
     return CompactQuoteReplayResult(
