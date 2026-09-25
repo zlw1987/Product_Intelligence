@@ -98,6 +98,8 @@ class ReviewCandidatePresentation:
     binding_valid: bool
     review_state: str
     reviewed_at: "datetime | None"
+    review_tier: str
+    working_quote_included: bool
 
     # Listing evidence from the snapshot assessment (authoritative)
     source_url: "str | None"
@@ -106,6 +108,7 @@ class ReviewCandidatePresentation:
     normalized_price: "str | None"
     currency_code: "str | None"
     condition: "str | None"
+    condition_display: "str | None"
     product_title: "str | None"
 
     # MPN/SKU evidence
@@ -156,15 +159,42 @@ def _build_review_candidate_presentations(
             )
 
         if binding_valid and assessment is not None:
+            from product_intelligence.research.matching import (
+                AiAssistedReviewTier,
+                classify_ai_assisted_review_tier,
+            )
+
             norm = assessment.normalized_listing
             obs = norm.observation
             source_url = obs.source_url
+            review_tier = classify_ai_assisted_review_tier(
+                candidate, assessment
+            )
+            working_quote_included = (
+                candidate.review_state == "CONFIRMED"
+                or (
+                    candidate.review_state == "UNREVIEWED"
+                    and review_tier is AiAssistedReviewTier.AUTO_INCLUDE
+                )
+            )
+            raw_condition = (
+                norm.condition.value if norm.condition is not None else None
+            )
+            condition_display = (
+                "Not stated"
+                if raw_condition == "UNKNOWN"
+                else raw_condition.replace("_", " ").title()
+                if raw_condition
+                else None
+            )
             presentations.append(ReviewCandidatePresentation(
                 candidate_id=str(candidate.id),
                 assessment_index=idx,
                 binding_valid=True,
                 review_state=candidate.review_state,
                 reviewed_at=candidate.reviewed_at,
+                review_tier=review_tier.value,
+                working_quote_included=working_quote_included,
                 source_url=source_url,
                 source_url_safe=_is_safe_href_url(source_url),
                 seller_name=norm.seller_name,
@@ -174,11 +204,8 @@ def _build_review_candidate_presentations(
                     else None
                 ),
                 currency_code=norm.currency_code,
-                condition=(
-                    norm.condition.value
-                    if norm.condition is not None
-                    else None
-                ),
+                condition=raw_condition,
+                condition_display=condition_display,
                 product_title=obs.product_title,
                 candidate_mpn_field=candidate.candidate_mpn_field,
                 candidate_sku=candidate.candidate_sku,
@@ -201,12 +228,15 @@ def _build_review_candidate_presentations(
                 binding_valid=False,
                 review_state=candidate.review_state,
                 reviewed_at=candidate.reviewed_at,
+                review_tier="INVALID",
+                working_quote_included=False,
                 source_url=None,
                 source_url_safe=False,
                 seller_name=None,
                 normalized_price=None,
                 currency_code=None,
                 condition=None,
+                condition_display=None,
                 product_title=None,
                 candidate_mpn_field=candidate.candidate_mpn_field,
                 candidate_sku=candidate.candidate_sku,
