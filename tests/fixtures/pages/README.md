@@ -59,6 +59,18 @@ credential and stores no header other than `Content-Type`.
 | `newegg_pm9a3_mz_ql23t800.html` | `www.newegg.com` (marketplace) | `STATIC_FETCH_OK`, no product data | Reduced from 203 KB |
 | `fusionww_access_restricted.html` | `www.fusionww.com` (distributor) | Soft block, HTTP 200 | **Full**, 1.9 KB |
 | `directmacro_bcm957608_p2200gqf00_search.html` | `directmacro.com` (preferred source) | `STATIC_FETCH_OK`, SKU-only identity | **4D-A reduced**, 2.1 KB |
+| `micron_7500_product_page.html` | `www.micron.com` (manufacturer) | `STATIC_FETCH_OK` | **4D-D-PRE2 verbatim**, 277,936 B |
+| `micron_7500_part_catalog_page.html` | `www.micron.com` (manufacturer) | `STATIC_FETCH_OK` | **4D-D-PRE2 verbatim**, 268,932 B |
+| `micron_7500_part_detail_base.html` | `www.micron.com` (manufacturer) | `STATIC_FETCH_OK` | **4D-D-PRE2 verbatim**, 259,911 B |
+| `micron_7500_part_detail_r.html` | `www.micron.com` (manufacturer) | `STATIC_FETCH_OK` | **4D-D-PRE2 verbatim**, 259,937 B |
+| `micron_7500_part_detail_t.html` | `www.micron.com` (manufacturer) | `STATIC_FETCH_OK` | **4D-D-PRE2 verbatim**, 259,937 B |
+| `micron_shipping_quantities.html` | `www.micron.com` (manufacturer) | `STATIC_FETCH_OK` | **4D-D-PRE2 verbatim**, 258,137 B |
+| `micron_7500_part_catalog.json` | `www.micron.com` (structured catalog endpoint) | `STATIC_FETCH_OK` | **4D-D-PRE2 verbatim**, 24,060 B |
+| `micron_7500_getproductinfo_base.json` | `www.micron.com` (per-part structured endpoint) | `STATIC_FETCH_OK` | **4D-D-PRE2 verbatim**, 1,232 B |
+| `micron_7500_getproductinfo_r.json` | `www.micron.com` (per-part structured endpoint) | `Invalid Partnumber` | **4D-D-PRE2 verbatim**, 54 B |
+| `micron_7500_getproductinfo_t.json` | `www.micron.com` (per-part structured endpoint) | `Invalid Partnumber` | **4D-D-PRE2 verbatim**, 54 B |
+| `micron_7500_product_brief.pdf` | `assets.micron.com` (manufacturer-published document) | `STATIC_FETCH_OK` | **4D-D-PRE2 verbatim**, 318,063 B |
+| `micron_7500_tech_prod_spec.pdf` | `assets.micron.com` (manufacturer-published document) | `STATIC_FETCH_OK` | **4D-D-PRE2 verbatim**, 328,747 B |
 
 ### `samsung_us_pm9a3_mz_ql23t800.html`
 
@@ -167,3 +179,46 @@ publishes **only** `sku`, not `mpn`. Frozen 3C rejects SKU-only evidence as
 `IDENTITY_NOT_ACCEPTED`. This fixture is used to verify that the 4D-A direct
 acquisition path correctly falls back to search when SKU-only evidence does not
 produce a valid 4A bucket.
+
+### Micron 7500 SSD fixtures (4D-D-PRE2)
+
+Recorded on **2026-09-22** by anonymous public GET requests (plain stdlib
+HTTP client, no credentials, no cookies, no session tokens). These are the
+evidence-only fixtures for PRODUCT-INTEL.4D-D-PRE2: full provenance —
+requested URLs, final URLs, status codes, content types, retrieval
+timestamps, and SHA256 of every stored byte — is recorded in
+`docs/MICRON_ALIAS_AUTHORITY_EVIDENCE.md` (§2 URL facts, §3 fixture table).
+
+They are **verbatim** (not reduced): each file is the exact response body.
+They carry no cookie, session, credential, or personal data.
+
+What each fixture is used for:
+
+- `micron_7500_part_catalog.json` (family catalog, 24 rows) — the 4D-D v1
+  runtime authority source. The row for `MTFDKCC3T8TGP-1BK1DABYY` publishes
+  the exact base MPN in `part-number` and carries
+  `{"name":"SSD","id":"is-ssd","value":true}` in `attr`.
+- `micron_7500_part_catalog_page.html` — the part-catalog HTML page that
+  publishes the catalog endpoint in its own `data-apiresource` attribute.
+- `micron_7500_getproductinfo_base.json` — the per-part structured record
+  for the BASE part (real `DATABASE` record, `part-title` in exact case,
+  `category: "data-center-ssd"`).
+- `micron_7500_getproductinfo_r.json` / `micron_7500_getproductinfo_t.json` —
+  regression evidence that the R and T variants are **not** independent
+  catalog parts: both return exactly
+  `{"message":"Invalid Partnumber","response-code":"200"}`. The 4D-D
+  authority chain must therefore anchor on the BASE family-catalog record,
+  never on R/T per-part endpoints or R/T page metadata.
+- `micron_7500_product_page.html` — the 7500 family product page; publishes
+  the product-brief / tech-spec document links.
+- `micron_7500_part_detail_base.html` / `_r.html` / `_t.html` — the three
+  part-detail pages. Server-rendered; the MPN appears in title/meta/og/
+  twitter/breadcrumb. The R/T pages prove the metadata is template-injected
+  ("dynamic Part Number" comment, `{1} {2} part detail` data-layer
+  template) and is never treated as independent identity authority.
+- `micron_shipping_quantities.html` — Micron shipping-quantities support page
+  (doc CSN-04); checked for an official R/T suffix definition — none exists.
+- `micron_7500_product_brief.pdf` / `micron_7500_tech_prod_spec.pdf` —
+  Micron-published 7500 family documents. Their part-numbering sections
+  define capacity/security/sector/family fields and (in the tech spec) an
+  `ES` suffix only; **no R/T field is defined** in either.
