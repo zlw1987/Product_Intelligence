@@ -693,7 +693,7 @@ class TestNoteCellNoneRendersBlank:
         # First row is the unified business-facing quote table header.
         assert table_rows[0] == [
             "Source", "Price", "USD Equivalent", "Availability",
-            "Condition", "Match / Evidence", "Market Use",
+            "Condition", "Match / Evidence", "Market Use", "Actions",
         ]
         data_rows = table_rows[1:]
         assert [r[0] for r in data_rows] == [
@@ -706,7 +706,7 @@ class TestNoteCellNoneRendersBlank:
         # 1 + 2. Ingram row: the Note cell (last column) is EMPTY and the
         # literal text "None" does not appear in it.
         ingram_row = data_rows[0]
-        assert len(ingram_row) == 7
+        assert len(ingram_row) == 8
         assert ingram_row[6].startswith("Quote only — Vendor supplemental")
         assert "None" not in ingram_row[6]
 
@@ -721,7 +721,7 @@ class TestNoteCellNoneRendersBlank:
 
         # 3. Synnex real bounded note still renders in its Note cell
         synnex_row = data_rows[2]
-        assert len(synnex_row) == 7
+        assert len(synnex_row) == 8
         assert "NO_RETURNS" in synnex_row[6]
 
         # 4. No Vendor/security behavior changes: remaining columns of

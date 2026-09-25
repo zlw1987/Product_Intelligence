@@ -381,6 +381,8 @@ def research_detail(request: HttpRequest, run_id: uuid.UUID) -> HttpResponse:
                 product_title=None,
                 candidate_mpn_field=candidate.candidate_mpn_field,
                 candidate_sku=candidate.candidate_sku,
+                evidence_source=candidate.evidence_source,
+                working_quote_disposition="UNAVAILABLE",
                 semantic_confidence=candidate.semantic_confidence,
                 semantic_reason_code=candidate.semantic_reason_code,
                 semantic_matched_attributes=list(candidate.semantic_matched_attributes),
@@ -417,6 +419,10 @@ def research_detail(request: HttpRequest, run_id: uuid.UUID) -> HttpResponse:
     ai_rejected_candidates = [
         c for c in review_candidates
         if c.working_quote_disposition == "REJECTED"
+    ]
+    ai_unavailable_candidates = [
+        c for c in review_candidates
+        if c.working_quote_disposition == "UNAVAILABLE"
     ]
 
 
@@ -644,6 +650,7 @@ def research_detail(request: HttpRequest, run_id: uuid.UUID) -> HttpResponse:
         "ai_needs_review_candidates": ai_needs_review_candidates,
         "ai_low_confidence_candidates": ai_low_confidence_candidates,
         "ai_rejected_candidates": ai_rejected_candidates,
+        "ai_unavailable_candidates": ai_unavailable_candidates,
         "reviewed_result": reviewed_result,
         "confirmed_count": confirmed_count,
         # FU1 presentation accuracy: truthful price-contributing counts

@@ -224,6 +224,13 @@
       {% endfor %}
     </details>
   {% endif %}
+
+  {% if ai_unavailable_candidates %}
+    <h3>AI review evidence unavailable</h3>
+    {% for candidate in ai_unavailable_candidates %}
+      {% include "web/_ai_candidate_card.html" with candidate=candidate %}
+    {% endfor %}
+  {% endif %}
 {% endif %}
 
 {% if micron_alias or micron_alias_unavailable %}
