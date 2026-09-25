@@ -668,3 +668,202 @@ class TestMachinePriceAndDerivationContract(TestCase):
         # ...but the projection produces NO row (no persisted price).
         rows = _human_rows(run)
         self.assertEqual(rows, [])
+
+# ---------------------------------------------------------------------------
+# B3: AI Working Quote replay policy (UNREVIEWED HIGH / tier boundaries)
+# ---------------------------------------------------------------------------
+
+
+def _make_sku_ai_working_quote_run(
+    *,
+    confidence: str = "HIGH",
+    conflicts: tuple[str, ...] = (),
+) -> tuple[ResearchRun, AiAssistedReviewCandidate, ListingIdentityAssessment]:
+    """Persist one semantic-eligible SKU-backed candidate for replay tests.
+
+    The deterministic assessment remains REJECTED with
+    NO_EXPLICIT_MPN_EVIDENCE, so frozen 4A creates no market bucket. The
+    candidate record is the separate persisted semantic MATCH provenance.
+    """
+    request = ResearchRequest(
+        manufacturer_part_number=MPN,
+        description=DESCRIPTION,
+    )
+    run = ResearchRun.objects.create_from_request(request)
+    run.transition_to(ResearchRunState.RUNNING)
+    run.transition_to(ResearchRunState.COMPLETED)
+
+    obs = ListingObservation(
+        source_url="https://sku-ai.example.com/item",
+        extraction_method=ExtractionMethod.JSON_LD,
+        product_title=f"Strong SKU candidate {MPN}",
+        manufacturer_part_number_text="",
+        sku_text=MPN,
+        brand_text="Example",
+        price_text="1890.00",
+        currency_text="USD",
+        availability_text="In Stock",
+        condition_text="unknown",
+        seller_text="AI Seller",
+        offer_url_text=None,
+        raw_reference=None,
+    )
+    norm = NormalizedListingObservation(
+        observation=obs,
+        price_amount=Decimal("1890.00"),
+        currency_code="USD",
+        availability=NormalizedAvailability.IN_STOCK,
+        condition=NormalizedCondition.UNKNOWN,
+        seller_name="AI Seller",
+        normalization_issues=(),
+    )
+    assessment = ListingIdentityAssessment(
+        normalized_listing=norm,
+        requested_part_number=MPN,
+        candidate_part_number_raw=MPN,
+        candidate_part_number_compared=MPN,
+        candidate_evidence_source=EvidenceSource.SKU_FIELD,
+        match_type=IdentityMatchType.UNKNOWN,
+        decision=EvidenceDecision.REJECTED,
+        rejection_reason=IdentityRejectionReason.NO_EXPLICIT_MPN_EVIDENCE,
+    )
+    price_result = aggregate_listing_prices(request, (assessment,))
+    self_check_exclusions = tuple(price_result.exclusions)
+    if len(self_check_exclusions) != 1:
+        raise AssertionError("fixture must remain outside frozen 4A buckets")
+
+    PriceIntelligenceSnapshot.objects.create(
+        run=run,
+        schema_version=1,
+        payload=encode_price_aggregation_result(price_result),
+    )
+    candidate = AiAssistedReviewCandidate.objects.create(
+        run=run,
+        assessment_index=0,
+        source_url=obs.source_url,
+        target_mpn=MPN,
+        target_description=DESCRIPTION,
+        candidate_title=obs.product_title or "",
+        candidate_mpn_field="",
+        candidate_sku=MPN,
+        candidate_specs=f"SKU: {MPN}",
+        evidence_source="SKU_FIELD",
+        semantic_confidence=confidence,
+        semantic_reason_code="exact_mpn_match",
+        semantic_matched_attributes=["mpn"],
+        semantic_conflicting_attributes=list(conflicts),
+        actual_provider="amax",
+        actual_model="nemotron-3-super",
+        prompt_version="v1.1",
+    )
+    return run, candidate, assessment
+
+
+class TestAiWorkingQuoteReplayPolicy(TestCase):
+    def test_high_exact_sku_unreviewed_auto_includes_on_both_replays(self) -> None:
+        run, candidate, _ = _make_sku_ai_working_quote_run()
+        self.assertEqual(candidate.review_state, "UNREVIEWED")
+
+        with _armed_live_boundaries():
+            authorized = replay_compact_quote_projection(str(run.id))
+            public = replay_public_compact_quote_projection(run=run)
+
+        for replay in (authorized, public):
+            ai_rows = [
+                row for row in replay.projection.rows
+                if row.source_type == "AI_ASSISTED_UNVERIFIED"
+            ]
+            self.assertEqual(len(ai_rows), 1)
+            row = ai_rows[0]
+            self.assertEqual(row.price_amount, Decimal("1890.00"))
+            self.assertEqual(row.price_currency, "USD")
+            self.assertEqual(row.inventory, "In Stock")
+            self.assertEqual(row.brand_new, "Unknown")
+            self.assertIn("Not human verified", row.note or "")
+            # Still no strict public-market row for the rejected assessment.
+            self.assertNotIn(
+                "PUBLIC_LISTING",
+                [r.source_type for r in replay.projection.rows],
+            )
+
+        decoded = _decoded_price(run)
+        self.assertEqual(decoded.buckets, ())
+        self.assertEqual(decoded.assessments[0].decision, EvidenceDecision.REJECTED)
+
+    def test_medium_match_stays_out_of_working_quote(self) -> None:
+        run, _, _ = _make_sku_ai_working_quote_run(confidence="MEDIUM")
+        replay = replay_compact_quote_projection(str(run.id))
+        self.assertEqual(
+            [
+                row for row in replay.projection.rows
+                if row.source_type == "AI_ASSISTED_UNVERIFIED"
+            ],
+            [],
+        )
+
+    def test_high_match_with_conflict_stays_out_of_working_quote(self) -> None:
+        run, _, _ = _make_sku_ai_working_quote_run(
+            confidence="HIGH",
+            conflicts=("capacity",),
+        )
+        replay = replay_compact_quote_projection(str(run.id))
+        self.assertEqual(
+            [
+                row for row in replay.projection.rows
+                if row.source_type == "AI_ASSISTED_UNVERIFIED"
+            ],
+            [],
+        )
+
+    def test_rejected_state_excludes_auto_included_candidate(self) -> None:
+        run, candidate, _ = _make_sku_ai_working_quote_run()
+        reject_candidate(candidate.id, run_id=run.id)
+        candidate.refresh_from_db()
+        self.assertEqual(candidate.review_state, "REJECTED")
+
+        replay = replay_compact_quote_projection(str(run.id))
+        self.assertNotIn(
+            "AI_ASSISTED_UNVERIFIED",
+            [row.source_type for row in replay.projection.rows],
+        )
+        self.assertNotIn(
+            "HUMAN_CONFIRMED",
+            [row.source_type for row in replay.projection.rows],
+        )
+
+    def test_confirmed_replaces_unreviewed_row_without_duplicate(self) -> None:
+        run, candidate, _ = _make_sku_ai_working_quote_run()
+        confirm_candidate(candidate.id, run_id=run.id)
+
+        replay = replay_compact_quote_projection(str(run.id))
+        types = [row.source_type for row in replay.projection.rows]
+        self.assertEqual(types.count("HUMAN_CONFIRMED"), 1)
+        self.assertEqual(types.count("AI_ASSISTED_UNVERIFIED"), 0)
+
+    def test_remove_then_restore_recomputes_from_same_review_state(self) -> None:
+        from product_intelligence.runs import remove_candidate_from_working_quote
+
+        run, candidate, _ = _make_sku_ai_working_quote_run()
+        confirm_candidate(candidate.id, run_id=run.id)
+        self.assertEqual(
+            [r.source_type for r in replay_compact_quote_projection(str(run.id)).projection.rows],
+            ["HUMAN_CONFIRMED"],
+        )
+
+        remove_candidate_from_working_quote(candidate.id, run_id=run.id)
+        candidate.refresh_from_db()
+        self.assertEqual(candidate.review_state, "REJECTED")
+        self.assertEqual(
+            replay_compact_quote_projection(str(run.id)).projection.rows,
+            (),
+        )
+
+        undo_review(candidate.id, run_id=run.id)
+        candidate.refresh_from_db()
+        self.assertEqual(candidate.review_state, "UNREVIEWED")
+        restored = replay_compact_quote_projection(str(run.id))
+        self.assertEqual(
+            [r.source_type for r in restored.projection.rows],
+            ["AI_ASSISTED_UNVERIFIED"],
+        )
+
