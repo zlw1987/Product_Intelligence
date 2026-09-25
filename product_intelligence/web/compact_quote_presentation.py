@@ -47,6 +47,7 @@ Display rules:
 from __future__ import annotations
 
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
@@ -142,6 +143,58 @@ def _ordered_condition_unknown_assessments(price_result: Any) -> list[Any]:
     return ordered
 
 
+def _enum_value(value: Any) -> Any:
+    """Return an enum's value without requiring an aggregation import."""
+    return getattr(value, "value", value)
+
+
+def _condition_display(assessment: Any | None) -> str:
+    """Business-facing condition label from persisted normalized evidence."""
+    if assessment is None:
+        return "Evidence unavailable"
+    condition = _enum_value(assessment.normalized_listing.condition)
+    return {
+        "NEW": "New",
+        "USED": "Used",
+        "REFURBISHED": "Refurbished",
+        "DAMAGED": "Damaged",
+        "UNKNOWN": "Not stated",
+    }.get(condition, "Not stated")
+
+
+def _deterministic_match_display(assessment: Any | None) -> str:
+    """Compact business label; detailed provenance remains in the audit."""
+    if assessment is None:
+        return "Evidence unavailable"
+    match_type = _enum_value(assessment.match_type)
+    if match_type in ("EXACT", "NORMALIZED_EXACT"):
+        return "Exact MPN"
+    return "Deterministic match"
+
+
+def _format_currency_amount(amount: Decimal, currency: str) -> str:
+    """Display one already-authoritative amount without changing its value."""
+    symbols = {
+        "USD": "$",
+        "EUR": "€",
+        "GBP": "£",
+        "JPY": "¥",
+        "CAD": "C$",
+        "AUD": "A$",
+        "CNY": "¥",
+    }
+    code = currency.upper()
+    symbol = symbols.get(code)
+    rendered = f"{amount:,.2f}"
+    if symbol is not None:
+        return f"{symbol}{rendered} {code}"
+    return f"{code} {rendered}"
+
+
+def _format_usd_amount(amount: Decimal) -> str:
+    return _format_currency_amount(amount, "USD")
+
+
 # ---------------------------------------------------------------------------
 # Display data structures
 # ---------------------------------------------------------------------------
@@ -170,9 +223,14 @@ class CompactQuoteRowDisplay:
     source_display: str
     source_url: "str | None"
     source_url_safe: bool
+    source_type: str
     price: str
     usd_equivalent: str
+    usd_equivalent_amount: "Decimal | None"
     inventory: str
+    condition: str
+    match_evidence: str
+    market_use: str
     brand_new: str
     note: "str | None"
 
@@ -187,6 +245,18 @@ class CompactQuotePresentation:
     """
 
     rows: tuple[CompactQuoteRowDisplay, ...]
+    quotes_found: int
+    in_stock_count: int
+    lowest_in_stock_price: "str | None"
+    lowest_in_stock_source: "str | None"
+    quote_span_low: "str | None"
+    quote_span_high: "str | None"
+    public_market_count: int
+    public_market_currency: "str | None"
+    public_market_low: "str | None"
+    public_market_high: "str | None"
+    public_market_median: "str | None"
+    public_market_median_note: "str | None"
 
 
 # ---------------------------------------------------------------------------
@@ -235,6 +305,7 @@ def build_compact_quote_presentation(
     bucket_assessments = _ordered_bucket_assessments(price_result)
 
     links: dict[int, tuple["str | None", bool]] = {}
+    public_assessment_by_row: dict[int, Any] = {}
     if len(public_rows) == len(bucket_assessments):
         for row, assessment in zip(public_rows, bucket_assessments):
             normalized_listing = assessment.normalized_listing
@@ -245,6 +316,7 @@ def build_compact_quote_presentation(
             if _expected_public_source_from_url(source_url) != row.source:
                 # Mapping mismatch — withhold the link, do not guess.
                 continue
+            public_assessment_by_row[id(row)] = assessment
             if source_url is not None and _is_safe_href_url(source_url):
                 links[id(row)] = (source_url, True)
             # Unsafe/missing URLs are deliberately NOT recorded: the
@@ -259,6 +331,7 @@ def build_compact_quote_presentation(
     ]
     quote_only_assessments = _ordered_condition_unknown_assessments(price_result)
     quote_only_links: dict[int, tuple["str | None", bool]] = {}
+    quote_only_assessment_by_row: dict[int, Any] = {}
     if len(quote_only_rows) == len(quote_only_assessments):
         for row, assessment in zip(quote_only_rows, quote_only_assessments):
             normalized_listing = assessment.normalized_listing
@@ -268,6 +341,7 @@ def build_compact_quote_presentation(
             )
             if _expected_public_source_from_url(source_url) != row.source:
                 continue
+            quote_only_assessment_by_row[id(row)] = assessment
             if source_url is not None and _is_safe_href_url(source_url):
                 quote_only_links[id(row)] = (source_url, True)
 
@@ -281,6 +355,7 @@ def build_compact_quote_presentation(
         row for row in projection.rows if row.source_type == "HUMAN_CONFIRMED"
     ]
     human_links: dict[int, tuple["str | None", bool]] = {}
+    human_assessment_by_row: dict[int, Any] = {}
     if human_rows:
         expected_assessments: list[Any] = []
         if confirmed_assessment_indices:
@@ -302,6 +377,7 @@ def build_compact_quote_presentation(
                 )
                 if _expected_public_source_from_url(source_url) != row.source:
                     continue  # mapping mismatch — withhold the link
+                human_assessment_by_row[id(row)] = assessment
                 if source_url is not None and _is_safe_href_url(source_url):
                     human_links[id(row)] = (source_url, True)
 
@@ -312,6 +388,9 @@ def build_compact_quote_presentation(
             source_display = _vendor_source_display(row.source)
             source_url: "str | None" = None
             source_url_safe = False
+            condition = "New"
+            match_evidence = "Vendor API"
+            market_use = "Quote only — Vendor supplemental"
         elif row.source_type == "PUBLIC_QUOTE_ONLY":
             source_display = _public_source_display(row.source)
             link = quote_only_links.get(id(row))
@@ -319,6 +398,10 @@ def build_compact_quote_presentation(
                 source_url, source_url_safe = link
             else:
                 source_url, source_url_safe = None, False
+            assessment = quote_only_assessment_by_row.get(id(row))
+            condition = "Not stated"
+            match_evidence = _deterministic_match_display(assessment)
+            market_use = "Quote only — condition not stated"
         elif row.source_type == "HUMAN_CONFIRMED":
             # Human-confirmed rows are public-listing evidence: the
             # www.-stripped hostname display applies, and the link target
@@ -330,6 +413,10 @@ def build_compact_quote_presentation(
                 source_url, source_url_safe = link
             else:
                 source_url, source_url_safe = None, False
+            assessment = human_assessment_by_row.get(id(row))
+            condition = _condition_display(assessment)
+            match_evidence = "AI-assisted — Human confirmed"
+            market_use = "Quote only — AI-assisted"
         else:
             source_display = _public_source_display(row.source)
             link = links.get(id(row))
@@ -337,18 +424,120 @@ def build_compact_quote_presentation(
                 source_url, source_url_safe = link
             else:
                 source_url, source_url_safe = None, False
+            assessment = public_assessment_by_row.get(id(row))
+            condition = _condition_display(assessment)
+            match_evidence = _deterministic_match_display(assessment)
+            market_use = "Included in public market"
 
         rows.append(
             CompactQuoteRowDisplay(
                 source_display=source_display,
                 source_url=source_url,
                 source_url_safe=source_url_safe,
+                source_type=row.source_type,
                 price=row.price_original,
                 usd_equivalent=row.usd_equivalent,
+                usd_equivalent_amount=row.usd_equivalent_amount,
                 inventory=row.inventory,
+                condition=condition,
+                match_evidence=match_evidence,
+                market_use=market_use,
                 brand_new=row.brand_new,
                 note=row.note,
             )
         )
 
-    return CompactQuotePresentation(rows=tuple(rows))
+    # Business summary over the rows already authorized by replay. Quote
+    # span/lowest-in-stock use persisted USD equivalents only; they are
+    # explicitly quote metrics, not canonical market statistics.
+    quote_pairs = list(zip(projection.rows, rows))
+    in_stock_pairs = [
+        (raw, display)
+        for raw, display in quote_pairs
+        if raw.inventory == "In Stock"
+    ]
+    in_stock_count = len(in_stock_pairs)
+    priced_in_stock = [
+        (raw, display)
+        for raw, display in in_stock_pairs
+        if raw.usd_equivalent_amount is not None
+    ]
+    if priced_in_stock:
+        lowest_raw, lowest_display = min(
+            priced_in_stock,
+            key=lambda pair: pair[0].usd_equivalent_amount,
+        )
+        lowest_in_stock_price = _format_usd_amount(
+            lowest_raw.usd_equivalent_amount
+        )
+        lowest_in_stock_source = lowest_display.source_display
+    else:
+        lowest_in_stock_price = None
+        lowest_in_stock_source = None
+
+    usd_amounts = [
+        raw.usd_equivalent_amount
+        for raw in projection.rows
+        if raw.usd_equivalent_amount is not None
+    ]
+    if usd_amounts:
+        quote_span_low = _format_usd_amount(min(usd_amounts))
+        quote_span_high = _format_usd_amount(max(usd_amounts))
+    else:
+        quote_span_low = None
+        quote_span_high = None
+
+    # Primary market summary stays on frozen 4A authority. Only NEW
+    # bucket(s) are candidates. We never merge non-comparable currencies.
+    new_buckets = [
+        bucket
+        for bucket in price_result.buckets
+        if _enum_value(bucket.condition) == "NEW"
+    ]
+    public_market_count = sum(bucket.count for bucket in new_buckets)
+    public_market_currency = None
+    public_market_low = None
+    public_market_high = None
+    public_market_median = None
+    public_market_median_note = None
+
+    if len(new_buckets) == 1:
+        bucket = new_buckets[0]
+        public_market_currency = bucket.currency_code
+        public_market_low = _format_currency_amount(
+            bucket.low, bucket.currency_code
+        )
+        public_market_high = _format_currency_amount(
+            bucket.high, bucket.currency_code
+        )
+        if bucket.count >= 3:
+            public_market_median = _format_currency_amount(
+                bucket.median, bucket.currency_code
+            )
+        else:
+            public_market_median_note = (
+                "Not shown — fewer than 3 comparable NEW listings."
+            )
+    elif len(new_buckets) > 1:
+        public_market_median_note = (
+            "Not combined — multiple non-comparable currency groups. "
+            "See Advanced Evidence & Audit."
+        )
+    else:
+        public_market_median_note = "No strict comparable NEW listings."
+
+    return CompactQuotePresentation(
+        rows=tuple(rows),
+        quotes_found=len(rows),
+        in_stock_count=in_stock_count,
+        lowest_in_stock_price=lowest_in_stock_price,
+        lowest_in_stock_source=lowest_in_stock_source,
+        quote_span_low=quote_span_low,
+        quote_span_high=quote_span_high,
+        public_market_count=public_market_count,
+        public_market_currency=public_market_currency,
+        public_market_low=public_market_low,
+        public_market_high=public_market_high,
+        public_market_median=public_market_median,
+        public_market_median_note=public_market_median_note,
+    )

@@ -74,7 +74,7 @@
 {% endif %}
 
 {% if compact_quote or compact_quote_unavailable %}
-<h2>Compact quote summary</h2>
+<h2>Quote &amp; Market Summary</h2>
 
 {% if compact_quote %}
   {% if not vendor_commercial_access_allowed %}
@@ -82,6 +82,48 @@
       Internal commercial pricing is unavailable for this connection.
     </p>
   {% endif %}
+
+  <dl>
+    <dt>Quotes found</dt>
+    <dd>{{ compact_quote.quotes_found }}</dd>
+    <dt>In stock</dt>
+    <dd>{{ compact_quote.in_stock_count }}</dd>
+    <dt>Lowest in-stock quote</dt>
+    <dd>
+      {% if compact_quote.lowest_in_stock_price %}
+        {{ compact_quote.lowest_in_stock_price }}
+        {% if compact_quote.lowest_in_stock_source %} — {{ compact_quote.lowest_in_stock_source }}{% endif %}
+      {% else %}
+        <span class="absent">Unavailable</span>
+      {% endif %}
+    </dd>
+    <dt>Observed quote span (USD equivalent)</dt>
+    <dd>
+      {% if compact_quote.quote_span_low %}
+        {{ compact_quote.quote_span_low }} — {{ compact_quote.quote_span_high }}
+      {% else %}
+        <span class="absent">Unavailable</span>
+      {% endif %}
+    </dd>
+  </dl>
+
+  <h3>Comparable public market</h3>
+  <p>
+    <strong>{{ compact_quote.public_market_count }}</strong>
+    comparable NEW listing{{ compact_quote.public_market_count|pluralize }}.
+  </p>
+  {% if compact_quote.public_market_low %}
+    <p>
+      <strong>Observed span:</strong>
+      {{ compact_quote.public_market_low }} — {{ compact_quote.public_market_high }}
+    </p>
+  {% endif %}
+  {% if compact_quote.public_market_median %}
+    <p><strong>Median:</strong> {{ compact_quote.public_market_median }}</p>
+  {% elif compact_quote.public_market_median_note %}
+    <p class="notice"><strong>Median:</strong> {{ compact_quote.public_market_median_note }}</p>
+  {% endif %}
+
   {% if compact_quote.rows %}
     <div class="spec-table-wrapper">
       <table class="spec-table">
@@ -90,9 +132,10 @@
             <th>Source</th>
             <th>Price</th>
             <th>USD Equivalent</th>
-            <th>Inventory</th>
-            <th>Brand New</th>
-            <th>Note</th>
+            <th>Availability</th>
+            <th>Condition</th>
+            <th>Match / Evidence</th>
+            <th>Market Use</th>
           </tr>
         </thead>
         <tbody>
@@ -108,18 +151,22 @@
             <td>{{ row.price }}</td>
             <td>{{ row.usd_equivalent }}</td>
             <td>{{ row.inventory }}</td>
-            <td>{{ row.brand_new }}</td>
-            <td>{{ row.note|default_if_none:"" }}</td>
+            <td>{{ row.condition }}</td>
+            <td>{{ row.match_evidence }}</td>
+            <td>
+              {{ row.market_use }}
+              {% if row.note %}<br><small>{{ row.note }}</small>{% endif %}
+            </td>
           </tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
   {% else %}
-    <p class="notice">No compact quote evidence is available.</p>
+    <p class="notice">No quote evidence is available.</p>
   {% endif %}
 {% elif compact_quote_unavailable %}
-  <p class="notice">Compact quote summary unavailable.</p>
+  <p class="notice">Quote &amp; Market Summary unavailable.</p>
 {% endif %}
 {% endif %}
 
@@ -433,6 +480,8 @@
 {% endif %}
 {% endif %}
 
+<details class="audit-details">
+  <summary><strong>Advanced Evidence &amp; Audit — Price intelligence</strong></summary>
 <h2>Price intelligence</h2>
 
 {% if snapshot_error %}
@@ -771,6 +820,7 @@
     Price result snapshot stored at {{ snapshot_created_at|date:"Y-m-d H:i:s T" }}.
   </p>
 {% endif %}
+</details>
 
 {% if comparable_start_error %}
   <p class="notice error">
@@ -780,6 +830,8 @@
 {% endif %}
 
 {% if reviewed_result and confirmed_count > 0 %}
+  <details class="audit-details">
+  <summary><strong>Advanced Evidence &amp; Audit — Reviewed price</strong></summary>
   <h2>Reviewed price</h2>
   {% if reviewed_confirmed_price_count > 0 %}
   <p>
@@ -867,6 +919,7 @@
       {% endif %}
     </div>
   {% endfor %}
+  </details>
 {% endif %}
 
 {# ================================================================ #}

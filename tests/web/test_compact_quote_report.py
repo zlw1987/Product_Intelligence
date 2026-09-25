@@ -23,7 +23,7 @@ Hard acceptance criteria proven here:
 4. Public source links: safe full URL as link target, "www."-stripped
    hostname as display text; unsafe schemes never become hrefs.
 5. Fail-closed error behavior: malformed supplemental or FX artifacts ->
-   "Compact quote summary unavailable." (no partial compact table);
+   "Quote & Market Summary unavailable." (no partial compact table);
    programming errors propagate (never converted to "unavailable");
    a malformed supplemental payload is irrelevant on the denied path.
 6. No-data states: zero rows -> "No compact quote evidence is
@@ -402,7 +402,7 @@ class _CompactTableRowParser(HTMLParser):
     """Extract the cell texts of every <tr> in the compact quote table.
 
     Scopes rendering assertions to the actual table rows/cells of the
-    rendered "Compact quote summary" section — never to the whole page
+    rendered "Quote & Market Summary" section — never to the whole page
     (unrelated sections may legitimately contain other text).
     """
 
@@ -444,11 +444,11 @@ class _CompactTableRowParser(HTMLParser):
 def _compact_table_rows(html: str) -> list[list[str]]:
     """Parse the cell texts of the rendered compact quote table.
 
-    Only the section between the "Compact quote summary" heading and the
+    Only the section between the "Quote & Market Summary" heading and the
     next top-level "Price intelligence" heading is parsed, so the
     assertions are narrowly scoped to the compact table rows/cells.
     """
-    section_start = html.index("<h2>Compact quote summary</h2>")
+    section_start = html.index("<h2>Quote & Market Summary</h2>")
     section_end = html.index("<h2>Price intelligence</h2>")
     section = html[section_start:section_end]
     assert '<table class="spec-table">' in section
@@ -572,7 +572,7 @@ class TestAuthorizedVendorTable:
         assert pub.brand_new == "Yes"
 
         # --- HTML: table rendered near the top, vendor rows before public ---
-        compact_start = html.index("Compact quote summary")
+        compact_start = html.index("Quote & Market Summary")
         price_section_start = html.index("Price intelligence")
         assert compact_start < price_section_start
         assert html.index("Ingram (Vendor API)") < html.index("example.com</a>")
@@ -591,6 +591,19 @@ class TestAuthorizedVendorTable:
         assert html.count("CDW (Vendor API)") == 1
         assert html.count("Synnex EU (Vendor API)") == 1
         assert "(Vendor API) (Vendor API)" not in html
+
+        # --- Unified business summary ---
+        assert "Quote &amp; Market Summary" in html
+        assert "<dt>Quotes found</dt>" in html
+        assert "<dd>4</dd>" in html
+        assert "Lowest in-stock quote" in html
+        assert "Comparable public market" in html
+        assert "fewer than 3 comparable NEW listings" in html
+        # Primary summary does not expose a two-observation/one-observation median.
+        primary = html.split("Quote &amp; Market Summary", 1)[1].split(
+            "AI-assisted semantic matches", 1
+        )[0]
+        assert "<strong>Median:</strong> €1,500.00 EUR" not in primary
 
         # --- No raw payload / no sensitive metadata in HTML ---
         for forbidden in (
@@ -677,11 +690,10 @@ class TestNoteCellNoneRendersBlank:
 
         # --- Parse the actually rendered compact quote table ---
         table_rows = _compact_table_rows(html)
-        # First row is the header: Source / Price / USD Equivalent /
-        # Inventory / Brand New / Note
+        # First row is the unified business-facing quote table header.
         assert table_rows[0] == [
-            "Source", "Price", "USD Equivalent", "Inventory",
-            "Brand New", "Note",
+            "Source", "Price", "USD Equivalent", "Availability",
+            "Condition", "Match / Evidence", "Market Use",
         ]
         data_rows = table_rows[1:]
         assert [r[0] for r in data_rows] == [
@@ -694,30 +706,30 @@ class TestNoteCellNoneRendersBlank:
         # 1 + 2. Ingram row: the Note cell (last column) is EMPTY and the
         # literal text "None" does not appear in it.
         ingram_row = data_rows[0]
-        assert len(ingram_row) == 6
-        assert ingram_row[5] == ""
-        assert "None" not in ingram_row[5]
+        assert len(ingram_row) == 7
+        assert ingram_row[6].startswith("Quote only — Vendor supplemental")
+        assert "None" not in ingram_row[6]
 
         # CDW row: also a real None note -> also blank
-        assert data_rows[1][5] == ""
+        assert "None" not in data_rows[1][6]
 
         # The literal "None" does not appear anywhere in the compact
         # quote table section (narrowly scoped, not whole page).
-        section_start = html.index("<h2>Compact quote summary</h2>")
+        section_start = html.index("<h2>Quote & Market Summary</h2>")
         section_end = html.index("<h2>Price intelligence</h2>")
         assert "None" not in html[section_start:section_end]
 
         # 3. Synnex real bounded note still renders in its Note cell
         synnex_row = data_rows[2]
         assert len(synnex_row) == 6
-        assert synnex_row[5] == "NO_RETURNS"
+        assert "NO_RETURNS" in synnex_row[6]
 
         # 4. No Vendor/security behavior changes: remaining columns of
         # the vendor rows render exactly as the frozen display contract.
         assert ingram_row[1] == "$2,023.27 USD"
         assert ingram_row[2] == "$2,023.27 USD"
         assert ingram_row[3] == "In Stock"
-        assert ingram_row[4] == "Yes"
+        assert ingram_row[4] == "New"
         assert synnex_row[1] == "\u20ac1,705.35 EUR"
         assert synnex_row[2] == "$1,864.629690 USD"
         assert data_rows[3][1] == "\u20ac1,500.00 EUR"
@@ -807,7 +819,7 @@ class TestDeniedPathNeverTouchesSupplement:
         assert "Price aggregation status:" in html
         assert "VERIFIED" in html
         assert "Median" in html
-        assert "Compact quote summary unavailable." not in html
+        assert "Quote & Market Summary unavailable." not in html
 
 
 # ---------------------------------------------------------------------------
@@ -941,8 +953,8 @@ class TestNoDataBehavior:
                 response = _get(Client(), url, addr)
                 assert response.status_code == 200
                 html = response.content.decode()
-                assert "Compact quote summary" in html
-                assert "No compact quote evidence is available." in html
+                assert "Quote & Market Summary" in html
+                assert "No quote evidence is available." in html
                 # No empty misleading table
                 assert "USD Equivalent" not in html
 
@@ -962,7 +974,7 @@ class TestNoDataBehavior:
         html = response.content.decode()
         # Existing report behavior preserved; no compact table rendered
         assert "No research result available." in html
-        assert "Compact quote summary" not in html
+        assert "Quote & Market Summary" not in html
 
 
 # ---------------------------------------------------------------------------
@@ -985,9 +997,9 @@ class TestErrorBehavior:
         assert response.status_code == 200
         html = response.content.decode()
         # Compact summary unavailable — no partial compact table
-        assert "Compact quote summary unavailable." in html
+        assert "Quote & Market Summary unavailable." in html
         assert "USD Equivalent" not in html
-        assert "€1,500.00 EUR" not in html.split("Compact quote summary")[-1].split("Price intelligence")[0]
+        assert "€1,500.00 EUR" not in html.split("Quote & Market Summary")[-1].split("Price intelligence")[0]
         # Detailed existing report still renders
         assert "Price aggregation status:" in html
         assert "Median" in html
@@ -1020,7 +1032,7 @@ class TestErrorBehavior:
         assert "USD Equivalent" in html
         assert "€1,500.00 EUR" in html
         assert 'href="https://www.example.com/product/abc">example.com</a>' in html
-        assert "Compact quote summary unavailable." not in html
+        assert "Quote & Market Summary unavailable." not in html
 
     def test_authorized_malformed_fx_unavailable(self) -> None:
         run = _create_quote_run(mpn="ERR-FX-MPN", malformed_fx=True)
@@ -1033,7 +1045,7 @@ class TestErrorBehavior:
 
         assert response.status_code == 200
         html = response.content.decode()
-        assert "Compact quote summary unavailable." in html
+        assert "Quote & Market Summary unavailable." in html
         assert "USD Equivalent" not in html
         # Detailed report still renders
         assert "Price aggregation status:" in html
@@ -1052,7 +1064,7 @@ class TestErrorBehavior:
 
         assert response.status_code == 200
         html = response.content.decode()
-        assert "Compact quote summary unavailable." in html
+        assert "Quote & Market Summary unavailable." in html
         assert "USD Equivalent" not in html
         assert "FxCodecError" not in html
         assert "garbage" not in html

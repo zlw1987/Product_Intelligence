@@ -649,4 +649,100 @@ class TestPublicQuoteOnlyRowDisplay:
         assert display.brand_new == "Unknown"
         assert display.note == "Quote only — condition not stated"
 
+# ---------------------------------------------------------------------------
+# Unified Quote & Market Summary
+# ---------------------------------------------------------------------------
+
+
+class TestQuoteMarketBusinessSummary:
+    def test_single_public_new_market_hides_median_below_three(self) -> None:
+        assessment = _make_assessment(
+            MPN,
+            source_url="https://www.example.com/new",
+            price_amount=Decimal("100.00"),
+            currency_code="USD",
+        )
+        bucket = _make_bucket(
+            currency="USD",
+            condition="NEW",
+            assessments=(assessment,),
+        )
+        result = _make_result(MPN, (assessment,), (bucket,))
+        row = _public_row(
+            source="www.example.com",
+            price="$100.00 USD",
+            usd_equivalent="$100.00 USD",
+            usd_amount=Decimal("100.00"),
+        )
+        presentation = build_compact_quote_presentation(
+            projection=CompactQuoteProjection(rows=(row,)),
+            price_result=result,
+        )
+
+        assert presentation.quotes_found == 1
+        assert presentation.in_stock_count == 1
+        assert presentation.lowest_in_stock_price == "$100.00 USD"
+        assert presentation.lowest_in_stock_source == "example.com"
+        assert presentation.quote_span_low == "$100.00 USD"
+        assert presentation.quote_span_high == "$100.00 USD"
+        assert presentation.public_market_count == 1
+        assert presentation.public_market_low == "$100.00 USD"
+        assert presentation.public_market_high == "$100.00 USD"
+        assert presentation.public_market_median is None
+        assert "fewer than 3" in presentation.public_market_median_note
+
+        display = presentation.rows[0]
+        assert display.condition == "New"
+        assert display.match_evidence == "Exact MPN"
+        assert display.market_use == "Included in public market"
+
+    def test_quote_only_condition_is_not_stated_and_not_market(self) -> None:
+        from dataclasses import replace
+        from product_intelligence.research.aggregation import (
+            PriceAggregationExclusion,
+            PriceAggregationExclusionReason,
+        )
+        from product_intelligence.research.compact_quote import (
+            project_condition_unknown_quote_rows,
+        )
+
+        assessment = _make_assessment(
+            MPN,
+            source_url="https://www.example.com/unknown",
+            price_amount=Decimal("90.00"),
+            currency_code="USD",
+        )
+        norm = assessment.normalized_listing
+        unknown = replace(
+            assessment,
+            normalized_listing=replace(
+                norm,
+                observation=replace(norm.observation, condition_text=None),
+                condition=NormalizedCondition.UNKNOWN,
+            ),
+        )
+        result = PriceAggregationResult(
+            request=ResearchRequest(manufacturer_part_number=MPN, description="x"),
+            assessments=(unknown,),
+            buckets=(),
+            exclusions=(
+                PriceAggregationExclusion(
+                    assessment=unknown,
+                    reason=PriceAggregationExclusionReason.UNKNOWN_CONDITION,
+                ),
+            ),
+            verification_status=VerificationStatus.UNKNOWN,
+        )
+        projection = CompactQuoteProjection(
+            rows=project_condition_unknown_quote_rows(result)
+        )
+        presentation = build_compact_quote_presentation(
+            projection=projection,
+            price_result=result,
+        )
+
+        assert presentation.public_market_count == 0
+        assert presentation.public_market_low is None
+        assert presentation.rows[0].condition == "Not stated"
+        assert presentation.rows[0].market_use == "Quote only — condition not stated"
 
