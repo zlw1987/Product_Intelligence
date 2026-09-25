@@ -36,8 +36,9 @@ What this module does:
   through the frozen V1 FX codec
 * project public rows through the frozen ``project_public_rows``
 * derive the human-confirmed selection from persisted state via the
-  shared ``derive_human_confirmed_assessment_indices`` and project it
-  through ``project_human_confirmed_rows``
+  shared ``derive_human_confirmed_assessment_indices``
+* derive HIGH auto-included Working Quote candidates from persisted state via
+  the shared ``derive_ai_auto_included_assessment_indices``
 * perform ZERO live provider/network/semantic work
 
 What this module does NOT do (binding):
@@ -61,6 +62,7 @@ from dataclasses import dataclass
 from product_intelligence.research.compact_quote import (
     CompactQuoteProjection,
     CompactQuoteProjectionError,
+    project_ai_assisted_rows,
     project_human_confirmed_rows,
     project_public_rows,
 )
@@ -81,6 +83,7 @@ from product_intelligence.runs.models import (
 # authorized-path replay (ONE code path proves the persisted CONFIRMED
 # candidates; the two DENIED/ALLOWED branches must not diverge).
 from product_intelligence.execution.compact_quote_replay import (
+    derive_ai_auto_included_assessment_indices,
     derive_human_confirmed_assessment_indices,
 )
 
@@ -228,8 +231,23 @@ def replay_public_compact_quote_projection(
             fx_snapshot=fx_snapshot,
         )
 
+    ai_assisted_rows: tuple = ()
+    ai_assisted_indices = derive_ai_auto_included_assessment_indices(
+        run, price_result.assessments
+    )
+    if ai_assisted_indices:
+        ai_assisted_rows = project_ai_assisted_rows(
+            price_result,
+            ai_assisted_indices,
+            fx_snapshot=fx_snapshot,
+        )
+
     projection = CompactQuoteProjection(
-        rows=tuple(human_confirmed_rows) + tuple(public_rows)
+        rows=(
+            tuple(human_confirmed_rows)
+            + tuple(ai_assisted_rows)
+            + tuple(public_rows)
+        )
     )
 
     return PublicCompactQuoteReplayResult(
