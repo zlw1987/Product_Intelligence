@@ -36,15 +36,19 @@ Key constraints:
      observed literal only — optional leading whitespace + optional
      exact ``<p>`` + exact known label. It is NOT a generic HTML parser:
      no other tags, no attributes, no nesting, no tag stripping, no
-     generic HTML unescaping. FU4: the observed text/html transport
-     additionally encodes three characters of the paragraph-form
-     section value text with exact named-entity literals — ``&quot;``
-     (decoded as U+0022), ``&nbsp;`` (decoded as LF U+000A), ``&cr;``
-     (decoded as CR U+000D); ONLY those three exact literals are
-     decoded, and ONLY on the FU3 exact paragraph-envelope path (the
-     retained plain-text form is never decoded) — still no
-     html.unescape, no other named or numeric entity, no case/format
-     variant. FU4: the current real nested Synnex wire represents
+     generic HTML unescaping. FU4 (exact entity literals corrected by
+     FU4-FU1): the observed text/html transport additionally encodes
+     three characters of the paragraph-form section value text with
+     exact entity literals — ``&quot;`` (decoded as U+0022), the exact
+     hexadecimal numeric LF entity formed by ``"&" + "#xA;"`` (decoded
+     as LF U+000A), and the exact hexadecimal numeric CR entity formed
+     by ``"&" + "#xD;"`` (decoded as CR U+000D); ONLY those three exact
+     literals are decoded, and ONLY on the FU3 exact paragraph-envelope
+     path (the retained plain-text form is never decoded) — still no
+     html.unescape, no other named entity (the unsupported ``&nbsp;`` /
+     ``&cr;`` spellings are NOT decoded), no other numeric entity,
+     no case/format variant.
+     FU4: the current real nested Synnex wire represents
      ``OnlineCheck.Item.AvailabilityTotal`` as a non-negative integer,
      observed as an ASCII decimal digit string; a narrow Synnex-
      specific reading accepts that exact string form on the REAL
@@ -1071,12 +1075,14 @@ def _identify_and_map_source(source_section: dict[str, Any]) -> CommercialSource
 # (plus the retained plain line-anchored forms). The paragraph support is
 # the EXACT literal "<p>" immediately before a known label — NOT a generic
 # HTML parser: no other tags, no attributes, no nesting, no stripping,
-# no generic unescaping, no DOM search. FU4: the observed text/html
-# transport encodes three characters of the paragraph-form section value
-# text with exact named-entity literals (&quot; / &nbsp; / &cr;); ONLY
-# those three exact literals are decoded on the paragraph path — still
-# not a generic HTML unescape — and the retained plain-text form is never
-# decoded.
+# no generic unescaping, no DOM search. FU4 (exact entity literals
+# corrected by FU4-FU1): the observed text/html transport encodes three
+# characters of the paragraph-form section value text with exact entity
+# literals (&quot; / the exact hex numeric LF entity "&" + "#xA;" /
+# the exact hex numeric CR entity "&" + "#xD;"); ONLY those three exact
+# literals are decoded on the paragraph path — still not a generic HTML
+# unescape (the unsupported &nbsp; / &cr; spellings are NOT decoded) —
+# and the retained plain-text form is never decoded.
 #
 # Each section value is either the exact bounded not-found marker
 # ``{Not Found}`` or a bounded literal mapping whose fields are read by the
@@ -1101,41 +1107,65 @@ _SECTION_HEADER_TO_SOURCE = (
 # no other tag, no attributes, no nesting, no stripping, no unescaping.
 _PARAGRAPH_PREFIX = "<p>"
 
-# FU4: the EXACT observed production paragraph-envelope entity literals.
+# FU4 (exact entity literals corrected by FU4-FU1): the EXACT observed
+# production paragraph-envelope entity literals.
 # A production-safe read-only probe of the observed response (Content-
 # Type: text/html; charset=utf-8) established the exact entity
 # vocabulary inside the section values: Ingram — &quot; (166
-# occurrences), &nbsp;, &cr;; CDW — none; Synnex EU — &quot; (154
-# occurrences). No other named entity (&apos; / &lsquo; / &rsquo; /
-# &amp; / &lt; / &gt; / ...) and no numeric entity (&#...;) was
-# observed. After replacing EXACTLY these three literals — &quot; ->
-# U+0022 (literal double quote), &nbsp; -> U+000A (LF), &cr; -> U+000D
-# (CR) — no recognized HTML entity remained and the unchanged strict
+# occurrences), the exact hexadecimal numeric LF entity formed by
+# "&" + "#xA;", and the exact hexadecimal numeric CR entity formed by
+# "&" + "#xD;"; CDW — none; Synnex EU — &quot; (154 occurrences).
+# No other named entity (&apos; / &lsquo; / &rsquo; / &amp; / &lt; /
+# &gt; / &nbsp; / &cr; / ...) and no OTHER numeric entity (decimal, or
+# any other hex case/format spelling) was observed. After replacing
+# EXACTLY these three literals — &quot; -> U+0022 (literal double
+# quote), the LF entity -> U+000A (LF), the CR entity -> U+000D (CR)
+# — no recognized HTML entity remained and the unchanged strict
 # bounded literal parser succeeded. These three exact literals are the
 # ONLY decodings (see _decode_paragraph_entities): no html.unescape,
 # no generic entity table, no arbitrary entity regex, no case/format
-# variant. Decoding applies ONLY on the FU3 exact paragraph-envelope
-# path; the retained plain-text section form is never decoded.
+# variant. The two approved hex numeric literals are exactly five
+# characters each, verified character-by-character (visual-ambiguity
+# guard):
+#   LF entity: 0x26 '&'  0x23 '#'  0x78 'x'  0x41 'A'  0x3B ';'
+#   CR entity: 0x26 '&'  0x23 '#'  0x78 'x'  0x44 'D'  0x3B ';'
+# FU4-FU1: the earlier FU4 spelling "&nbsp;" / "&cr;" was an
+# unsupported substitution for the two observed hex numeric entities;
+# those spellings are NOT decoded here. Decoding applies ONLY on the
+# FU3 exact paragraph-envelope path; the retained plain-text section
+# form is never decoded.
+assert "&#xA;" == "&" + "#xA;"
+assert "&#xD;" == "&" + "#xD;"
+assert [ord(c) for c in "&#xA;"] == [0x26, 0x23, 0x78, 0x41, 0x3B]
+assert [ord(c) for c in "&#xD;"] == [0x26, 0x23, 0x78, 0x44, 0x3B]
 _PARAGRAPH_ENTITY_LITERALS: tuple[tuple[str, str], ...] = (
     ("&quot;", '"'),
-    ("&nbsp;", "\n"),
-    ("&cr;", "\r"),
+    ("&#xA;", "\n"),
+    ("&#xD;", "\r"),
 )
 
 
 def _decode_paragraph_entities(text: str) -> str:
     """Apply ONLY the FU4 observed exact paragraph-envelope entity
-    decodings to one paragraph-form section value text.
+    decodings (FU4-FU1: the exact observed literals) to one
+    paragraph-form section value text.
 
     Exactly three bounded literal replacements (see
-    ``_PARAGRAPH_ENTITY_LITERALS``): ``&quot;`` -> U+0022, ``&nbsp;`` ->
-    U+000A (LF), ``&cr;`` -> U+000D (CR). Nothing broader is decoded —
-    this is not html.unescape, not a generic entity table, and not a
-    regex over arbitrary entities. The replacement targets contain no
-    ``&`` or ``;`` characters, so the three replacements cannot cascade
-    into or create new entity-like sequences. Unknown/unapproved entity
-    forms are left untouched and remain fail-closed under the strict
-    bounded literal grammar.
+    ``_PARAGRAPH_ENTITY_LITERALS``): ``&quot;`` -> U+0022, the exact
+    hexadecimal numeric LF entity (``"&" + "#xA;"``) -> U+000A (LF),
+    the exact hexadecimal numeric CR entity (``"&" + "#xD;"``) ->
+    U+000D (CR). Nothing broader is decoded — this is not
+    html.unescape, not a generic entity table, and not a regex over
+    arbitrary entities: no other named entity (the unsupported
+    ``&nbsp;`` / ``&cr;`` spellings are NOT decoded), no other numeric
+    entity (decimal, or any other hex case/format spelling), and no
+    case/format variant of the two approved hex numeric entities. The
+    DECODED values (``"`` / LF / CR) contain no ``&`` or ``;``
+    characters, so the replacements cannot create new entity-like
+    sequences (each ``str.replace`` pass is single-pass and never
+    re-scans its own output). Unknown/unapproved entity forms are left
+    untouched and remain fail-closed under the strict bounded literal
+    grammar.
     """
     for literal, decoded in _PARAGRAPH_ENTITY_LITERALS:
         text = text.replace(literal, decoded)
@@ -1423,17 +1453,21 @@ def _scan_section_oriented_body(body_text: str) -> list | None:
       (``<p><span>``), no case variants, no text before ``<p>`` on the
       line, no HTML stripping or generic unescaping — this is NOT a
       generic HTML parser.
-    * FU4: the observed text/html transport encodes three characters of
-      the paragraph-form section value text with exact named-entity
-      literals; ONLY those three exact literals are decoded, and ONLY
-      on this paragraph path: ``&quot;`` -> U+0022, ``&nbsp;`` -> U+000A
-      (LF), ``&cr;`` -> U+000D (CR). No html.unescape, no other named
-      or numeric entity, no case/format variant — the retained plain-
-      text section form is NEVER decoded. Unknown/unapproved entity
-      forms are left raw and remain fail-closed under the strict
-      bounded literal grammar (a bare entity token outside a string
-      fails the parse; inside a string it is inert raw text, never
-      interpreted).
+    * FU4 (exact entity literals corrected by FU4-FU1): the observed
+      text/html transport encodes three characters of the
+      paragraph-form section value text with exact entity literals;
+      ONLY those three exact literals are decoded, and ONLY on this
+      paragraph path: ``&quot;`` -> U+0022, the exact hexadecimal
+      numeric LF entity (``"&" + "#xA;"``) -> U+000A (LF), the exact
+      hexadecimal numeric CR entity (``"&" + "#xD;"``) -> U+000D (CR).
+      No html.unescape, no other named entity (the unsupported
+      ``&nbsp;`` / ``&cr;`` spellings are NOT decoded), no other
+      numeric entity (decimal, or any other hex case/format spelling),
+      no case/format variant — the retained plain-text section form is
+      NEVER decoded. Unknown/unapproved entity forms are left raw and
+      remain fail-closed under the strict bounded literal grammar (a
+      bare entity token outside a string fails the parse; inside a
+      string it is inert raw text, never interpreted).
     * A section's value text is the remainder of the header line plus all
       following lines up to the next recognized label line (or end of
       body). Unknown labels and interstitial lines inside that range are

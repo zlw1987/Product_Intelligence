@@ -14,13 +14,18 @@ paragraph opener (``<p>Ingram Product: ...</p>``); the scanner recognizes
 that exact literal prefix in addition to the plain line-anchored form —
 NOT a generic HTML parser.
 
-FU4: the production smoke of FU3 revealed the remaining difference is
-INSIDE the section literal representation: the observed text/html
-transport encodes three characters of the paragraph-form section value
-with exact named-entity literals (``&quot;`` / ``&nbsp;`` / ``&cr;``),
-decoded as ``"`` (U+0022) / LF (U+000A) / CR (U+000D) — only on the
-paragraph path, nothing broader (no html.unescape, no other named or
-numeric entity, no case variant; the plain-text form is never decoded).
+FU4 (exact entity literals corrected by FU4-FU1): the production smoke
+of FU3 revealed the remaining difference is INSIDE the section literal
+representation: the observed text/html transport encodes three
+characters of the paragraph-form section value with exact entity
+literals (``&quot;`` / the exact hexadecimal numeric LF entity formed
+by ``"&" + "#xA;"`` / the exact hexadecimal numeric CR entity formed by
+``"&" + "#xD;"``), decoded as ``"`` (U+0022) / LF (U+000A) / CR
+(U+000D) — only on the paragraph path, nothing broader (no
+html.unescape, no other named entity — the unsupported ``&nbsp;`` /
+``&cr;`` spellings are NOT decoded — no other numeric entity (decimal,
+or any other hex case/format spelling), no case/format variant; the
+plain-text form is never decoded).
 FU4 also supports the current real nested Synnex wire type:
 ``OnlineCheck.Item.AvailabilityTotal`` as a non-negative integer,
 observed as an ASCII decimal digit string (narrow Synnex-specific
@@ -72,6 +77,7 @@ from product_intelligence.providers.commercial import (
 from product_intelligence.providers.internal_vendor import (
     InternalVendorAdapter,
     _BoundedLiteralParser,
+    _PARAGRAPH_ENTITY_LITERALS,
     _scan_section_oriented_body,
     _parse_and_map_section,
     _parse_section_value,
@@ -1363,16 +1369,18 @@ class TestParagraphEnvelope:
 
 
 # ---------------------------------------------------------------------------
-# FU4: the CURRENT observed production representation — the exact <p>
-# wrapper PLUS the observed paragraph-envelope entity encoding: every
-# literal double quote is &quot;-encoded, and the observed &nbsp; / &cr;
-# literals carry LF / CR (here in a non-authoritative synthetic Ingram
-# field). The nested Synnex UnitPriceAmount is the production-observed
-# numeric string and the nested AvailabilityTotal is the production-
-# observed digit string "0". Same synthetic source payload / fake
-# sentinels as SECTION_BODY_HYBRID_PARAGRAPH. The live production price
-# is mutable upstream commercial data; the values here are explicitly
-# synthetic and deterministic.
+# FU4 (exact entity literals corrected by FU4-FU1): the CURRENT observed
+# production representation — the exact <p> wrapper PLUS the observed
+# paragraph-envelope entity encoding: every literal double quote is
+# &quot;-encoded, and the observed exact hexadecimal numeric LF entity
+# ("&" + "#xA;") / CR entity ("&" + "#xD;") literals carry LF / CR
+# (here in a non-authoritative synthetic Ingram field). The nested
+# Synnex UnitPriceAmount is the production-observed numeric string and
+# the nested AvailabilityTotal is the production-observed digit string
+# "0". Same synthetic source payload / fake sentinels as
+# SECTION_BODY_HYBRID_PARAGRAPH. The live production price is mutable
+# upstream commercial data; the values here are explicitly synthetic and
+# deterministic.
 # ---------------------------------------------------------------------------
 SECTION_BODY_PARAGRAPH_ENTITY = (
     "<p>Ingram Product: {&quot;vendorPartNumber&quot;: &quot;"
@@ -1380,7 +1388,7 @@ SECTION_BODY_PARAGRAPH_ENTITY = (
     + "&quot;, &quot;pricing&quot;: {&quot;customerPrice&quot;: 1515.72, "
     "&quot;retailPrice&quot;: 2036.36, &quot;currencyCode&quot;: &quot;USD&quot;}, "
     "&quot;availability&quot;: False, &quot;Avl_Quantity&quot;: 0, "
-    "&quot;vendorName&quot;: &quot;FAKE-VENDOR-NAME&nbsp;lf&nbsp;&cr;cr&quot;}</p>\n"
+    "&quot;vendorName&quot;: &quot;FAKE-VENDOR-NAME&#xA;lf&#xD;cr&quot;}</p>\n"
     "\n"
     "<p>CDW Product: {Not Found}</p>\n"
     "\n"
@@ -1397,17 +1405,22 @@ SECTION_BODY_PARAGRAPH_ENTITY = (
 
 
 # ---------------------------------------------------------------------------
-# FU4: exact observed paragraph-envelope entity decoding (bounded)
+# FU4 (corrected by FU4-FU1): exact observed paragraph-envelope entity
+# decoding (bounded)
 # ---------------------------------------------------------------------------
 
 
 class TestParagraphEntityDecoding:
-    """FU4: the exact observed production paragraph-envelope entity
-    encoding (``&quot;`` / ``&nbsp;`` / ``&cr;``) is decoded ONLY on the
-    FU3 exact paragraph path, with nothing broader — no html.unescape,
-    no other named/numeric entity, no case/format variant. The retained
-    plain-text section contract is never decoded, and the strict bounded
-    literal parser is unchanged.
+    """FU4 (exact entity literals corrected by FU4-FU1): the exact
+    observed production paragraph-envelope entity encoding
+    (``&quot;`` / the exact hexadecimal numeric LF entity (``"&#xA;"``)
+    / the exact hexadecimal numeric CR entity (``"&#xD;"``)) is decoded
+    ONLY on the FU3 exact paragraph path, with nothing broader — no
+    html.unescape, no other named entity (the unsupported ``&nbsp;`` /
+    ``&cr;`` spellings are NOT decoded), no other numeric entity
+    (decimal, or any other hex case/format spelling), no case/format
+    variant. The retained plain-text section contract is never decoded,
+    and the strict bounded literal parser is unchanged.
     """
 
     # -- exact observed entity decoding (paragraph path) -------------------
@@ -1427,49 +1440,126 @@ class TestParagraphEntityDecoding:
         assert kind == "mapping"
         assert value == {"a": "x"}
 
+    def test_hex_numeric_lf_entity_decoded_to_lf(self) -> None:
+        # The EXACT production-observed hexadecimal numeric LF entity
+        # (formed by "&" + "#xA;") decodes to LF U+000A on the
+        # paragraph path; the unchanged strict parser then sees the LF
+        # inside the bounded string.
+        body = "<p>Ingram Product: {'a': 'x&#xA;y'}</p>\n"
+        sections = _scan_section_oriented_body(body)
+        assert "&#xA;" not in sections[0][1]  # the exact literal decoded
+        assert sections[0][1].strip() == "{'a': 'x\ny'}</p>"
+        kind, value = _parse_section_value(sections[0][1])
+        assert kind == "mapping"
+        assert value == {"a": "x\ny"}
+
+    def test_hex_numeric_cr_entity_decoded_to_cr(self) -> None:
+        # The EXACT production-observed hexadecimal numeric CR entity
+        # (formed by "&" + "#xD;") decodes to CR U+000D on the
+        # paragraph path.
+        body = "<p>Ingram Product: {'a': 'x&#xD;y'}</p>\n"
+        sections = _scan_section_oriented_body(body)
+        assert "&#xD;" not in sections[0][1]  # the exact literal decoded
+        assert sections[0][1].strip() == "{'a': 'x\ry'}</p>"
+        kind, value = _parse_section_value(sections[0][1])
+        assert kind == "mapping"
+        assert value == {"a": "x\ry"}
+
+    def test_decode_table_is_exactly_the_observed_literals(self) -> None:
+        # FU4-FU1: the ONLY approved decode table contains exactly the
+        # three observed production literals — nothing else, and no
+        # unsupported &nbsp; / &cr; entries. The two approved hex
+        # numeric literals are verified character-by-character
+        # (visual-ambiguity guard):
+        #   LF entity: 0x26 '&'  0x23 '#'  0x78 'x'  0x41 'A'  0x3B ';'
+        #   CR entity: 0x26 '&'  0x23 '#'  0x78 'x'  0x44 'D'  0x3B ';'
+        assert _PARAGRAPH_ENTITY_LITERALS == (
+            ("&quot;", '"'),
+            ("&#xA;", "\n"),
+            ("&#xD;", "\r"),
+        )
+        assert "&#xA;" == "&" + "#xA;"
+        assert "&#xD;" == "&" + "#xD;"
+        assert [ord(c) for c in "&#xA;"] == [0x26, 0x23, 0x78, 0x41, 0x3B]
+        assert [ord(c) for c in "&#xD;"] == [0x26, 0x23, 0x78, 0x44, 0x3B]
+        for literal, _decoded in _PARAGRAPH_ENTITY_LITERALS:
+            assert literal != "&nbsp;"
+            assert literal != "&cr;"
+
     def test_nbsp_and_cr_entities_decoded_to_lf_and_cr(self) -> None:
+        # FU4-FU1 CORRECTION (this node is RETAINED for test
+        # preservation; its name records the REJECTED FU4 contract):
+        # FU4's "&nbsp;" -> LF / "&cr;" -> CR mapping was the exact
+        # production-fidelity defect — the observed production entities
+        # are the hexadecimal numeric literals (see
+        # test_hex_numeric_lf_entity_decoded_to_lf /
+        # test_hex_numeric_cr_entity_decoded_to_cr). This node now
+        # proves the CORRECT boundary: "&nbsp;" and "&cr;" are NOT
+        # decoded — inside a bounded string they are inert raw text and
+        # the raw spellings survive the strict parse.
         body = "<p>Ingram Product: {'a': 'x&nbsp;y&cr;z'}</p>\n"
         sections = _scan_section_oriented_body(body)
-        assert sections[0][1].strip() == "{'a': 'x\ny\rz'}</p>"
+        assert sections[0][1].strip() == "{'a': 'x&nbsp;y&cr;z'}</p>"
         kind, value = _parse_section_value(sections[0][1])
         assert kind == "mapping"
-        assert value == {"a": "x\ny\rz"}
+        assert value == {"a": "x&nbsp;y&cr;z"}
 
     def test_plain_form_section_values_are_never_decoded(self) -> None:
-        # FU4 boundary: even the three approved entity literals are NOT
-        # decoded on the retained plain-text contract — literal entity
-        # spellings remain plain text, unchanged from pre-FU4 behavior.
-        body = "Ingram Product: {'a': 'x&nbsp;y', 'b': 'q&quot;r'}\n"
+        # FU4 boundary (FU4-FU1 literals): even the three approved
+        # entity spellings — &quot; / the exact hex numeric LF entity /
+        # the exact hex numeric CR entity — and the unsupported
+        # &nbsp; / &cr; spellings are NOT decoded on the retained
+        # plain-text contract: literal entity spellings remain plain
+        # text, unchanged from pre-FU4 behavior.
+        body = (
+            "Ingram Product: {'a': 'x&#xA;y&#xD;z', 'b': "
+            "'q&quot;r', 'c': 'w&nbsp;v&cr;u'}\n"
+        )
         sections = _scan_section_oriented_body(body)
-        assert sections[0][1].strip() == "{'a': 'x&nbsp;y', 'b': 'q&quot;r'}"
+        assert sections[0][1].strip() == (
+            "{'a': 'x&#xA;y&#xD;z', 'b': 'q&quot;r', 'c': 'w&nbsp;v&cr;u'}"
+        )
         kind, value = _parse_section_value(sections[0][1])
         assert kind == "mapping"
-        assert value == {"a": "x&nbsp;y", "b": "q&quot;r"}
+        assert value == {
+            "a": "x&#xA;y&#xD;z",
+            "b": 'q&quot;r',
+            "c": "w&nbsp;v&cr;u",
+        }
 
     # -- adversarial: NO broader HTML/entity support ----------------------
 
     def test_unapproved_named_entities_are_never_decoded(self) -> None:
-        # &apos; / &lsquo; / &rsquo; / &amp; / &lt; / &gt; have no
-        # production evidence: left untouched (no generic HTML decoding).
-        # Inside a bounded string they are inert raw text, never
-        # interpreted.
+        # &apos; / &lsquo; / &rsquo; / &amp; / &lt; / &gt; / &nbsp; /
+        # &cr; have no production evidence: left untouched (no generic
+        # HTML decoding). &nbsp; / &cr; were the unsupported FU4
+        # spellings (the FU4 defect corrected by FU4-FU1): they are NOT
+        # decoded. Inside a bounded string they are inert raw text,
+        # never interpreted.
         body = (
-            "<p>Ingram Product: {'a': '&apos;&lsquo;&rsquo;&amp;&lt;&gt;'}"
+            "<p>Ingram Product: {'a': '&apos;&lsquo;&rsquo;&amp;&lt;&gt;"
+            "&nbsp;&cr;'}"
             "</p>\n"
         )
         sections = _scan_section_oriented_body(body)
         raw = sections[0][1]
-        for entity in ("&apos;", "&lsquo;", "&rsquo;", "&amp;", "&lt;", "&gt;"):
+        for entity in (
+            "&apos;", "&lsquo;", "&rsquo;", "&amp;", "&lt;", "&gt;",
+            "&nbsp;", "&cr;",
+        ):
             assert entity in raw
         kind, value = _parse_section_value(raw)
         assert kind == "mapping"
-        assert value == {"a": "&apos;&lsquo;&rsquo;&amp;&lt;&gt;"}
+        assert value == {"a": "&apos;&lsquo;&rsquo;&amp;&lt;&gt;&nbsp;&cr;"}
 
     def test_unapproved_numeric_entity_is_never_decoded_fail_closed(self) -> None:
-        # An arbitrary numeric entity (&#123; is '{') is NOT decoded: the
-        # bare '&' token is rejected by the unchanged strict grammar, so
-        # the section fails closed (MALFORMED_SECTION at the adapter
-        # level) rather than being generically interpreted.
+        # An arbitrary (decimal) numeric entity (&#123; is '{') is NOT
+        # decoded: only the two exact observed hexadecimal numeric
+        # entities ("&#xA;" / "&#xD;") are approved, and every other
+        # numeric entity is unsupported. The bare '&' token is rejected
+        # by the unchanged strict grammar, so the section fails closed
+        # (MALFORMED_SECTION at the adapter level) rather than being
+        # generically interpreted.
         body = "<p>Ingram Product: {'k': &#123;'a': 1&#125;}</p>\n"
         sections = _scan_section_oriented_body(body)
         assert sections is not None
@@ -1480,6 +1570,40 @@ class TestParagraphEntityDecoding:
         issues = {i.source_name: i.outcome for i in response.issues}
         assert issues == {"Ingram": SourceOutcome.MALFORMED_SECTION}
 
+    def test_equivalent_numeric_representations_are_never_decoded(self) -> None:
+        # Equivalent representations of the same code points (decimal
+        # numeric, lowercase / uppercase-X / padded hex) have NO
+        # production evidence: they are NOT decoded. Inside a bounded
+        # string they are inert raw text and survive the strict parse
+        # verbatim.
+        variants = (
+            "&#10;",     # decimal LF
+            "&#13;",     # decimal CR
+            "&#x0a;",    # lowercase hex LF
+            "&#x0d;",    # lowercase hex CR
+            "&#X0A;",    # uppercase-X hex LF
+            "&#X0D;",    # uppercase-X hex CR
+            "&#x000A;",  # padded hex LF
+            "&#x000D;",  # padded hex CR
+            "&#65;",     # decimal 'A'
+            "&#39;",     # decimal apostrophe
+            "&#38;",     # decimal '&'
+            "&#60;",     # decimal '<'
+            "&#62;",     # decimal '>'
+        )
+        body = (
+            "<p>Ingram Product: {'a': '"
+            + "".join(variants)
+            + "'}</p>\n"
+        )
+        sections = _scan_section_oriented_body(body)
+        raw = sections[0][1]
+        for variant in variants:
+            assert variant in raw
+        kind, value = _parse_section_value(raw)
+        assert kind == "mapping"
+        assert value == {"a": "".join(variants)}
+
     def test_entity_case_variant_is_never_decoded_fail_closed(self) -> None:
         # &Quot; is a case variant without production evidence: not
         # accepted; the section fails closed under the strict grammar.
@@ -1489,15 +1613,36 @@ class TestParagraphEntityDecoding:
         with pytest.raises(_SectionValueParseError):
             _parse_section_value(sections[0][1])
 
+    def test_hex_entity_case_variants_are_never_decoded(self) -> None:
+        # Case variants of the two approved hex numeric entities have
+        # NO production evidence (the exact approved spellings are
+        # lowercase 'x' + uppercase 'A' / uppercase 'D'): NOT decoded.
+        # Inside a bounded string they are inert raw text and survive
+        # the strict parse verbatim.
+        variants = ("&#xa;", "&#XA;", "&#xd;", "&#XD;")
+        body = (
+            "<p>Ingram Product: {'a': '"
+            + "".join(variants)
+            + "'}</p>\n"
+        )
+        sections = _scan_section_oriented_body(body)
+        raw = sections[0][1]
+        for variant in variants:
+            assert variant in raw
+        kind, value = _parse_section_value(raw)
+        assert kind == "mapping"
+        assert value == {"a": "".join(variants)}
+
     # -- faithful production-shaped full adapter --------------------------
 
     def test_production_shape_entity_envelope_full_adapter_maps(self) -> None:
         """The CURRENT observed production representation (exact <p>
-        wrapper + &quot; encoded quoted strings + &nbsp; / &cr; in a
-        non-authoritative synthetic field + CDW {Not Found} + nested
-        Synnex OnlineCheck with fake sentinels, numeric-string price and
-        digit-string availability) maps through the existing bounded
-        grammar and source mappers."""
+        wrapper + &quot;-encoded quoted strings + the exact hex numeric
+        LF/CR entities ("&#xA;" / "&#xD;") in a non-authoritative
+        synthetic field + CDW {Not Found} + nested Synnex OnlineCheck
+        with fake sentinels, numeric-string price and digit-string
+        availability) maps through the existing bounded grammar and
+        source mappers."""
         response, mock_opener = _lookup_body(SECTION_BODY_PARAGRAPH_ENTITY)
         assert response.status == LookupStatus.PARTIAL
         assert response.retrieved_at is not None
@@ -1534,8 +1679,9 @@ class TestParagraphEntityDecoding:
         assert issues["CDW"].outcome == SourceOutcome.NOT_FOUND
 
         # Sensitive + non-authoritative metadata absent from the whole
-        # normalized response (allowlist boundary), and the observed
-        # entity spellings never survive into normalized output.
+        # normalized response (allowlist boundary), and no entity
+        # spelling — approved or unsupported — survives into
+        # normalized output.
         rendered = str(response)
         for sentinel in (
             FAKE_SESSION_ID,
@@ -1549,6 +1695,8 @@ class TestParagraphEntityDecoding:
             "retailPrice",
             "2036.36",
             "&quot;",
+            "&#xA;",
+            "&#xD;",
             "&nbsp;",
             "&cr;",
         ):

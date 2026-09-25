@@ -2,9 +2,95 @@
 
 ## Current state
 
+**PRODUCT-INTEL.PILOT-RELEASE-2-PROD-FIX1-FU4-FU1 (Exact Observed
+Vendor Entity Correction) — IMPLEMENTED / PENDING FINAL REVIEW**
+
+Bounded append-only corrective follow-up to the FU4 commit (SHA
+1c8b96934c58fc567514bdc68b87da08b2cdcbe5). FU4 was BLOCKED in
+independent review for one concrete production-fidelity defect: its
+implementation/tests/docs substituted the unsupported named-entity
+spellings for the two EXACT production-observed hexadecimal numeric
+entities inside the paragraph-envelope section values. The FU4
+implementation is retained; ONLY the two wrong entity literals and the
+directly necessary tests/docs were corrected. No deployment performed
+in this commit; final approval remains with ChatGPT after independent
+GitHub review and a later production smoke. (Canonical spec: PLAN
+§26.15.)
+
+1. **Exact paragraph entity literal correction (production
+   fidelity)** — the production-safe probe observed EXACTLY: Ingram
+   — `&quot;` (166 occurrences), the exact hexadecimal numeric LF
+   entity formed by `"&" + "#xA;"` (ampersand, hash, lowercase x,
+   uppercase A, semicolon), and the exact hexadecimal numeric CR
+   entity formed by `"&" + "#xD;"` (ampersand, hash, lowercase x,
+   uppercase D, semicolon); CDW — none; Synnex EU — `&quot;` (154
+   occurrences). The `&nbsp;` / `&cr;` spellings implemented by FU4
+   are NOT supported by production evidence and are no longer
+   decoded. The only approved decode table in
+   `product_intelligence/providers/internal_vendor.py`
+   (`_PARAGRAPH_ENTITY_LITERALS`) is now EXACTLY: `&quot;` -> U+0022,
+   the exact hex numeric LF entity -> U+000A (LF), the exact hex
+   numeric CR entity -> U+000D (CR). The two hex numeric literals are
+   verified character-by-character (five characters each: LF
+   0x26 0x23 0x78 0x41 0x3B; CR 0x26 0x23 0x78 0x44 0x3B) by
+   import-time self-assertions in the production module and by a
+   dedicated test. No html.unescape, no `html` import, no HTMLParser,
+   no BeautifulSoup, no arbitrary numeric-entity regex. Decoding
+   remains ONLY on the FU3 exact paragraph-envelope path; the
+   retained plain-text contract remains undecoded.
+2. **Numeric-entity boundary correction** — the FU4 false statement
+   "no numeric entity was observed" is corrected: the two exact
+   hexadecimal numeric entities above WERE observed and are approved;
+   no OTHER numeric entity is approved. Every other named entity
+   (including `&nbsp;` / `&cr;` / `&Quot;`), every other decimal
+   numeric entity, every other hexadecimal numeric entity / equivalent
+   representation (e.g. `&#10;` / `&#13;` / `&#x0a;` / `&#x0d;` /
+   `&#X0A;` / `&#X0D;` / `&#x000A;` / `&#x000D;`), and every
+   case/format variant of the two approved hex entities (`&#xa;` /
+   `&#XA;` / `&#xd;` / `&#XD;`) remains undecoded — adversarially
+   tested (fail-closed outside a string; inert raw text inside a
+   string).
+3. **Test corrections (test preservation maintained)** — no test node
+   deleted or renamed. The FU4 node
+   `test_nbsp_and_cr_entities_decoded_to_lf_and_cr` is RETAINED with
+   its assertion purpose corrected: it now proves `&nbsp;` and `&cr;`
+   are NOT decoded (the node's name records the rejected FU4
+   contract). Five NEW FU4-FU1 provider nodes: the exact hex numeric
+   LF entity -> LF; the exact hex numeric CR entity -> CR; the exact
+   decode-table composition with character-by-character literal
+   verification; non-decoding of equivalent numeric representations;
+   non-decoding of hex-entity case variants.
+   `test_plain_form_section_values_are_never_decoded` is strengthened
+   (all approved spellings plus the unsupported `&nbsp;` / `&cr;`
+   remain raw on the plain path); `test_unapproved_named_entities_
+   are_never_decoded` now covers `&nbsp;` / `&cr;` as well. The
+   faithful production-shaped synthetic fixtures (provider +
+   execution) use the corrected exact entity encoding (`&quot;` +
+   exact hex numeric LF/CR entities) and still produce: Ingram exact
+   MPN / 1515.72 USD / CUSTOMER_PRICE / OUT_OF_STOCK / quantity 0;
+   CDW NOT_FOUND; Synnex EU exact MPN / deterministic synthetic EUR
+   price / LIST_PRICE / OUT_OF_STOCK / quantity 0. The execution
+   integration fixture uses the same corrected exact entity
+   encoding.
+4. **Synnex preserved (not redesigned)** — the FU4 Synnex
+   implementation was independently reviewed and is acceptable:
+   `_synnex_availability_total()` and its narrow nested-path behavior
+   are preserved unchanged; the GLOBAL `_safe_int` remains unchanged
+   and still rejects strings; the flat Synnex compatibility form
+   still rejects string quantities.
+5. **Documentation corrections** — every FU4 statement (PLAN §26.14
+   items 1/2/4/5, the §26.13 cross-reference note, the FU4 section
+   below, and this status) claiming the unsupported `&nbsp;` -> LF /
+   `&cr;` -> CR mapping is corrected to the exact production evidence;
+   the FU4 block is recorded. FU4's SHA 1c8b969 was blocked in
+   independent review because its implementation/tests/docs
+   substituted unsupported `&nbsp;` / `&cr;` for the observed exact
+   hex numeric entities.
+
 **PRODUCT-INTEL.PILOT-RELEASE-2-PROD-FIX1-FU4 (Vendor Paragraph
 Entity Decoding + Synnex Availability Wire Type) — IMPLEMENTED /
-PENDING FINAL REVIEW**
+BLOCKED IN INDEPENDENT REVIEW (EXACT ENTITY LITERAL DEFECT) / ENTITY
+LITERAL CONTRACT CORRECTED BY FU4-FU1 / PENDING FINAL REVIEW**
 
 Bounded append-only corrective follow-up to the FU3 commit (SHA
 2f8c693bd428527d17fb7268eee1b0fba5c014e6). FU3 has been independently
@@ -29,11 +115,19 @@ a later production smoke. (Canonical spec: PLAN §26.14.)
    probe; structure/vocabulary only)** — the exact entity vocabulary
    inside the section values of the observed response (HTTP 200;
    `Content-Type: text/html; charset=utf-8`; approximately 5485 bytes;
-   5 lines): Ingram — `&quot;` (166 occurrences), `&nbsp;`, `&cr;`; CDW
-   — none; Synnex EU — `&quot;` (154 occurrences). No `&apos;` /
-   `&lsquo;` / `&rsquo;` / `&amp;` / `&lt;` / `&gt;` and no numeric
-   entity observed. After EXACTLY `&quot;` -> `"` (U+0022), `&nbsp;`
-   -> LF (U+000A), `&cr;` -> CR (U+000D) — and nothing else — no
+   5 lines): Ingram — `&quot;` (166 occurrences), the exact
+   hexadecimal numeric LF entity formed by `"&" + "#xA;"`, and the
+   exact hexadecimal numeric CR entity formed by `"&" + "#xD;"`; CDW
+   — none; Synnex EU — `&quot;` (154 occurrences). No other named
+   entity (`&apos;` / `&lsquo;` / `&rsquo;` / `&amp;` / `&lt;` /
+   `&gt;` / `&nbsp;` / `&cr;` / ...) and no OTHER numeric entity
+   (decimal, or any other hex case/format spelling) was observed.
+   (FU4-FU1 correction: the FU4 text's `&nbsp;` / `&cr;` vocabulary
+   and its statement "no numeric entity was observed" were wrong —
+   the observed entities are the two exact hexadecimal numeric
+   entities; see §26.15.) After EXACTLY `&quot;` -> `"` (U+0022),
+   the exact hex numeric LF entity -> LF (U+000A), the exact hex
+   numeric CR entity -> CR (U+000D) — and nothing else — no
    recognized HTML entity remained and the UNCHANGED strict bounded
    literal parser succeeded: Ingram -> mapping (27 top-level keys),
    CDW -> not_found, Synnex EU -> mapping (2 top-level keys). At probe
@@ -51,11 +145,15 @@ a later production smoke. (Canonical spec: PLAN §26.14.)
 2. **Correction A: exact paragraph entity decoding (bounded)** — on
    the FU3 exact paragraph-envelope path ONLY, the section value text
    is normalized by EXACTLY three bounded literal replacements before
-   the unchanged strict parser runs. This is NOT html.unescape, NOT a
-   generic entity table, NOT an arbitrary entity regex: no other named
-   entity (`&apos;` / `&lsquo;` / `&rsquo;` / `&amp;` / `&lt;` /
-   `&gt;` / ...), no numeric entity (`&#...;`), no case/format variant
-   is decoded — adversarially tested. The retained plain-text section
+   the unchanged strict parser runs (FU4-FU1: the exact literals —
+   `&quot;` / the exact hex numeric LF entity (`"&" + "#xA;"`) / the
+   exact hex numeric CR entity (`"&" + "#xD;"`)). This is NOT
+   html.unescape, NOT a generic entity table, NOT an arbitrary entity
+   regex: no other named entity (`&apos;` / `&lsquo;` / `&rsquo;` /
+   `&amp;` / `&lt;` / `&gt;` / `&nbsp;` / `&cr;` / ...), no OTHER
+   numeric entity (decimal, or any other hex case/format spelling),
+   no case/format variant is decoded — adversarially tested. The
+   retained plain-text section
    contract is unchanged: literal entity spellings in a plain section
    remain plain text and are never decoded. Unknown/unapproved entity
    forms inside an authoritative literal remain fail-closed (a bare
@@ -87,8 +185,9 @@ a later production smoke. (Canonical spec: PLAN §26.14.)
    is fabricated.
 4. **Faithful production-shaped full-adapter test (synthetic)** — the
    new fixture mirrors the CURRENT observed representation: exact `<p>`
-   wrapper, `&quot;`-encoded quoted strings, `&nbsp;` / `&cr;` in a
-   non-authoritative synthetic Ingram field, CDW `{Not Found}`, nested
+   wrapper, `&quot;`-encoded quoted strings, the exact hex numeric
+   LF/CR entities (`"&" + "#xA;"` / `"&" + "#xD;"`) in a non-
+   authoritative synthetic Ingram field, CDW `{Not Found}`, nested
    Synnex OnlineCheck with fake SessionId / BuyerAccountId / SystemId
    sentinels, numeric-string `UnitPriceAmount`, digit-string `"0"`
    `AvailabilityTotal`. Deterministic synthetic mapping: Ingram exact
@@ -516,11 +615,12 @@ Audit)** — PLANNED
 The production-correction phase PRODUCT-INTEL.PILOT-RELEASE-2-PROD-FIX1
 (above) and its bounded review-blocker closures PRODUCT-INTEL.PILOT-
 RELEASE-2-PROD-FIX1-FU1 and PRODUCT-INTEL.PILOT-RELEASE-2-PROD-FIX1-FU2
-(and the FU3 paragraph-envelope closure and the FU4 vendor paragraph
-entity decoding + Synnex availability wire-type closure) are PENDING
+(and the FU3 paragraph-envelope closure, the FU4 vendor paragraph
+entity decoding + Synnex availability wire-type closure, and the
+FU4-FU1 exact observed vendor entity correction) are PENDING
 FINAL REVIEW and do NOT change the next-architecture-delivery selection
-below. 8A caching is NOT implemented in PROD-FIX1, FU1, FU2, FU3, or
-FU4.
+below. 8A caching is NOT implemented in PROD-FIX1, FU1, FU2, FU3,
+FU4, or FU4-FU1.
 
 The previous "post-UAT next is undecided" gate is closed: the
 production deployment/smoke evidence now exists and the project lead
@@ -1362,6 +1462,68 @@ Not eligible:
 
 ## Validation results
 
+### PROD-FIX1-FU4-FU1 CANDIDATE ACCEPTANCE SNAPSHOT (PENDING FINAL
+REVIEW)
+
+| Metric | Count |
+| --- | --- |
+| Collected | 5352 |
+| Passed | 5341 |
+| Failed | 11 (exactly the fixed allowlist; non-deterministic) |
+| Unexpected failures | 0 |
+| Skipped | 0 |
+| Xfailed | 0 |
+| Deselected | 0 |
+| Subtests passed | 39 |
+
+Full-suite execution of the final FU4-FU1 tree (zero deselection, no
+skip/xfail injection; JUnit report): 5352 tests + 39 subtests
+executed; 5341 passed, 11 failed — the 11 failures are EXACTLY the
+members of the fixed eleven-node Windows/Python 3.14 subprocess-boundary
+flake allowlist (every one failed in this run), each with the recorded
+signature `subprocess.run -> Popen -> _winapi.DuplicateHandle ->
+OSError: [WinError 6] The handle is invalid` (2) / `[WinError 50] The
+request is not supported` (9), and NO node outside that allowlist
+failed. The allowlist is non-deterministic by nature, exactly as
+recorded for every prior phase; the fixed allowlist remains exactly
+11 nodes (not expanded).
+
+Collection accounting: 5347 FU4 baseline + 5 FU4-FU1 net-new nodes
+= 5352 collected. Net-new (all in
+`tests/providers/test_vendor_section_response.py::TestParagraphEntity
+Decoding`): `test_hex_numeric_lf_entity_decoded_to_lf` (the exact
+hex numeric LF entity decodes to LF on the paragraph path),
+`test_hex_numeric_cr_entity_decoded_to_cr` (the exact hex numeric CR
+entity decodes to CR), `test_decode_table_is_exactly_the_observed_
+literals` (the ONLY approved decode table contains exactly
+`&quot;` / the exact hex numeric LF entity / the exact hex numeric CR
+entity, with character-by-character literal verification: LF
+0x26/0x23/0x78/0x41/0x3B, CR 0x26/0x23/0x78/0x44/0x3B; no `&nbsp;` /
+`&cr;` entries), `test_equivalent_numeric_representations_are_never_
+decoded` (decimal `&#10;` / `&#13;` / `&#65;` / `&#39;` / `&#38;`
+/ `&#60;` / `&#62;` and hex variants `&#x0a;` / `&#x0d;` / `&#X0A;`
+/ `&#X0D;` / `&#x000A;` / `&#x000D;` are NOT decoded — inert raw
+text inside bounded strings), `test_hex_entity_case_variants_are_
+never_decoded` (`&#xa;` / `&#XA;` / `&#xd;` / `&#XD;` are NOT
+decoded). FU4-specific test corrections (node count unchanged):
+`test_nbsp_and_cr_entities_decoded_to_lf_and_cr` RETAINED with its
+assertion purpose corrected (now proves `&nbsp;` and `&cr;` are NOT
+decoded; the name records the rejected FU4 contract),
+`test_plain_form_section_values_are_never_decoded` strengthened
+(all approved spellings plus the unsupported `&nbsp;` / `&cr;` remain
+raw on the plain path), `test_unapproved_named_entities_are_never_
+decoded` extended to cover `&nbsp;` / `&cr;`, faithful
+production-shaped fixtures (provider + execution) corrected to the
+exact observed entity encoding. No test node deleted or renamed
+anywhere; no skip/xfail/deselection; no weakening.
+
+Focused execution: `tests/providers/test_vendor_section_response.py`
+127 passed (122 FU4 baseline + 5 FU4-FU1 net-new); relevant
+Vendor/FX/Compact Quote/replay set (23 files) 801 passed / 0 failed.
+`python manage.py check`: System check identified no issues
+(0 silenced). `python manage.py makemigrations --check --dry-run`:
+No changes detected.
+
 ### PROD-FIX1-FU4 CANDIDATE ACCEPTANCE SNAPSHOT (PENDING FINAL REVIEW)
 
 | Metric | Count |
@@ -1389,14 +1551,17 @@ recorded for every prior phase; the fixed allowlist remains exactly
 
 Collection accounting: 5326 FU3 baseline + 21 FU4 net-new nodes
 = 5347 collected. Net-new: tests/providers/test_vendor_section_
-response.py +15 (TestParagraphEntityDecoding: exact `&quot;` /
-`&nbsp;` / `&cr;` decoding on the paragraph path, plain-form non-
-decoding, adversarial unapproved named/numeric/case-variant entity
-non-decoding with fail-closed parsing, faithful production-shaped full
-adapter mapping; TestSynnexAvailabilityTotalString: `"0"` -> OOS/0,
-positive digit string -> IN_STOCK/qty, int/Decimal readings unchanged,
-string grammar rejections, over-bounded length, flat-form scope, global
-`_safe_int` still rejects strings), tests/execution/test_4d_b_vendor_
+response.py +15 (TestParagraphEntityDecoding: paragraph-path entity
+decoding (historical record: FU4 implemented the `&quot;` / `&nbsp;`
+/ `&cr;` mapping — the exact entity-literal defect corrected by
+FU4-FU1, see the FU4-FU1 snapshot above and PLAN §26.15), plain-form
+non-decoding, adversarial unapproved named/numeric/case-variant
+entity non-decoding with fail-closed parsing, faithful production-
+shaped full adapter mapping; TestSynnexAvailabilityTotalString: `"0"`
+-> OOS/0, positive digit string -> IN_STOCK/qty, int/Decimal
+readings unchanged, string grammar rejections, over-bounded length,
+flat-form scope, global `_safe_int` still rejects strings),
+tests/execution/test_4d_b_vendor_
 section_integration.py +6 (TestVendorParagraphEntitySectionIntegration:
 full execute_research_run on the encoded fixture, persisted-snapshot
 sensitive-metadata + entity-spelling absence, Machine Price

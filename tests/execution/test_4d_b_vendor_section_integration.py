@@ -33,11 +33,13 @@ currency discovery (usable Synnex EUR observation => EUR + USD requested
 from the FX provider) and the persisted USD Equivalent on the Synnex
 Compact Quote row.
 
-FU4: the same proofs are re-established for the CURRENT observed
-production representation — the exact ``<p>`` wrapper PLUS the observed
-paragraph-envelope entity encoding (every literal double quote
-``&quot;``-encoded; ``&nbsp;`` / ``&cr;`` carrying LF / CR in a non-
-authoritative synthetic Ingram field), the nested Synnex
+FU4 (exact entity literals corrected by FU4-FU1): the same proofs are
+re-established for the CURRENT observed production representation — the
+exact ``<p>`` wrapper PLUS the observed paragraph-envelope entity
+encoding (every literal double quote ``&quot;``-encoded; the exact
+hexadecimal numeric LF entity formed by ``"&" + "#xA;"`` and the exact
+hexadecimal numeric CR entity formed by ``"&" + "#xD;"`` carrying LF /
+CR in a non-authoritative synthetic Ingram field), the nested Synnex
 ``UnitPriceAmount`` as the production-observed numeric string, and the
 nested Synnex ``AvailabilityTotal`` as the production-observed digit
 string ``"0"``. The live production price is mutable upstream commercial
@@ -111,10 +113,12 @@ SENTINELS = (
 )
 
 # ---------------------------------------------------------------------------
-# FU4: the CURRENT observed production representation — the exact <p>
-# paragraph wrapper PLUS the observed paragraph-envelope entity encoding
-# (every literal double quote &quot;-encoded; the observed &nbsp; / &cr;
-# literals carrying LF / CR in a non-authoritative synthetic Ingram
+# FU4 (exact entity literals corrected by FU4-FU1): the CURRENT observed
+# production representation — the exact <p> paragraph wrapper PLUS the
+# observed paragraph-envelope entity encoding (every literal double
+# quote &quot;-encoded; the exact hexadecimal numeric LF entity formed
+# by "&" + "#xA;" and the exact hexadecimal numeric CR entity formed by
+# "&" + "#xD;" carrying LF / CR in a non-authoritative synthetic Ingram
 # field), the nested Synnex UnitPriceAmount as the production-observed
 # numeric string, and the nested Synnex AvailabilityTotal as the
 # production-observed digit string "0". Same synthetic source payload /
@@ -128,7 +132,7 @@ SECTION_BODY_PARAGRAPH_ENTITY = (
     + "&quot;, &quot;pricing&quot;: {&quot;customerPrice&quot;: 1515.72, "
     "&quot;retailPrice&quot;: 2036.36, &quot;currencyCode&quot;: &quot;USD&quot;}, "
     "&quot;availability&quot;: False, &quot;Avl_Quantity&quot;: 0, "
-    "&quot;vendorName&quot;: &quot;FAKE-VENDOR-NAME&nbsp;lf&nbsp;&cr;cr&quot;}</p>\n"
+    "&quot;vendorName&quot;: &quot;FAKE-VENDOR-NAME&#xA;lf&#xD;cr&quot;}</p>\n"
     "\n"
     "<p>CDW Product: {Not Found}</p>\n"
     "\n"
@@ -623,11 +627,13 @@ class TestVendorParagraphSectionIntegration(TestCase):
 
 
 class TestVendorParagraphEntitySectionIntegration(TestCase):
-    """FU4: the CURRENT observed production representation — the exact
-    <p> paragraph wrapper PLUS the observed paragraph-envelope entity
-    encoding (&quot; / &nbsp; / &cr;), the nested Synnex UnitPriceAmount
-    as a numeric string, and the nested Synnex AvailabilityTotal as the
-    digit string "0" — through the REAL execution pipeline.
+    """FU4 (exact entity literals corrected by FU4-FU1): the CURRENT
+    observed production representation — the exact <p> paragraph wrapper
+    PLUS the observed paragraph-envelope entity encoding (&quot; / the
+    exact hex numeric LF entity ("&" + "#xA;") / the exact hex numeric
+    CR entity ("&" + "#xD;")), the nested Synnex UnitPriceAmount as a
+    numeric string, and the nested Synnex AvailabilityTotal as the digit
+    string "0" — through the REAL execution pipeline.
 
     Same authority / supplemental-only / zero-live proofs as the FU3
     paragraph class, re-established against the production-shaped
@@ -745,7 +751,9 @@ class TestVendorParagraphEntitySectionIntegration(TestCase):
                 "supplemental payload"
             )
         # The observed entity spellings never survive into the artifact
-        for entity in ("&quot;", "&nbsp;", "&cr;"):
+        # (nor do the unsupported &nbsp; / &cr; spellings, which the
+        # corrected adapter does not decode in the first place)
+        for entity in ("&quot;", "&#xA;", "&#xD;", "&nbsp;", "&cr;"):
             assert entity not in encoded, (
                 f"raw entity spelling {entity!r} leaked into the persisted "
                 "supplemental payload"
