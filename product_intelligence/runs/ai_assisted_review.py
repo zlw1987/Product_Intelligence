@@ -177,6 +177,29 @@ def reject_candidate(
     )
 
 
+def remove_candidate_from_working_quote(
+    candidate_id: uuid.UUID,
+    run_id: uuid.UUID | None = None,
+) -> AiAssistedReviewCandidate:
+    """Remove an AI-assisted candidate from the Working Quote.
+
+    Unlike the original reject_candidate review action, this UX action is
+    permitted from either UNREVIEWED or CONFIRMED because a user must be able
+    to remove an AI-origin row directly from the quote table after verifying
+    the source. The durable state remains REJECTED; no second exclusion flag is
+    introduced.
+
+    Deterministic/public/vendor evidence is outside this service and cannot be
+    removed through this path.
+    """
+    return _update_review_state(
+        candidate_id=candidate_id,
+        target_state=AiAssistedReviewCandidate.REVIEW_STATE_REJECTED,
+        action='remove',
+        expected_run_id=run_id,
+        allow_confirmed_reject=True,
+    )
+
 def undo_review(
     candidate_id: uuid.UUID,
     run_id: uuid.UUID | None = None,
@@ -217,6 +240,8 @@ def _update_review_state(
     target_state: str,
     action: str,
     expected_run_id: uuid.UUID | None = None,
+    *,
+    allow_confirmed_reject: bool = False,
 ) -> AiAssistedReviewCandidate:
     """Update the review state of one candidate.
 
@@ -239,8 +264,11 @@ def _update_review_state(
     Args:
         candidate_id: The UUID of the candidate.
         target_state: The target review state string.
-        action: The action name ('confirm', 'reject', 'undo').
+        action: The action name ('confirm', 'reject', 'remove', 'undo').
         expected_run_id: If provided, the candidate must belong to this run.
+        allow_confirmed_reject: Internal policy switch used only by the
+            Working Quote remove action. The original reject action keeps its
+            UNREVIEWED -> REJECTED semantics.
 
     Returns:
         The refreshed AiAssistedReviewCandidate after the update.
@@ -297,9 +325,16 @@ def _update_review_state(
                 reviewed_at=reviewed_at,
             )
         elif target_state == AiAssistedReviewCandidate.REVIEW_STATE_REJECTED:
+            permitted_prior_states = [
+                AiAssistedReviewCandidate.REVIEW_STATE_UNREVIEWED,
+            ]
+            if allow_confirmed_reject:
+                permitted_prior_states.append(
+                    AiAssistedReviewCandidate.REVIEW_STATE_CONFIRMED
+                )
             rows = AiAssistedReviewCandidate.objects.filter(
                 pk=candidate.id,
-                review_state=AiAssistedReviewCandidate.REVIEW_STATE_UNREVIEWED,
+                review_state__in=permitted_prior_states,
             ).update(
                 review_state=target_state,
                 reviewed_at=reviewed_at,
