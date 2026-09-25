@@ -1,13 +1,18 @@
 """Tests for the production section-oriented Vendor API contract (PROD-FIX1;
-FU1 production-wire fidelity corrections).
+FU1 production-wire fidelity corrections; FU3 observed paragraph envelope).
 
 The real production Vendor API answers HTTP 200 with
 ``Content-Type: text/html; charset=utf-8`` and a body that is NOT one JSON
-document — a plain-text, section-oriented body::
+document — a section-oriented body::
 
     Ingram Product: { ... }
     CDW Product: {Not Found}
     Synnex EU Product: { ... }
+
+FU3: the observed production body wraps each section line in an exact HTML
+paragraph opener (``<p>Ingram Product: ...</p>``); the scanner recognizes
+that exact literal prefix in addition to the plain line-anchored form —
+NOT a generic HTML parser.
 
 These tests cover:
 * the exact three bounded section labels (and refusal of arbitrary labels)
@@ -139,6 +144,30 @@ SECTION_BODY_HYBRID_WITH_INTERSTITIAL = (
     "Synnex EU Product: {'OnlineCheck': {'Header': {'CurrencyCode': 'EUR'}, "
     "'Item': {'ManufacturerItemIdentifier': 'MTFDKBA480TFR-1BC1ZABYYR', "
     "'UnitPriceAmount': 962.86, 'AvailabilityTotal': 0}}}\n"
+)
+
+# ---------------------------------------------------------------------------
+# FU3: observed production paragraph-wrapped OUTER envelope. The real
+# endpoint (Content-Type: text/html; charset=utf-8) wraps each section
+# line in an exact HTML paragraph opener. Single-line sections mirror the
+# observed production layout (each known label exactly once; the observed
+# three-character line prefix is the literal "<p>"). Synthetic values
+# only; fake sentinels for the sensitive Header metadata. The source
+# payload after the label remains bounded literal data.
+# ---------------------------------------------------------------------------
+SECTION_BODY_HYBRID_PARAGRAPH = (
+    "<p>Ingram Product: {'vendorPartNumber': 'MTFDKBA480TFR-1BC1ZABYYR', "
+    "'pricing': {'customerPrice': 1515.72, 'retailPrice': 2036.36, "
+    "'currencyCode': 'USD'}, 'availability': False, 'Avl_Quantity': 0, "
+    "'vendorName': 'FAKE-VENDOR-NAME'}</p>\n"
+    "\n"
+    "<p>CDW Product: {Not Found}</p>\n"
+    "\n"
+    "<p>Synnex EU Product: {'OnlineCheck': {'Header': {'CurrencyCode': 'EUR', "
+    "'SessionId': 'FAKE-SESSION-000', 'BuyerAccountId': 'FAKE-ACCOUNT-000', "
+    "'SystemId': 'FAKE-SYSTEM-000'}, 'Item': {'ManufacturerItemIdentifier': "
+    "'MTFDKBA480TFR-1BC1ZABYYR', 'UnitPriceAmount': 962.86, "
+    "'AvailabilityTotal': 0}}}</p>\n"
 )
 
 
@@ -1079,3 +1108,242 @@ class TestAdapterSectionContract:
         # No raw upstream dictionary text survives in the response object
         assert "customerPrice" not in rendered
         assert "'quantity': 0" not in rendered
+
+
+# ---------------------------------------------------------------------------
+# FU3: observed production paragraph-wrapped OUTER envelope
+# ---------------------------------------------------------------------------
+
+
+class TestParagraphEnvelope:
+    """FU3: the exact observed production paragraph-wrapped section
+    envelope.
+
+    The scanner recognizes each of the three exact known labels in exactly
+    two outer forms: the existing plain line-anchored form and the observed
+    exact paragraph-prefix form. The contract is exactly
+    ``optional whitespace + optional exact "<p>" + exact bounded known
+    label`` — deliberately NOT a generic HTML parser.
+    """
+
+    # -- scanner recognition ------------------------------------------------
+
+    def test_exact_p_ingram_label_recognized(self) -> None:
+        body = "<p>Ingram Product: {'a': 1}</p>\n"
+        sections = _scan_section_oriented_body(body)
+        assert [s[0] for s in sections] == ["Ingram"]
+        assert sections[0][1].strip().startswith("{'a': 1}")
+
+    def test_exact_p_cdw_label_recognized(self) -> None:
+        body = "<p>CDW Product: {Not Found}</p>\n"
+        sections = _scan_section_oriented_body(body)
+        assert [s[0] for s in sections] == ["CDW"]
+        assert sections[0][1].strip().startswith("{Not Found}")
+
+    def test_exact_p_synnex_label_recognized(self) -> None:
+        body = "<p>Synnex EU Product: {'a': 1}</p>\n"
+        sections = _scan_section_oriented_body(body)
+        assert [s[0] for s in sections] == ["Synnex EU"]
+        assert sections[0][1].strip().startswith("{'a': 1}")
+
+    def test_paragraph_fixture_all_three_labels_in_order(self) -> None:
+        sections = _scan_section_oriented_body(SECTION_BODY_HYBRID_PARAGRAPH)
+        assert [s[0] for s in sections] == ["Ingram", "CDW", "Synnex EU"]
+
+    def test_leading_whitespace_before_paragraph_prefix_tolerated(self) -> None:
+        body = "   <p>Ingram Product: {'a': 1}</p>\n"
+        sections = _scan_section_oriented_body(body)
+        assert [s[0] for s in sections] == ["Ingram"]
+
+    # -- adversarial HTML boundaries (must NOT be recognized) ---------------
+
+    def test_div_prefix_not_recognized(self) -> None:
+        assert _scan_section_oriented_body(
+            "<div>Ingram Product: {'a': 1}</div>\n"
+        ) is None
+
+    def test_span_prefix_not_recognized(self) -> None:
+        assert _scan_section_oriented_body(
+            "<span>Ingram Product: {'a': 1}</span>\n"
+        ) is None
+
+    def test_script_prefix_not_recognized(self) -> None:
+        assert _scan_section_oriented_body(
+            "<script>Ingram Product: {'a': 1}</script>\n"
+        ) is None
+
+    def test_p_with_attributes_not_recognized(self) -> None:
+        assert _scan_section_oriented_body(
+            '<p class="x">Ingram Product: {\'a\': 1}</p>\n'
+        ) is None
+
+    def test_nested_tag_inside_p_not_recognized(self) -> None:
+        assert _scan_section_oriented_body(
+            "<p><span>Ingram Product: {'a': 1}</span></p>\n"
+        ) is None
+
+    def test_text_before_p_not_recognized(self) -> None:
+        assert _scan_section_oriented_body(
+            "prefix<p>Ingram Product: {'a': 1}</p>\n"
+        ) is None
+
+    def test_whitespace_between_p_and_label_not_recognized(self) -> None:
+        # the exact label must begin IMMEDIATELY after "<p>"
+        assert _scan_section_oriented_body(
+            "<p> Ingram Product: {'a': 1}</p>\n"
+        ) is None
+
+    def test_p_literal_variants_not_recognized(self) -> None:
+        for body in (
+            "<P>Ingram Product: {'a': 1}</P>\n",       # case variant
+            "<p >Ingram Product: {'a': 1}</p>\n",      # space before '>'
+            "<p/>Ingram Product: {'a': 1}\n",          # self-closing
+            "</p>Ingram Product: {'a': 1}\n",          # close-only opener
+        ):
+            assert _scan_section_oriented_body(body) is None, body
+
+    def test_unknown_label_with_paragraph_prefix_still_ignored(self) -> None:
+        assert _scan_section_oriented_body(
+            "<p>Acme Product: {'a': 1}</p>\n"
+        ) is None
+
+    def test_paragraph_form_labels_still_case_sensitive(self) -> None:
+        assert _scan_section_oriented_body(
+            "<p>ingram product: {'a': 1}</p>\n"
+        ) is None
+
+    # -- full adapter: observed production-shaped body ----------------------
+
+    def test_paragraph_envelope_full_adapter_maps_production_shape(self) -> None:
+        response, mock_opener = _lookup_body(SECTION_BODY_HYBRID_PARAGRAPH)
+        # Contract recognized: bounded PARTIAL (Ingram + Synnex candidates,
+        # CDW NOT_FOUND issue) and retrieved_at present (it was None in the
+        # broken production result).
+        assert response.status == LookupStatus.PARTIAL
+        assert response.retrieved_at is not None
+        # Exactly ONE network call
+        assert mock_opener.open.call_count == 1
+
+        candidates = {c.source_name: c for c in response.candidates}
+        assert set(candidates) == {"Ingram", "Synnex EU"}
+
+        # Ingram: the exact requested MPN, customer price authoritative
+        # (retailPrice 2036.36 present but NOT used), USD, OUT_OF_STOCK / 0
+        # from the top-level availability boolean + Avl_Quantity (hybrid).
+        ingram = candidates["Ingram"]
+        assert ingram.explicit_candidate_mpn == MPN
+        assert ingram.price_amount == Decimal("1515.72")
+        assert ingram.price_basis == CommercialPriceBasis.CUSTOMER_PRICE
+        assert ingram.currency_code == "USD"
+        assert ingram.availability == CommercialAvailability.OUT_OF_STOCK
+        assert ingram.quantity == 0
+
+        # Synnex EU: real nested form, exact MPN, 962.86 EUR, OOS / 0.
+        synnex = candidates["Synnex EU"]
+        assert synnex.explicit_candidate_mpn == MPN
+        assert synnex.price_amount == Decimal("962.86")
+        assert synnex.price_basis == CommercialPriceBasis.LIST_PRICE
+        assert synnex.currency_code == "EUR"
+        assert synnex.availability == CommercialAvailability.OUT_OF_STOCK
+        assert synnex.quantity == 0
+
+        # CDW: the exact bounded {Not Found} marker.
+        issues = {i.source_name: i for i in response.issues}
+        assert set(issues) == {"CDW"}
+        assert issues["CDW"].outcome == SourceOutcome.NOT_FOUND
+
+        # Sensitive + non-authoritative metadata absent from the whole
+        # normalized response (allowlist boundary).
+        rendered = str(response)
+        for sentinel in (
+            FAKE_SESSION_ID,
+            FAKE_BUYER_ACCOUNT_ID,
+            FAKE_SYSTEM_ID,
+            "SessionId",
+            "BuyerAccountId",
+            "SystemId",
+            "FAKE-VENDOR-NAME",
+            "vendorName",
+            "retailPrice",
+            "2036.36",
+        ):
+            assert sentinel not in rendered
+
+    def test_trailing_close_p_after_complete_literal_ignored(self) -> None:
+        # The observed "</p>" after a COMPLETE bounded literal is the
+        # already-supported post-literal interstitial material: never data,
+        # never persisted.
+        kind, value = _parse_section_value("{'a': 1}</p>\n")
+        assert kind == "mapping"
+        assert value == {"a": 1}
+        # ...and it does NOT weaken malformed-IN-literal rejection:
+        with pytest.raises(_SectionValueParseError):
+            _parse_section_value("{'a': 1 <b>2}</p>")
+
+    def test_paragraph_not_found_marker_with_close_p(self) -> None:
+        body = "<p>CDW Product: {Not Found}</p>\n"
+        response, _ = _lookup_body(body, mpn="A")
+        assert response.status == LookupStatus.PARTIAL
+        assert response.retrieved_at is not None
+        assert {
+            i.source_name: i.outcome for i in response.issues
+        } == {"CDW": SourceOutcome.NOT_FOUND}
+
+    def test_paragraph_malformed_inside_literal_fails_closed(self) -> None:
+        # Malformed content INSIDE a paragraph section's literal (the
+        # mapping is never closed) fails that source closed — while the
+        # complete sibling sections survive.
+        body = (
+            "<p>Ingram Product: {'vendorPartNumber': 'A', 'pricing': {"
+            "'customerPrice': 1.0,\n"
+            "<p>CDW Product: {Not Found}</p>\n"
+            "<p>Synnex EU Product: {'OnlineCheck': {'Header': "
+            "{'CurrencyCode': 'EUR'}, 'Item': {'ManufacturerItemIdentifier': "
+            "'A', 'UnitPriceAmount': 1.0, 'AvailabilityTotal': 2}}}</p>\n"
+        )
+        response, _ = _lookup_body(body, mpn="A")
+        assert response.status == LookupStatus.PARTIAL
+        candidates = {c.source_name: c for c in response.candidates}
+        assert set(candidates) == {"Synnex EU"}
+        assert candidates["Synnex EU"].quantity == 2
+        issues = {i.source_name: i.outcome for i in response.issues}
+        assert issues["Ingram"] == SourceOutcome.MALFORMED_SECTION
+        assert issues["CDW"] == SourceOutcome.NOT_FOUND
+
+    def test_paragraph_duplicate_label_first_wins(self) -> None:
+        body = (
+            "<p>Ingram Product: {Not Found}</p>\n"
+            "<p>Ingram Product: {'vendorPartNumber': 'X', "
+            "'customerPrice': 1, 'currency': 'USD'}</p>\n"
+        )
+        sections = _scan_section_oriented_body(body)
+        assert len(sections) == 1
+        assert sections[0][0] == "Ingram"
+        assert "Not Found" in sections[0][1]
+
+    def test_plain_and_paragraph_forms_mix_in_one_body(self) -> None:
+        # Both outer forms are valid simultaneously (the plain form is the
+        # retained existing behavior; the paragraph form is the observed
+        # production envelope).
+        body = (
+            "Ingram Product: {'vendorPartNumber': 'A', 'customerPrice': 1, "
+            "'currency': 'USD'}\n"
+            "<p>CDW Product: {Not Found}</p>\n"
+            "<p>Synnex EU Product: {'OnlineCheck': {'Header': "
+            "{'CurrencyCode': 'EUR'}, 'Item': {'ManufacturerItemIdentifier': "
+            "'A', 'UnitPriceAmount': 2.0, 'AvailabilityTotal': 0}}}</p>\n"
+        )
+        sections = _scan_section_oriented_body(body)
+        assert [s[0] for s in sections] == ["Ingram", "CDW", "Synnex EU"]
+        response, _ = _lookup_body(body, mpn="A")
+        assert response.status == LookupStatus.PARTIAL
+        assert {c.source_name for c in response.candidates} == {
+            "Ingram",
+            "Synnex EU",
+        }
+
+    def test_oversized_paragraph_body_failed(self) -> None:
+        body = "<p>Ingram Product: {'a': 1}</p>\n" + "x" * (2 * 1024 * 1024)
+        response, _ = _lookup_body(body)
+        assert response.status == LookupStatus.FAILED
+        assert response.retrieved_at is None

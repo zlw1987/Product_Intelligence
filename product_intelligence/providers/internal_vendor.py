@@ -25,11 +25,18 @@ Key constraints:
 * Response body: one of two bounded upstream contracts (Decimal-aware parse
   for monetary values in both):
   1. the canonical JSON wrapper document, or
-  2. (PROD-FIX1; FU1) the exact production section-oriented plain-text body
+  2. (PROD-FIX1; FU1; FU3) the exact production section-oriented body
      (``Ingram Product: { ... }`` / ``CDW Product: {Not Found}`` /
      ``Synnex EU Product: { ... }``) parsed by a strict bounded
      recursive-descent literal parser — no eval, no literal_eval,
-     no generic HTML scraping. The ACTUAL production Ingram placement is
+     no generic HTML scraping. FU3: the observed production endpoint
+     wraps each section line in an exact HTML paragraph opener, so each
+     known label is additionally recognized in the exact
+     ``<p>Ingram Product: ...`` form. The paragraph support is the
+     observed literal only — optional leading whitespace + optional
+     exact ``<p>`` + exact known label. It is NOT a generic HTML parser:
+     no other tags, no attributes, no nesting, no tag stripping, no
+     HTML unescaping. The ACTUAL production Ingram placement is
      the hybrid form (explicit vendorPartNumber + nested pricing block +
      top-level boolean availability + top-level Avl_Quantity); the flat
      field forms remain supported as separately tested compatibility
@@ -994,12 +1001,24 @@ def _identify_and_map_source(source_section: dict[str, Any]) -> CommercialSource
 #
 # The production Vendor API answers HTTP 200 with
 # ``Content-Type: text/html; charset=utf-8`` and a body that is NOT one JSON
-# document. The body is plain text containing exactly three bounded section
-# labels, one per known upstream source::
+# document. The body contains exactly three bounded section labels, one per
+# known upstream source::
 #
 #     Ingram Product: { ... }
 #     CDW Product: {Not Found}
 #     Synnex EU Product: { ... }
+#
+# FU3: the observed production body wraps each section line in an exact
+# HTML paragraph opener, i.e. the observed line form is::
+#
+#     <p>Ingram Product: { ... }</p>
+#     <p>CDW Product: {Not Found}</p>
+#     <p>Synnex EU Product: { ... }</p>
+#
+# (plus the retained plain line-anchored forms). The paragraph support is
+# the EXACT literal "<p>" immediately before a known label — NOT a generic
+# HTML parser: no other tags, no attributes, no nesting, no stripping,
+# no unescaping, no DOM search.
 #
 # Each section value is either the exact bounded not-found marker
 # ``{Not Found}`` or a bounded literal mapping whose fields are read by the
@@ -1017,6 +1036,12 @@ _SECTION_HEADER_TO_SOURCE = (
     ("CDW Product", "CDW"),
     ("Synnex EU Product", "Synnex EU"),
 )
+
+# FU3: the exact observed production paragraph opener. Only this literal
+# three-character sequence immediately before a known section label is
+# recognized as the observed HTML paragraph-prefix form. Nothing broader:
+# no other tag, no attributes, no nesting, no stripping, no unescaping.
+_PARAGRAPH_PREFIX = "<p>"
 
 # Bounded parse limits (external content must not recurse/expand unbounded)
 _SECTION_MAX_DEPTH = 32
@@ -1289,37 +1314,57 @@ def _scan_section_oriented_body(body_text: str) -> list | None:
     * Only the three exact labels are recognized (case-sensitive).
     * A label must start at the beginning of a line (leading whitespace
       tolerated) and be followed by ':' then whitespace or end-of-line.
+    * FU3: each label is additionally recognized in the exact observed
+      production paragraph-prefix form — an exact literal ``<p>``
+      immediately before the label (leading whitespace before ``<p>``
+      tolerated). The contract is exactly
+      ``optional whitespace + optional exact "<p>" + exact bounded known
+      label``. Nothing broader: no other tags (``<div>`` / ``<span>`` /
+      ``<script>`` / ...), no attributes (``<p class=...>``), no nesting
+      (``<p><span>``), no case variants, no text before ``<p>`` on the
+      line, no HTML stripping or unescaping — this is NOT a generic HTML
+      parser.
     * A section's value text is the remainder of the header line plus all
       following lines up to the next recognized label line (or end of
       body). Unknown labels and interstitial lines inside that range are
       NOT sections and NOT data: the strict parser treats the complete
       bounded literal as authoritative and ignores anything after it
       (never parsed into data, never persisted — FU1), while malformed
-      content INSIDE the literal still fails that section closed.
+      content INSIDE the literal still fails that section closed. A
+      trailing observed ``</p>`` after a COMPLETE bounded literal is such
+      ignored post-literal interstitial material (FU3); it cannot weaken
+      malformed-in-literal rejection.
     * If a label repeats, only the first occurrence is used (deterministic).
     """
     lines = body_text.splitlines()
-    found: list = []  # (line_idx, label, source)
+    found: list = []  # (line_idx, label, source, para_prefix_len)
     for idx, line in enumerate(lines):
         stripped = line.lstrip()
+        para_len = 0
+        head = stripped
+        if stripped.startswith(_PARAGRAPH_PREFIX):
+            # Exact observed paragraph-prefix form (FU3): the known label
+            # must begin IMMEDIATELY after the exact "<p>" opener.
+            para_len = len(_PARAGRAPH_PREFIX)
+            head = stripped[para_len:]
         for label, source in _SECTION_HEADER_TO_SOURCE:
-            if stripped.startswith(label + ":"):
-                nxt = stripped[len(label) + 1:]
+            if head.startswith(label + ":"):
+                nxt = head[len(label) + 1:]
                 if nxt == "" or nxt[0].isspace():
-                    found.append((idx, label, source))
+                    found.append((idx, label, source, para_len))
                     break
     if not found:
         return None
     sections: list = []
     seen_sources: set = set()
-    for pos, (idx, label, source) in enumerate(found):
+    for pos, (idx, label, source, para_len) in enumerate(found):
         if source in seen_sources:
             continue  # duplicate label: first occurrence wins
         seen_sources.add(source)
         end_idx = found[pos + 1][0] if pos + 1 < len(found) else len(lines)
         line = lines[idx]
         prefix_len = len(line) - len(line.lstrip())
-        remainder = line[prefix_len + len(label) + 1:]
+        remainder = line[prefix_len + para_len + len(label) + 1:]
         value_text = "\n".join([remainder] + lines[idx + 1:end_idx])
         sections.append((source, value_text))
     return sections
@@ -1503,10 +1548,13 @@ class InternalVendorAdapter:
         # conversion). parse_constant=_reject_json_constant rejects
         # NaN/Infinity/-Infinity.
         #
-        # Contract 2 (production, PROD-FIX1): the real Vendor API answers
+        # Contract 2 (production, PROD-FIX1; FU3 paragraph envelope):
+        # the real Vendor API answers
         # with Content-Type text/html and a body that is NOT one JSON
-        # document — a plain-text, section-oriented body with the three
-        # exact bounded section labels (Ingram / CDW / Synnex EU). When
+        # document — a section-oriented body with the three
+        # exact bounded section labels (Ingram / CDW / Synnex EU), each
+        # optionally preceded by the exact observed "<p>" paragraph
+        # opener (FU3: narrow literal, not a generic HTML parser). When
         # contract 1 fails, the strict section parser is attempted before
         # the lookup is failed. The raw body is never logged or persisted.
         try:
@@ -1601,10 +1649,13 @@ class InternalVendorAdapter:
     def _lookup_from_section_body(
         self, body_text: str, mpn: str
     ) -> CommercialSourceResponse:
-        """Parse the production section-oriented body (PROD-FIX1).
+        """Parse the production section-oriented body (PROD-FIX1; FU3).
 
         Strict bounded parsing only:
         * exactly three recognized section labels (never arbitrary labels)
+        * FU3: each label is recognized in the existing plain
+          line-anchored form and in the exact observed "<p>" paragraph-
+          prefix form (nothing broader — not a generic HTML parser)
         * exact ``{Not Found}`` bounded not-found marker
         * strict recursive-descent literal grammar (no eval / literal_eval)
         * one malformed section yields a bounded issue and does NOT destroy

@@ -5057,6 +5057,26 @@ CDW Product: {Not Found}
 Synnex EU Product: { ... }
 ```
 
+**FU3 correction (see §26.13):** the "plain-text" wording above is
+incomplete for the OBSERVED production body. A bounded production
+structure probe (no values printed) established that the real endpoint
+answers HTTP 200 / `Content-Type: text/html; charset=utf-8` (approximately
+5485 bytes for the observed Micron lookup, 5 lines) and that each
+recognized section line carries an exact literal `<p>` immediately before
+the known label — structurally `<p>Ingram Product: { ... }</p>` /
+`<p>CDW Product: {Not Found}</p>` /
+`<p>Synnex EU Product: { ... }</p>` (each label exactly once). The adapter
+now recognizes each of the three exact known labels in exactly two outer
+forms: the existing plain line-anchored form (unchanged) and the observed
+exact paragraph-prefix form. The contract is exactly
+`optional whitespace + optional exact "<p>" + exact bounded known label` —
+the support is the observed literal only, NOT a generic HTML parser (no
+other tags, no attributes, no nesting, no tag stripping, no HTML
+unescaping, no DOM search). The source payload after the label remains
+bounded literal data parsed by the unchanged strict grammar; a trailing
+observed `</p>` after a COMPLETE bounded literal is the already-supported
+post-literal interstitial material (never data).
+
 Frozen correction rules:
 
 * The adapter supports BOTH upstream contracts: the canonical JSON wrapper
@@ -5402,3 +5422,130 @@ reviewed buckets themselves (sum of per-bucket `human_confirmed_count` /
 eligibility is NOT changed to make the count match: a confirmed
 UNKNOWN-condition listing still renders in the Compact Quote (display)
 while staying out of the Reviewed Price arithmetic (frozen contract).
+
+### 26.13 PILOT-RELEASE-2-PROD-FIX1-FU3: Vendor Paragraph Envelope
+
+**Status: IMPLEMENTED / PENDING FINAL REVIEW.** Bounded append-only
+corrective follow-up on the FU2 commit (SHA
+ec67f0f2f8f357fb77dd3cc1a5947e50a1b80af2). Closes the exact remaining
+production defect: on the approved SHA, the production Vendor response
+for `MTFDKBA480TFR-1BC1ZABYYR` (run
+f3a82fda-f708-4974-806e-d13a18482f96) was persisted as FAILED /
+`retrieved_at=None` / zero observations / zero issues because the section
+scanner did not recognize the real OUTER response envelope — the defect
+was inside Vendor response contract recognition, before source mapping,
+2A binding, persistence, and Compact Quote projection. A bounded
+production structure probe (no response values or sensitive fields
+printed) established the observed exact structure. No deployment; no 8A
+caching; no Vendor adapter redesign; the hybrid Ingram, nested Synnex EU,
+Human Confirmed, FX, Compact Quote authority, and replay contracts are
+unchanged except where directly necessary to support the observed
+envelope.
+
+**The observed production envelope (structure only; no real values):**
+
+* HTTP 200
+* `Content-Type: text/html; charset=utf-8`
+* approximately 5485 bytes for the observed Micron lookup (5 lines)
+* each known section label appears exactly once
+* each recognized section line carries an exact literal `<p>`
+  immediately before the known label (the observed three-character line
+  prefix is the HTML paragraph opener), structurally:
+
+  ```
+  <p>Ingram Product: { ... }</p>
+  <p>CDW Product: {Not Found}</p>
+  <p>Synnex EU Product: { ... }</p>
+  ```
+
+* the source payload after the label remains bounded literal data
+
+**The correction (narrowest possible bounded support):** the section
+scanner now recognizes each of the three exact known labels in exactly
+two outer forms:
+
+1. the existing plain line-anchored form (`Ingram Product: ...`,
+   leading whitespace tolerated) — unchanged;
+2. the observed exact paragraph-prefix form (`<p>Ingram Product: ...`,
+   leading whitespace before `<p>` tolerated) — equivalently for
+   `CDW Product:` and `Synnex EU Product:`.
+
+The contract is exactly `optional whitespace + optional exact "<p>" +
+exact bounded known label`. The HTML support is deliberately narrow:
+
+* the exact literal `<p>` only — no other tag (`<div>`, `<span>`,
+  `<script>`, ...), no attributes (`<p class=...>`), no nesting
+  (`<p><span>...`), no case variants, no text before `<p>` on the line
+* NO BeautifulSoup, NO HTMLParser as a generic document parser, NO
+  arbitrary tag stripping, NO HTML unescaping of the body, NO arbitrary
+  DOM text search, NO regex scraping of generic HTML
+* the existing three-label allowlist remains the authority; unknown
+  labels (with or without `<p>`) remain untrusted and ignored
+* the existing strict bounded literal parser remains responsible for the
+  section value; malformed content INSIDE a literal still fails that
+  source closed; one malformed source does not destroy valid siblings;
+  duplicate-label first-wins, max body size, exactly-one-network-call,
+  no-redirect, no-proxy, and no-eval/no-literal_eval behavior all remain
+* a trailing observed `</p>` after a COMPLETE bounded literal is the
+  already-supported post-literal interstitial material (never parsed
+  into data), provided it does not weaken malformed-in-literal rejection
+* the raw body is never logged or persisted
+
+The already-implemented source mapping (hybrid Ingram — vendorPartNumber
++ nested pricing.customerPrice / retailPrice / currencyCode + top-level
+boolean availability + top-level Avl_Quantity; nested Synnex EU —
+OnlineCheck.Header.CurrencyCode + OnlineCheck.Item.
+ManufacturerItemIdentifier / UnitPriceAmount / AvailabilityTotal; CDW
+`{Not Found}`; flat compatibility forms), the exact-MPN 2A binding, the
+allowlist sensitive-metadata stripping (SessionId / BuyerAccountId /
+SystemId and every other non-allowlisted field), persistence, and
+Compact Quote projection are UNCHANGED. Expected normalized result for
+the requested MPN (synthetic fixtures in tests): Ingram 1515.72 USD /
+CUSTOMER_PRICE / OUT_OF_STOCK / quantity 0; Synnex EU 962.86 EUR /
+OUT_OF_STOCK / quantity 0; CDW NOT_FOUND.
+
+**Preserved production evidence (unchanged):** the Human Confirmed
+semantic listings → Compact Quote architecture proven by run
+f3a82fda-f708-4974-806e-d13a18482f96 remains accepted. That run's absence
+of a ResearchFxSnapshot is explained by its inputs: frozen 4A had no
+reportable non-USD bucket; Vendor returned zero usable observations due
+to this parser failure; human-confirmed EUR evidence was added only
+later through review. Historical replay must NOT perform a live ECB call
+merely because a later human confirmation introduces EUR — that
+zero-live historical contract remains frozen. A NEW run after this
+repair obtains FX during execution because the Synnex EUR observation is
+then a usable Vendor observation: the existing 4D-C execution-time
+currency discovery requests EUR + USD from the FX provider, persists a
+ResearchFxSnapshot when the provider succeeds, and the Synnex EUR
+Compact Quote row receives its USD Equivalent from the persisted
+snapshot (no FX production code altered by this phase).
+
+**Proof levels (new tests):**
+
+1. Scanner: exact `<p>Ingram Product:`, `<p>CDW Product:`,
+   `<p>Synnex EU Product:` recognized (plus leading-whitespace
+   tolerance, duplicate-label policy, unknown-label refusal, and the
+   adversarial boundary set — `<div>` / `<span>` / `<script>` /
+   `<p class="x">` / nested `<p><span>` / `prefix<p>` — all NOT
+   recognized).
+2. Full adapter: the paragraph-wrapped production-shaped body (single
+   line per section; faithful hybrid Ingram + nested Synnex with fake
+   sentinels) maps Ingram (exact MPN, 1515.72 USD CUSTOMER_PRICE,
+   OUT_OF_STOCK, quantity 0) and Synnex EU (exact MPN, 962.86 EUR,
+   OUT_OF_STOCK, quantity 0); CDW `{Not Found}`; bounded PARTIAL status;
+   `retrieved_at` present; exactly one network call; sensitive sentinels
+   absent from the normalized response; malformed-in-literal fails that
+   source closed without destroying siblings.
+3. Full `execute_research_run`: the paragraph-wrapped fixture travels
+   through the actual Vendor adapter; both observations persist in the
+   ResearchSupplementSnapshot; sensitive sentinel metadata absent from
+   the persisted payload; Machine Price unchanged; Vendor supplemental
+   only (paid search not suppressed; no semantic input).
+4. Compact Quote historical replay (armed fail-fast live boundaries):
+   Ingram Vendor row + Synnex EU Vendor row present, CDW row absent,
+   USD Equivalent from the persisted FX snapshot, zero live replay I/O.
+5. FX integration (existing 4D-C behavior, no FX production code
+   altered): the usable Synnex EUR observation triggers execution-time
+currency discovery requesting EUR + USD; the injected deterministic
+provider's success persists a ResearchFxSnapshot; the Synnex EUR
+Compact Quote row receives the persisted USD Equivalent.

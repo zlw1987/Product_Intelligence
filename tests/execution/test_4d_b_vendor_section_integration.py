@@ -1,5 +1,5 @@
 """Integration proof: production section-oriented Vendor response (PROD-FIX1;
-FU1 faithful production-wire shape).
+FU1 faithful production-wire shape; FU3 observed paragraph envelope).
 
 For the exact requested MPN ``MTFDKBA480TFR-1BC1ZABYYR`` with a synthetic
 envelope that mirrors the ACTUAL production nesting/key placement (fake/
@@ -24,6 +24,14 @@ pipeline (``execute_research_run``) that:
 * Vendor remains supplemental only: it does NOT modify Machine Price,
   does NOT enter semantic input, does NOT create 4A buckets, and does NOT
   suppress the Serper search call.
+
+FU3: the same proofs are re-established for the OBSERVED production outer
+envelope — each section line wrapped in the exact HTML paragraph opener
+(``<p>Ingram Product: ...</p>`` / ``<p>CDW Product: ...</p>`` /
+``<p>Synnex EU Product: ...</p>``) — including the execution-time 4D-C FX
+currency discovery (usable Synnex EUR observation => EUR + USD requested
+from the FX provider) and the persisted USD Equivalent on the Synnex
+Compact Quote row.
 """
 
 from __future__ import annotations
@@ -44,6 +52,10 @@ from product_intelligence.providers.fx import (
 )
 from product_intelligence.research.commercial_supplement_codec import (
     decode_research_supplement_result,
+)
+from product_intelligence.research.fx_codec import (
+    FxObservationSnapshot,
+    decode_fx_observation,
 )
 from product_intelligence.research.price_result_codec import (
     decode_price_aggregation_result,
@@ -87,6 +99,54 @@ SENTINELS = (
     "BuyerAccountId",
     "SystemId",
 )
+
+# ---------------------------------------------------------------------------
+# FU3: the OBSERVED production outer envelope — each section line wrapped
+# in the exact HTML paragraph opener ("<p>..."), single-line sections
+# mirroring the observed production layout. Same synthetic source payload
+# (hybrid Ingram + nested Synnex with fake sentinels + CDW Not Found) as
+# the plain-text fixture above; ONLY the outer line envelope differs.
+# ---------------------------------------------------------------------------
+SECTION_BODY_PARAGRAPH = (
+    f"<p>Ingram Product: {{'vendorPartNumber': '{REQUESTED_MPN}', "
+    "'pricing': {'customerPrice': 1515.72, 'retailPrice': 2036.36, "
+    "'currencyCode': 'USD'}, 'availability': False, 'Avl_Quantity': 0, "
+    "'vendorName': 'FAKE-VENDOR-NAME'}</p>\n"
+    "\n"
+    "<p>CDW Product: {Not Found}</p>\n"
+    "\n"
+    "<p>Synnex EU Product: {'OnlineCheck': {'Header': {'CurrencyCode': 'EUR', "
+    "'SessionId': 'FAKE-SESSION-000', 'BuyerAccountId': 'FAKE-ACCOUNT-000', "
+    "'SystemId': 'FAKE-SYSTEM-000'}, 'Item': {'ManufacturerItemIdentifier': "
+    f"'{REQUESTED_MPN}', 'UnitPriceAmount': 962.86, 'AvailabilityTotal': 0}}}}}}</p>\n"
+)
+
+
+class _RecordingFxProvider:
+    """Deterministic ECB-shaped FX provider that records every requested
+    currency set — proves the EXISTING 4D-C execution-time currency
+    discovery (usable Synnex EUR observation => EUR + USD requested)
+    without altering any FX production code."""
+
+    def __init__(self) -> None:
+        self.call_count = 0
+        self.requested_currencies_calls: list[frozenset[str]] = []
+
+    def fetch_rates(self, requested_currencies=None) -> FxObservationSet:
+        self.call_count += 1
+        self.requested_currencies_calls.append(
+            frozenset(requested_currencies or ())
+        )
+        return FxObservationSet(
+            provider_id="ECB",
+            observation_date=date(2026, 9, 23),
+            base_currency="EUR",
+            rates=(
+                FxRateObservation(currency_code="USD", rate=USD_RATE),
+                FxRateObservation(currency_code="EUR", rate=Decimal("1")),
+            ),
+            retrieved_at=datetime(2026, 9, 23, 12, 0, 0, tzinfo=timezone.utc),
+        )
 
 
 class _FakeFxProvider:
@@ -277,3 +337,243 @@ class TestVendorSectionIntegration(TestCase):
             assert "Ingram" not in candidate.candidate_title
             assert "CDW" not in candidate.candidate_title
             assert "Synnex" not in candidate.candidate_title
+
+
+class TestVendorParagraphSectionIntegration(TestCase):
+    """FU3: the OBSERVED production outer envelope (exact "<p>" paragraph
+    wrapper on each section line) through the REAL execution pipeline.
+
+    Same proofs as the plain-text class above, plus the execution-time 4D-C
+    FX currency discovery and the persisted USD Equivalent — the existing
+    FX production code is unchanged; only the injected deterministic
+    provider differs.
+    """
+
+    def _execute(self, fx_provider) -> ResearchRun:
+        request = ResearchRequest(
+            manufacturer_part_number=REQUESTED_MPN,
+            description="Micron 480TB datacenter SSD",
+        )
+        run = ResearchRun.objects.create_from_request(request)
+
+        mock_response = MagicMock()
+        mock_response.read.return_value = SECTION_BODY_PARAGRAPH.encode("utf-8")
+        mock_opener = MagicMock()
+        mock_opener.open.return_value = mock_response
+
+        with patch.dict(
+            os.environ,
+            {"PI_VENDOR_LOOKUP_BASE_URL": "http://157.22.244.39:8808/vendor"},
+        ):
+            mock_search = MagicMock()
+            mock_search.search.return_value = MagicMock(results=())
+            with patch(
+                "product_intelligence.providers.serper."
+                "SerperSearchProvider.from_environment",
+                return_value=mock_search,
+            ), patch(
+                "product_intelligence.providers.internal_vendor."
+                "_get_vendor_opener",
+                return_value=mock_opener,
+            ):
+                from product_intelligence.execution import execute_research_run
+                execute_research_run(
+                    str(run.id),
+                    fx_provider=fx_provider,
+                )
+
+        self._mock_opener = mock_opener
+        self._mock_search = mock_search
+        self._fx_provider = fx_provider
+        return run
+
+    def test_paragraph_execute_persists_ingram_and_synnex_observations(
+        self,
+    ) -> None:
+        """Proof level 3: the paragraph-wrapped real structural fixture
+        travels through the actual Vendor adapter and persists."""
+        run = self._execute(_FakeFxProvider())
+
+        # Exactly ONE vendor network call; zero retries
+        assert self._mock_opener.open.call_count == 1
+
+        run.refresh_from_db()
+        assert run.current_state == ResearchRunState.COMPLETED
+
+        supplement = ResearchSupplementSnapshot.objects.get(run=run)
+        decoded = decode_research_supplement_result(supplement.payload)
+        vcr = decoded.vendor_commercial_result
+
+        # Contract recognized: bounded PARTIAL (Ingram + Synnex usable,
+        # CDW NOT_FOUND) with retrieved_at present (it was None in the
+        # broken production result).
+        assert vcr.lookup_status == "PARTIAL"
+        assert vcr.retrieved_at is not None
+
+        observations = {o.source_name: o for o in vcr.observations}
+        assert set(observations) == {"Ingram", "Synnex EU"}
+
+        # Ingram: hybrid production form through the paragraph envelope
+        ingram = observations["Ingram"]
+        assert ingram.explicit_candidate_mpn == REQUESTED_MPN
+        assert ingram.vendor_mpn_match_type == "EXACT"
+        assert ingram.price_amount == Decimal("1515.72")
+        assert ingram.currency_code == "USD"
+        assert ingram.price_basis == "CUSTOMER_PRICE"
+        assert ingram.availability == "OUT_OF_STOCK"
+        assert ingram.quantity == 0
+        assert ingram.brand_new is True
+        assert ingram.brand_new_basis == "VENDOR_API_POLICY"
+
+        # Synnex EU: REAL nested form through the paragraph envelope
+        synnex = observations["Synnex EU"]
+        assert synnex.explicit_candidate_mpn == REQUESTED_MPN
+        assert synnex.vendor_mpn_match_type == "EXACT"
+        assert synnex.price_amount == Decimal("962.86")
+        assert synnex.currency_code == "EUR"
+        assert synnex.price_basis == "LIST_PRICE"
+        assert synnex.availability == "OUT_OF_STOCK"
+        assert synnex.quantity == 0
+
+        # CDW: NOT_FOUND issue (no row)
+        issues = {i.source_name: i for i in vcr.source_issues}
+        assert set(issues) == {"CDW"}
+        assert issues["CDW"].outcome == "NOT_FOUND"
+        assert issues["CDW"].detail is None
+
+    def test_paragraph_sensitive_metadata_absent_from_persisted_snapshot(
+        self,
+    ) -> None:
+        run = self._execute(_FakeFxProvider())
+        supplement = ResearchSupplementSnapshot.objects.get(run=run)
+        encoded = json.dumps(supplement.payload, sort_keys=True)
+        for sentinel in SENTINELS + ("FAKE-VENDOR-NAME", "vendorName"):
+            assert sentinel not in encoded, (
+                f"sensitive metadata {sentinel!r} leaked into the persisted "
+                "supplemental payload"
+            )
+
+    def test_paragraph_machine_price_unchanged(self) -> None:
+        run = self._execute(_FakeFxProvider())
+        price_snapshot = PriceIntelligenceSnapshot.objects.get(run=run)
+        decoded = decode_price_aggregation_result(
+            price_snapshot.payload,
+            schema_version=price_snapshot.schema_version,
+        )
+        # Zero vendor-derived buckets: no search evidence was published
+        assert decoded.buckets == ()
+        encoded = json.dumps(price_snapshot.payload, sort_keys=True)
+        # Vendor prices never enter the Machine Price artifact
+        assert "1515.72" not in encoded
+        assert "962.86" not in encoded
+        assert "Ingram" not in encoded
+        assert "Synnex" not in encoded
+
+    def test_paragraph_compact_quote_replay_vendor_rows_zero_live(self) -> None:
+        """Proof level 4: historical Compact Quote replay of the
+        paragraph-envelope run — Ingram Vendor row + Synnex Vendor row,
+        no CDW row, armed zero-live boundaries."""
+        run = self._execute(_FakeFxProvider())
+
+        with (
+            patch(
+                "product_intelligence.providers.serper."
+                "SerperSearchProvider.search",
+                side_effect=RuntimeError(
+                    "SearchProvider.search called during replay"
+                ),
+            ),
+            patch(
+                "product_intelligence.providers.http_page."
+                "HttpPageFetcher.fetch",
+                side_effect=RuntimeError("PageFetcher.fetch during replay"),
+            ),
+            patch(
+                "product_intelligence.providers.internal_vendor."
+                "InternalVendorAdapter.lookup",
+                side_effect=RuntimeError("Vendor API during replay"),
+            ),
+            patch(
+                "product_intelligence.providers.fx."
+                "EcbFxProvider.fetch_rates",
+                side_effect=RuntimeError("EcbFxProvider.fetch_rates during replay"),
+            ),
+            patch(
+                "product_intelligence.providers.fx."
+                "EcbFxProvider.__init__",
+                side_effect=RuntimeError("EcbFxProvider instantiated during replay"),
+            ),
+            patch(
+                "product_intelligence.execution.semantic_integration."
+                "evaluate_semantic_matches",
+                side_effect=RuntimeError("Semantic runtime during replay"),
+            ),
+            patch(
+                "urllib.request.urlopen",
+                side_effect=RuntimeError("Network call during replay"),
+            ),
+        ):
+            replay = replay_compact_quote_projection(str(run.id))
+
+        rows = list(replay.projection.rows)
+        vendor_rows = [r for r in rows if r.source_type == "VENDOR_API"]
+        public_rows = [r for r in rows if r.source_type == "PUBLIC_LISTING"]
+        # No search results -> no public rows; exactly two vendor rows
+        assert public_rows == []
+        assert [r.source for r in vendor_rows] == [
+            "Ingram",
+            "Synnex EU (Vendor API)",
+        ]
+        # CDW NOT_FOUND creates no row
+        assert not any(r.source.startswith("CDW") for r in rows)
+
+        ingram = vendor_rows[0]
+        assert ingram.price_original == "$1,515.72 USD"
+        assert ingram.usd_equivalent == "$1,515.72 USD"
+        assert ingram.inventory == "Out of Stock"
+        assert ingram.brand_new == "Yes"
+
+        synnex = vendor_rows[1]
+        assert synnex.price_original == "\u20ac962.86 EUR"
+        # USD Equivalent from the PERSISTED FX snapshot (zero live)
+        expected_usd = Decimal("962.86") / Decimal("1") * USD_RATE
+        assert synnex.usd_equivalent_amount == expected_usd
+        assert synnex.inventory == "Out of Stock"
+        assert synnex.brand_new == "Yes"
+
+    def test_paragraph_synnex_eur_triggers_execution_time_fx_discovery(
+        self,
+    ) -> None:
+        """Proof level 5: because the usable Synnex Vendor observation is
+        EUR, the EXISTING 4D-C execution-time currency discovery requests
+        EUR + USD from the FX provider, and the injected deterministic
+        provider's success persists a ResearchFxSnapshot (no FX
+        production code altered by FU3)."""
+        fx_provider = _RecordingFxProvider()
+        run = self._execute(fx_provider)
+
+        # Exactly one FX fetch, requesting exactly {EUR, USD}
+        assert fx_provider.call_count == 1
+        assert fx_provider.requested_currencies_calls == [
+            frozenset({"EUR", "USD"}),
+        ]
+
+        # Persisted ResearchFxSnapshot (schema V1) with both rates
+        fx_snapshot = ResearchFxSnapshot.objects.get(run=run)
+        assert fx_snapshot.schema_version == 1
+        decoded_fx: FxObservationSnapshot = decode_fx_observation(
+            fx_snapshot.payload
+        )
+        assert decoded_fx.provider_id == "ECB"
+        assert {r.currency_code for r in decoded_fx.rates} == {"EUR", "USD"}
+
+    def test_paragraph_vendor_remains_supplemental_only(self) -> None:
+        run = self._execute(_FakeFxProvider())
+        # The paid Serper fallback search still happened exactly once —
+        # vendor evidence never suppresses search.
+        assert self._mock_search.search.call_count == 1
+        # Vendor data is not semantic input (no review candidates carry
+        # vendor source names).
+        for candidate in AiAssistedReviewCandidate.objects.filter(run=run):
+            for token in ("Ingram", "CDW", "Synnex"):
+                assert token not in candidate.candidate_title

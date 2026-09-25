@@ -2,6 +2,95 @@
 
 ## Current state
 
+**PRODUCT-INTEL.PILOT-RELEASE-2-PROD-FIX1-FU3 (Vendor Paragraph
+Envelope) — IMPLEMENTED / PENDING FINAL REVIEW**
+
+Bounded append-only corrective follow-up to the FU2 commit (SHA
+ec67f0f2f8f357fb77dd3cc1a5947e50a1b80af2) closing the exact remaining
+production defect: on the approved SHA, the production Vendor response
+for `MTFDKBA480TFR-1BC1ZABYYR` (run
+f3a82fda-f708-4974-806e-d13a18482f96) was persisted as FAILED /
+retrieved_at None / zero observations because the section scanner did
+not recognize the real OUTER response envelope (defect inside Vendor
+response contract recognition, before source mapping, 2A binding,
+persistence, or Compact Quote projection). The previous implementation is
+retained; ONLY the scanner's section-label recognition is extended with
+the observed exact paragraph form, plus directly necessary tests/docs.
+Not a feature phase; no 8A caching; no Vendor adapter redesign; no
+deployment performed in this commit. Candidate state; final approval
+remains with the project lead. (Canonical spec: PLAN §26.13.)
+
+1. **Observed production envelope (structure-only probe, no values
+   printed)** — HTTP 200; `Content-Type: text/html; charset=utf-8`;
+   approximately 5485 bytes for the observed Micron lookup (5 lines);
+   each known section label appears exactly once; each recognized
+   section line carries an exact literal `<p>` immediately before the
+   known label (the observed three-character line prefix is the HTML
+   paragraph opener); the source payload remains bounded literal data.
+   Structurally: `<p>Ingram Product: { ... }</p>` /
+   `<p>CDW Product: {Not Found}</p>` /
+   `<p>Synnex EU Product: { ... }</p>`.
+2. **Exact paragraph-prefix scanner support (narrowest possible)** —
+   each of the three exact known labels is recognized in exactly two
+   outer forms: the existing plain line-anchored form (unchanged) and
+   the observed exact paragraph-prefix form. Contract: `optional
+   whitespace + optional exact "<p>" + exact bounded known label`.
+   Deliberately NOT a generic HTML parser: no other tag (`<div>` /
+   `<span>` / `<script>` — adversarially tested), no attributes
+   (`<p class="x">`), no nesting (`<p><span>`), no case variants, no
+   text before `<p>` on the line, no tag stripping, no HTML unescaping,
+   no DOM text search, no BeautifulSoup/HTMLParser, no generic-HTML
+   regex scraping. Unknown labels remain untrusted and ignored. The
+   strict bounded literal parser remains responsible for the section
+   value; malformed content INSIDE a literal still fails that source
+   closed; one malformed source does not destroy valid siblings;
+   duplicate-label first-wins, max body size, one-network-call,
+   no-redirect, no-proxy, and no-eval/literal_eval behavior all
+   preserved (re-proven). A trailing observed `</p>` after a COMPLETE
+   bounded literal is the already-supported post-literal interstitial
+   material (never data). The raw body is never logged or persisted.
+3. **Source contracts unchanged (re-proven end-to-end)** — hybrid
+   Ingram (`vendorPartNumber` + nested `pricing.customerPrice` /
+   `retailPrice` / `currencyCode` + top-level boolean `availability` +
+   top-level `Avl_Quantity`) maps the exact-MPN paragraph body to
+   1515.72 USD CUSTOMER_PRICE / OUT_OF_STOCK / quantity 0; nested
+   Synnex EU (`OnlineCheck.Header.CurrencyCode`,
+   `OnlineCheck.Item.ManufacturerItemIdentifier` / `UnitPriceAmount` /
+   `AvailabilityTotal`) maps to 962.86 EUR / OUT_OF_STOCK / quantity 0;
+   CDW remains `{Not Found}`; SessionId / BuyerAccountId / SystemId
+   (fake sentinels in tests) remain stripped by the allowlist and absent
+   from the normalized response, the persisted snapshot, logs, and
+   exception detail.
+4. **Full execution integration (paragraph fixture)** —
+   `execute_research_run` with the paragraph-wrapped real structural
+   fixture: one Vendor network call; bounded PARTIAL; retrieved_at
+   present; both observations persist in the
+   ResearchSupplementSnapshot; Machine Price unchanged (zero buckets,
+   no vendor values); Vendor supplemental only (paid search not
+   suppressed; no semantic input); the usable Synnex EUR observation
+   triggers the existing 4D-C execution-time currency discovery (EUR +
+   USD requested from the FX provider — no FX production code altered);
+   the injected deterministic provider's success persists a
+   ResearchFxSnapshot and the Synnex EUR Compact Quote row receives its
+   persisted USD Equivalent.
+5. **Compact Quote historical replay (armed zero-live)** — Ingram
+   Vendor row + Synnex EU Vendor row present, CDW row absent,
+   USD Equivalent from the persisted FX snapshot, with armed fail-fast
+   Search/Page/Vendor/FX/Semantic/network boundaries (zero live replay
+   I/O).
+6. **Preserved production evidence** — the Human Confirmed semantic
+   listings → Compact Quote architecture proven by run
+   f3a82fda-f708-4974-806e-d13a18482f96 remains accepted and
+   unchanged. That run's absence of a ResearchFxSnapshot is explained
+   by its inputs: frozen 4A had no reportable non-USD bucket; Vendor
+   returned zero usable observations due to this parser failure; the
+   human-confirmed EUR evidence was added only later through review.
+   Historical replay must NOT perform a live ECB call merely because a
+   later human confirmation introduces EUR — that zero-live historical
+   contract remains frozen. A NEW run after this repair obtains FX
+   during execution because the Synnex EUR observation is then a usable
+   Vendor observation.
+
 **PRODUCT-INTEL.PILOT-RELEASE-2-PROD-FIX1-FU2 (Public Replay
 Persisted-Snapshot Authority) — IMPLEMENTED / PENDING FINAL REVIEW**
 
@@ -313,9 +402,9 @@ Audit)** — PLANNED
 The production-correction phase PRODUCT-INTEL.PILOT-RELEASE-2-PROD-FIX1
 (above) and its bounded review-blocker closures PRODUCT-INTEL.PILOT-
 RELEASE-2-PROD-FIX1-FU1 and PRODUCT-INTEL.PILOT-RELEASE-2-PROD-FIX1-FU2
-are PENDING FINAL REVIEW and do NOT change the
-next-architecture-delivery selection below. 8A caching is NOT
-implemented in PROD-FIX1, FU1, or FU2.
+(and the FU3 paragraph-envelope closure) are PENDING FINAL REVIEW and do
+NOT change the next-architecture-delivery selection below. 8A caching is
+NOT implemented in PROD-FIX1, FU1, FU2, or FU3.
 
 The previous "post-UAT next is undecided" gate is closed: the
 production deployment/smoke evidence now exists and the project lead
@@ -878,6 +967,7 @@ FU3B wires the frozen FU3A semantic runtime into real research execution:
 | PILOT-RELEASE-2-PROD-FIX1 | Production quote-workflow defect corrections (Vendor real-response contract, currency formatting, semantic-section placement, Confirm Match -> Compact Quote, submit guard, ECB/TLS non-bypass) | **IMPLEMENTED / REVIEW BLOCKERS CORRECTED BY FU1 / PENDING FINAL REVIEW** (no deployment in this commit) |
 | PILOT-RELEASE-2-PROD-FIX1-FU1 | Bounded review-blocker closure (vendor hybrid production-wire fidelity + section-scanner consistency, human-confirmed authority ownership at the replay boundary, ECB evidence correction, Reviewed Price wording accuracy) | **IMPLEMENTED / FINAL REVIEW BLOCKER CORRECTED BY FU2 / PENDING FINAL REVIEW** (no deployment in this commit; canonical spec PLAN §26.11) |
 | PILOT-RELEASE-2-PROD-FIX1-FU2 | Final review-blocker closure (public/denied historical replay binds to the run's own persisted PriceIntelligenceSnapshot; caller-supplied price results removed as an authority input) | **IMPLEMENTED / PENDING FINAL REVIEW** (no deployment in this commit; canonical spec PLAN §26.12) |
+| PILOT-RELEASE-2-PROD-FIX1-FU3 | Bounded production defect closure (vendor section scanner: exact observed `<p>` paragraph-prefix envelope — narrow literal, NOT a generic HTML parser) | **IMPLEMENTED / PENDING FINAL REVIEW** (no deployment in this commit; canonical spec PLAN §26.13) |
 | 8A-PRE | Caching & Freshness Architecture Audit | **PLANNED** (next delivery; READ-ONLY / DESIGN-FIRST, not caching implementation) |
 | 4D-PRE | Preferred Source Feasibility Audit | Implemented (evidence only, frozen) |
 | 4D-A | Source Acquisition Optimization | Implemented (frozen) |
@@ -1155,6 +1245,75 @@ Not eligible:
 
 
 ## Validation results
+
+### PROD-FIX1-FU3 CANDIDATE ACCEPTANCE SNAPSHOT (PENDING FINAL REVIEW)
+
+| Metric | Count |
+| --- | --- |
+| Collected | 5326 |
+| Passed | 5324 |
+| Failed | 2 (exactly fixed-allowlist members; non-deterministic) |
+| Unexpected failures | 0 |
+| Skipped | 0 |
+| Xfailed | 0 |
+| Deselected | 0 |
+| Subtests passed | 39 |
+
+Definitive full-suite execution of the final FU3 tree (zero
+deselection, no skip/xfail injection; JUnit report): 5326 tests +
+39 subtests executed; 5324 passed, 2 failed — both failures are
+members of the fixed eleven-node Windows/Python 3.14
+subprocess-boundary flake allowlist, each with the recorded signature
+`subprocess.Popen -> OSError: [WinError 6] The handle is invalid`
+(verified per-failure from the JUnit report), and NO node outside that
+allowlist failed. An earlier full execution of the same tree in this
+session observed 11 failures — again EXACTLY members of the fixed
+allowlist (every one of the 11 nodes failed once in that run), all
+other nodes green. The allowlist is non-deterministic by nature, exactly
+as recorded for every prior phase; the fixed allowlist remains exactly
+11 nodes (not expanded).
+
+The 2 failed nodes in the definitive execution (both
+fixed-allowlist members):
+
+1. `tests/domain/test_domain_boundaries.py::test_domain_imports_without_django_network_or_llm_dependencies`
+2. `tests/evaluation/test_evaluation_boundaries.py::test_loading_the_corpus_imports_no_framework_or_provider`
+
+Collection accounting: 5298 FU2 baseline + 28 FU3 net-new nodes
+= 5326 collected. Net-new: tests/providers/test_vendor_section_
+response.py +22 (TestParagraphEnvelope: exact `<p>` label recognition
+per source, leading-whitespace tolerance, the full adversarial HTML
+boundary set, trailing `</p>` interstitial proof, malformed-in-literal
+fail-closed, duplicate-label policy, mixed plain/paragraph forms,
+oversized paragraph body), tests/execution/test_4d_b_vendor_section_
+integration.py +6 (TestVendorParagraphSectionIntegration: full
+execute_research_run paragraph integration, persisted-snapshot
+sensitive-metadata absence, Machine Price immutability, armed zero-
+live Compact Quote replay rows, execution-time 4D-C FX currency
+discovery EUR + USD with persisted ResearchFxSnapshot, supplemental-
+only vendor authority). No boundary parameterization expansion (no new
+production files; only existing files modified).
+
+All 5298 FU2 baseline nodes remain collected. No existing test
+deleted, renamed, skipped, xfailed, deselected, or weakened. Exact
+disclosed test-file touches (safety contracts preserved):
+
+* `tests/providers/test_vendor_section_response.py` — module docstring
+  notes the FU3 observed paragraph envelope; NEW class
+  `TestParagraphEnvelope` (22 nodes) + NEW faithful single-line-per-
+  section paragraph fixture `SECTION_BODY_HYBRID_PARAGRAPH` (fake
+  sentinels only). No existing node altered.
+* `tests/execution/test_4d_b_vendor_section_integration.py` — module
+  docstring notes the FU3 paragraph proofs; NEW fixture
+  `SECTION_BODY_PARAGRAPH` (same synthetic source payload as the FU1
+  fixture, ONLY the outer `<p>` envelope added), NEW
+  `_RecordingFxProvider` (test-only, records requested currency sets),
+  NEW class `TestVendorParagraphSectionIntegration` (6 nodes).
+  No existing node altered.
+
+`python manage.py check`: System check identified no issues
+(0 silenced). `python manage.py makemigrations --check --dry-run`:
+No changes detected.
 
 ### PROD-FIX1-FU2 CANDIDATE ACCEPTANCE SNAPSHOT (PENDING FINAL REVIEW)
 
