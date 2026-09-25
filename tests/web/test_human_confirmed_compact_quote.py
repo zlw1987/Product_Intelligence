@@ -1052,5 +1052,10 @@ def test_b3_non_auto_tiers_stay_out_of_quote_and_remain_reviewable(
     else:
         assert "Possible matches — needs review" in html
     assert 'name="action" value="confirm"' in html
-    assert 'name="action" value="reject"' in html
+    if confidence == "LOW":
+        # Low confidence stays UNREVIEWED and excluded by default.
+        # Include remains available without an eager Reject action.
+        assert 'name="action" value="reject"' not in html
+    else:
+        assert 'name="action" value="reject"' in html
 
