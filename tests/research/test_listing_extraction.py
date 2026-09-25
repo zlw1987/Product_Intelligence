@@ -507,6 +507,168 @@ class TestMetaExtraction:
         assert _extract(document)[0].price_text == "199.00"
 
 
+class TestVisibleLabeledIdentityEnrichment:
+    """Bounded visible identity evidence may repair a missing structured MPN."""
+
+    def test_model_number_label_enriches_missing_mpn_but_preserves_sku_and_price(
+        self,
+    ) -> None:
+        """Production-shaped regression for retailer Model # vs Item #."""
+        product = _json_ld(
+            {
+                "@type": "Product",
+                "name": "Samsung 96GB DDR5 Server Memory",
+                "sku": "MEMSAM59664S",
+                "offers": {
+                    "@type": "Offer",
+                    "price": "4099.99",
+                    "priceCurrency": "USD",
+                },
+            }
+        )
+        document = (
+            "<html><head>"
+            + product
+            + "</head><body>"
+            + "<div><span>Model #:</span><span>M321RYGA0PB2-CCP</span></div>"
+            + "<div><span>Item #:</span><span>MEMSAM59664S</span></div>"
+            + "</body></html>"
+        )
+
+        observation = _extract(document)[0]
+
+        assert observation.manufacturer_part_number_text == "M321RYGA0PB2-CCP"
+        assert observation.sku_text == "MEMSAM59664S"
+        assert observation.price_text == "4099.99"
+        assert observation.currency_text == "USD"
+        preserved = json.loads(observation.raw_reference or "{}")
+        assert preserved["_visible_identity_evidence"] == {
+            "label": "Model #",
+            "value": "M321RYGA0PB2-CCP",
+        }
+
+    def test_visible_model_number_flows_to_existing_exact_3c_match(self) -> None:
+        """The extractor supplies evidence; frozen matching still decides."""
+        from product_intelligence.domain import ResearchRequest
+        from product_intelligence.domain.enums import EvidenceDecision, IdentityMatchType
+        from product_intelligence.research.matching import assess_listing_identity
+        from product_intelligence.research.normalization import normalize_listing_observations
+
+        product = _json_ld(
+            {
+                "@type": "Product",
+                "name": "Samsung 96GB DDR5 Server Memory",
+                "sku": "MEMSAM59664S",
+                "offers": {
+                    "@type": "Offer",
+                    "price": "4099.99",
+                    "priceCurrency": "USD",
+                },
+            }
+        )
+        document = (
+            "<html><head>"
+            + product
+            + "</head><body><div>Model #: M321RYGA0PB2-CCP</div></body></html>"
+        )
+        request = ResearchRequest(
+            manufacturer_part_number="M321RYGA0PB2-CCP",
+            description="Samsung 96GB DDR5-6400 ECC RDIMM",
+        )
+
+        normalized = normalize_listing_observations(_extract(document))
+        assessment = assess_listing_identity(request, normalized[0])
+
+        assert assessment.decision is EvidenceDecision.ACCEPTED
+        assert assessment.match_type is IdentityMatchType.EXACT
+
+    def test_inline_model_number_label_is_supported(self) -> None:
+        document = (
+            "<html><head>"
+            + _json_ld({"@type": "Product", "name": "Thing", "sku": "SHOP-1"})
+            + "</head><body><p>Model #: ABC-123</p></body></html>"
+        )
+
+        assert _extract(document)[0].manufacturer_part_number_text == "ABC-123"
+
+    def test_existing_structured_mpn_is_never_overwritten(self) -> None:
+        document = (
+            "<html><head>"
+            + _json_ld(
+                {
+                    "@type": "Product",
+                    "name": "Thing",
+                    "mpn": "STRUCTURED-123",
+                    "sku": "SHOP-1",
+                }
+            )
+            + "</head><body><p>Model #: VISIBLE-999</p></body></html>"
+        )
+
+        observation = _extract(document)[0]
+
+        assert observation.manufacturer_part_number_text == "STRUCTURED-123"
+        assert "_visible_identity_evidence" not in json.loads(
+            observation.raw_reference or "{}"
+        )
+
+    @pytest.mark.parametrize(
+        "label",
+        ["Item #", "Item Number", "SKU", "Stock #", "UPC", "EAN", "Product #"],
+    )
+    def test_retailer_or_unapproved_labels_are_never_promoted_to_mpn(
+        self,
+        label: str,
+    ) -> None:
+        document = (
+            "<html><head>"
+            + _json_ld({"@type": "Product", "name": "Thing", "sku": "SHOP-1"})
+            + f"</head><body><p>{label}: ABC-123</p></body></html>"
+        )
+
+        assert _extract(document)[0].manufacturer_part_number_text is None
+
+    def test_conflicting_authoritative_visible_labels_fail_closed(self) -> None:
+        document = (
+            "<html><head>"
+            + _json_ld({"@type": "Product", "name": "Thing", "sku": "SHOP-1"})
+            + "</head><body>"
+            + "<div>Model #: ABC-123</div>"
+            + "<div>Part Number: XYZ-999</div>"
+            + "</body></html>"
+        )
+
+        assert _extract(document)[0].manufacturer_part_number_text is None
+
+    def test_repeated_same_visible_mpn_is_not_a_conflict(self) -> None:
+        document = (
+            "<html><head>"
+            + _json_ld({"@type": "Product", "name": "Thing", "sku": "SHOP-1"})
+            + "</head><body>"
+            + "<div>Model #: ABC-123</div>"
+            + "<div>Manufacturer Part Number: ABC-123</div>"
+            + "</body></html>"
+        )
+
+        assert _extract(document)[0].manufacturer_part_number_text == "ABC-123"
+
+    def test_script_style_and_template_text_cannot_supply_visible_mpn(self) -> None:
+        document = (
+            "<html><head>"
+            + _json_ld({"@type": "Product", "name": "Thing", "sku": "SHOP-1"})
+            + "<script>var x = 'Model #: SCRIPT-1';</script>"
+            + "<style>.x:after{content:'Model #: STYLE-1'}</style>"
+            + "</head><body><template>Model #: TEMPLATE-1</template></body></html>"
+        )
+
+        assert _extract(document)[0].manufacturer_part_number_text is None
+
+    def test_visible_identity_alone_never_creates_a_listing(self) -> None:
+        document = "<html><body><div>Model #: ABC-123</div></body></html>"
+
+        assert _extract(document) == ()
+
+
 class TestWhatIsNeverRead:
     @pytest.mark.parametrize(
         "markup",
