@@ -593,6 +593,23 @@ class TestVisibleLabeledIdentityEnrichment:
 
         assert _extract(document)[0].manufacturer_part_number_text == "ABC-123"
 
+    def test_meta_offer_can_receive_visible_labeled_mpn(self) -> None:
+        document = _page(
+            '<meta name="sku" content="MEMSAM59664S">',
+            '<meta name="price" content="4099.99">',
+            '<meta name="currency" content="USD">',
+        ).replace(
+            "</body>",
+            "<div>Model #: M321RYGA0PB2-CCP</div></body>",
+        )
+
+        observation = _extract(document)[0]
+
+        assert observation.manufacturer_part_number_text == "M321RYGA0PB2-CCP"
+        assert observation.sku_text == "MEMSAM59664S"
+        assert observation.price_text == "4099.99"
+        assert observation.extraction_method is ExtractionMethod.META_WITH_VISIBLE_MPN
+
     def test_existing_structured_mpn_is_never_overwritten(self) -> None:
         document = (
             "<html><head>"
