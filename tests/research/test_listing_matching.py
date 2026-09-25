@@ -8,6 +8,7 @@ that proves real pages classify correctly.
 from __future__ import annotations
 
 from decimal import Decimal
+from types import SimpleNamespace
 
 from product_intelligence.domain import ResearchRequest
 from product_intelligence.domain.enums import (
@@ -30,8 +31,10 @@ from product_intelligence.research import (
     normalize_listing_observation,
 )
 from product_intelligence.research.matching import (
+    AiAssistedReviewTier,
     _clean_mpn_field_wrapper,
     _classify_partial,
+    classify_ai_assisted_review_tier,
 )
 from product_intelligence.research.extraction import extract_listing_observations
 
@@ -1620,3 +1623,134 @@ class TestEvidenceProvenance:
         r_desc = assess_listing_identity(req_desc, norm_desc)
         assert r_desc.decision is EvidenceDecision.UNDECIDED
         assert r_desc.rejection_reason is IdentityRejectionReason.NO_REQUESTED_MPN
+
+
+# -- AI-assisted Working Quote tier policy ----------------------------------
+
+
+class TestAiAssistedReviewTierPolicy:
+    """Confidence is never used alone to mint Working Quote inclusion."""
+
+    @staticmethod
+    def _candidate_for(
+        assessment: ListingIdentityAssessment,
+        *,
+        confidence: str,
+        conflicts: list[str] | None = None,
+    ) -> SimpleNamespace:
+        obs = assessment.normalized_listing.observation
+        return SimpleNamespace(
+            source_url=obs.source_url,
+            target_mpn=assessment.requested_part_number,
+            candidate_title=obs.product_title or "",
+            candidate_mpn_field=obs.manufacturer_part_number_text or "",
+            candidate_sku=obs.sku_text or "",
+            evidence_source=assessment.candidate_evidence_source.value,
+            semantic_confidence=confidence,
+            semantic_conflicting_attributes=[] if conflicts is None else conflicts,
+        )
+
+    def test_high_exact_sku_no_conflicts_auto_includes(self) -> None:
+        req = _make_request("ABC-123")
+        assessment = assess_listing_identity(
+            req,
+            normalize_listing_observation(
+                _make_observation(sku_text="ABC-123", product_title="Widget")
+            ),
+        )
+        assert assessment.decision is EvidenceDecision.REJECTED
+        assert assessment.candidate_evidence_source is EvidenceSource.SKU_FIELD
+        candidate = self._candidate_for(assessment, confidence="HIGH")
+
+        assert classify_ai_assisted_review_tier(
+            candidate, assessment
+        ) is AiAssistedReviewTier.AUTO_INCLUDE
+
+    def test_high_exact_title_no_conflicts_auto_includes(self) -> None:
+        req = _make_request("ABC-123")
+        assessment = assess_listing_identity(
+            req,
+            normalize_listing_observation(
+                _make_observation(product_title="Acme Widget ABC-123")
+            ),
+        )
+        assert assessment.candidate_evidence_source is EvidenceSource.TITLE_TEXT
+        candidate = self._candidate_for(assessment, confidence="HIGH")
+
+        assert classify_ai_assisted_review_tier(
+            candidate, assessment
+        ) is AiAssistedReviewTier.AUTO_INCLUDE
+
+    def test_high_with_semantic_conflict_needs_review(self) -> None:
+        req = _make_request("ABC-123")
+        assessment = assess_listing_identity(
+            req,
+            normalize_listing_observation(
+                _make_observation(sku_text="ABC-123", product_title="Widget")
+            ),
+        )
+        candidate = self._candidate_for(
+            assessment, confidence="HIGH", conflicts=["capacity"]
+        )
+
+        assert classify_ai_assisted_review_tier(
+            candidate, assessment
+        ) is AiAssistedReviewTier.NEEDS_REVIEW
+
+    def test_high_partial_mpn_needs_review(self) -> None:
+        req = _make_request("ABC-123")
+        assessment = assess_listing_identity(
+            req,
+            normalize_listing_observation(
+                _make_observation(mpn_text="ABC", product_title="Widget")
+            ),
+        )
+        assert assessment.rejection_reason is IdentityRejectionReason.PARTIAL_MPN_ONLY
+        candidate = self._candidate_for(assessment, confidence="HIGH")
+
+        assert classify_ai_assisted_review_tier(
+            candidate, assessment
+        ) is AiAssistedReviewTier.NEEDS_REVIEW
+
+    def test_medium_needs_review_even_with_exact_sku(self) -> None:
+        req = _make_request("ABC-123")
+        assessment = assess_listing_identity(
+            req,
+            normalize_listing_observation(
+                _make_observation(sku_text="ABC-123", product_title="Widget")
+            ),
+        )
+        candidate = self._candidate_for(assessment, confidence="MEDIUM")
+
+        assert classify_ai_assisted_review_tier(
+            candidate, assessment
+        ) is AiAssistedReviewTier.NEEDS_REVIEW
+
+    def test_low_is_preserved_as_other_possible_not_rejected(self) -> None:
+        req = _make_request("ABC-123")
+        assessment = assess_listing_identity(
+            req,
+            normalize_listing_observation(
+                _make_observation(sku_text="ABC-123", product_title="Widget")
+            ),
+        )
+        candidate = self._candidate_for(assessment, confidence="LOW")
+
+        assert classify_ai_assisted_review_tier(
+            candidate, assessment
+        ) is AiAssistedReviewTier.OTHER_POSSIBLE
+
+    def test_binding_mismatch_is_invalid_and_never_auto_included(self) -> None:
+        req = _make_request("ABC-123")
+        assessment = assess_listing_identity(
+            req,
+            normalize_listing_observation(
+                _make_observation(sku_text="ABC-123", product_title="Widget")
+            ),
+        )
+        candidate = self._candidate_for(assessment, confidence="HIGH")
+        candidate.source_url = "https://tampered.example/product"
+
+        assert classify_ai_assisted_review_tier(
+            candidate, assessment
+        ) is AiAssistedReviewTier.INVALID
