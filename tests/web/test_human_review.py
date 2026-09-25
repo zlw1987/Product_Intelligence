@@ -1637,3 +1637,54 @@ class TestUnavailableCandidatePresentation:
         report = response.context.get("report_presentation")
         assert report is not None
         assert report.verification_status == "UNKNOWN"
+
+# ---------------------------------------------------------------------------
+# Working Quote direct remove / restore
+# ---------------------------------------------------------------------------
+
+
+class TestWorkingQuoteRemoveAction:
+    def test_service_can_remove_confirmed_candidate(
+        self, completed_run_with_candidate
+    ) -> None:
+        from product_intelligence.runs import (
+            confirm_candidate,
+            remove_candidate_from_working_quote,
+            undo_review,
+        )
+
+        run, candidate = completed_run_with_candidate
+        confirm_candidate(candidate.id, run_id=run.id)
+        candidate.refresh_from_db()
+        assert candidate.review_state == "CONFIRMED"
+
+        remove_candidate_from_working_quote(candidate.id, run_id=run.id)
+        candidate.refresh_from_db()
+        assert candidate.review_state == "REJECTED"
+
+        undo_review(candidate.id, run_id=run.id)
+        candidate.refresh_from_db()
+        assert candidate.review_state == "UNREVIEWED"
+
+    def test_web_remove_action_uses_same_run_scoped_binding(
+        self, client: Client, completed_run_with_candidate
+    ) -> None:
+        from product_intelligence.runs import confirm_candidate
+
+        run, candidate = completed_run_with_candidate
+        confirm_candidate(candidate.id, run_id=run.id)
+
+        url = reverse(
+            "research-review",
+            kwargs={"run_id": run.id, "candidate_id": candidate.id},
+        )
+        response = client.post(url, {"action": "remove"})
+        assert response.status_code in (301, 302)
+        candidate.refresh_from_db()
+        assert candidate.review_state == "REJECTED"
+
+        response = client.post(url, {"action": "undo"})
+        assert response.status_code in (301, 302)
+        candidate.refresh_from_db()
+        assert candidate.review_state == "UNREVIEWED"
+

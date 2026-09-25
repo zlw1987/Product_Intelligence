@@ -702,7 +702,7 @@ def research_review(
 ) -> HttpResponse:
     """Handle a human review action for an AI-assisted candidate.
 
-    POST-only with CSRF. Accepts action as confirm, reject, or undo.
+    POST-only with CSRF. Accepts confirm, reject, remove, or undo.
 
     Web-side fail-closed binding validation (Step C):
     1. run must exist and match run_id
@@ -724,6 +724,7 @@ def research_review(
         RunNotReviewableError,
         confirm_candidate,
         reject_candidate,
+        remove_candidate_from_working_quote,
         undo_review,
     )
     from product_intelligence.web.presentation import _check_candidate_binding
@@ -734,7 +735,7 @@ def research_review(
 
     action = request.POST.get("action", "").strip().lower()
 
-    if action not in ("confirm", "reject", "undo"):
+    if action not in ("confirm", "reject", "remove", "undo"):
         return redirect("research-detail", run_id=run_id)
 
     # Step C-1: load run
@@ -807,7 +808,12 @@ def research_review(
         return redirect("research-detail", run_id=run_id)
 
     # All binding checks passed — call the runs service
-    fn = {"confirm": confirm_candidate, "reject": reject_candidate, "undo": undo_review}[action]
+    fn = {
+        "confirm": confirm_candidate,
+        "reject": reject_candidate,
+        "remove": remove_candidate_from_working_quote,
+        "undo": undo_review,
+    }[action]
 
     try:
         fn(candidate_id, run_id=run_id)
