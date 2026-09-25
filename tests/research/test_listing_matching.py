@@ -33,6 +33,7 @@ from product_intelligence.research.matching import (
     _clean_mpn_field_wrapper,
     _classify_partial,
 )
+from product_intelligence.research.extraction import extract_listing_observations
 
 
 # -- Helpers ----------------------------------------------------------------
@@ -178,6 +179,43 @@ class TestClassifyPartial:
 
 class TestAcceptExactMatch:
     """EXACT match on explicit MPN produces ACCEPTED."""
+
+    def test_visible_model_number_enrichment_reaches_3c_as_explicit_mpn(self) -> None:
+        """A labeled Model # fixes the retailer-SKU false rejection end to end."""
+        document = """
+        <html><head>
+          <script type="application/ld+json">
+          {
+            "@type": "Product",
+            "name": "Samsung 64GB DDR5 Server Memory",
+            "sku": "MEMSAM56464S",
+            "offers": {"@type": "Offer", "price": "3149.99", "priceCurrency": "USD"}
+          }
+          </script>
+        </head><body>
+          <dl>
+            <dt>Model #:</dt><dd>M321R8GA0PB2-CCP</dd>
+            <dt>Item #:</dt><dd>MEMSAM56464S</dd>
+          </dl>
+        </body></html>
+        """
+        observations = extract_listing_observations(
+            document,
+            source_url="https://example.com/central-shape",
+        )
+        assert len(observations) == 1
+        observation = observations[0]
+        assert observation.manufacturer_part_number_text == "M321R8GA0PB2-CCP"
+        assert observation.sku_text == "MEMSAM56464S"
+
+        norm = normalize_listing_observation(observation)
+        req = _make_request("M321R8GA0PB2-CCP")
+        result = assess_listing_identity(req, norm)
+
+        assert result.decision is EvidenceDecision.ACCEPTED
+        assert result.match_type is IdentityMatchType.EXACT
+        assert result.candidate_evidence_source is EvidenceSource.EXPLICIT_MPN_FIELD
+        assert result.candidate_part_number_raw == "M321R8GA0PB2-CCP"
 
     def test_exact_character_for_character(self) -> None:
         obs = _make_observation(mpn_text="MZ-QL23T800")
