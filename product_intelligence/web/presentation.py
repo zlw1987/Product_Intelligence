@@ -111,6 +111,10 @@ class ReviewCandidatePresentation:
     # MPN/SKU evidence
     candidate_mpn_field: str
     candidate_sku: str
+    evidence_source: str
+
+    # Working Quote workflow tier (display policy, not price authority)
+    working_quote_disposition: str
 
     # Semantic provenance
     semantic_confidence: str
@@ -143,6 +147,10 @@ def _build_review_candidate_presentations(
         list of ReviewCandidatePresentation objects
     """
     from datetime import datetime
+    from product_intelligence.research.working_quote_policy import (
+        classify_ai_match_for_working_quote,
+    )
+
     presentations = []
     for candidate in candidates:
         idx = candidate.assessment_index
@@ -159,6 +167,14 @@ def _build_review_candidate_presentations(
             norm = assessment.normalized_listing
             obs = norm.observation
             source_url = obs.source_url
+            disposition = classify_ai_match_for_working_quote(
+                assessment,
+                review_state=candidate.review_state,
+                semantic_confidence=candidate.semantic_confidence,
+                candidate_sku=candidate.candidate_sku,
+                target_mpn=candidate.target_mpn,
+                conflicting_attributes=candidate.semantic_conflicting_attributes,
+            ).value
             presentations.append(ReviewCandidatePresentation(
                 candidate_id=str(candidate.id),
                 assessment_index=idx,
@@ -182,6 +198,8 @@ def _build_review_candidate_presentations(
                 product_title=obs.product_title,
                 candidate_mpn_field=candidate.candidate_mpn_field,
                 candidate_sku=candidate.candidate_sku,
+                evidence_source=candidate.evidence_source,
+                working_quote_disposition=disposition,
                 semantic_confidence=candidate.semantic_confidence,
                 semantic_reason_code=candidate.semantic_reason_code,
                 semantic_matched_attributes=list(candidate.semantic_matched_attributes),
@@ -210,6 +228,8 @@ def _build_review_candidate_presentations(
                 product_title=None,
                 candidate_mpn_field=candidate.candidate_mpn_field,
                 candidate_sku=candidate.candidate_sku,
+                evidence_source=candidate.evidence_source,
+                working_quote_disposition="UNAVAILABLE",
                 semantic_confidence=candidate.semantic_confidence,
                 semantic_reason_code=candidate.semantic_reason_code,
                 semantic_matched_attributes=list(candidate.semantic_matched_attributes),
