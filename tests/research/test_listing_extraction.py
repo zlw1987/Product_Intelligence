@@ -507,6 +507,118 @@ class TestMetaExtraction:
         assert _extract(document)[0].price_text == "199.00"
 
 
+class TestVisibleLabeledIdentityEnrichment:
+    """Bounded visible identity labels may fill a missing MPN only."""
+
+    def test_model_number_enriches_json_ld_without_replacing_retailer_sku(self) -> None:
+        """Regression shape: Model # is manufacturer identity; Item # is retailer-local."""
+        document = (
+            "<html><head>"
+            + _json_ld(
+                {
+                    "@type": "Product",
+                    "name": "Samsung 64GB DDR5 Server Memory",
+                    "sku": "MEMSAM56464S",
+                    "offers": {
+                        "@type": "Offer",
+                        "price": "3149.99",
+                        "priceCurrency": "USD",
+                    },
+                }
+            )
+            + "</head><body>"
+            + "<dl><dt>Model #:</dt><dd>M321R8GA0PB2-CCP</dd>"
+            + "<dt>Item #:</dt><dd>MEMSAM56464S</dd></dl>"
+            + "</body></html>"
+        )
+
+        observations = _extract(document)
+
+        assert len(observations) == 1
+        observation = observations[0]
+        assert observation.manufacturer_part_number_text == "M321R8GA0PB2-CCP"
+        assert observation.sku_text == "MEMSAM56464S"
+        assert observation.price_text == "3149.99"
+        assert observation.currency_text == "USD"
+        assert observation.extraction_method is ExtractionMethod.JSON_LD
+
+    def test_same_text_node_model_label_is_supported(self) -> None:
+        document = (
+            "<html><head>"
+            + _json_ld({"@type": "Product", "name": "Thing", "sku": "RETAIL-1"})
+            + "</head><body><div>Model #: ABC-123</div></body></html>"
+        )
+
+        assert _extract(document)[0].manufacturer_part_number_text == "ABC-123"
+
+    def test_part_number_label_is_supported_but_item_number_is_not(self) -> None:
+        document = (
+            "<html><head>"
+            + _json_ld({"@type": "Product", "name": "Thing", "sku": "ITEM-77"})
+            + "</head><body><span>Part Number:</span><span>ABC-123</span>"
+            + "<span>Item Number:</span><span>ITEM-77</span></body></html>"
+        )
+
+        observation = _extract(document)[0]
+        assert observation.manufacturer_part_number_text == "ABC-123"
+        assert observation.sku_text == "ITEM-77"
+
+    def test_item_number_and_sku_never_promote_to_mpn(self) -> None:
+        document = (
+            "<html><head>"
+            + _json_ld({"@type": "Product", "name": "Thing", "sku": "ITEM-77"})
+            + "</head><body><div>Item #: ITEM-77</div><div>SKU: ITEM-77</div>"
+            + "</body></html>"
+        )
+
+        assert _extract(document)[0].manufacturer_part_number_text is None
+
+    def test_structured_mpn_is_never_overridden_by_visible_text(self) -> None:
+        document = (
+            "<html><head>"
+            + _json_ld({"@type": "Product", "name": "Thing", "mpn": "STRUCTURED-1"})
+            + "</head><body><div>Model #: VISIBLE-2</div></body></html>"
+        )
+
+        assert _extract(document)[0].manufacturer_part_number_text == "STRUCTURED-1"
+
+    def test_conflicting_approved_visible_labels_fail_closed(self) -> None:
+        document = (
+            "<html><head>"
+            + _json_ld({"@type": "Product", "name": "Thing", "sku": "RETAIL-1"})
+            + "</head><body><div>Model #: ABC-123</div>"
+            + "<div>MPN: ABC-124</div></body></html>"
+        )
+
+        assert _extract(document)[0].manufacturer_part_number_text is None
+
+    def test_hidden_script_and_style_text_is_not_identity_evidence(self) -> None:
+        document = (
+            "<html><head>"
+            + _json_ld({"@type": "Product", "name": "Thing", "sku": "RETAIL-1"})
+            + "<style>.x:after { content: 'Model #: STYLE-1'; }</style>"
+            + "</head><body><script>var x = 'Model #: SCRIPT-1';</script></body></html>"
+        )
+
+        assert _extract(document)[0].manufacturer_part_number_text is None
+
+    def test_visible_identity_label_alone_does_not_create_a_listing(self) -> None:
+        document = "<html><body><div>Model #: ABC-123</div></body></html>"
+
+        assert _extract(document) == ()
+
+    def test_visible_price_text_remains_non_authoritative(self) -> None:
+        document = (
+            "<html><head>"
+            + _json_ld({"@type": "Product", "name": "Thing", "sku": "RETAIL-1"})
+            + "</head><body><div>Model #: ABC-123</div>"
+            + "<div>Price: $4,099.99</div></body></html>"
+        )
+
+        observation = _extract(document)[0]
+        assert observation.manufacturer_part_number_text == "ABC-123"
+        assert observation.price_text is None
+
 class TestWhatIsNeverRead:
     @pytest.mark.parametrize(
         "markup",
