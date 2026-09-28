@@ -77,7 +77,7 @@ def _semantic_assessment(
         extraction_method=ExtractionMethod.JSON_LD,
         product_title=f"Listing for {mpn}",
         manufacturer_part_number_text="",
-        sku_text=None,
+        sku_text=(mpn if evidence_source is EvidenceSource.SKU_FIELD else None),
         brand_text=None,
         price_text=str(price_amount) if price_amount is not None else None,
         currency_text=currency_code,
@@ -99,8 +99,9 @@ def _semantic_assessment(
     return ListingIdentityAssessment(
         normalized_listing=norm,
         requested_part_number=mpn,
-        # The title publishes the requested MPN token; _find_evidence
-        # derives (TITLE_TEXT, requested_mpn) from the observation.
+        # The observation publishes evidence matching evidence_source:
+        # SKU_FIELD fixtures carry sku_text=mpn; TITLE_TEXT fixtures carry
+        # the requested MPN token in the title. Never fabricate provenance.
         candidate_part_number_raw=mpn,
         candidate_part_number_compared=mpn,
         candidate_evidence_source=evidence_source,
@@ -811,7 +812,19 @@ class TestAiAssistedUnreviewedProjection:
             MPN,
             source_url="https://det.example.com/item",
         )
-        result = _make_result(MPN, (accepted,))
+        bucket = PriceAggregateBucket(
+            currency_code="USD",
+            condition=NormalizedCondition.NEW,
+            assessments=(accepted,),
+            count=1,
+            low=Decimal("100.00"),
+            median=Decimal("100.00"),
+            high=Decimal("100.00"),
+            market_range_low=None,
+            market_range_high=None,
+            confidence=ConfidenceLevel.LOW,
+        )
+        result = _make_result(MPN, (accepted,), buckets=(bucket,))
         with pytest.raises(CompactQuoteProjectionError, match="human-review"):
             project_ai_assisted_unreviewed_rows(result, frozenset({0}))
 
