@@ -112,6 +112,30 @@ def _validate_run_reviewable(run: ResearchRun) -> None:
         )
 
 
+def classify_candidate_for_working_quote(
+    candidate: AiAssistedReviewCandidate,
+    assessment,
+) -> str:
+    """Return the effective Working Quote disposition for one bound candidate.
+
+    This application-layer facade keeps the web layer from importing the
+    research policy module directly. It is read-only: it mutates neither the
+    candidate review state nor the frozen price/evidence snapshot.
+    """
+    from product_intelligence.research.working_quote_policy import (
+        classify_ai_match_for_working_quote,
+    )
+
+    return classify_ai_match_for_working_quote(
+        assessment,
+        review_state=candidate.review_state,
+        semantic_confidence=candidate.semantic_confidence,
+        candidate_sku=candidate.candidate_sku,
+        target_mpn=candidate.target_mpn,
+        conflicting_attributes=candidate.semantic_conflicting_attributes,
+    ).value
+
+
 # ---------------------------------------------------------------------------
 # Public review operations
 # ---------------------------------------------------------------------------
