@@ -746,6 +746,8 @@ class TestQuoteMarketBusinessSummary:
 
         assert presentation.public_market_count == 0
         assert presentation.public_market_low is None
+        assert presentation.public_market_median is None
+        assert presentation.public_market_median_note is None
         assert presentation.rows[0].condition == "Not stated"
         assert presentation.rows[0].market_use == "Quote only — condition not stated"
 
