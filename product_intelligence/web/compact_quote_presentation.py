@@ -601,7 +601,11 @@ def build_compact_quote_presentation(
             "See Advanced Evidence & Audit."
         )
     else:
-        public_market_median_note = "No strict comparable NEW listings."
+        # No strict comparable market exists. Do not render a "Median"
+        # label at all: UNKNOWN / zero-bucket results have no aggregate
+        # median authority. The zero comparable-listing count already
+        # communicates the absence of a strict public market group.
+        public_market_median_note = None
 
     return CompactQuotePresentation(
         rows=tuple(rows),
