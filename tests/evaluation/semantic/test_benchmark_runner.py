@@ -26,6 +26,8 @@ from product_intelligence.evaluation.semantic.model_catalog import (
     SKIP_MODELS,
     GPT_OSS_SMOKE_CASE_IDS,
     get_model_by_provider_model,
+    can_run_full,
+    can_run_smoke,
 )
 
 
@@ -44,6 +46,7 @@ def test_model_catalog_exhaustive():
     assert ("amax", "minimax-m2.7") in all_providers_models
     assert ("amax", "minimax-m2.7-thinking") in all_providers_models
     assert ("amax", "nemotron-3-super") in all_providers_models
+    assert ("amax", "qwen3.8-27b") in all_providers_models
     assert ("amax", "google/gemma-4-26B-A4B-it") in all_providers_models
     assert ("amax", "mistral-small-4") in all_providers_models
     assert ("amax", "mistral-small-24b-instruct-2501") in all_providers_models
@@ -91,6 +94,14 @@ def test_get_model_by_provider_model():
     model = get_model_by_provider_model("vllm-262k", "Qwen3.6-27B-262K")
     assert model is not None
     assert model.provider == "vllm-262k"
+
+    model = get_model_by_provider_model("amax", "qwen3.8-27b")
+    assert model is not None
+    assert model.provider == "amax"
+    assert model.model == "qwen3.8-27b"
+    assert model.role.value == "primary_candidate"
+    assert can_run_full("amax", "qwen3.8-27b") is True
+    assert can_run_smoke("amax", "qwen3.8-27b") is False
 
     model = get_model_by_provider_model("unknown", "unknown-model")
     assert model is None
@@ -253,10 +264,27 @@ def test_manifest_structure():
 
 def test_full_qualification_model_count():
     """Test full qualification model count."""
-    assert len(FULL_QUALIFICATION_MODELS) == 8
+    assert len(FULL_QUALIFICATION_MODELS) == 9
     assert len(SMOKE_ONLY_MODELS) == 1
     assert len(SKIP_MODELS) == 3
-    assert len(FULL_QUALIFICATION_MODELS) + len(SMOKE_ONLY_MODELS) + len(SKIP_MODELS) == 12
+    assert len(FULL_QUALIFICATION_MODELS) + len(SMOKE_ONLY_MODELS) + len(SKIP_MODELS) == 13
+
+
+def test_qwen38_catalog_authorization_does_not_change_production_route():
+    """Qwen3.8 is an evaluation challenger, not an implicit prod promotion."""
+    from product_intelligence.semantic.runtime import (
+        FALLBACK_MODEL,
+        FALLBACK_PROVIDER,
+        PRIMARY_MODEL,
+        PRIMARY_PROVIDER,
+    )
+
+    assert can_run_full("amax", "qwen3.8-27b") is True
+    assert (PRIMARY_PROVIDER, PRIMARY_MODEL) == ("amax", "nemotron-3-super")
+    assert (FALLBACK_PROVIDER, FALLBACK_MODEL) == (
+        "vllm-262k",
+        "Qwen3.6-27B-262K",
+    )
 
 
 def test_transport_failure_reduces_valid_output():
