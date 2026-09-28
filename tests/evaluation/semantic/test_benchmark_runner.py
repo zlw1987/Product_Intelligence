@@ -259,7 +259,20 @@ def test_manifest_structure():
     assert "finish_timestamp" in manifest
     assert "generation_parameters" in manifest
     assert manifest["generation_parameters"]["temperature"] == 0.0
-    assert manifest["generation_parameters"]["max_tokens"] == 1024
+    assert manifest["generation_parameters"]["max_tokens"] == 32768
+
+
+def test_full_qualification_default_generation_matches_frozen_route():
+    """Default FULL benchmark generation settings match frozen qualification."""
+    transport = FakeSemanticModelTransport()
+    config = BenchmarkRunConfig(
+        provider="amax",
+        model="nemotron-3-super",
+        case_selection="FULL",
+        transport=transport,
+    )
+    assert config.temperature == 0.0
+    assert config.max_tokens == 32768
 
 
 def test_full_qualification_model_count():
