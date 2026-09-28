@@ -188,13 +188,16 @@ def _validate_confirmed_candidates(
     """Validate confirmed candidates against the decoded snapshot assessments.
 
     Returns a frozenset of assessment indices for confirmed candidates whose
-    binding_valid is True (meaning the candidate-to-assessment binding passed
-    all identity checks). Silently drops invalid ones rather than failing the
-    page.
+    binding is valid and whose effective Working Quote disposition remains
+    CONFIRMED. Explicit hard identity conflicts stay out of Reviewed Price
+    even if a historical review_state is CONFIRMED.
     """
     valid_indices = set()
     for candidate in confirmed_candidates:
-        if candidate.binding_valid:
+        if (
+            candidate.binding_valid
+            and candidate.working_quote_disposition == "CONFIRMED"
+        ):
             valid_indices.add(candidate.assessment_index)
     return frozenset(valid_indices)
 
@@ -426,6 +429,10 @@ def research_detail(request: HttpRequest, run_id: uuid.UUID) -> HttpResponse:
     ai_low_confidence_candidates = [
         c for c in review_candidates
         if c.working_quote_disposition == "LOW_CONFIDENCE"
+    ]
+    ai_hard_conflict_candidates = [
+        c for c in review_candidates
+        if c.working_quote_disposition == "HARD_CONFLICT"
     ]
     ai_rejected_candidates = [
         c for c in review_candidates
@@ -662,6 +669,7 @@ def research_detail(request: HttpRequest, run_id: uuid.UUID) -> HttpResponse:
         "ai_evidence_only_candidates": ai_evidence_only_candidates,
         "ai_needs_review_candidates": ai_needs_review_candidates,
         "ai_low_confidence_candidates": ai_low_confidence_candidates,
+        "ai_hard_conflict_candidates": ai_hard_conflict_candidates,
         "ai_rejected_candidates": ai_rejected_candidates,
         "ai_unavailable_candidates": ai_unavailable_candidates,
         "reviewed_result": reviewed_result,
@@ -778,6 +786,10 @@ def research_review(
         PriceResultCodecError,
         decode_price_aggregation_result,
     )
+    from product_intelligence.research.working_quote_policy import (
+        AiWorkingQuoteDisposition,
+        classify_ai_match_for_working_quote,
+    )
 
     action = request.POST.get("action", "").strip().lower()
 
@@ -853,7 +865,25 @@ def research_review(
         )
         return redirect("research-detail", run_id=run_id)
 
-    # All binding checks passed — call the runs service
+    if action == "confirm":
+        disposition = classify_ai_match_for_working_quote(
+            assessment,
+            review_state=candidate.review_state,
+            semantic_confidence=candidate.semantic_confidence,
+            candidate_sku=candidate.candidate_sku,
+            target_mpn=candidate.target_mpn,
+            conflicting_attributes=candidate.semantic_conflicting_attributes,
+        )
+        if disposition is AiWorkingQuoteDisposition.HARD_CONFLICT:
+            logger.warning(
+                "Review confirm blocked for candidate %s on run %s: "
+                "explicit hard identity conflict.",
+                candidate_id,
+                run_id,
+            )
+            return redirect("research-detail", run_id=run_id)
+
+    # All binding and policy checks passed — call the runs service
     fn = {
         "confirm": confirm_candidate,
         "reject": reject_candidate,
