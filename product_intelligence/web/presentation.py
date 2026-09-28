@@ -148,9 +148,7 @@ def _build_review_candidate_presentations(
         list of ReviewCandidatePresentation objects
     """
     from datetime import datetime
-    from product_intelligence.research.working_quote_policy import (
-        classify_ai_match_for_working_quote,
-    )
+    from product_intelligence.runs import classify_candidate_for_working_quote
 
     presentations = []
     for candidate in candidates:
@@ -168,14 +166,10 @@ def _build_review_candidate_presentations(
             norm = assessment.normalized_listing
             obs = norm.observation
             source_url = obs.source_url
-            disposition = classify_ai_match_for_working_quote(
+            disposition = classify_candidate_for_working_quote(
+                candidate,
                 assessment,
-                review_state=candidate.review_state,
-                semantic_confidence=candidate.semantic_confidence,
-                candidate_sku=candidate.candidate_sku,
-                target_mpn=candidate.target_mpn,
-                conflicting_attributes=candidate.semantic_conflicting_attributes,
-            ).value
+            )
             presentations.append(ReviewCandidatePresentation(
                 candidate_id=str(candidate.id),
                 assessment_index=idx,
