@@ -718,6 +718,19 @@ class TestSmokeAttemptedCaseArtifacts:
 # ---------------------------------------------------------------------------
 
 
+class TestCliGenerationContract:
+    """CLI defaults preserve frozen FULL qualification generation settings."""
+
+    def test_default_generation_settings(self):
+        from product_intelligence.evaluation.semantic.cli import create_parser
+        parser = create_parser()
+        args = parser.parse_args([
+            "run", "--provider", "amax", "--model", "nemotron-3-super",
+        ])
+        assert args.temperature == 0.0
+        assert args.max_tokens == 32768
+
+
 class TestCliTimeoutContract:
     """CLI --request-timeout-seconds default and explicit."""
 
