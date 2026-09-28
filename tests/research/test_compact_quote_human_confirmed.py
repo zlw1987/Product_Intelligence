@@ -664,7 +664,91 @@ class TestAiWorkingQuotePolicy:
             semantic_confidence="HIGH",
             conflicting_attributes=("capacity",),
             **common,
+        ) is AiWorkingQuoteDisposition.HARD_CONFLICT
+
+    @pytest.mark.parametrize(
+        "conflict",
+        (
+            "different MPN suffix",
+            "capacity",
+            "form_factor",
+            "interface",
+            "accessory type",
+            "replacement product",
+            "manufacturer",
+        ),
+    )
+    def test_identity_critical_conflicts_are_hard_exclusions(
+        self, conflict: str
+    ) -> None:
+        from dataclasses import replace
+        from product_intelligence.research.working_quote_policy import (
+            AiWorkingQuoteDisposition,
+            classify_ai_match_for_working_quote,
+        )
+
+        base = _semantic_assessment(
+            MPN,
+            source_url="https://hard-conflict.example.com/item",
+            evidence_source=EvidenceSource.SKU_FIELD,
+        )
+        assessment = replace(
+            base,
+            normalized_listing=replace(
+                base.normalized_listing,
+                observation=replace(
+                    base.normalized_listing.observation,
+                    sku_text=MPN,
+                ),
+            ),
+        )
+        assert classify_ai_match_for_working_quote(
+            assessment,
+            review_state="UNREVIEWED",
+            semantic_confidence="HIGH",
+            candidate_sku=MPN,
+            target_mpn=MPN,
+            conflicting_attributes=(conflict,),
+        ) is AiWorkingQuoteDisposition.HARD_CONFLICT
+
+    def test_unknown_non_identity_conflict_remains_reviewable(self) -> None:
+        from product_intelligence.research.working_quote_policy import (
+            AiWorkingQuoteDisposition,
+            classify_ai_match_for_working_quote,
+        )
+
+        assessment = _semantic_assessment(
+            MPN,
+            source_url="https://soft-conflict.example.com/item",
+            evidence_source=EvidenceSource.TITLE_TEXT,
+        )
+        assert classify_ai_match_for_working_quote(
+            assessment,
+            review_state="UNREVIEWED",
+            semantic_confidence="HIGH",
+            candidate_sku="",
+            target_mpn=MPN,
+            conflicting_attributes=("color",),
         ) is AiWorkingQuoteDisposition.NEEDS_REVIEW
+
+    def test_hard_conflict_overrides_stale_confirmed_state(self) -> None:
+        from product_intelligence.research.working_quote_policy import (
+            AiWorkingQuoteDisposition,
+            classify_ai_match_for_working_quote,
+        )
+
+        assessment = _semantic_assessment(
+            MPN,
+            source_url="https://confirmed-conflict.example.com/item",
+        )
+        assert classify_ai_match_for_working_quote(
+            assessment,
+            review_state="CONFIRMED",
+            semantic_confidence="HIGH",
+            candidate_sku="",
+            target_mpn=MPN,
+            conflicting_attributes=("capacity",),
+        ) is AiWorkingQuoteDisposition.HARD_CONFLICT
 
     def test_review_state_overrides_confidence(self) -> None:
         from product_intelligence.research.working_quote_policy import (
