@@ -187,7 +187,7 @@ class BenchmarkRunConfig:
     case_selection: str  # "FULL" or "SMOKE"
     transport: SemanticModelTransport
     temperature: float = 0.0
-    max_tokens: int = 1024
+    max_tokens: int = 32768
     request_timeout_seconds: float = 300.0
     output_dir: str | Path | None = None
 
@@ -990,7 +990,7 @@ def run_benchmark(
     case_selection: str = "FULL",
     output_dir: str | Path | None = None,
     temperature: float = 0.0,
-    max_tokens: int = 1024,
+    max_tokens: int = 32768,
     request_timeout_seconds: float = 300.0,
     *,
     transport: SemanticModelTransport | None = None,
@@ -1003,7 +1003,7 @@ def run_benchmark(
         case_selection: 'FULL' or 'SMOKE'
         output_dir: Output directory (optional)
         temperature: Temperature setting (default: 0.0)
-        max_tokens: Max tokens (default: 1024)
+        max_tokens: Max tokens (default: 32768; frozen FULL qualification setting)
         request_timeout_seconds: Request timeout in seconds (default: 300.0)
         transport: Custom transport (optional)
 
