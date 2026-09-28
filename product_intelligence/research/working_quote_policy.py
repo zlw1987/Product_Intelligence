@@ -3,6 +3,10 @@
 This module does not read persistence, call models/providers, mutate review
 state, or alter deterministic identity/price authority. Confidence is a
 workflow tier, not a calibrated probability or correctness claim.
+
+Explicit identity conflicts are policy exclusions, not human review actions:
+they never become Working Quote / Reviewed Price authority merely because a
+semantic confidence tier is HIGH or a stale review state says CONFIRMED.
 """
 
 from __future__ import annotations
@@ -23,7 +27,68 @@ class AiWorkingQuoteDisposition(str, Enum):
     CONFIRMED = "CONFIRMED"
     NEEDS_REVIEW = "NEEDS_REVIEW"
     LOW_CONFIDENCE = "LOW_CONFIDENCE"
+    HARD_CONFLICT = "HARD_CONFLICT"
     REJECTED = "REJECTED"
+
+
+_HARD_IDENTITY_CONFLICT_TERMS = (
+    "mpn",
+    "part number",
+    "manufacturer part number",
+    "model",
+    "suffix",
+    "revision",
+    "capacity",
+    "memory size",
+    "form factor",
+    "interface",
+    "connector",
+    "accessory",
+    "compatible with",
+    "replacement",
+    "multipack",
+    "multi pack",
+    "pack size",
+    "pack quantity",
+    "product type",
+    "manufacturer",
+    "brand",
+)
+
+
+def _normalize_conflict_text(value: str) -> str:
+    return " ".join(
+        value.strip().lower().replace("_", " ").replace("-", " ").split()
+    )
+
+
+def has_hard_identity_conflict(
+    conflicting_attributes: Sequence[str],
+) -> bool:
+    """Return True only for explicit identity-critical semantic conflicts.
+
+    Unknown/non-identity conflict labels remain reviewable. Malformed
+    non-string conflict entries fail closed as hard conflicts.
+    """
+    if conflicting_attributes is None:
+        return False
+    if isinstance(conflicting_attributes, (str, bytes)):
+        values = (conflicting_attributes,)
+    else:
+        try:
+            values = tuple(conflicting_attributes)
+        except TypeError:
+            return True
+
+    for raw in values:
+        if not isinstance(raw, str):
+            return True
+        normalized = _normalize_conflict_text(raw)
+        if not normalized:
+            continue
+        if any(term in normalized for term in _HARD_IDENTITY_CONFLICT_TERMS):
+            return True
+    return False
 
 
 def classify_ai_match_for_working_quote(
@@ -44,6 +109,10 @@ def classify_ai_match_for_working_quote(
     state = (review_state or "").strip().upper()
     if state == "REJECTED":
         return AiWorkingQuoteDisposition.REJECTED
+
+    if has_hard_identity_conflict(conflicting_attributes):
+        return AiWorkingQuoteDisposition.HARD_CONFLICT
+
     if state == "CONFIRMED":
         return AiWorkingQuoteDisposition.CONFIRMED
     if state != "UNREVIEWED":
