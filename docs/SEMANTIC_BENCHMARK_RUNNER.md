@@ -77,6 +77,9 @@ Qualification artifacts must retain the literal provider/model provenance
 ### FULL Qualification
 
 - Runs all 64 cases from the corpus
+- Frozen generation settings: `temperature=0.0`, `max_tokens=32768`
+- CLI defaults match those frozen settings; runs using other generation settings
+  may be diagnostic but are not provenance-comparable to the frozen production qualification
 - Subject to hard gates:
   - `zero_false_match_on_authority_conflicts`
   - `zero_false_match_on_accessory_safety_set`
