@@ -168,6 +168,38 @@ def _validate_comparable_result_parent_binding(
     return True
 
 
+def _classify_bound_candidate_for_working_quote(candidate, assessment) -> str:
+    """Classify one already-bound review candidate without crossing layers.
+
+    The web layer is allowed to consume the frozen 2A comparator for bounded
+    read-side integrity checks. The framework-free workflow policy lives in
+    domain/. Research-specific identity evidence is reduced to the single
+    strong_sku_identity boolean before entering that policy.
+
+    The caller must establish candidate-to-assessment binding first.
+    """
+    from product_intelligence.domain.working_quote_policy import (
+        classify_working_quote_policy,
+    )
+    from product_intelligence.research.identity import compare_part_numbers
+
+    sku_identity = compare_part_numbers(
+        candidate.target_mpn,
+        candidate.candidate_sku,
+    )
+    strong_sku_identity = (
+        assessment.candidate_evidence_source.value == "SKU_FIELD"
+        and sku_identity.is_established
+    )
+
+    return classify_working_quote_policy(
+        review_state=candidate.review_state,
+        semantic_confidence=candidate.semantic_confidence,
+        strong_sku_identity=strong_sku_identity,
+        conflicting_attributes=candidate.semantic_conflicting_attributes,
+    ).value
+
+
 def _redirect_to_report(run: ResearchRun, start_error: bool = False, retry_error: bool = False) -> HttpResponse:
     """Redirect to the report for *run*, optionally adding a transient flag."""
     if start_error:
@@ -364,6 +396,7 @@ def research_detail(request: HttpRequest, run_id: uuid.UUID) -> HttpResponse:
             raw_candidates,
             decoded_result.assessments,
             logger,
+            _classify_bound_candidate_for_working_quote,
         )
     else:
         # No snapshot: build minimal presentations with binding_valid=False
@@ -774,7 +807,6 @@ def research_review(
         CandidateNotFoundError,
         CrossRunReviewError,
         InvalidCandidateError,
-        classify_candidate_for_working_quote,
         ReviewConflictError,
         RunNotReviewableError,
         confirm_candidate,
@@ -862,7 +894,7 @@ def research_review(
         return redirect("research-detail", run_id=run_id)
 
     if action == "confirm":
-        disposition = classify_candidate_for_working_quote(
+        disposition = _classify_bound_candidate_for_working_quote(
             candidate,
             assessment,
         )
