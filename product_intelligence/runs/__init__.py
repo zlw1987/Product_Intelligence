@@ -51,6 +51,7 @@ __all__ = [
     "InvalidInitialResearchRunState",
     "InvalidResearchRunTransition",
     "fail_comparable_research",
+    "classify_candidate_for_working_quote",
     "confirm_candidate",
     "reject_candidate",
     "remove_candidate_from_working_quote",
@@ -72,6 +73,7 @@ _MODEL_EXPORTS = frozenset({"ALLOWED_TRANSITIONS", "ResearchRun", "TERMINAL_STAT
 # Evidence enums and primitives are pure Python (no Django import), so they can
 # be exposed directly from this package without lazy loading.
 _REVIEW_EXPORTS = frozenset({
+    "classify_candidate_for_working_quote",
     "confirm_candidate",
     "reject_candidate",
     "remove_candidate_from_working_quote",
