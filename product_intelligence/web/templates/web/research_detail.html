@@ -223,6 +223,19 @@
     </details>
   {% endif %}
 
+  {% if ai_hard_conflict_candidates %}
+    <h3>Automatically excluded identity conflicts</h3>
+    <p class="notice">
+      These sources contain an explicit identity conflict (for example MPN
+      suffix, capacity, form factor, interface, or accessory mismatch).
+      They are excluded regardless of AI confidence and are not treated as
+      human-rejected review state.
+    </p>
+    {% for candidate in ai_hard_conflict_candidates %}
+      {% include "web/_ai_candidate_card.html" with candidate=candidate %}
+    {% endfor %}
+  {% endif %}
+
   {% if ai_rejected_candidates %}
     <details>
       <summary><strong>Rejected AI-assisted sources ({{ ai_rejected_candidates|length }})</strong></summary>
