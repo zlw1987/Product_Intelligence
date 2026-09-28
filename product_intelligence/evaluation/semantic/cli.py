@@ -340,8 +340,8 @@ def create_parser() -> argparse.ArgumentParser:
         help="Temperature setting (default: 0.0)"
     )
     run_parser.add_argument(
-        "--max-tokens", type=int, default=1024,
-        help="Maximum completion tokens (default: 1024)"
+        "--max-tokens", type=int, default=32768,
+        help="Maximum completion tokens (default: 32768; frozen FULL qualification setting)"
     )
     run_parser.add_argument(
         "--request-timeout-seconds", type=float, default=300.0,
