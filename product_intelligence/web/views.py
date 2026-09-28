@@ -774,6 +774,7 @@ def research_review(
         CandidateNotFoundError,
         CrossRunReviewError,
         InvalidCandidateError,
+        classify_candidate_for_working_quote,
         ReviewConflictError,
         RunNotReviewableError,
         confirm_candidate,
@@ -786,11 +787,6 @@ def research_review(
         PriceResultCodecError,
         decode_price_aggregation_result,
     )
-    from product_intelligence.research.working_quote_policy import (
-        AiWorkingQuoteDisposition,
-        classify_ai_match_for_working_quote,
-    )
-
     action = request.POST.get("action", "").strip().lower()
 
     if action not in ("confirm", "reject", "remove", "undo"):
@@ -866,15 +862,11 @@ def research_review(
         return redirect("research-detail", run_id=run_id)
 
     if action == "confirm":
-        disposition = classify_ai_match_for_working_quote(
+        disposition = classify_candidate_for_working_quote(
+            candidate,
             assessment,
-            review_state=candidate.review_state,
-            semantic_confidence=candidate.semantic_confidence,
-            candidate_sku=candidate.candidate_sku,
-            target_mpn=candidate.target_mpn,
-            conflicting_attributes=candidate.semantic_conflicting_attributes,
         )
-        if disposition is AiWorkingQuoteDisposition.HARD_CONFLICT:
+        if disposition == "HARD_CONFLICT":
             logger.warning(
                 "Review confirm blocked for candidate %s on run %s: "
                 "explicit hard identity conflict.",
