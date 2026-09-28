@@ -136,6 +136,7 @@ def _build_review_candidate_presentations(
     candidates,
     assessments,
     logger,
+    working_quote_classifier,
 ):
     """Build ReviewCandidatePresentation objects for a list of candidates.
 
@@ -143,12 +144,14 @@ def _build_review_candidate_presentations(
         candidates: list of AiAssistedReviewCandidate instances
         assessments: tuple of ListingIdentityAssessment from decoded snapshot
         logger: logger instance
+        working_quote_classifier: callable(candidate, assessment) -> disposition
+            supplied by the web application boundary after research binding
+            is validated. Presentation itself owns no workflow policy.
 
     Returns:
         list of ReviewCandidatePresentation objects
     """
     from datetime import datetime
-    from product_intelligence.runs import classify_candidate_for_working_quote
 
     presentations = []
     for candidate in candidates:
@@ -166,7 +169,7 @@ def _build_review_candidate_presentations(
             norm = assessment.normalized_listing
             obs = norm.observation
             source_url = obs.source_url
-            disposition = classify_candidate_for_working_quote(
+            disposition = working_quote_classifier(
                 candidate,
                 assessment,
             )
