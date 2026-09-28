@@ -237,7 +237,13 @@ def _make_completed_run(
     return run, obs
 
 
-def _make_candidate(run: ResearchRun, obs: ListingObservation, index: int) -> AiAssistedReviewCandidate:
+def _make_candidate(
+    run: ResearchRun,
+    obs: ListingObservation,
+    index: int,
+    *,
+    conflicts: tuple[str, ...] = (),
+) -> AiAssistedReviewCandidate:
     """A binding-exact review candidate for one semantic observation."""
     return AiAssistedReviewCandidate.objects.create(
         run=run,
@@ -249,6 +255,7 @@ def _make_candidate(run: ResearchRun, obs: ListingObservation, index: int) -> Ai
         candidate_mpn_field=obs.manufacturer_part_number_text or "",
         candidate_sku=obs.sku_text or "",
         evidence_source="TITLE_TEXT",
+        semantic_conflicting_attributes=list(conflicts),
         actual_provider="amax",
         actual_model="nemotron-3-super",
         prompt_version="v1.1",
@@ -668,6 +675,47 @@ class TestMachinePriceAndDerivationContract(TestCase):
         # ...but the projection produces NO row (no persisted price).
         rows = _human_rows(run)
         self.assertEqual(rows, [])
+
+# ---------------------------------------------------------------------------
+# FU7: hard identity conflicts override stale confirmation
+# ---------------------------------------------------------------------------
+
+
+class TestConfirmedHardConflictFailsClosed(TestCase):
+    def test_confirmed_capacity_conflict_never_projects_on_either_replay(self) -> None:
+        run, obs = _make_completed_run(
+            semantic_url="https://hard-confirmed.example.com/u",
+            accepted_url="https://hard-confirmed.example.com/a",
+        )
+        cand = _make_candidate(run, obs, 0, conflicts=("capacity",))
+        # Direct service call models a historical confirmation persisted
+        # before the hard-conflict policy correction.
+        confirm_candidate(cand.id, run_id=run.id)
+        cand.refresh_from_db()
+        self.assertEqual(cand.review_state, "CONFIRMED")
+
+        decoded = _decoded_price(run)
+        self.assertEqual(
+            derive_human_confirmed_assessment_indices(
+                run, decoded.assessments
+            ),
+            frozenset(),
+        )
+
+        authorized = replay_compact_quote_projection(str(run.id))
+        public = replay_public_compact_quote_projection(run=run)
+        for replay in (authorized, public):
+            self.assertEqual(
+                [
+                    row for row in replay.projection.rows
+                    if row.source_type in (
+                        "HUMAN_CONFIRMED",
+                        "AI_ASSISTED_UNVERIFIED",
+                    )
+                ],
+                [],
+            )
+
 
 # ---------------------------------------------------------------------------
 # B3: AI Working Quote replay policy (UNREVIEWED HIGH / tier boundaries)
