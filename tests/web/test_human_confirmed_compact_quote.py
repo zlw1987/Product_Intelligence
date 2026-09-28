@@ -1019,7 +1019,7 @@ def test_b3_confirm_replaces_unreviewed_row_without_duplicate(client: Client) ->
         ("MEDIUM", EvidenceSource.SKU_FIELD, (), "ai_needs_review_candidates"),
         ("LOW", EvidenceSource.SKU_FIELD, (), "ai_low_confidence_candidates"),
         ("HIGH", EvidenceSource.TITLE_TEXT, (), "ai_needs_review_candidates"),
-        ("HIGH", EvidenceSource.SKU_FIELD, ("capacity",), "ai_needs_review_candidates"),
+        ("HIGH", EvidenceSource.SKU_FIELD, ("capacity",), "ai_hard_conflict_candidates"),
     ),
 )
 def test_b3_non_auto_tiers_stay_out_of_quote_and_remain_reviewable(
@@ -1047,15 +1047,76 @@ def test_b3_non_auto_tiers_stay_out_of_quote_and_remain_reviewable(
     assert [c.candidate_id for c in group] == [str(candidate.id)]
 
     html = response.content.decode()
-    if confidence == "LOW":
+    if expected_group == "ai_hard_conflict_candidates":
+        assert "Automatically excluded identity conflicts" in html
+        assert "explicit identity conflict" in html
+        assert 'name="action" value="confirm"' not in html
+        assert 'name="action" value="reject"' not in html
+    elif confidence == "LOW":
         assert "Other possible sources — low confidence (1)" in html
-    else:
-        assert "Possible matches — needs review" in html
-    assert 'name="action" value="confirm"' in html
-    if confidence == "LOW":
+        assert 'name="action" value="confirm"' in html
         # Low confidence stays UNREVIEWED and excluded by default.
         # Include remains available without an eager Reject action.
         assert 'name="action" value="reject"' not in html
     else:
+        assert "Possible matches — needs review" in html
+        assert 'name="action" value="confirm"' in html
         assert 'name="action" value="reject"' in html
+
+@pytest.mark.usefixtures("human_confirmed_db_isolation")
+def test_b3_hard_conflict_forged_confirm_post_is_blocked(client: Client) -> None:
+    run, candidate = _make_auto_ai_completed_run(
+        confidence="HIGH",
+        conflicts=("capacity",),
+        evidence_source=EvidenceSource.SKU_FIELD,
+    )
+
+    response = client.post(_review_url(run, candidate), {"action": "confirm"})
+    assert response.status_code == 302
+    candidate.refresh_from_db()
+    assert candidate.review_state == "UNREVIEWED"
+
+    response, rows = _detail_rows(client, run)
+    assert not any(
+        r.source_type in ("AI_ASSISTED_UNVERIFIED", "HUMAN_CONFIRMED")
+        for r in rows
+    )
+    assert response.context["confirmed_count"] == 0
+    assert response.context["reviewed_result"] is None
+    assert len(response.context["ai_hard_conflict_candidates"]) == 1
+    html = response.content.decode()
+    assert "Automatically excluded identity conflicts" in html
+    assert 'name="action" value="confirm"' not in html
+
+
+@pytest.mark.usefixtures("human_confirmed_db_isolation")
+def test_b3_stale_confirmed_hard_conflict_stays_out_of_quote_and_reviewed_price(
+    client: Client,
+) -> None:
+    from product_intelligence.runs import confirm_candidate
+
+    run, candidate = _make_auto_ai_completed_run(
+        confidence="HIGH",
+        conflicts=("capacity",),
+        evidence_source=EvidenceSource.SKU_FIELD,
+    )
+    # Bypass the web gate to model a historical CONFIRMED row.
+    confirm_candidate(candidate.id, run_id=run.id)
+    candidate.refresh_from_db()
+    assert candidate.review_state == "CONFIRMED"
+
+    response, rows = _detail_rows(client, run)
+    assert not any(
+        r.source_type in ("AI_ASSISTED_UNVERIFIED", "HUMAN_CONFIRMED")
+        for r in rows
+    )
+    assert response.context["confirmed_count"] == 0
+    assert response.context["reviewed_result"] is None
+    hard = response.context["ai_hard_conflict_candidates"]
+    assert [c.candidate_id for c in hard] == [str(candidate.id)]
+
+    html = response.content.decode()
+    assert "Automatically excluded — explicit identity conflict." in html
+    assert "Undo prior confirmation" in html
+    assert 'name="action" value="confirm"' not in html
 
