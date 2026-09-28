@@ -103,7 +103,9 @@ def derive_human_confirmed_assessment_indices(
        tampered candidate never qualifies);
     5. the mapped assessment is still human-review eligible (part of the
        shared binding check);
-    6. persisted price/currency existence is enforced downstream by
+    6. persisted semantic provenance has no explicit hard identity conflict;
+       a stale/historical CONFIRMED state cannot override that exclusion;
+    7. persisted price/currency existence is enforced downstream by
        ``project_human_confirmed_rows`` (a confirmed listing without
        persisted price evidence produces no row).
 
@@ -122,8 +124,19 @@ def derive_human_confirmed_assessment_indices(
             continue  # contract-invalid persisted row: fail closed
         if idx < 0 or idx >= len(assessments):
             continue  # stale mapping: fail closed
-        if not is_review_candidate_binding_valid(candidate, assessments[idx]):
+        assessment = assessments[idx]
+        if not is_review_candidate_binding_valid(candidate, assessment):
             continue  # tampered / foreign / non-eligible binding: fail closed
+        disposition = classify_ai_match_for_working_quote(
+            assessment,
+            review_state=candidate.review_state,
+            semantic_confidence=candidate.semantic_confidence,
+            candidate_sku=candidate.candidate_sku,
+            target_mpn=candidate.target_mpn,
+            conflicting_attributes=candidate.semantic_conflicting_attributes,
+        )
+        if disposition is not AiWorkingQuoteDisposition.CONFIRMED:
+            continue  # hard-conflict policy overrides stale confirmation
         valid_indices.add(idx)
     return frozenset(valid_indices)
 
