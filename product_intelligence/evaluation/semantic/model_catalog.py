@@ -67,7 +67,7 @@ class QualificationModel:
 
 
 # ---------------------------------------------------------------------------
-# Full qualification models (8 models)
+# Full qualification models (9 models)
 # ---------------------------------------------------------------------------
 
 FULL_QUALIFICATION_MODELS = (
@@ -89,6 +89,11 @@ FULL_QUALIFICATION_MODELS = (
     QualificationModel(
         provider="amax",
         model="nemotron-3-super",
+        role=ModelRole.PRIMARY_CANDIDATE,
+    ),
+    QualificationModel(
+        provider="amax",
+        model="qwen3.8-27b",
         role=ModelRole.PRIMARY_CANDIDATE,
     ),
     QualificationModel(
