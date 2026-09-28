@@ -13,6 +13,9 @@ python -m product_intelligence.evaluation.semantic.cli list-models
 # Run full qualification (amax/minimax-m2.7)
 python -m product_intelligence.evaluation.semantic.cli run --provider amax --model minimax-m2.7
 
+# Run Qwen 3.8 challenger qualification (evaluation only)
+python -m product_intelligence.evaluation.semantic.cli run --provider amax --model qwen3.8-27b
+
 # Run smoke test (amax/gpt-oss-20b)
 python -m product_intelligence.evaluation.semantic.cli run --provider amax --model gpt-oss-20b --mode smoke
 
@@ -29,6 +32,7 @@ These models may run FULL qualification:
 - `amax/minimax-m2.7` (PRIMARY_CANDIDATE)
 - `amax/minimax-m2.7-thinking` (PRIMARY_CANDIDATE)
 - `amax/nemotron-3-super` (PRIMARY_CANDIDATE)
+- `amax/qwen3.8-27b` (PRIMARY_CANDIDATE; challenger qualification only)
 - `amax/google/gemma-4-26B-A4B-it` (PRIMARY_CANDIDATE)
 - `amax/mistral-small-4` (PRIMARY_CANDIDATE)
 - `amax/mistral-small-24b-instruct-2501` (LIGHTWEIGHT_GENERAL)
@@ -56,6 +60,17 @@ These models cannot be benchmarked:
 | SKIP_NON_GENERATIVE | ❌ | ❌ |
 
 **Unknown models are rejected** - the runner fails closed rather than falling back to allow any model.
+
+### Qwen 3.8 Challenger Boundary
+
+`amax/qwen3.8-27b` is authorized only in the evaluation model catalog so it can run the
+same FULL 64-case qualification as the existing candidates. This catalog entry does **not**
+change `product_intelligence.semantic.runtime`: production remains pinned to
+`amax/nemotron-3-super` primary with `vllm-262k/Qwen3.6-27B-262K` fallback until a
+separate reviewed promotion phase explicitly changes that frozen route.
+
+Qualification artifacts must retain the literal provider/model provenance
+`amax` / `qwen3.8-27b`; do not alias or rewrite the model ID in comparisons.
 
 ## FULL vs SMOKE Semantics
 
