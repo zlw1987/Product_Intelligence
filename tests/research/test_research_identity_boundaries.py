@@ -41,14 +41,23 @@ RESEARCH_ROOT = PACKAGE_ROOT / "research"
 IDENTITY_MODULE = RESEARCH_ROOT / "identity.py"
 
 
-# A1-FU1 reviewer-authorized evaluation->research exception.
+# A1-FU2 reviewer-authorized evaluation->research exception (least
+# privilege).
 #
 # The original 2A boundary forbade every product_intelligence.evaluation
 # file from importing product_intelligence.research. The promotion-
 # regression harness must replay the REAL deterministic identity chain
 # (assess_listing_identity) instead of copying it into evaluation, so an
-# architecture reviewer authorized a deliberately narrowed exception for
-# EXACTLY the following two files. This is an explicit, reviewer-
+# architecture reviewer authorized a deliberately narrowed exception.
+# Reviewer history: A1 introduced a too-broad promotion_regression*
+# prefix match (recorded conflict); A1-FU1 authorized the exception and
+# exacted it as a two-file allowlist; A1-FU2 tightened it to the single
+# file that actually requires the dependency, because
+# promotion_regression_cli.py does NOT import research (it consumes the
+# harness module) and FU1 had authorized the CLI only IF it actually
+# required the dependency. If the CLI or any other evaluation module
+# later needs a direct research dependency, that requires a NEW explicit
+# architecture-review decision. This is an explicit, reviewer-
 # authorized governance decision recorded in
 # docs/PRODUCT_INTELLIGENCE_STATUS.md (A1, item 4) and PLAN section 26.16
 # (item 7) -- NOT an implementer-authorized redesign. The membership test
@@ -58,7 +67,6 @@ IDENTITY_MODULE = RESEARCH_ROOT / "identity.py"
 PROMOTION_REGRESSION_RESEARCH_EXCEPTION = frozenset(
     {
         "product_intelligence/evaluation/semantic/promotion_regression.py",
-        "product_intelligence/evaluation/semantic/promotion_regression_cli.py",
     }
 )
 
@@ -72,7 +80,7 @@ def _repo_relative_posix(path: Path) -> str | None:
 
 
 def _is_authorized_research_importer(path: Path) -> bool:
-    """True ONLY for the exact allowlisted files above.
+    """True ONLY for the exact allowlisted file above.
 
     promotion_regression_extra.py, promotion_regression_hack.py, a
     promotion_regression.py in any other directory, or any file outside
@@ -257,11 +265,16 @@ def test_no_outer_layer_is_wired_to_the_identity_primitive_yet(root: Path) -> No
     The web layer is excluded from this check because 1B and 4B import
     research contracts (and the codec) for the report view.
 
-    A1-FU1 REVIEWER-AUTHORIZED EXACT-ALLOWLIST EXCEPTION: the original
-    2A evaluation->research boundary was deliberately narrowed by an
-    architecture reviewer (A1-FU1) for EXACTLY the two promotion-
-    regression evaluation modules named in
-    ``PROMOTION_REGRESSION_RESEARCH_EXCEPTION``. The exception exists so
+    A1-FU2 REVIEWER-AUTHORIZED EXACT-ALLOWLIST EXCEPTION (least
+    privilege, tightened from the A1-FU1 two-file allowlist): the
+    original 2A evaluation->research boundary was deliberately
+    narrowed by an architecture reviewer for EXACTLY ONE promotion-
+    regression evaluation module (the harness), named in
+    ``PROMOTION_REGRESSION_RESEARCH_EXCEPTION``. The CLI
+    (``promotion_regression_cli.py``) is NOT exempt: it does not
+    directly depend on research, it consumes the harness module, and a
+    future direct research dependency requires a NEW explicit
+    architecture-review decision. The exception exists so
     the evaluation harness can exercise the real frozen deterministic
     research chain (``assess_listing_identity``) instead of duplicating
     it. The dependency direction is preserved: the evaluation facility
@@ -275,7 +288,7 @@ def test_no_outer_layer_is_wired_to_the_identity_primitive_yet(root: Path) -> No
     """
     for path in _python_files(root):
         if _is_authorized_research_importer(path):
-            continue  # A1-FU1 exact allowlist (see above)
+            continue  # A1-FU2 exact allowlist (see above)
         offending = {
             module
             for module in _imported_modules(path)
@@ -285,10 +298,10 @@ def test_no_outer_layer_is_wired_to_the_identity_primitive_yet(root: Path) -> No
 
 
 def test_only_promotion_regression_may_wire_research() -> None:
-    """The A1-FU1 exception is exactly the two allowlisted files.
+    """The A1-FU2 exception is exactly the one allowlisted file.
 
     Every OTHER evaluation file must remain research-independent (the
-    original 2A-era boundary), and even the excepted files may only
+    original 2A-era boundary), and even the excepted file may only
     import research (never execution / runs / web / providers / Django).
     The exception is the explicit reviewer-authorized exact allowlist in
     ``PROMOTION_REGRESSION_RESEARCH_EXCEPTION`` — not a prefix match.
@@ -324,64 +337,81 @@ def test_only_promotion_regression_may_wire_research() -> None:
                 if module.startswith("product_intelligence.research")
             )
             assert not offending, (
-                f"{path} imports {offending}; the A1 exception covers ONLY "
-                "the promotion-regression modules"
+                f"{path} imports {offending}; the A1-FU2 exception covers "
+                "ONLY the one allowlisted promotion-regression module"
             )
+    assert len(PROMOTION_REGRESSION_RESEARCH_EXCEPTION) == 1, (
+        "the A1-FU2 least-privilege contract authorizes EXACTLY ONE "
+        "evaluation file to import research; any other entry requires a "
+        "new explicit reviewer decision"
+    )
     assert exception_count == len(PROMOTION_REGRESSION_RESEARCH_EXCEPTION), (
         f"expected exactly the {len(PROMOTION_REGRESSION_RESEARCH_EXCEPTION)} "
-        "allowlisted promotion-regression files under evaluation/, found "
+        "allowlisted promotion-regression file under evaluation/, found "
         f"{exception_count}; the allowlist must be updated through an "
         "explicit reviewer decision, never implicitly"
     )
 
 
 def test_promotion_regression_exception_is_an_exact_allowlist() -> None:
-    """A1-FU1: the reviewer-authorized exception cannot expand implicitly.
+    """A1-FU2: the reviewer-authorized exception is EXACTLY ONE file and
+    cannot expand implicitly.
 
     Mechanically demonstrates, against the boundary predicate itself (no
     rogue files are created in the repository):
 
-    A. promotion_regression.py is allowed the explicitly authorized
-       research dependency — and actually uses it today, so the
-       exception is load-bearing, not vestigial;
-    B. promotion_regression_cli.py is on the exact allowlist; under the
-       current architecture it does not require the dependency itself
-       (it consumes the harness module), and that stays true;
-    C. arbitrary OTHER promotion_regression_* names — in the same
+    A. promotion_regression.py IS authorized — and it currently imports
+       product_intelligence.research, so the exception is load-bearing,
+       not vestigial;
+    B. promotion_regression_cli.py is NOT authorized — under the current
+       architecture it does not import research at all (it consumes the
+       harness module), so least privilege grants it no exception;
+    C. if promotion_regression_cli.py begins importing research in the
+       future, the architecture boundary FAILS: this test's predicate
+       assertion (B) proves the CLI is unauthorized, so the boundary
+       scan in
+       ``test_no_outer_layer_is_wired_to_the_identity_primitive_yet`` no
+       longer skips it — until a new explicit reviewer decision adds
+       that dependency to the allowlist;
+    D. arbitrary OTHER promotion_regression_* names — in the same
        directory, in any other directory, or outside the repository —
        are NOT covered (no prefix/glob/regex matching);
-    D. an unrelated evaluation module importing research remains
-       prohibited by the mechanism.
+    E. every real evaluation file importing product_intelligence.
+       research belongs to the exact one-file allowlist (today: the
+       harness only).
     """
     evaluation_root = PACKAGE_ROOT / "evaluation"
     semantic = evaluation_root / "semantic"
     harness = semantic / "promotion_regression.py"
     cli = semantic / "promotion_regression_cli.py"
 
-    # The allowlist is exactly the two reviewer-authorized files, and
-    # both exist: a move or rename must fail this test rather than
-    # silently drop out of the exception or of the boundary scan.
+    # The allowlist is exactly the ONE reviewer-authorized file, and it
+    # exists: a move or rename must fail this test rather than silently
+    # drop out of the exception or of the boundary scan.
     assert PROMOTION_REGRESSION_RESEARCH_EXCEPTION == {
         _repo_relative_posix(harness),
-        _repo_relative_posix(cli),
     }
-    assert harness.is_file() and cli.is_file()
+    assert len(PROMOTION_REGRESSION_RESEARCH_EXCEPTION) == 1
+    assert harness.is_file()
+    assert cli.is_file()
 
-    # A. The harness uses the authorized dependency today.
+    # A. The harness is authorized and uses the dependency today.
+    assert _is_authorized_research_importer(harness)
     assert any(
         module.startswith("product_intelligence.research")
         for module in _imported_modules(harness)
     )
 
-    # B. The CLI is allowlisted but, under the current architecture,
-    # consumes the harness module rather than importing research.
-    assert _is_authorized_research_importer(cli)
+    # B. The CLI is NOT on the allowlist and does not import research:
+    # under the current architecture it consumes the harness module, so
+    # it requires no exception (C is a direct consequence of B).
+    assert not _is_authorized_research_importer(cli)
     assert not any(
         module.startswith("product_intelligence.research")
         for module in _imported_modules(cli)
     )
 
-    # C. No prefix sibling, no other directory, no same name elsewhere,
+    # D. No prefix sibling, no other directory, no same name elsewhere,
     # and nothing outside the repository is covered.
     not_covered = [
         semantic / name
@@ -403,7 +433,7 @@ def test_promotion_regression_exception_is_an_exact_allowlist() -> None:
     for path in not_covered:
         assert not _is_authorized_research_importer(path), path
 
-    # D. Any evaluation file that imports research must be on the exact
+    # E. Any evaluation file that imports research must be on the exact
     # allowlist: today that is the harness only, and every unrelated
     # evaluation module (runner, cli, comparison, evaluator, loader, ...)
     # is outside the exception.

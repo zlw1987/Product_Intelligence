@@ -77,28 +77,37 @@ Delivered:
    production module references the harness; eligibility, specs-building,
    and single-attempt interpretation mirror-locked to the frozen
    execution/runtime originals over full outcome matrices.
-4. **Reviewer-authorized boundary exception (recorded conflict, exacted
-   in A1-FU1)** — the 2A-era guard
+4. **Reviewer-authorized boundary exception (recorded conflict,
+   exacted in A1-FU1, least-privilege tightened in A1-FU2)** — the
+   2A-era guard
    `test_no_outer_layer_is_wired_to_the_identity_primitive_yet`
    forbade ANY evaluation file from importing
    `product_intelligence.research`. The promotion-regression harness
    MUST replay the real deterministic identity chain
    (`assess_listing_identity`) rather than duplicating it inside
    evaluation, so the original 2A evaluation->research boundary was
-   deliberately narrowed by an explicitly reviewer-authorized exception
-   for the two promotion-regression evaluation modules. The original A1
-   implementation introduced this exception itself (as a recorded
-   conflict) using a too-broad `promotion_regression*` prefix match;
-   the architecture reviewer AUTHORIZED the exception in A1-FU1 and
-   required it to be an EXACT two-file allowlist —
+   deliberately narrowed by an explicitly reviewer-authorized
+   exception. The original A1 implementation introduced this exception
+   itself (as a recorded conflict) using a too-broad
+   `promotion_regression*` prefix match; the architecture reviewer
+   AUTHORIZED the exception in A1-FU1 and required it to be an EXACT
+   two-file allowlist; A1-FU2 tightened it to least privilege after
+   independent review established that the CLI does not require the
+   dependency. The current architecture contract is EXACTLY ONE
+   reviewer-authorized exception:
    `product_intelligence/evaluation/semantic/promotion_regression.py`
-   and `product_intelligence/evaluation/semantic/promotion_regression_cli.py`
-   — which A1-FU1 implemented as the immutable
-   `PROMOTION_REGRESSION_RESEARCH_EXCEPTION` set. The exception exists
-   so the evaluation harness can exercise the real frozen deterministic
-   research chain instead of duplicating it. A complementary exact-
-   allowlist guard (`test_only_promotion_regression_may_wire_research`
-   + `test_promotion_regression_exception_is_an_exact_allowlist`)
+   (the harness), implemented as the immutable
+   `PROMOTION_REGRESSION_RESEARCH_EXCEPTION` set. The CLI
+   (`product_intelligence/evaluation/semantic/promotion_regression_cli.py`)
+   receives NO exception because it does not directly depend on
+   research — it consumes the harness module. If the CLI or any other
+   evaluation module later needs a direct research dependency, that
+   requires a NEW explicit architecture-review decision. The exception
+   exists so the evaluation harness can exercise the real frozen
+   deterministic research chain instead of duplicating it. A
+   complementary exact-allowlist guard
+   (`test_only_promotion_regression_may_wire_research` +
+   `test_promotion_regression_exception_is_an_exact_allowlist`)
    prevents the exception from expanding to other evaluation modules:
    no prefix, glob, or regex match — any future
    `promotion_regression_*` module is NOT covered without a new
@@ -209,6 +218,63 @@ STILL not executed in A1-FU1; A1 remains PENDING FINAL REVIEW.
   expectation, migration, or UI changed. No test deleted, renamed,
   skipped, xfailed, deselected, or weakened beyond the now exactly
   bounded, reviewer-authorized exception.
+
+**A1-FU2 governance correction (least-privilege exception).**
+ChatGPT's independent review of the actual FU1 GitHub commit confirmed
+that FU1 replaced the too-broad `promotion_regression*` prefix
+exception with an exact-path allowlist, but established that the FU1
+two-file allowlist is not least privilege: `promotion_regression.py`
+imports `product_intelligence.research` (and therefore requires the
+reviewer-authorized exception), while `promotion_regression_cli.py`
+does NOT import research — it consumes the harness module — and the
+FU1 instruction had authorized the CLI only IF it actually required
+the dependency. A1-FU2 changed exactly:
+
+* `tests/research/test_research_identity_boundaries.py` —
+  `PROMOTION_REGRESSION_RESEARCH_EXCEPTION` now contains EXACTLY ONE
+  path: `product_intelligence/evaluation/semantic/promotion_regression.py`.
+  The CLI is NOT exempt. `test_only_promotion_regression_may_wire_research`
+  now asserts the allowlist holds exactly one entry (anti-vacuity);
+  `test_promotion_regression_exception_is_an_exact_allowlist` now
+  proves: the harness IS authorized and DOES import research today
+  (the exception is load-bearing); the CLI is NOT authorized and does
+  NOT import research; if the CLI ever begins importing research the
+  boundary FAILS until a new explicit reviewer decision changes the
+  allowlist; arbitrary `promotion_regression_*` names (extra / hack /
+  temp / database / anything / cli_extra, other directories, outside
+  the repository) remain unauthorized; and every real evaluation file
+  importing research belongs to the exact one-file allowlist. No test
+  was deleted, renamed, skipped, xfailed, deselected, or weakened.
+* Wording corrected in this section (item 4), PLAN §26.16 (item 7),
+  and `docs/SEMANTIC_PROMOTION_REGRESSION.md`: the current
+  evaluation->research contract has exactly ONE reviewer-authorized
+  exception (the harness); the CLI receives NO exception because it
+  does not directly depend on research; a future direct research
+  dependency for the CLI or any other evaluation module requires a NEW
+  explicit architecture-review decision. FU1 history is preserved:
+  FU1 used a two-file exact allowlist; FU2 tightens it to least
+  privilege.
+
+A1-FU2 validation:
+
+* Collection: **5632** collected — unchanged from the A1-FU1 baseline
+  (FU2 corrects existing nodes in place; no new test node).
+* Focused: `tests/research/test_research_identity_boundaries.py` ->
+  112 passed (the clean-interpreter subprocess node intermittently
+  exhibits the pre-existing Windows/Python-3.14 `OSError: [WinError 6]`
+  flake class in this environment and re-passes on isolated retry);
+  `tests/evaluation/semantic/test_promotion_regression_{authority,runner,corpus,comparison}.py`
+  -> 186 passed; `tests/semantic/test_runtime.py`,
+  `tests/semantic/test_runtime_boundaries.py`,
+  `tests/execution/test_semantic_integration.py`,
+  `tests/evaluation/semantic/test_benchmark_runner.py`,
+  `tests/evaluation/semantic/test_live_runner_contract.py` -> 406
+  passed. 0 errors, 0 skipped, 0 xfailed, 0 deselected.
+* No production file, model route, corpus, prompt, parser,
+  expectation, migration, or UI changed. No test deleted, renamed,
+  skipped, xfailed, deselected, or weakened. The live
+  Nemotron-vs-Qwen comparison was STILL not executed in A1-FU2; A1
+  remains PENDING FINAL REVIEW.
 
 **PRODUCT-INTEL.PILOT-RELEASE-2-PROD-FIX1-FU4-FU1 (Exact Observed
 Vendor Entity Correction) — IMPLEMENTED / PENDING FINAL REVIEW**
