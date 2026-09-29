@@ -215,14 +215,82 @@ def test_no_outer_layer_is_wired_to_the_identity_primitive_yet(root: Path) -> No
     Runtime integration waits for the phase that has real candidate evidence.
     The web layer is excluded from this check because 1B and 4B import
     research contracts (and the codec) for the report view.
+
+    DOCUMENTED A1 EXCEPTION: the promotion-regression harness
+    (``evaluation/semantic/promotion_regression*.py``) is the explicitly
+    authorized "phase that has real candidate evidence": its
+    production-shaped cases replay the REAL deterministic identity chain
+    (``assess_listing_identity``) so a challenger is tested against the
+    production authority boundaries, not a copy of them. The dependency
+    direction is preserved: the evaluation facility imports the research
+    contracts; research never imports the harness (the no-production-
+    reference guard in
+    ``tests/evaluation/semantic/test_promotion_regression_authority.py``
+    enforces that). The exception is exactly those modules and nothing
+    more — locked by
+    ``test_only_promotion_regression_may_wire_research``.
     """
     for path in _python_files(root):
+        if (
+            path.parent.name == "semantic"
+            and path.stem.startswith("promotion_regression")
+        ):
+            continue  # documented A1 exception (see above)
         offending = {
             module
             for module in _imported_modules(path)
             if module.startswith("product_intelligence.research")
         }
         assert not offending, f"{path} imports {sorted(offending)}"
+
+
+def test_only_promotion_regression_may_wire_research() -> None:
+    """The A1 exception is exactly the promotion-regression modules.
+
+    Every OTHER evaluation file must remain research-independent (the
+    original 2A-era boundary), and even the excepted modules may only
+    import research (never execution / runs / web / providers / Django).
+    The existence assertion keeps this test from passing vacuously if the
+    excepted modules are moved or renamed.
+    """
+    evaluation_root = PACKAGE_ROOT / "evaluation"
+    exception_count = 0
+    for path in _python_files(evaluation_root):
+        imported = _imported_modules(path)
+        is_exception = (
+            path.parent.name == "semantic"
+            and path.stem.startswith("promotion_regression")
+        )
+        if is_exception:
+            exception_count += 1
+            heavy = sorted(
+                module
+                for module in imported
+                if module.startswith(
+                    (
+                        "product_intelligence.execution",
+                        "product_intelligence.runs",
+                        "product_intelligence.web",
+                        "product_intelligence.providers",
+                    )
+                )
+                or module.split(".")[0] == "django"
+            )
+            assert not heavy, f"{path} imports {heavy}"
+        else:
+            offending = sorted(
+                module
+                for module in imported
+                if module.startswith("product_intelligence.research")
+            )
+            assert not offending, (
+                f"{path} imports {offending}; the A1 exception covers ONLY "
+                "the promotion-regression modules"
+            )
+    assert exception_count >= 1, (
+        "the promotion-regression exception modules are missing; the guard "
+        "above would pass vacuously"
+    )
 
 
 def test_the_identity_primitive_adds_no_model_and_no_migration() -> None:

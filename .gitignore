@@ -19,6 +19,7 @@ db.sqlite3-journal
 # Benchmark artifact directories - never commit runtime artifacts
 /semantic_benchmark_runs/
 /semantic_reference_runs/
+/semantic_promotion_regression_runs/
 
 # Tooling
 .pytest_cache/
