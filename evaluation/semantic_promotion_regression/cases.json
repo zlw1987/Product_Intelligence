@@ -1,0 +1,623 @@
+{
+  "benchmark_kind": "semantic_promotion_regression",
+  "corpus_version": 1,
+  "description": "Production-shaped promotion-regression corpus for semantic PRIMARY candidates. SEPARATE from the frozen 64-case semantic QUALIFICATION corpus (evaluation/semantic_corpus/cases.json). Qualification asks 'does the model pass the frozen benchmark'; promotion regression asks 'if a formally qualified challenger were considered for the production PRIMARY seat, does it respect the production semantic/execution authority boundaries?'. Cases replay the real deterministic authority chain (assess_listing_identity) and the frozen FU3B eligibility rules; only semantically eligible candidates are ever offered to a model. Expected model decisions are generic product-identity contracts (prompt v1.1 decision precedence), not model-specific patches. No case here copies or special-cases SMQ-0053 or SMQ-0062.",
+  "cases": [
+    {
+      "case_id": "SPR-0001",
+      "category": "A",
+      "category_name": "deterministic_accepted",
+      "title": "Deterministic exact-MPN acceptance: semantic must not be consulted",
+      "target": {
+        "manufacturer_part_number": "DAQ-PRO-1200",
+        "description": "Industrial data acquisition module, 16 channels, DIN rail mount"
+      },
+      "candidate": {
+        "product_title": "DAQ-PRO-1200 Industrial Data Acquisition Module 16 Channel",
+        "manufacturer_part_number_text": "DAQ-PRO-1200",
+        "sku_text": null,
+        "brand_text": "Acme Industrial",
+        "condition_text": "new"
+      },
+      "expected_deterministic": {
+        "decision": "ACCEPTED",
+        "rejection_reason": null,
+        "evidence_source": "EXPLICIT_MPN_FIELD",
+        "match_type": "EXACT"
+      },
+      "expected_semantic_call": false,
+      "expected_semantic_decision": null,
+      "match_is_unsafe": false,
+      "critical_reason": "The explicit MPN field is character-for-character identical to the requested MPN, so the deterministic layer ACCEPTS the candidate. A deterministically ACCEPTED candidate never enters semantic evaluation; the deterministic result remains authoritative and no model may be consulted or may alter it.",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SPR-0002",
+      "category": "A",
+      "category_name": "deterministic_accepted",
+      "title": "Deterministic normalized-exact acceptance: semantic must not be consulted",
+      "target": {
+        "manufacturer_part_number": "DAQ-PRO-1200",
+        "description": "Industrial data acquisition module, 16 channels, DIN rail mount"
+      },
+      "candidate": {
+        "product_title": "Industrial Data Acquisition Module 16 Channel DIN Rail",
+        "manufacturer_part_number_text": "daq pro 1200",
+        "sku_text": null,
+        "brand_text": "Acme Industrial",
+        "condition_text": "new"
+      },
+      "expected_deterministic": {
+        "decision": "ACCEPTED",
+        "rejection_reason": null,
+        "evidence_source": "EXPLICIT_MPN_FIELD",
+        "match_type": "NORMALIZED_EXACT"
+      },
+      "expected_semantic_call": false,
+      "expected_semantic_decision": null,
+      "match_is_unsafe": false,
+      "critical_reason": "The explicit MPN field differs only by letter case and internal whitespace, which deterministic normalization folds to the same identifier (NORMALIZED_EXACT). The candidate is ACCEPTED by the deterministic layer and semantic evaluation must not occur.",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SPR-0003",
+      "category": "B",
+      "category_name": "mpn_conflict",
+      "title": "Explicit authoritative MPN conflict (one-digit revision): semantic must not overturn",
+      "target": {
+        "manufacturer_part_number": "DAQ-PRO-1200",
+        "description": "Industrial data acquisition module, 16 channels, DIN rail mount"
+      },
+      "candidate": {
+        "product_title": "DAQ-PRO-1201 Industrial Data Acquisition Module 16 Channel",
+        "manufacturer_part_number_text": "DAQ-PRO-1201",
+        "sku_text": null,
+        "brand_text": "Acme Industrial",
+        "condition_text": "new"
+      },
+      "expected_deterministic": {
+        "decision": "REJECTED",
+        "rejection_reason": "MPN_MISMATCH",
+        "evidence_source": "EXPLICIT_MPN_FIELD",
+        "match_type": "UNKNOWN"
+      },
+      "expected_semantic_call": false,
+      "expected_semantic_decision": null,
+      "match_is_unsafe": false,
+      "critical_reason": "The listing publishes an explicit MPN that differs from the requested MPN by one digit. That is an authoritative explicit MPN conflict (MPN_MISMATCH); the frozen eligibility rules exclude it from semantic evaluation, so no model may be consulted and no model decision could ever make this candidate an AI_ASSISTED_MATCH.",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SPR-0004",
+      "category": "B",
+      "category_name": "mpn_conflict",
+      "title": "Explicit authoritative MPN conflict (different family segment): semantic must not overturn",
+      "target": {
+        "manufacturer_part_number": "DAQ-PRO-1200",
+        "description": "Industrial data acquisition module, 16 channels, DIN rail mount"
+      },
+      "candidate": {
+        "product_title": "DAQ LITE 1200 Industrial Data Acquisition Module",
+        "manufacturer_part_number_text": "DAQ-LITE-1200",
+        "sku_text": null,
+        "brand_text": "Acme Industrial",
+        "condition_text": "new"
+      },
+      "expected_deterministic": {
+        "decision": "REJECTED",
+        "rejection_reason": "MPN_MISMATCH",
+        "evidence_source": "EXPLICIT_MPN_FIELD",
+        "match_type": "UNKNOWN"
+      },
+      "expected_semantic_call": false,
+      "expected_semantic_decision": null,
+      "match_is_unsafe": false,
+      "critical_reason": "The explicit MPN field names a different product family segment (LITE vs PRO). The deterministic layer records MPN_MISMATCH, which is authoritative and never semantic-eligible; a model is not consulted and cannot create AI-assisted match authority here.",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SPR-0005",
+      "category": "C",
+      "category_name": "title_text_semantic_eligible",
+      "title": "Title-text eligible positive: MPN token in title, aligned product role",
+      "target": {
+        "manufacturer_part_number": "NVM-U2-960",
+        "description": "960GB enterprise NVMe SSD, U.2 form factor"
+      },
+      "candidate": {
+        "product_title": "NVM-U2-960 Enterprise NVMe Solid State Drive U.2",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "brand_text": "Nova Storage",
+        "condition_text": "new"
+      },
+      "expected_deterministic": {
+        "decision": "REJECTED",
+        "rejection_reason": "NO_EXPLICIT_MPN_EVIDENCE",
+        "evidence_source": "TITLE_TEXT",
+        "match_type": "UNKNOWN"
+      },
+      "expected_semantic_call": true,
+      "expected_semantic_decision": "MATCH",
+      "match_is_unsafe": false,
+      "critical_reason": "No authoritative explicit MPN is published; the target MPN appears as a standalone token in the title and the product role aligns with the target description. This is a frozen-eligible TITLE_TEXT candidate, so semantic evaluation may run. The identity contract (prompt decision precedence C.6) supports MATCH; any MATCH stays AI-assisted evidence only and never becomes deterministic ACCEPTED.",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SPR-0006",
+      "category": "C",
+      "category_name": "title_text_semantic_eligible",
+      "title": "Title-text eligible with aligned spec wording in title",
+      "target": {
+        "manufacturer_part_number": "NVM-U2-960",
+        "description": "960GB enterprise NVMe SSD, U.2 form factor"
+      },
+      "candidate": {
+        "product_title": "NVM-U2-960 960GB U.2 NVMe Enterprise SSD with Lifecycle Support",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "brand_text": "Nova Storage",
+        "condition_text": "new"
+      },
+      "expected_deterministic": {
+        "decision": "REJECTED",
+        "rejection_reason": "NO_EXPLICIT_MPN_EVIDENCE",
+        "evidence_source": "TITLE_TEXT",
+        "match_type": "UNKNOWN"
+      },
+      "expected_semantic_call": true,
+      "expected_semantic_decision": "MATCH",
+      "match_is_unsafe": false,
+      "critical_reason": "The title carries the exact MPN token plus capacity, form factor, and interface wording that all align with the target description. The candidate is frozen-eligible via TITLE_TEXT and the identity contract supports MATCH as AI-assisted evidence only.",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SPR-0007",
+      "category": "D",
+      "category_name": "sku_field_semantic_eligible",
+      "title": "SKU-field eligible positive: SKU publishes the target MPN verbatim",
+      "target": {
+        "manufacturer_part_number": "NVM-U2-960",
+        "description": "960GB enterprise NVMe SSD, U.2 form factor"
+      },
+      "candidate": {
+        "product_title": "Enterprise NVMe SSD 960GB U.2",
+        "manufacturer_part_number_text": null,
+        "sku_text": "NVM-U2-960",
+        "brand_text": "Nova Storage",
+        "condition_text": "new"
+      },
+      "expected_deterministic": {
+        "decision": "REJECTED",
+        "rejection_reason": "NO_EXPLICIT_MPN_EVIDENCE",
+        "evidence_source": "SKU_FIELD",
+        "match_type": "UNKNOWN"
+      },
+      "expected_semantic_call": true,
+      "expected_semantic_decision": "MATCH",
+      "match_is_unsafe": false,
+      "critical_reason": "A SKU field is never an authoritative MPN field, so the deterministic layer rejects with NO_EXPLICIT_MPN_EVIDENCE, but the SKU source is frozen-eligible for semantic evaluation. The SKU reproduces the target MPN verbatim and the title aligns with the target description, so the identity contract supports MATCH as AI-assisted evidence only.",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SPR-0008",
+      "category": "D",
+      "category_name": "sku_field_semantic_eligible",
+      "title": "SKU-field eligible, SKU unrelated to target MPN, no MPN identity evidence",
+      "target": {
+        "manufacturer_part_number": "DAQ-PRO-1200",
+        "description": "Industrial data acquisition module, 16 channels, DIN rail mount"
+      },
+      "candidate": {
+        "product_title": "Industrial Data Acquisition Module 16 Channel",
+        "manufacturer_part_number_text": null,
+        "sku_text": "ACME-STOR-0042",
+        "brand_text": "Acme Industrial",
+        "condition_text": "new"
+      },
+      "expected_deterministic": {
+        "decision": "REJECTED",
+        "rejection_reason": "NO_EXPLICIT_MPN_EVIDENCE",
+        "evidence_source": "SKU_FIELD",
+        "match_type": "UNKNOWN"
+      },
+      "expected_semantic_call": true,
+      "expected_semantic_decision": "UNCERTAIN",
+      "match_is_unsafe": false,
+      "critical_reason": "The retailer SKU does not establish the target MPN and the title carries no MPN identity evidence. Brand and general description alignment alone can never produce MATCH (prompt decision precedence E.9); with no explicit conflict published, the contract-supported decision is UNCERTAIN.",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SPR-0009",
+      "category": "E",
+      "category_name": "partial_mpn_semantic_eligible",
+      "title": "Partial MPN: published field is the target minus its final segment",
+      "target": {
+        "manufacturer_part_number": "NVM-U2-960",
+        "description": "960GB enterprise NVMe SSD, U.2 form factor"
+      },
+      "candidate": {
+        "product_title": "Enterprise NVMe SSD U.2 Series",
+        "manufacturer_part_number_text": "NVM-U2",
+        "sku_text": null,
+        "brand_text": "Nova Storage",
+        "condition_text": "new"
+      },
+      "expected_deterministic": {
+        "decision": "REJECTED",
+        "rejection_reason": "PARTIAL_MPN_ONLY",
+        "evidence_source": "EXPLICIT_MPN_FIELD",
+        "match_type": "PARTIAL"
+      },
+      "expected_semantic_call": true,
+      "expected_semantic_decision": "UNCERTAIN",
+      "match_is_unsafe": false,
+      "critical_reason": "The explicit field is a strict prefix of the requested MPN ending at an identifier boundary, so the deterministic layer records PARTIAL_MPN_ONLY, which is frozen-eligible for semantic assistance. The missing final segment is not established by the other evidence, and the contract (prompt decision precedence D.7) supports UNCERTAIN. The result, whatever it is, remains AI-assisted only.",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SPR-0010",
+      "category": "E",
+      "category_name": "partial_mpn_semantic_eligible",
+      "title": "Partial MPN: published field extends the target with an extra segment",
+      "target": {
+        "manufacturer_part_number": "NVM-U2-960",
+        "description": "960GB enterprise NVMe SSD, U.2 form factor"
+      },
+      "candidate": {
+        "product_title": "Enterprise NVMe SSD U.2 TR Series",
+        "manufacturer_part_number_text": "NVM-U2-960-TR",
+        "sku_text": null,
+        "brand_text": "Nova Storage",
+        "condition_text": "new"
+      },
+      "expected_deterministic": {
+        "decision": "REJECTED",
+        "rejection_reason": "PARTIAL_MPN_ONLY",
+        "evidence_source": "EXPLICIT_MPN_FIELD",
+        "match_type": "PARTIAL"
+      },
+      "expected_semantic_call": true,
+      "expected_semantic_decision": "UNCERTAIN",
+      "match_is_unsafe": false,
+      "critical_reason": "The requested MPN is a strict prefix of the published field at an identifier boundary, so the deterministic layer records PARTIAL_MPN_ONLY, which is frozen-eligible for semantic assistance. The extra segment neither proves identity nor proves a different product from the supplied evidence; the contract-supported decision is UNCERTAIN, AI-assisted only.",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SPR-0011",
+      "category": "F",
+      "category_name": "no_usable_evidence",
+      "title": "No usable semantic evidence: no explicit MPN, no SKU, no MPN token in title",
+      "target": {
+        "manufacturer_part_number": "DAQ-PRO-1200",
+        "description": "Industrial data acquisition module, 16 channels, DIN rail mount"
+      },
+      "candidate": {
+        "product_title": "Industrial Data Acquisition Module 16 Channel DIN Rail",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "brand_text": "Acme Industrial",
+        "condition_text": "new"
+      },
+      "expected_deterministic": {
+        "decision": "REJECTED",
+        "rejection_reason": "NO_EXPLICIT_MPN_EVIDENCE",
+        "evidence_source": "NONE",
+        "match_type": "UNKNOWN"
+      },
+      "expected_semantic_call": false,
+      "expected_semantic_decision": null,
+      "match_is_unsafe": false,
+      "critical_reason": "The candidate publishes no explicit MPN, no SKU, and the title does not contain the target MPN as a token, so the evidence source is NONE. The frozen eligibility rules exclude NO_EXPLICIT_MPN_EVIDENCE with source NONE from semantic evaluation; the model must not be consulted.",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SPR-0012",
+      "category": "F",
+      "category_name": "no_usable_evidence",
+      "title": "Eligible source state but no product title: usable-evidence gate blocks the call",
+      "target": {
+        "manufacturer_part_number": "DAQ-PRO-1200",
+        "description": "Industrial data acquisition module, 16 channels, DIN rail mount"
+      },
+      "candidate": {
+        "product_title": null,
+        "manufacturer_part_number_text": null,
+        "sku_text": "ACME-DAQ-1200",
+        "brand_text": "Acme Industrial",
+        "condition_text": "new"
+      },
+      "expected_deterministic": {
+        "decision": "REJECTED",
+        "rejection_reason": "NO_EXPLICIT_MPN_EVIDENCE",
+        "evidence_source": "SKU_FIELD",
+        "match_type": "UNKNOWN"
+      },
+      "expected_semantic_call": false,
+      "expected_semantic_decision": null,
+      "match_is_unsafe": false,
+      "critical_reason": "The SKU source makes the candidate eligible by frozen state, but the listing publishes no product title. The frozen integration's usable-evidence gate requires a title before any semantic call, so the model must not be consulted for this candidate.",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SPR-0013",
+      "category": "G",
+      "category_name": "accessory_compatibility_trap",
+      "title": "Accessory trap: mounting tray FOR the target drive",
+      "target": {
+        "manufacturer_part_number": "NVM-U2-960",
+        "description": "960GB enterprise NVMe SSD, U.2 form factor"
+      },
+      "candidate": {
+        "product_title": "Mounting Tray for NVM-U2-960 NVMe SSD",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "brand_text": "RackWorks",
+        "condition_text": "new"
+      },
+      "expected_deterministic": {
+        "decision": "REJECTED",
+        "rejection_reason": "NO_EXPLICIT_MPN_EVIDENCE",
+        "evidence_source": "TITLE_TEXT",
+        "match_type": "UNKNOWN"
+      },
+      "expected_semantic_call": true,
+      "expected_semantic_decision": "NO_MATCH",
+      "match_is_unsafe": true,
+      "critical_reason": "The target MPN appears in the title, which makes the candidate frozen-eligible, but the title's 'for <MPN>' wording identifies the listing as a mounting tray - an accessory, not the target drive. Prompt decision precedence B.3 makes a clear accessory role NO_MATCH. A MATCH here would be an unsafe positive authority expansion and fails the promotion gate.",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SPR-0014",
+      "category": "G",
+      "category_name": "accessory_compatibility_trap",
+      "title": "Compatible-with trap: compatible replacement drive for the target",
+      "target": {
+        "manufacturer_part_number": "NVM-U2-960",
+        "description": "960GB enterprise NVMe SSD, U.2 form factor"
+      },
+      "candidate": {
+        "product_title": "Compatible Replacement NVMe Drive for NVM-U2-960 Servers",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "brand_text": "AltDrive",
+        "condition_text": "new"
+      },
+      "expected_deterministic": {
+        "decision": "REJECTED",
+        "rejection_reason": "NO_EXPLICIT_MPN_EVIDENCE",
+        "evidence_source": "TITLE_TEXT",
+        "match_type": "UNKNOWN"
+      },
+      "expected_semantic_call": true,
+      "expected_semantic_decision": "NO_MATCH",
+      "match_is_unsafe": true,
+      "critical_reason": "The title explicitly frames the listing as a compatible replacement for the target MPN - a different product that claims compatibility, not the target itself. Prompt decision precedence B.4 makes 'compatible replacement for TARGET' NO_MATCH. A MATCH here is an unsafe positive authority expansion and fails the promotion gate.",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SPR-0015",
+      "category": "G",
+      "category_name": "accessory_compatibility_trap",
+      "title": "Multipack/kit trap: two-pack kit named with the target MPN",
+      "target": {
+        "manufacturer_part_number": "NVM-U2-960",
+        "description": "960GB enterprise NVMe SSD, U.2 form factor"
+      },
+      "candidate": {
+        "product_title": "NVM-U2-960 NVMe SSD 2-Pack Kit",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "brand_text": "Nova Storage",
+        "condition_text": "new"
+      },
+      "expected_deterministic": {
+        "decision": "REJECTED",
+        "rejection_reason": "NO_EXPLICIT_MPN_EVIDENCE",
+        "evidence_source": "TITLE_TEXT",
+        "match_type": "UNKNOWN"
+      },
+      "expected_semantic_call": true,
+      "expected_semantic_decision": "NO_MATCH",
+      "match_is_unsafe": true,
+      "critical_reason": "The listing is a 2-pack kit, a different product role and quantity than the single target product. Prompt decision precedence B.3 makes a kit/multipack role NO_MATCH; the exact MPN token appearing in the title must not rescue it (C.6 final sentence). A MATCH here is an unsafe positive authority expansion and fails the promotion gate.",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SPR-0016",
+      "category": "G",
+      "category_name": "accessory_compatibility_trap",
+      "title": "Replacement-alone trap: 'replacement for TARGET' without sufficient identity evidence",
+      "target": {
+        "manufacturer_part_number": "NVM-U2-960",
+        "description": "960GB enterprise NVMe SSD, U.2 form factor"
+      },
+      "candidate": {
+        "product_title": "Replacement NVMe SSD for NVM-U2-960",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "brand_text": "AltDrive",
+        "condition_text": "new"
+      },
+      "expected_deterministic": {
+        "decision": "REJECTED",
+        "rejection_reason": "NO_EXPLICIT_MPN_EVIDENCE",
+        "evidence_source": "TITLE_TEXT",
+        "match_type": "UNKNOWN"
+      },
+      "expected_semantic_call": true,
+      "expected_semantic_decision": "UNCERTAIN",
+      "match_is_unsafe": true,
+      "critical_reason": "'Replacement for TARGET' alone, without sufficient identity evidence, is ambiguous product-role wording: prompt decision precedence B.5 supports UNCERTAIN, not MATCH. A MATCH here would expand positive authority on unproven role evidence - the exact promotion risk this corpus exists to surface - and fails the promotion gate.",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SPR-0017",
+      "category": "H",
+      "category_name": "identity_attribute_conflict",
+      "title": "Capacity conflict: MPN token in title but published capacity contradicts the target",
+      "target": {
+        "manufacturer_part_number": "NVM-U2-960",
+        "description": "960GB enterprise NVMe SSD, U.2 form factor"
+      },
+      "candidate": {
+        "product_title": "NVM-U2-960 1.92TB Enterprise NVMe SSD U.2",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "brand_text": "Nova Storage",
+        "condition_text": "new"
+      },
+      "expected_deterministic": {
+        "decision": "REJECTED",
+        "rejection_reason": "NO_EXPLICIT_MPN_EVIDENCE",
+        "evidence_source": "TITLE_TEXT",
+        "match_type": "UNKNOWN"
+      },
+      "expected_semantic_call": true,
+      "expected_semantic_decision": "NO_MATCH",
+      "match_is_unsafe": true,
+      "critical_reason": "The published capacity (1.92TB) explicitly contradicts the target's 960GB. Prompt safety rules and decision precedence F.10 make an explicit material capacity conflict NO_MATCH regardless of the MPN token present in the title. A MATCH here is an unsafe positive authority expansion and fails the promotion gate.",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SPR-0018",
+      "category": "H",
+      "category_name": "identity_attribute_conflict",
+      "title": "Form-factor conflict: SKU reproduces the target MPN but the title publishes M.2 against the target U.2",
+      "target": {
+        "manufacturer_part_number": "NVM-U2-960",
+        "description": "960GB enterprise NVMe SSD, U.2 form factor"
+      },
+      "candidate": {
+        "product_title": "Enterprise NVMe SSD M.2 2280 960GB",
+        "manufacturer_part_number_text": null,
+        "sku_text": "NVM-U2-960",
+        "brand_text": "Nova Storage",
+        "condition_text": "new"
+      },
+      "expected_deterministic": {
+        "decision": "REJECTED",
+        "rejection_reason": "NO_EXPLICIT_MPN_EVIDENCE",
+        "evidence_source": "SKU_FIELD",
+        "match_type": "UNKNOWN"
+      },
+      "expected_semantic_call": true,
+      "expected_semantic_decision": "NO_MATCH",
+      "match_is_unsafe": true,
+      "critical_reason": "The SKU reproduces the target MPN, but a SKU is not an authoritative MPN field, and the published form factor (M.2 2280) explicitly contradicts the target's U.2. Prompt safety rules make a form-factor difference NO_MATCH (F.10). This is the sharpest promotion risk: identity-looking evidence plus a hard attribute conflict. A MATCH here fails the promotion gate.",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SPR-0019",
+      "category": "H",
+      "category_name": "identity_attribute_conflict",
+      "title": "Interface conflict: MPN token in title but the published interface contradicts the target",
+      "target": {
+        "manufacturer_part_number": "NVM-U2-960",
+        "description": "960GB enterprise NVMe SSD, U.2 form factor"
+      },
+      "candidate": {
+        "product_title": "NVM-U2-960 960GB SATA 2.5-inch Solid State Drive",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "brand_text": "Nova Storage",
+        "condition_text": "new"
+      },
+      "expected_deterministic": {
+        "decision": "REJECTED",
+        "rejection_reason": "NO_EXPLICIT_MPN_EVIDENCE",
+        "evidence_source": "TITLE_TEXT",
+        "match_type": "UNKNOWN"
+      },
+      "expected_semantic_call": true,
+      "expected_semantic_decision": "NO_MATCH",
+      "match_is_unsafe": true,
+      "critical_reason": "The published interface (SATA, 2.5-inch) explicitly contradicts the target's NVMe identity. Prompt safety rules make an interface difference NO_MATCH (F.10) regardless of the MPN token in the title. A MATCH here is an unsafe positive authority expansion and fails the promotion gate.",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SPR-0020",
+      "category": "I",
+      "category_name": "normalized_identity_trailing_description",
+      "title": "Normalized exact identity via SKU with whitespace-variant MPN and trailing description in title",
+      "target": {
+        "manufacturer_part_number": "NVM-U2-960",
+        "description": "960GB enterprise NVMe SSD, U.2 form factor"
+      },
+      "candidate": {
+        "product_title": "NVM U2 960 Enterprise Storage Platform",
+        "manufacturer_part_number_text": null,
+        "sku_text": "NVM-U2-960",
+        "brand_text": "Nova Storage",
+        "condition_text": "new"
+      },
+      "expected_deterministic": {
+        "decision": "REJECTED",
+        "rejection_reason": "NO_EXPLICIT_MPN_EVIDENCE",
+        "evidence_source": "SKU_FIELD",
+        "match_type": "UNKNOWN"
+      },
+      "expected_semantic_call": true,
+      "expected_semantic_decision": "MATCH",
+      "match_is_unsafe": false,
+      "critical_reason": "The SKU publishes the target MPN verbatim and the title's part-number text is the same identifier written with whitespace instead of hyphens plus a trailing descriptive phrase. The generic contract under test is normalized exact identity with descriptive title wording: the trailing description does not conflict with the target, so the identity contract supports MATCH as AI-assisted evidence only. This case is deliberately general - it does not copy or encode the known qualification-corpus error cases.",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SPR-0021",
+      "category": "I",
+      "category_name": "normalized_identity_trailing_description",
+      "title": "Normalized exact identity via title token with aligned trailing description",
+      "target": {
+        "manufacturer_part_number": "NVM-U2-960",
+        "description": "960GB enterprise NVMe SSD, U.2 form factor"
+      },
+      "candidate": {
+        "product_title": "NVM-U2-960 Enterprise NVMe SSD 960GB U.2 with Lifecycle Support",
+        "manufacturer_part_number_text": null,
+        "sku_text": null,
+        "brand_text": "Nova Storage",
+        "condition_text": "new"
+      },
+      "expected_deterministic": {
+        "decision": "REJECTED",
+        "rejection_reason": "NO_EXPLICIT_MPN_EVIDENCE",
+        "evidence_source": "TITLE_TEXT",
+        "match_type": "UNKNOWN"
+      },
+      "expected_semantic_call": true,
+      "expected_semantic_decision": "MATCH",
+      "match_is_unsafe": false,
+      "critical_reason": "The title carries the exact MPN token plus capacity/form-factor/interface wording aligned with the target and a trailing service phrase ('with Lifecycle Support') that does not conflict with the target description. The generic normalized-exact-identity-plus-description contract supports MATCH as AI-assisted evidence only. This case is deliberately general - it does not copy or encode the known qualification-corpus error cases.",
+      "provenance": "synthetic"
+    },
+    {
+      "case_id": "SPR-0022",
+      "category": "J",
+      "category_name": "decision_mapping",
+      "title": "Decision mapping: brand/family alignment only must resolve to UNCERTAIN",
+      "target": {
+        "manufacturer_part_number": "NVM-U2-960",
+        "description": "960GB enterprise NVMe SSD, U.2 form factor"
+      },
+      "candidate": {
+        "product_title": "Enterprise Storage Module 960GB",
+        "manufacturer_part_number_text": null,
+        "sku_text": "ACME-STOR-7788",
+        "brand_text": "Nova Storage",
+        "condition_text": "new"
+      },
+      "expected_deterministic": {
+        "decision": "REJECTED",
+        "rejection_reason": "NO_EXPLICIT_MPN_EVIDENCE",
+        "evidence_source": "SKU_FIELD",
+        "match_type": "UNKNOWN"
+      },
+      "expected_semantic_call": true,
+      "expected_semantic_decision": "UNCERTAIN",
+      "match_is_unsafe": false,
+      "critical_reason": "Brand and capacity alignment with no usable MPN identity evidence: spec similarity alone can never produce MATCH (E.9), and no explicit conflict is published, so the contract-supported decision is UNCERTAIN. Together with the corpus's MATCH and NO_MATCH cases this exercises all three semantic decision tiers and their production disposition mapping (MATCH -> AI_ASSISTED_MATCH; NO_MATCH / UNCERTAIN -> no authority).",
+      "provenance": "synthetic"
+    }
+  ]
+}
