@@ -77,19 +77,35 @@ Delivered:
    production module references the harness; eligibility, specs-building,
    and single-attempt interpretation mirror-locked to the frozen
    execution/runtime originals over full outcome matrices.
-4. **Documented boundary exception (recorded conflict)** — the 2A-era
-   guard `test_no_outer_layer_is_wired_to_the_identity_primitive_yet`
-   forbade ANY evaluation file from importing `product_intelligence.research`.
-   This phase is the explicitly authorized "phase that has real
-   candidate evidence": the promotion-regression harness MUST replay the
-   real deterministic identity chain. The guard now carries a
-   documented exception for exactly the two
-   `evaluation/semantic/promotion_regression*` modules, and a new
-   mechanical test (`test_only_promotion_regression_may_wire_research`)
-   locks that the exception is ONLY those modules and that they import
-   research but never execution/runs/web/providers/Django. All other
-   evaluation files remain research-independent under the unchanged
-   assertion.
+4. **Reviewer-authorized boundary exception (recorded conflict, exacted
+   in A1-FU1)** — the 2A-era guard
+   `test_no_outer_layer_is_wired_to_the_identity_primitive_yet`
+   forbade ANY evaluation file from importing
+   `product_intelligence.research`. The promotion-regression harness
+   MUST replay the real deterministic identity chain
+   (`assess_listing_identity`) rather than duplicating it inside
+   evaluation, so the original 2A evaluation->research boundary was
+   deliberately narrowed by an explicitly reviewer-authorized exception
+   for the two promotion-regression evaluation modules. The original A1
+   implementation introduced this exception itself (as a recorded
+   conflict) using a too-broad `promotion_regression*` prefix match;
+   the architecture reviewer AUTHORIZED the exception in A1-FU1 and
+   required it to be an EXACT two-file allowlist —
+   `product_intelligence/evaluation/semantic/promotion_regression.py`
+   and `product_intelligence/evaluation/semantic/promotion_regression_cli.py`
+   — which A1-FU1 implemented as the immutable
+   `PROMOTION_REGRESSION_RESEARCH_EXCEPTION` set. The exception exists
+   so the evaluation harness can exercise the real frozen deterministic
+   research chain instead of duplicating it. A complementary exact-
+   allowlist guard (`test_only_promotion_regression_may_wire_research`
+   + `test_promotion_regression_exception_is_an_exact_allowlist`)
+   prevents the exception from expanding to other evaluation modules:
+   no prefix, glob, or regex match — any future
+   `promotion_regression_*` module is NOT covered without a new
+   reviewer decision. All other evaluation files remain
+   research-independent under the unchanged assertion. This was a
+   reviewer-authorized governance correction, NOT an implementer-
+   authorized redesign, and it does not approve A1.
 5. **Documentation** — qualification vs promotion regression separated
    explicitly in `docs/SEMANTIC_PROMOTION_REGRESSION.md`, the corpus
    README, STATUS (this section), PLAN §26.16, and a cross-reference in
@@ -131,6 +147,68 @@ phase (implementation uses fake/recorded transports only). Exact
 human-executed commands are in `docs/SEMANTIC_PROMOTION_REGRESSION.md`.
 No deployment performed in this commit; final approval remains with
 ChatGPT after independent GitHub review.
+
+**A1-FU1 governance correction (exact evaluation exception).**
+ChatGPT's independent review of the actual A1 GitHub diff found one
+governance defect: the A1 implementation had narrowed the 2A
+evaluation->research safety boundary with a too-broad
+`promotion_regression*` prefix exception BEFORE obtaining reviewer
+authorization, and the A1 documentation described the boundary without
+qualifying that the pre-existing safety test was changed. The
+architecture reviewer AUTHORIZED the exception itself (the harness must
+exercise the real deterministic research chain, never a copy) but
+tightened it to an EXACT two-file allowlist. A1-FU1 changed exactly:
+
+* `tests/research/test_research_identity_boundaries.py` — replaced the
+  prefix-based exception with the immutable
+  `PROMOTION_REGRESSION_RESEARCH_EXCEPTION` exact allowlist
+  (`promotion_regression.py`, `promotion_regression_cli.py`), and added
+  `test_promotion_regression_exception_is_an_exact_allowlist` proving
+  the exception cannot expand implicitly (arbitrary
+  `promotion_regression_*` names, other directories, and unrelated
+  evaluation modules are all outside it). No other test was deleted,
+  renamed, skipped, xfailed, deselected, or weakened.
+* Wording corrected in this section (item 4), PLAN §26.16 (item 7),
+  and `docs/SEMANTIC_PROMOTION_REGRESSION.md`: the boundary was
+  deliberately narrowed by an architecture-reviewer authorized
+  exception (A1-FU1), not by an implementer-authorized redesign, and
+  the original A1 commit did not yet have that authorization.
+
+A1-FU1 validation: focused boundary + promotion-regression suites
+re-passed; collection and full-suite counts in the commit report below.
+No production file, model route, corpus, prompt, parser, expectation,
+migration, or UI changed. The live Nemotron-vs-Qwen comparison was
+STILL not executed in A1-FU1; A1 remains PENDING FINAL REVIEW.
+
+**A1-FU1 validation (this commit):**
+
+* Collection: **5632** collected (A1 reviewed baseline 5631 + 1 new
+  node `test_promotion_regression_exception_is_an_exact_allowlist`).
+  Collection did not decrease.
+* Focused: `tests/research/test_research_identity_boundaries.py` +
+  `tests/evaluation/semantic/test_promotion_regression_{authority,runner,corpus,comparison}.py`
+  -> 297 passed, 1 known environmental flake (`test_importing_the_research_core_pulls_in_no_third_party_dependency`,
+  Windows/Python-3.14 `OSError: [WinError 6]`, re-passed on isolated retry).
+  The A1 prompt named `test_promotion_regression_cli.py`; no such file
+  was created by A1 (the CLI is covered by the authority import-
+  boundary + runner/comparison suites). Focused boundary + runtime/
+  integration suites: `tests/semantic/test_runtime.py`,
+  `tests/semantic/test_runtime_boundaries.py`,
+  `tests/execution/test_semantic_integration.py`,
+  `tests/evaluation/semantic/test_benchmark_runner.py`,
+  `tests/evaluation/semantic/test_live_runner_contract.py` -> 406 passed.
+* Full suite: 5632 collected; **5621 passed (+ 39 subtests passed)**;
+  11 failures — all 11 are
+  the pre-existing Windows/Python-3.14 `OSError: [WinError 6]` /
+  `[WinError 50]` subprocess-import flake class (one of the 15
+  clean-interpreter import-boundary nodes), reproduced identically on
+  the pristine A1 HEAD in a throwaway worktree (not caused by A1-FU1),
+  and each node re-passed on isolated retry. 0 errors, 0 skipped,
+  0 xfailed, 0 xpassed, 0 deselected.
+* No production file, model route, corpus, prompt, parser,
+  expectation, migration, or UI changed. No test deleted, renamed,
+  skipped, xfailed, deselected, or weakened beyond the now exactly
+  bounded, reviewer-authorized exception.
 
 **PRODUCT-INTEL.PILOT-RELEASE-2-PROD-FIX1-FU4-FU1 (Exact Observed
 Vendor Entity Correction) — IMPLEMENTED / PENDING FINAL REVIEW**

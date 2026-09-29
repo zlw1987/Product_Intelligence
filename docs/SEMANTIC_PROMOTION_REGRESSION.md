@@ -73,6 +73,18 @@ eligibility predicate, transport factory, frozen status mapping); a test
 suite locks every reuse against the frozen originals. Production never
 imports the harness (enforced by a source scan).
 
+The one authorized evaluation->research dependency: the harness imports
+the REAL deterministic identity chain
+(`research.matching.assess_listing_identity` and the public eligibility
+predicate) under an architecture-reviewer authorized EXACT two-file
+allowlist (A1-FU1) in
+`tests/research/test_research_identity_boundaries.py` (`PROMOTION_REGRESSION_RESEARCH_EXCEPTION`):
+`product_intelligence/evaluation/semantic/promotion_regression.py` and
+`product_intelligence/evaluation/semantic/promotion_regression_cli.py`.
+No other evaluation module — including any future
+`promotion_regression_*` file — may import `product_intelligence.research`
+without a new reviewer decision.
+
 ## Production authority invariants protected by the harness
 
 1. Deterministic ACCEPTED is never sent to semantic evaluation.

@@ -5973,22 +5973,30 @@ disposition/authority-boundary violation (MATCH anything other than
 AI_ASSISTED_MATCH; non-MATCH producing authority; deterministic state
 changed); or provenance incompatibility/corruption.
 
-**7. Recorded boundary exception (documented conflict closure).** The
+**7. Reviewer-authorized boundary exception (exact allowlist).** The
 2A-era guard
 `tests/research/test_research_identity_boundaries.py::test_no_outer_layer_is_wired_to_the_identity_primitive_yet`
 forbade any `product_intelligence/evaluation` file from importing
-`product_intelligence.research`. This phase is the explicitly
-authorized "phase that has real candidate evidence": the
-promotion-regression harness must replay the real deterministic
-identity chain. The guard now carries a documented exception for
-EXACTLY the two `evaluation/semantic/promotion_regression*` modules,
-and a new mechanical test
-(`test_only_promotion_regression_may_wire_research`) locks that every
-OTHER evaluation file remains research-independent and that the
-excepted modules import research but never execution/runs/web/
-providers/Django. Dependency direction is preserved and locked both
-ways: the harness imports research contracts; no production module
-references `promotion_regression` (source-scanned).
+`product_intelligence.research`. The promotion-regression harness must
+replay the real deterministic identity chain, so the original
+evaluation->research boundary was deliberately narrowed by an
+architecture-reviewer authorized exception (recorded during A1, and
+authorized and tightened in A1-FU1) for EXACTLY two files:
+`product_intelligence/evaluation/semantic/promotion_regression.py` and
+`product_intelligence/evaluation/semantic/promotion_regression_cli.py`.
+The exception is an explicit, reviewer-authorized governance decision
+— not an implementer-authorized redesign, and not a prefix/glob/regex
+match: no other `promotion_regression_*` module, in any location, is
+covered without a new reviewer decision. The guard carries the
+immutable allowlist `PROMOTION_REGRESSION_RESEARCH_EXCEPTION`, and
+mechanical tests (`test_only_promotion_regression_may_wire_research`,
+`test_promotion_regression_exception_is_an_exact_allowlist`) lock that
+every OTHER evaluation file remains research-independent, that the
+excepted files import research but never execution/runs/web/
+providers/Django, and that arbitrary future `promotion_regression_*`
+names are NOT automatically exempt. Dependency direction is preserved
+and locked both ways: the harness imports research contracts; no
+production module references `promotion_regression` (source-scanned).
 
 **8. Unchanged.** Production semantic route constants (PRIMARY
 `amax/nemotron-3-super`; FALLBACK `vllm-262k/Qwen3.6-27B-262K`;
