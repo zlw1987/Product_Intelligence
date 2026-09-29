@@ -2,6 +2,136 @@
 
 ## Current state
 
+**PRODUCT-INTEL.SEMANTIC-QWEN38-PROMOTION-REGRESSION-A1 (Semantic
+PRIMARY Promotion-Regression Harness) — IMPLEMENTED / PENDING FINAL
+REVIEW**
+
+Bounded evaluation-only phase on the reviewed main HEAD
+`e8f5498f1c34803b4e13c85126ec57e3a3a8ff7d`. Builds a SEPARATE
+promotion-regression facility for semantic PRIMARY candidates. It is
+NOT authorization to promote `amax/qwen3.8-27b`, NOT a semantic policy
+change, and NOT an attempt to improve any model's qualification score.
+(canonical spec: PLAN §26.16; operator documentation:
+`docs/SEMANTIC_PROMOTION_REGRESSION.md`; corpus documentation:
+`evaluation/semantic_promotion_regression/README.md`.)
+
+Frozen evidence at phase start:
+
+* Production semantic route UNCHANGED and still frozen: PRIMARY
+  `amax/nemotron-3-super`, FALLBACK `vllm-262k/Qwen3.6-27B-262K`,
+  temperature 0.0, max_tokens 32768; fallback on execution failure
+  only, never on semantic disagreement.
+* `amax/qwen3.8-27b` completed the same frozen FULL semantic
+  qualification as the production primary (both: PASS gates, 100% valid,
+  100% match precision, 85.7% recall, 0 false matches); both models
+  make the same two known semantic errors on the frozen 64-case corpus
+  (SMQ-0053 expected MATCH -> NO_MATCH; SMQ-0062 expected MATCH ->
+  UNCERTAIN). Those expectations are untouched by this phase.
+
+Delivered:
+
+1. **Separate production-shaped corpus** —
+   `evaluation/semantic_promotion_regression/cases.json` (v1, 22 cases,
+   all synthetic): categories A..J covering deterministic ACCEPTED,
+   explicit MPN conflict, TITLE_TEXT / SKU_FIELD / PARTIAL-MPN semantic
+   eligibility, no usable evidence, accessory/compatibility traps,
+   capacity/form-factor/interface conflicts, generic
+   normalized-exact-identity-plus-trailing-description cases (NOT copies
+   of SMQ-0053/SMQ-0062), and all three semantic decision tiers. Each
+   case declares its expected deterministic state (verified against the
+   REAL frozen authority chain at run time) and its expected semantic
+   call (verified against the frozen FU3B eligibility states + the
+   usable-evidence title gate). The frozen 64-case qualification corpus
+   is byte-identical to its frozen SHA256 (re-locked by new tests).
+2. **Evaluation-only harness** —
+   `product_intelligence/evaluation/semantic/promotion_regression.py`:
+   single-attempt PRIMARY-seat loop per eligible case (no retry, no
+   fallback chain — each model is tested in the primary seat), prompt
+   v1.1 via the shared contract, the frozen strict parser/validator,
+   exact provider-reported model-identity proof, the frozen transport
+   status mapping (reused, not forked), disposition mapping
+   (MATCH -> AI_ASSISTED_MATCH only; NO_MATCH/UNCERTAIN -> no
+   authority), bounded per-case records, corpus/prompt SHA256
+   manifests, six objective promotion gates, two-run comparison with
+   per-case rows (decisions, confidences, validity, disagreement,
+   positive-authority-expansion = mandatory human review,
+   conservative-challenger-regression = recall loss, unsafe/false
+   MATCH, safety-sensitive disagreement) and explicit
+   `no_winner_declared`. Authorized models are explicitly limited to
+   `amax/nemotron-3-super` (production_primary) and `amax/qwen3.8-27b`
+   (challenger); unknown models fail closed. CLI:
+   `product_intelligence/evaluation/semantic/promotion_regression_cli.py`
+   (`list-cases` / `run` / `compare`).
+3. **Authority-invariant tests** — 186 new nodes in
+   `tests/evaluation/semantic/test_promotion_regression_{corpus,runner,authority,comparison}.py`:
+   zero transport calls on deterministic ACCEPTED / MPN_MISMATCH / no
+   usable evidence; strict-contract enforcement (prose, fences, unknown
+   keys, invalid enums, wrong item types, identity drift) with no retry;
+   MATCH stays AI_ASSISTED_MATCH and is excluded by frozen 4A
+   (`IDENTITY_NOT_ACCEPTED`); a real production `AiAssistedMatchResult`
+   constructs from harness provenance; HARD_CONFLICT not bypassed; no
+   human confirmation / Reviewed Price fabricated; production route
+   constants byte-identical and the frozen runtime REJECTS the
+   challenger model (no override exists); harness imports no
+   execution/runs/web/providers/Django (AST + clean-module-state); no
+   production module references the harness; eligibility, specs-building,
+   and single-attempt interpretation mirror-locked to the frozen
+   execution/runtime originals over full outcome matrices.
+4. **Documented boundary exception (recorded conflict)** — the 2A-era
+   guard `test_no_outer_layer_is_wired_to_the_identity_primitive_yet`
+   forbade ANY evaluation file from importing `product_intelligence.research`.
+   This phase is the explicitly authorized "phase that has real
+   candidate evidence": the promotion-regression harness MUST replay the
+   real deterministic identity chain. The guard now carries a
+   documented exception for exactly the two
+   `evaluation/semantic/promotion_regression*` modules, and a new
+   mechanical test (`test_only_promotion_regression_may_wire_research`)
+   locks that the exception is ONLY those modules and that they import
+   research but never execution/runs/web/providers/Django. All other
+   evaluation files remain research-independent under the unchanged
+   assertion.
+5. **Documentation** — qualification vs promotion regression separated
+   explicitly in `docs/SEMANTIC_PROMOTION_REGRESSION.md`, the corpus
+   README, STATUS (this section), PLAN §26.16, and a cross-reference in
+   `docs/SEMANTIC_BENCHMARK_RUNNER.md`. No automatic winner selection;
+   production remains Nemotron primary; the regression comparison is
+   evidence for a later human-reviewed promotion decision.
+
+Validation (this session, candidate pass — final approval remains with
+ChatGPT after independent review):
+
+* Pre-A1 collection at `e8f5498`: **5436** collected.
+* Post-A1 collection: **5631** collected (delta +195 = 186 new harness
+  test nodes + 4 auto-expanded evaluation-boundary nodes [2 scans x 2
+  new files] + 1 new complementary identity-boundary node + 2
+  auto-expanded provider-boundary nodes + 2 auto-expanded
+  web-boundary nodes).
+* Focused (pre-existing): `tests/semantic/test_runtime.py`,
+  `tests/semantic/test_runtime_boundaries.py`,
+  `tests/execution/test_semantic_integration.py`,
+  `tests/evaluation/semantic/test_benchmark_runner.py`,
+  `tests/evaluation/semantic/test_live_runner_contract.py` -> 406 passed
+  (baseline, pre-change) and re-passed post-change.
+* Full suite (post-A1): **5631 passed, 0 failed, 0 skipped, 0 xfailed,
+  0 deselected (+ 39 subtests passed)**. One full run earlier in the
+  session showed 3 subprocess-boundary nodes failing with the documented
+  Windows/Python-3.14 signature (`subprocess.Popen ->
+  _winapi.DuplicateHandle -> OSError: [WinError 6]`); each re-passed on
+  immediate retry (known environmental flake class, not a product
+  defect). No node outside that flake class fails.
+* Frozen evidence re-locked mechanically: qualification corpus SHA256
+  `3c21d6fcd4eefa5cc383792abfd9308bd5c03315834c8ffdffd0f6a2b3619ca1`;
+  qualification FULL prompt SHA256
+  `f50e5584659f953ce73a97ccc8bc1ff487fbeeb37e2e0a72e52210613aeab1ff`;
+  PRIMARY `amax/nemotron-3-super`; FALLBACK `vllm-262k/Qwen3.6-27B-262K`;
+  temperature 0.0 (exact float); max_tokens 32768.
+
+Live Nemotron-vs-Qwen promotion-regression run: NOT executed in this
+phase (implementation uses fake/recorded transports only). Exact
+human-executed commands are in `docs/SEMANTIC_PROMOTION_REGRESSION.md`.
+No deployment performed in this commit; final approval remains with
+ChatGPT after independent GitHub review.
+
 **PRODUCT-INTEL.PILOT-RELEASE-2-PROD-FIX1-FU4-FU1 (Exact Observed
 Vendor Entity Correction) — IMPLEMENTED / PENDING FINAL REVIEW**
 

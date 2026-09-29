@@ -72,6 +72,14 @@ separate reviewed promotion phase explicitly changes that frozen route.
 Qualification artifacts must retain the literal provider/model provenance
 `amax` / `qwen3.8-27b`; do not alias or rewrite the model ID in comparisons.
 
+Separate from this qualification catalog, the promotion-regression facility
+(`docs/SEMANTIC_PROMOTION_REGRESSION.md`,
+`product_intelligence/evaluation/semantic/promotion_regression.py`,
+`evaluation/semantic_promotion_regression/cases.json`) evaluates formally
+qualified challengers against production-shaped authority boundaries.
+Passing FULL qualification — including by `amax/qwen3.8-27b` — does not by
+itself change production; promotion remains a human-reviewed decision.
+
 ## FULL vs SMOKE Semantics
 
 ### FULL Qualification

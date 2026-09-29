@@ -5846,3 +5846,162 @@ semantics; FX production implementation; historical replay
 zero-live behavior; Search/Page/Vendor/FX/Semantic replay
 boundaries; migrations/models; dependencies; no 8A caching; no
 deployment.
+
+
+### 26.16 SEMANTIC-QWEN38-PROMOTION-REGRESSION-A1: Semantic PRIMARY
+Promotion-Regression Harness
+
+**Status: IMPLEMENTED / PENDING FINAL REVIEW.** Bounded evaluation-only
+phase. It builds a SEPARATE promotion-regression facility for semantic
+PRIMARY candidates and changes NOTHING in the production semantic route,
+prompt, parser, eligibility rules, aggregation, or review authority. It
+is not authorization to promote `amax/qwen3.8-27b`; promotion remains a
+human-reviewed decision. (Operator documentation:
+`docs/SEMANTIC_PROMOTION_REGRESSION.md`.)
+
+**1. Two questions, two facilities.** Semantic QUALIFICATION
+(frozen; `evaluation/semantic_corpus/cases.json`, 64 cases, prompt v1.1
+FULL SHA256 `f50e5584659f953ce73a97ccc8bc1ff487fbeeb37e2e0a72e52210613aeab1ff`,
+corpus SHA256 `3c21d6fcd4eefa5cc383792abfd9308bd5c03315834c8ffdffd0f6a2b3619ca1`)
+asks whether a model passes the frozen benchmark. PROMOTION REGRESSION
+(this phase) asks whether a formally qualified challenger, considered for
+the production PRIMARY seat, respects the production-shaped
+semantic/execution authority boundaries. The two corpora, runners,
+artifacts, and verdict concepts are separate and must remain separate in
+source and documentation. `amax/qwen3.8-27b` passing FULL qualification
+does not itself change production.
+
+**2. Frozen production authority is NOT owned by the LLM and the harness
+must test the architecture, not bypass it.** The harness replays the real
+production chain per case:
+
+```
+deterministic matching      real research.matching.assess_listing_identity
+        |
+        v
+semantic eligibility        frozen FU3B states via the public pure
+                            research predicate
+                            is_human_review_eligible_assessment + the
+                            usable-evidence title gate
+        |
+        v
+semantic model              ONE harness-owned transport attempt per
+                            eligible case; prompt v1.1 built by the
+                            shared contract; strict contract parser /
+                            validator; exact provider-reported model
+                            identity; frozen transport status mapping
+                            (reused object, not forked)
+        |
+        v
+semantic decision           MATCH / NO_MATCH / UNCERTAIN or bounded
+                            failure status
+        |
+        v
+execution disposition       MATCH -> EvidenceDecision.AI_ASSISTED_MATCH
+                            (AI-assisted evidence only); NO_MATCH /
+                            UNCERTAIN -> UNDECIDED (no authority). The
+                            original ListingIdentityAssessment is never
+                            mutated; frozen 4A still excludes the
+                            underlying REJECTED assessment as
+                            IDENTITY_NOT_ACCEPTED.
+```
+
+A case whose declared deterministic state is not realized by the real
+frozen chain fails the run closed (a defective case measures nothing).
+
+**3. Evaluation-only model authorization.** The harness authorizes
+EXACTLY `amax/nemotron-3-super` (role `production_primary`, baseline)
+and `amax/qwen3.8-27b` (role `challenger`) for PRIMARY-seat regression
+runs; any other provider/model fails closed. This is NOT production
+configuration: the frozen `SemanticRuntime` is untouched —
+`validate_runtime_config` still rejects the challenger, and a
+`SemanticRuntimeResult` still cannot carry a challenger-named requested
+primary (self-validation). The fallback model
+(`vllm-262k/Qwen3.6-27B-262K`) is not a PRIMARY promotion candidate and
+is not authorized by this harness. No environment variable, CLI flag, or
+code path selects a production model outside the frozen route.
+
+**4. No fallback chain in the harness.** Each model is tested in the
+PRIMARY seat with exactly one transport attempt per eligible case: no
+retry, no second model, no reinterpretation of an invalid first
+response. Production fallback semantics (execution failure only, never
+semantic disagreement) remain the frozen runtime's contract and are
+covered by the runtime's own tests; the harness mirror-locks its
+single-attempt interpretation against the real runtime's primary
+attempt over the full outcome matrix (every transport error code,
+identity drift, empty, malformed, schema-invalid, valid decisions).
+Run-fatal transport errors (frozen transport vocabulary) abort the run
+after recording the failed case, mirroring the qualification runner.
+
+**5. Corpus (v1, 22 cases, synthetic).** Categories A..J are each
+enforced present by the loader: A deterministic ACCEPTED (exact +
+normalized-exact; no semantic call); B explicit MPN_MISMATCH (no
+semantic call; cannot become AI_ASSISTED_MATCH); C TITLE_TEXT eligible;
+D SKU_FIELD eligible; E PARTIAL_MPN_ONLY eligible (AI-assisted only);
+F no usable evidence (source NONE, or eligible state without a product
+title; no semantic call); G accessory/compatible-with/replacement/
+multipack traps; H capacity/form-factor/interface conflicts; I
+normalized exact identity + trailing description — GENERAL contracts
+deliberately NOT copying SMQ-0053 / SMQ-0062 (loader-locked: the
+frozen cases' distinctive literals must not appear in category I);
+J decision mapping (the corpus must contain called cases expecting
+MATCH, NO_MATCH, and UNCERTAIN). Each case carries a
+corpus-declared `match_is_unsafe` fact (a model MATCH on that case is
+an unsafe positive-authority expansion); the harness contains no
+per-case-ID logic and no model-specific exceptions. Case changes
+follow the evaluation-truth rules (A/B/C/D reasons only; "the
+challenger failed this case" is not a valid reason).
+
+**6. Comparison and promotion gates.** The two-run comparison is
+machine-readable with per-case rows: case ID, category, expected
+authority outcome, both models' decisions/confidences/validity, model
+disagreement, safety-sensitive disagreement, positive authority
+expansion (challenger MATCH while primary NO_MATCH/UNCERTAIN — a
+MANDATORY human-review condition because the challenger expands
+positive authority relative to production), conservative challenger
+regression (primary MATCH while challenger NO_MATCH/UNCERTAIN — recall
+loss), unsafe/false MATCH per model, reason codes, bounded provenance
+(no raw model bodies in the comparison artifact). Provenance
+compatibility (corpus version + SHA256, prompt version + SHA256,
+case order, generation parameters, timeout, completed status) fails
+closed. The harness computes objective gate facts and NEVER declares a
+winner: no scores, ranks, or latency/token/accuracy weighting. A run's
+promotion gate fails on: invalid output violating the response
+contract; any transport call on a no-call case (semantic override of
+deterministic authority); false MATCH on a `match_is_unsafe` case;
+disposition/authority-boundary violation (MATCH anything other than
+AI_ASSISTED_MATCH; non-MATCH producing authority; deterministic state
+changed); or provenance incompatibility/corruption.
+
+**7. Recorded boundary exception (documented conflict closure).** The
+2A-era guard
+`tests/research/test_research_identity_boundaries.py::test_no_outer_layer_is_wired_to_the_identity_primitive_yet`
+forbade any `product_intelligence/evaluation` file from importing
+`product_intelligence.research`. This phase is the explicitly
+authorized "phase that has real candidate evidence": the
+promotion-regression harness must replay the real deterministic
+identity chain. The guard now carries a documented exception for
+EXACTLY the two `evaluation/semantic/promotion_regression*` modules,
+and a new mechanical test
+(`test_only_promotion_regression_may_wire_research`) locks that every
+OTHER evaluation file remains research-independent and that the
+excepted modules import research but never execution/runs/web/
+providers/Django. Dependency direction is preserved and locked both
+ways: the harness imports research contracts; no production module
+references `promotion_regression` (source-scanned).
+
+**8. Unchanged.** Production semantic route constants (PRIMARY
+`amax/nemotron-3-super`; FALLBACK `vllm-262k/Qwen3.6-27B-262K`;
+temperature 0.0 exact float; max_tokens 32768); the frozen
+qualification corpus and prompt v1.1 (SHA256 re-locked by new tests);
+the strict parser/validator; the fallback allowlist; FU3B eligibility
+and disposition semantics; 4A aggregation; Reviewed Price; human
+review; HARD_CONFLICT working-quote policy; migrations/models;
+dependencies; no deployment.
+
+**9. Live execution is human-authorized.** Implementation and tests
+use fake/recorded transports only. The live Nemotron-vs-Qwen run and
+comparison are executed by the human reviewer with the exact commands
+documented in `docs/SEMANTIC_PROMOTION_REGRESSION.md`; the resulting
+artifacts (gitignored) plus the pushed diff are the input to the
+human promotion decision.
