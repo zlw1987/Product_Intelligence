@@ -53,10 +53,17 @@ through 0010_research_micron_alias_snapshot are deployed, and the
 production smoke test passed on 2026-09-23. The later commits c6ad6ae
 and 7ff0ab7 are docs-only project-state closures; production does not
 need to move merely to obtain those documentation edits, and 7ff0ab7
-is not the production runtime SHA. The immediate next delivery is
-PRODUCT-INTEL.8A-PRE (Caching & Freshness Architecture Audit), PLANNED
-— a READ-ONLY / DESIGN-FIRST investigation, not authorization to
-implement caching, with no TTL values approved yet. Later planned work
+is not the production runtime SHA. The 8A (Caching & Freshness) series
+is in progress: PRODUCT-INTEL.8A-PRE (Caching & Freshness Architecture
+Audit) is APPROVED / COMPLETE (read-only / design-first audit
+delivered; no TTL values approved there), the 8A-FX design lineage
+(8A-FX-DESIGN, 8A-FX-DESIGN-FU1) is APPROVED / FROZEN as design, and
+PRODUCT-INTEL.8A-FX-A1 (Canonical ECB Observation Cache) is
+IMPLEMENTED / PENDING FINAL REVIEW (canonical spec §26.18; AD-064):
+the first safe caching slice — cross-run reuse of the canonical
+production ECB daily FX observation set, acquisition-only, with a
+proof-instant + Europe/Brussels weekend-closure freshness policy (no
+numeric TTL). Later planned work
 includes 5A (Structured external API, PLANNED / NON-BLOCKING), 8B
 (Research history), and 8C (Production hardening); none of them is
 NEXT, and authentication/session remains outside the current priority.
@@ -246,9 +253,13 @@ COMPLETE. PILOT-RELEASE-2 (4D Customer Requirement Deployment & UAT;
 deployment/UAT phase, not a feature-development phase) is DEPLOYED /
 ACCEPTED (deployed runtime SHA
 065320180c17b89c7460164326a0c9f49e01fe3b; production smoke passed
-2026-09-23). The next planned delivery is 8A-PRE (Caching & Freshness
-Architecture Audit; PLANNED; READ-ONLY / DESIGN-FIRST; not caching
-implementation). 5A remains PLANNED / NOT IMPLEMENTED / NON-BLOCKING
+2026-09-23). The 8A (Caching & Freshness) series is in progress: 8A-PRE
+(Caching & Freshness Architecture Audit) is APPROVED / COMPLETE (read-only
+/ design-first audit delivered; no TTL values approved there), the 8A-FX
+design lineage is APPROVED / FROZEN as design, and 8A-FX-A1 (Canonical
+ECB Observation Cache) is IMPLEMENTED / PENDING FINAL REVIEW (the first
+safe caching slice; canonical spec §26.18; AD-064). 5A remains PLANNED /
+NOT IMPLEMENTED / NON-BLOCKING
 for the current FoxPro/browser workflow, and 8B/8C remain later
 planned; none of them is NEXT.
 
@@ -2404,10 +2415,17 @@ A new ResearchRun created for retry cannot share evidence or snapshot with any
 prior run. General caching/freshness remains `DEFERRED` to 8A.
 
 8A-PRE (Caching & Freshness Architecture Audit) — the selected next
-delivery as of the PILOT-RELEASE-2 closure — is PLANNED and
-READ-ONLY / DESIGN-FIRST: it records the caching/freshness
-architecture before any 8A implementation. It authorizes no
-implementation and no TTL values.
+delivery as of the PILOT-RELEASE-2 closure — is APPROVED / COMPLETE
+(read-only / design-first audit delivered; it authorized no
+implementation and no TTL values, and it changed no production code).
+The 8A-FX design lineage (8A-FX-DESIGN, 8A-FX-DESIGN-FU1) is APPROVED /
+FROZEN as design. The first bounded caching slice, 8A-FX-A1 (Canonical
+ECB Observation Cache), is IMPLEMENTED / PENDING FINAL REVIEW: cross-run
+reuse of the canonical production ECB daily FX observation set,
+acquisition-only, under a proof-instant + Europe/Brussels
+weekend-closure freshness policy (no numeric TTL; §26.18, AD-064).
+General caching beyond the 8A-FX slice (page/vendor/semantic/search,
+negative caching, retention) remains DEFERRED to later 8A decisions.
 
 ## 19. Security boundaries
 
@@ -2822,7 +2840,7 @@ PRODUCT-INTEL.5B   Visual FoxPro 5 launcher integration       IMPLEMENTED
 PRODUCT-INTEL.HUMAN-REVIEW  Human review for AI-assisted matches  IMPLEMENTED
 PRODUCT-INTEL.PILOT-RELEASE-1  Internal pilot deployment          DEPLOYED / ACCEPTED
 
------ PILOT-RELEASE-2 DEPLOYED / ACCEPTED — NEXT: 8A-PRE -----
+----- PILOT-RELEASE-2 DEPLOYED / ACCEPTED — 8A SERIES IN PROGRESS -----
 
 PRODUCT-INTEL.4D-PRE  Preferred Source Feasibility Audit         APPROVED / FROZEN
 PRODUCT-INTEL.4D-A    Source Acquisition Optimization            APPROVED / FROZEN
@@ -2841,7 +2859,13 @@ PRODUCT-INTEL.4D-D    Micron Packaging Alias Retrieval (incl. 4D-D-FU1)
 PRODUCT-INTEL.PILOT-RELEASE-2  4D Customer Requirement Deployment
                    & UAT                                        DEPLOYED / ACCEPTED
 PRODUCT-INTEL.8A-PRE  Caching & Freshness Architecture Audit
-                   (READ-ONLY / DESIGN-FIRST)                   PLANNED
+                   (READ-ONLY / DESIGN-FIRST)                   APPROVED / COMPLETE
+PRODUCT-INTEL.8A-FX-DESIGN  FX lookup identity & freshness
+                   design                                       APPROVED / COMPLETE
+PRODUCT-INTEL.8A-FX-DESIGN-FU1  Freshness proof & canonical-feed
+                   eligibility closure                         APPROVED / FROZEN
+PRODUCT-INTEL.8A-FX-A1  Canonical ECB Observation Cache
+                   (first safe caching slice)                   IMPLEMENTED / PENDING FINAL REVIEW
 
 ----- FOXPRO MVP + HUMAN REVIEW -----
 
@@ -2859,7 +2883,7 @@ PRODUCT-INTEL.7C-C  Comparable web trigger + presentation     IMPLEMENTED / APPR
 
 ----- COMPARABLE MVP -----
 
-PRODUCT-INTEL.8A   Caching / refresh strategy
+PRODUCT-INTEL.8A   Caching / refresh strategy                   IN PROGRESS (8A-PRE complete; 8A-FX-A1 pending final review)
 PRODUCT-INTEL.8B   Research history
 PRODUCT-INTEL.8C   Production hardening
 
@@ -2926,23 +2950,27 @@ Requirement Deployment & UAT)
   obtain those documentation edits; 7ff0ab7 is not the production
   runtime SHA.
 
-NEXT — PRODUCT-INTEL.8A-PRE (Caching & Freshness Architecture Audit):
-PLANNED
-  READ-ONLY / DESIGN-FIRST: investigate and record a caching and
-  freshness architecture before any caching implementation. NOT
-  authorization to implement caching; no actual TTL values are approved
-  in the PILOT-RELEASE-2 closure. Chosen because Product Intelligence
-  is now in production and evidence classes have materially different
-  freshness requirements: the design must prevent stale evidence from
-  being presented as current while avoiding unnecessary paid/live
-  calls. The future 8A design must distinguish at minimum:
-  market/public prices (short freshness); Vendor commercial
-  observations (short freshness); ECB FX rates (tied to persisted
-  official observation date); product specifications (longer
-  freshness); comparable research (medium freshness); deterministic
-  identity/authority evidence (not automatically equivalent to
-  market-price freshness); user/operator forced refresh; historical
-  reports (immutable replay, NEVER refreshed merely by GET).
+8A SERIES — IN PROGRESS (Caching & Freshness):
+  8A-PRE  Caching & Freshness Architecture Audit
+        APPROVED / COMPLETE (read-only / design-first audit delivered;
+        authorized no implementation and no TTL values; it distinguished
+        at minimum: market/public prices (short freshness); Vendor
+        commercial observations (short freshness); ECB FX rates (tied to
+        persisted official observation date); product specifications
+        (longer freshness); comparable research (medium freshness);
+        deterministic identity/authority evidence (not automatically
+        equivalent to market-price freshness); user/operator forced
+        refresh; historical reports (immutable replay, NEVER refreshed
+        merely by GET)).
+  8A-FX-DESIGN / 8A-FX-DESIGN-FU1  FX lookup identity, content identity,
+        and freshness design (incl. the corrected proof-instant +
+        Europe/Brussels weekend-closure predicate and the canonical-
+        default eligibility declaration)
+        APPROVED / FROZEN as design
+  8A-FX-A1  Canonical ECB Observation Cache (first safe caching slice;
+        acquisition-only; FX remains DISPLAY-SUPPLEMENTAL; no numeric
+        TTL; §26.18; AD-064)
+        IMPLEMENTED / PENDING FINAL REVIEW
 
 IMPLEMENTED (frozen):
   4C-A  Execution ownership/lifecycle/evidence primitives
@@ -2959,7 +2987,6 @@ IMPLEMENTED (frozen):
 
 PLANNED:
   5A    Structured external API (not a blocker for current workflow)
-  8A    Caching / refresh strategy
   8B    Research history
   8C    Production hardening
 
@@ -4314,6 +4341,7 @@ This canonical plan does not duplicate that operational snapshot.
 | AD-061 | PROD-FIX1-FU1 production review-blocker closure (canonical spec §26.11): (1) VENDOR WIRE FIDELITY — the adapter now supports the ACTUAL hybrid production Ingram placement (explicit `vendorPartNumber` + nested `pricing` customerPrice/retailPrice/currencyCode + TOP-LEVEL boolean availability + TOP-LEVEL `Avl_Quantity`) through the same bounded availability truth table (contradiction => UNKNOWN fail-closed; false+0 => OUT_OF_STOCK/0; true+positive => IN_STOCK), with the canonical nested form and flat compatibility form retained and separately tested (the flat form is NOT described as the only/exact production wire shape); the integration path proves the faithful hybrid Ingram + REAL nested Synnex EU (`OnlineCheck.Header.CurrencyCode`, `OnlineCheck.Item.ManufacturerItemIdentifier/UnitPriceAmount/AvailabilityTotal`) with fake/redacted SessionId/BuyerAccountId/SystemId at their realistic structural locations, stripped by the allowlist; section-scanner documentation and behavior are reconciled — only the three exact line-anchored labels establish sections, a COMPLETE bounded literal is authoritative, and unknown/interstitial text after it is never parsed into data nor allowed to poison the section, while malformed content INSIDE a literal still fails that source closed (no generic HTML scraping). (2) HUMAN-CONFIRMED AUTHORITY OWNERSHIP — the single pure candidate-to-assessment binding primitive (`research.matching.is_review_candidate_binding_valid`) is shared by the web GET/POST paths and both historical replay boundaries (no divergent rule copies; the 8-step POST validation is unchanged in strength); both replay entry points DERIVE the effective human-confirmed selection from persisted state (`derive_human_confirmed_assessment_indices`: CONFIRMED + this run + in-range index + full binding + human-review eligibility + persisted price/currency) and no longer accept ANY caller-supplied index — a bare integer can never mint HUMAN_CONFIRMED authority; the lowest-level pure projection helper is retained as an already-authorized-selection consumer with that contract stated; Machine Price untouched; human review run-scoped; historical GET zero-live-I/O. (3) ECB EVIDENCE CORRECTION — a later SECURE retry from the same production Python runtime (no certifi install, no manual certificate, no fx.py change, no TLS-verification bypass; observation date 2026-09-24, USD 1.1367, ZAR 18.6836) succeeded, so the documentation no longer states an unproven root cause or an outstanding CA-trust-store installation action as fact; the transient failure, its correct FxNetworkError classification, the run completing without ResearchFxSnapshot, and the retained failure-path regression tests are preserved as recorded evidence; NO TLS workaround was added or is required. (4) REVIEWED PRICE WORDING — the Reviewed Price summary now derives the truthful price-contributing counts from the reviewed buckets themselves (per-bucket `human_confirmed_count` / `deterministic_count` sums) instead of overstating them with the validated-CONFIRMED-candidate count; reviewed-price eligibility is NOT changed to make the count match. | Bounded append-only corrective follow-up to the independently reviewed PROD-FIX1 commit (8811104): correct ONLY the review blockers and any directly necessary tests/docs; retain the previous implementation. | IMPLEMENTED / PENDING FINAL REVIEW (PILOT-RELEASE-2-PROD-FIX1-FU1) |
 | AD-062 | PROD-FIX1-FU2 final review-blocker closure (canonical spec §26.12): the PUBLIC (denied-branch) historical compact quote replay now OWNS its price/currency/condition evidence authority exactly like the authorized replay. `replay_public_compact_quote_projection` no longer accepts ANY caller-supplied `PriceAggregationResult` (the `price_result` parameter is removed; the only parameter is `run`). It verifies the run is a real ResearchRun, loads `PriceIntelligenceSnapshot.objects.get(run=run)`, decodes it through the canonical price-result codec, verifies `decoded.request == run.to_research_request()`, and uses THAT decoded persisted result for the frozen public bucket projection, the shared human-confirmed binding derivation, and the human-confirmed price/currency/condition evidence. A same-request cross-run result — identical source URL / product title / MPN field / SKU / evidence source, different persisted price — can no longer substitute for the persisted snapshot, so a CONFIRMED candidate's identity authority can never be exercised over another run's price evidence (historical report immutability; run-scoped evidence authority; confirmation establishes identity authority only over the persisted evidence belonging to that same run). Fail-closed: missing snapshot (DoesNotExist, the existing persisted-artifact behavior), malformed payload / unsupported schema version (PriceResultCodecError), request-provenance-corrupt snapshot (CompactQuoteProjectionError). The denied branch remains vendor-free: NO ResearchSupplementSnapshot read, NO commercial supplement codec import, NO Vendor/Search/Page/ECB- live/Semantic/network work; persisted ResearchFxSnapshot remains allowed; zero live I/O. The authorized replay (`replay_compact_quote_projection`), Machine Price, and Human Review state semantics are UNCHANGED. | Final independent review of FU1 blocked on the public replay trusting caller-supplied price evidence: request equality alone does not prove the evidence is THIS run's persisted snapshot, and the shared binding primitive legitimately matches across same-request runs with identical identity fields. The correction is the minimal bounded change: the denied replay loads its own authority source, removing the caller-owned input rather than comparing against it. | IMPLEMENTED / PENDING FINAL REVIEW (PILOT-RELEASE-2-PROD-FIX1-FU2) |
 | AD-063 | B1 production semantic PRIMARY route promotion (canonical spec §26.17): the code-pinned production semantic route moves from `amax/nemotron-3-super` to `amax/qwen3.8-27b` as PRIMARY; the FALLBACK stays byte-for-byte `vllm-262k/Qwen3.6-27B-262K`. The only production change is `PRIMARY_MODEL` in `product_intelligence/semantic/runtime.py` (plus its pinned-route docstring block). Everything else is frozen: fallback on execution failure only (explicit allowlist; a valid primary decision is FINAL; semantic disagreement never triggers fallback); temperature 0.0 exact float / max_tokens 32768 / request-timeout behavior; prompt v1.1, parser, response schema, enums, validation, reason codes; deterministic identity matching, semantic eligibility, `_map_semantic_decision`, AI_ASSISTED_MATCH (MATCH only) authority and its 4A exclusion, HARD_CONFLICT, Working Quote, Reviewed Price, human confirmation, commercial/vendor authority, execution evidence; the frozen A1 promotion-regression facility and its evaluation-only model catalog; the qualification corpus. Nemotron remains a qualified/reference model but is NOT the production fallback (Nemotron and Qwen 3.8 share provider `amax`; the fallback exists for provider-level execution redundancy). | Reviewer decision based on frozen, independently reviewed evidence: the 64-case FULL qualification of `amax/qwen3.8-27b` (100% valid, 96.88% accuracy, 100% MATCH precision, 85.71% MATCH recall, 0 false MATCH, safety cost 2, all hard gates PASS — matching the historical qualified Nemotron headline metrics and wrong-case IDs), the A1 production-shaped live promotion regression (22 processed / 16 semantic-called cases, both models passing all six objective promotion gates), and human review closing the two surfaced disagreements (SPR-0009: no authority expansion; SPR-0020: candidate SKU provides exact target identity, supporting the AI_ASSISTED_MATCH authority). No caller-configurable routing, no model override surface, no third provider. | IMPLEMENTED / PENDING FINAL REVIEW (SEMANTIC-QWEN38-PRODUCTION-PROMOTION-B1) |
+| AD-064 | 8A-FX-A1 canonical ECB observation cache (canonical spec §26.18; design lineage 8A-PRE audit + 8A-FX-DESIGN + 8A-FX-DESIGN-FU1, all reviewed): the first safe caching slice — cross-run reuse of the canonical production ECB daily FX observation set. (1) ELIGIBILITY: cache active ONLY on the canonical default path, declared at the canonical-default construction site (`fx_cache_eligible = fx_provider is None`, before `EcbFxProvider()` construction); ANY explicitly injected provider (fake, EcbFxProvider instance, subclass, wrapper, any FxProvider-compatible object) unconditionally bypasses the cache (zero store reads/writes) and executes the existing live acquisition contract byte-for-byte; no isinstance/issubclass/provider-class-identity eligibility logic exists (mechanically guarded). (2) USD-ONLY: currency discovery precedes any cache work; USD-only runs perform zero provider calls AND zero cache/store work. (3) FEED IDENTITY: one stable canonical identifier `FX_FEED_ID_ECB_DAILY = "ecb:eurofxref-daily"` in providers/fx.py, bound to the eurofxref-daily.xml endpoint + provider_id "ECB" + base_currency "EUR" (mirror-locked); not a class name; not user-configurable. (4) STORE: new `runs.FxObservationStore` (migration 0011) — cross-run ACQUISITION CONTENT (not run evidence; no ResearchRun relation; no cascade; not ResearchFxSnapshot/PriceIntelligenceSnapshot/ExecutionEvidenceRecord/ResearchSupplementSnapshot/Django CACHES): feed_id, provider_id, base_currency, observation_date, content_sha256, full-document payload through the reused fail-closed FX codec V1, original_retrieved_at (IMMUTABLE provider instant), last_proven_at (timezone-aware proof instant, never truncated to a date), created_at; UniqueConstraint (feed_id, observation_date, content_sha256); latest-selection index. (5) CONTENT IDENTITY: pure research contract `research/fx_cache_contract.py` (stdlib only, no Django/provider/I/O): canonical SHA-256 over byte-stable JSON of the FULL PARSED rate observation (provider + base + observation_date + rates sorted by code, exact str(Decimal) text; raw XML never hashed/persisted; no dict-order/locale/float dependence); same observation_date + changed rates (correction) => distinct digest => distinct row (superseded revision retained as VALID_HISTORICAL, never overwritten). (6) PROJECTION: `project_required_rates` — full set -> required currencies, document order preserved, mirrors the provider's own filter (mirror-locked) so LIVE and CACHE_HIT run payloads are byte-identical for the same document; required_currencies is a projection input, never cache identity. (7) FRESHNESS: pure predicate `no_publication_possible_between(T, N, zone)` over ACTUAL aware instants (naive => TypeError; T > N => ValueError; zone = Europe/Brussels via zoneinfo; DST-aware; system-local timezone never consulted): reuse possible only while EVERY Europe/Brussels calendar day overlapping the CLOSED interval [T, N] is Saturday/Sunday (weekend stretch [Sat 00:00, Mon 00:00 CET/CEST)); working days: NO reuse ever (a working-day proof covers no N >= T); TARGET closing days treated conservatively as working days (no calendar data, no invented holidays); no numeric TTL; explicit conservative policy, NOT a claim of physical ECB incapability. (8) LIVE PATH: one full-set fetch (requested_currencies=None) -> feed-binding validation (contract defect propagates) -> digest -> persist/reconcile in the store's OWN transaction (before the run's atomic final publication) -> last_proven_at set only on successful live observation -> project -> existing per-run FX codec V1 -> run's ResearchFxSnapshot acquisition="LIVE"; original provider retrieved_at preserved. (9) CACHE_HIT PATH: latest stored observation -> fail-closed decode + integrity validation (digest binding, feed invariants, cross-field consistency, impossible stored timestamps) -> freshness predicate on the row's ACTUAL last_proven_at -> if reusable: ZERO ECB calls, original retrieved_at preserved, projection from the full cached set, run's own snapshot acquisition="CACHE_HIT"; never masquerades as LIVE. (10) FAILURES: malformed/unsupported/corrupt EXISTING cache payload is NOT a cache miss — it PROPAGATES (fail closed; never caught into a silent live fallback; row never deleted); only "no row" is an ordinary miss; live FxProviderError remains NONFATAL (no snapshot, store untouched); uniqueness race reconciled ONLY for the specifically understood race (competing row for the exact content identity; exact semantic/content identity validated; convergent conditional last_proven_at re-proof; otherwise fail closed); unrelated IntegrityError/other storage errors propagate; cache persistence failure after live success propagates; no distributed locking, no select_for_update. (11) PROVENANCE: additive `ResearchFxSnapshot.acquisition` (LIVE/CACHE_HIT, default LIVE; migration preserves all existing rows as LIVE); REPLAY is a read behavior (compact_quote_replay reads the run's own snapshot with zero live provider calls and zero cache acquisition), never a stored value, never mutates the persisted value. (12) PUBLICATION ATOMICITY: the per-run ResearchFxSnapshot remains part of the run's atomic final publication; the store row has different ownership/lifetime (a successfully persisted store row survives a later failed run publication and must not imply the run completed; it carries no run authority). (13) PRESENTATION: one additive bounded report line (ECB reference date + original provider retrieval instant + LIVE/CACHE_HIT label) on both replay branches; no DB IDs, raw cache keys, exception text, provider raw body, or implementation details exposed; GET remains zero-live and never reads the store. (14) AUTHORITY INVARIANTS UNCHANGED (re-proven): frozen 4A public market authority (Machine Price snapshot bytes identical across LIVE/CACHE_HIT/FX-absent), Machine Price, Reviewed Price, deterministic/semantic identity, AI_ASSISTED_MATCH authority, vendor supplemental authority, human-confirmed authority, HARD_CONFLICT, semantic production route (PRIMARY amax/qwen3.8-27b; FALLBACK vllm-262k/Qwen3.6-27B-262K; Nemotron qualified/reference only), fallback semantics, review semantics; FX remains DISPLAY-SUPPLEMENTAL only (USD equivalent identical LIVE vs CACHE_HIT for the same document). Explicitly NOT cached: public pages, search/Serper, vendor observations, semantic responses, identity decisions, Machine/Reviewed Price, human-review state, comparable research, rendered reports, negative/failure results. No `force_fresh` primitive ships in A1 (a later 8A decision); no retention/cleanup policy (store naturally bounded at ~1 row per working day + corrections). | The 8A-PRE audit established the ECB FX observation layer as the safest first cache candidate (display-supplemental authority, content identity = observation date, non-sensitive, single call site, full provenance already persisted); the 8A-FX-DESIGN + FU1 lineage resolved the exact miss/hit boundary (pre-fetch feed-identity lookup vs post-fetch content identity), the unsound same-UTC-day proof window (replaced by the proof-instant + Europe/Brussels weekend-closure predicate), and the isinstance feed gate (replaced by canonical-default eligibility declaration). A1 implements that frozen design as the bounded first slice: acquisition-only substitution with fail-closed cache integrity, conservative weekend-only reuse, and zero authority change. | IMPLEMENTED / PENDING FINAL REVIEW (PRODUCT-INTEL.8A-FX-A1) |
 
 ## 26. Customer Quote Research Expansion — 4D Phase Architecture
 
@@ -4360,12 +4388,15 @@ smoke test passed on 2026-09-23. It was a deployment/UAT phase, not a
 feature-development phase. The later commits c6ad6ae and 7ff0ab7 are
 docs-only project-state closures; production does not need to move
 merely to obtain those documentation edits, and 7ff0ab7 is not the
-production runtime SHA. The next delivery is
-PRODUCT-INTEL.8A-PRE — Caching & Freshness Architecture Audit
-(PLANNED): a READ-ONLY / DESIGN-FIRST investigation to record a caching
-and freshness architecture before any caching implementation; it is NOT
-authorization to implement caching, and no actual TTL values are
-approved in this closure. 5A remains PLANNED / NOT IMPLEMENTED /
+production runtime SHA. The 8A (Caching & Freshness) series then
+proceeded: PRODUCT-INTEL.8A-PRE — Caching & Freshness Architecture
+Audit (READ-ONLY / DESIGN-FIRST) is APPROVED / COMPLETE — it recorded
+the caching/freshness architecture before any caching implementation and
+itself authorized NO implementation and NO TTL values; the 8A-FX design
+lineage (8A-FX-DESIGN, 8A-FX-DESIGN-FU1) is APPROVED / FROZEN as
+design; and PRODUCT-INTEL.8A-FX-A1 — Canonical ECB Observation Cache
+(the first safe caching slice; §26.18; AD-064) is IMPLEMENTED /
+PENDING FINAL REVIEW. 5A remains PLANNED / NOT IMPLEMENTED /
 NON-BLOCKING, and 8B/8C remain later planned (directional; not an
 approved implementation order); none of them is NEXT.
 
@@ -5017,7 +5048,11 @@ Authentication/session decision for the current pilot:
 - The frozen 4D-C-SEC vendor-commercial-price network gate is unchanged.
 
 Next delivery (post-PILOT-RELEASE-2): PRODUCT-INTEL.8A-PRE (Caching &
-Freshness Architecture Audit) — PLANNED. READ-ONLY / DESIGN-FIRST:
+Freshness Architecture Audit) — PLANNED. [State update: 8A-PRE has
+COMPLETED (APPROVED / COMPLETE); the 8A series advanced through the
+approved 8A-FX design lineage to 8A-FX-A1 (IMPLEMENTED / PENDING FINAL
+REVIEW; §26.18). The planning text below is preserved as the historical
+closure decision.] READ-ONLY / DESIGN-FIRST:
 investigate and record a caching and freshness architecture before any
 caching implementation; it is NOT authorization to implement caching,
 and no actual TTL values are approved in this closure. Chosen because
@@ -6138,3 +6173,230 @@ allowlist; generation settings; prompt/parser/corpus; authority
 mapping; migrations/models; dependencies; no deployment; no live model
 calls in the implementation phase (promotion evidence is the already
 frozen, independently reviewed A1 record).
+
+### 26.18 PRODUCT-INTEL.8A-FX-A1: Canonical ECB Observation Cache
+
+**Status: IMPLEMENTED / PENDING FINAL REVIEW.** First safe caching slice
+of the 8A series: cross-run reuse of the canonical production ECB daily
+FX observation set. Canonical spec authority for this phase; decision
+record AD-064; design lineage: 8A-PRE audit (APPROVED / COMPLETE),
+8A-FX-DESIGN (APPROVED / COMPLETE), 8A-FX-DESIGN-FU1 (APPROVED / FROZEN
+as design). Starting SHA 55d1879a03da3dc6163a28c9524b5ef0396b76b3.
+
+**1. Purpose and boundary.** Replaces ONLY external acquisition of ECB
+FX evidence under the approved freshness contract. It MUST NOT cache or
+reuse: public product pages; search/Serper results; vendor observations;
+semantic model responses; identity decisions; Machine Price; Reviewed
+Price; human-review state; comparable research; rendered reports;
+negative/failure results. FX remains DISPLAY-SUPPLEMENTAL only. No
+numeric TTL is introduced; the policy is proof-instant +
+Europe/Brussels weekend-closure.
+
+**2. Eligibility (canonical default only).** Cache is active ONLY on the
+canonical production default ECB acquisition. The decision is made from
+the existing orchestration API semantics
+(`execute_research_run(..., fx_provider=None)`) at the canonical-default
+construction site in `execution/orchestration.py::_try_fetch_fx_rates`:
+
+    fx_cache_eligible = fx_provider is None      # BEFORE construction
+    if fx_provider is None:
+        fx_provider = EcbFxProvider()            # existing line
+
+ANY explicitly injected provider (a fake, an `EcbFxProvider` instance,
+a subclass, a wrapper, any FxProvider-compatible object) unconditionally
+bypasses the cache (zero store reads, zero store writes) and executes
+the existing live acquisition contract byte-for-byte. Provider class
+identity is NOT business/cache semantics: no `isinstance` /
+`issubclass` / class-identity check exists anywhere in the cache path
+(mechanically guarded by test). Existing injected-provider tests remain
+on the existing live contract by construction.
+
+**3. USD-only contract (preserved).** Currency discovery
+(`_get_required_fx_currencies`) precedes any cache work. USD-only
+reports -> zero FX provider acquisition -> zero FX cache lookup -> no
+`ResearchFxSnapshot`. The cache is not a reason to touch the store for
+USD-only runs.
+
+**4. Feed identity.** One explicit stable canonical feed identifier for
+the production ECB daily reference-rate feed:
+`providers/fx.py::FX_FEED_ID_ECB_DAILY = "ecb:eurofxref-daily"`. It is
+the semantic external feed, not a provider class name, and is not
+user-configurable. Endpoint ownership stays in `providers/fx.py`
+(`https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml`); the
+binding (endpoint + `provider_id="ECB"` + `base_currency="EUR"`) is
+mirror-locked by test.
+
+**5. Store (new cross-run content model).** `runs.FxObservationStore`
+(migration 0011). Represents cross-run ACQUISITION CONTENT, not run
+evidence. It does NOT overload `ResearchFxSnapshot`,
+`PriceIntelligenceSnapshot`, `ExecutionEvidenceRecord`,
+`ResearchSupplementSnapshot`, or Django's `CACHES` framework. Fields:
+`id` (UUID pk), `feed_id`, `provider_id`, `base_currency`,
+`observation_date`, `content_sha256`, `payload` (JSONField, FULL
+document through the reused fail-closed FX codec V1),
+`original_retrieved_at` (IMMUTABLE provider instant), `last_proven_at`
+(timezone-aware proof instant, never truncated to a date), `created_at`.
+`UniqueConstraint(feed_id, observation_date, content_sha256)`;
+latest-selection index `(feed_id, -observation_date, -last_proven_at)`;
+non-empty check constraints. NO `ResearchRun` relation (not run-scoped;
+no cascade; a failed run publication leaves a successfully persisted row
+intact — it must not imply the run completed).
+
+**6. Content identity (pure research contract).**
+`research/fx_cache_contract.py` (stdlib only; no Django, no provider,
+no I/O). `fx_document_content_sha256` computes a deterministic canonical
+SHA-256 from a byte-stable JSON representation of the FULL PARSED rate
+observation: provider_id + base_currency + observation_date + rates
+sorted by currency code with exact `str(Decimal)` textual
+representation (no raw ECB XML hashed or persisted; no Python
+dict-order dependence; no locale dependence; no float conversion). A
+correction/republication for the same `observation_date` with changed
+rates yields a different digest and therefore a distinct content
+identity (distinct row; the superseded revision remains
+VALID_HISTORICAL and is never overwritten).
+
+**7. Projection (not cache identity).** `project_required_rates`
+projects the FULL stored/fetched set to `required_currencies` (document
+order preserved; mirrors the provider's own post-parse filter,
+mirror-locked). `required_currencies` is a projection input, not cache
+identity — no per-requested-currency-set cache entries. On both LIVE and
+CACHE_HIT: full observation -> project/filter -> existing per-run FX
+codec -> `ResearchFxSnapshot`. The run payload is byte-identical across
+the two paths for the same document.
+
+**8. Freshness contract (pure).**
+`no_publication_possible_between(proof_instant T, use_instant N, zone)`
+— no I/O; no Django; no provider; tz-aware inputs only (naive/malformed
+-> fail closed with `TypeError`); `T > N` -> `ValueError`; handles
+CET/CEST via `zoneinfo`; correct across DST boundaries; never uses the
+system-local timezone implicitly. Uses the ACTUAL proof instant T and
+current instant N; never reduces `last_proven_at` to a date before
+evaluating. Reuse is possible only while EVERY Europe/Brussels calendar
+day overlapping the CLOSED interval [T, N] is Saturday/Sunday (the
+weekend stretch [Saturday 00:00, Monday 00:00 CET/CEST)). Working days:
+NO reuse ever (a proof on a working day covers no N >= T; do not reuse
+merely because a live proof occurred earlier that day — perform live
+acquisition). TARGET closing days: no authoritative calendar contract,
+so treated conservatively like working days (no invented holiday
+calendar). This is an explicit conservative A1 product freshness policy
+based on ECB's documented regular publication schedule (reference rates
+normally updated on working days around 16:00 CET, except TARGET closing
+days); it does NOT describe or encode the stronger external claim that
+ECB is physically incapable of an exceptional weekend correction.
+
+**9. LIVE path (canonical, reuse not allowed).** (1) determine required
+currencies; (2) ONE full-set ECB fetch (`requested_currencies=None`);
+(3) validate the returned observation (feed binding `provider_id="ECB"`
+/ `base_currency="EUR"` — contract defect propagates); (4) calculate the
+canonical digest; (5) persist/reconcile the cross-run content entry in
+the store's OWN transaction (before the run's atomic final
+publication); (6) set/update `last_proven_at` only for a successful
+live observation; (7) project requested currencies; (8) write the
+current run's `ResearchFxSnapshot`; (9) acquisition = LIVE. The original
+provider `retrieved_at` is preserved (never replaced by cache insertion
+time or run-publication time).
+
+**10. CACHE_HIT path (canonical, approved reuse).** (1) load the latest
+valid cached observation for the canonical feed; (2) decode and validate
+it (fail closed); (3) apply the pure freshness predicate using its
+ACTUAL `last_proven_at`; (4) if reuse allowed: ZERO ECB calls, preserve
+the original provider `retrieved_at`, project the current required
+currencies from the full cached set, write this run's own
+`ResearchFxSnapshot`, acquisition = CACHE_HIT. The cache-served instant
+is never claimed as provider retrieval time. CACHE_HIT must never
+masquerade as LIVE.
+
+**11. Failure semantics (fail closed).** Preserved: live
+`FxProviderError` is nonfatal (no FX snapshot if no valid evidence
+obtained; run can complete). Programming/contract defects propagate.
+IMPORTANT correction: a MALFORMED OR UNSUPPORTED EXISTING CACHE PAYLOAD
+IS NOT A CACHE MISS. If an `FxObservationStore` row exists and its
+codec/integrity validation fails (malformed rate payload, unsupported
+schema version, invalid digest, provider/base mismatch, impossible
+stored timestamps), the error PROPAGATES / fails closed — it is NOT
+catched into a silent live fallback, and the corrupted row is not
+deleted. Cache lookup with NO ROW is an ordinary miss -> live
+acquisition. Uniqueness race on insert: bounded reconciliation is
+permitted — fetch the competing row, validate EXACT semantic/content
+identity, converge (convergent conditional `last_proven_at` re-proof) if
+identical, otherwise fail closed. Arbitrary `IntegrityError` is NOT
+treated as automatically benign; only the specifically understood
+uniqueness race is reconciled. Other database/storage errors propagate.
+Cache persistence failure after a successful live provider fetch
+propagates (the cache is not silently pretended to have succeeded). No
+distributed locking; no `select_for_update` as a fake cross-process
+guarantee.
+
+**12. Concurrency / idempotency.** Two concurrent runs may both
+live-fetch the same observation (acceptable; the store converges on ONE
+canonical content identity via the deterministic uniqueness constraint).
+If ECB content differs (a correction), distinct content hashes
+represent distinct observations/content revisions — never overwrite a
+different correction merely because `observation_date` matches.
+
+**13. Per-run provenance (additive).** `ResearchFxSnapshot.acquisition`
+(CharField, choices LIVE/CACHE_HIT, default LIVE, editable=False).
+Describes how THIS run obtained its FX evidence; does not change the FX
+payload or authority. REPLAY is NOT a stored acquisition value — it is a
+read behavior: `compact_quote_replay` reads the existing run snapshot
+with zero live provider calls and zero cache acquisition, and never
+mutates the persisted LIVE/CACHE_HIT value. The migration preserves all
+existing `ResearchFxSnapshot` rows as LIVE.
+
+**14. Run publication atomicity.** The per-run `ResearchFxSnapshot`
+remains part of the run's final atomic publication. The cross-run store
+has different ownership/lifetime from the run. If the live ECB fetch
+succeeds, the cache content is persisted, and a later current-run
+publication fails, the cache content remains legitimate external
+evidence (its persistence transaction completed) and must not falsely
+imply the `ResearchRun` completed. No run authority is attached to the
+cache row.
+
+**15. Web presentation (smallest additive change).** The report shows,
+in clear bounded form, where this run's FX evidence exists (both ALLOWED
+and DENIED replay branches): the ECB observation date, the original
+provider retrieval time, and whether the current run used LIVE or
+CACHE_HIT acquisition. It does NOT redesign the report and does NOT
+expose internal DB IDs, raw cache keys, internal exception information,
+the provider raw body, or implementation details. The GET path remains
+zero-live and never reads the cross-run store.
+
+**16. Explicitly out of scope for A1.** Caching of public pages,
+search/Serper, vendor, semantic responses, market listings, or any
+second feed; negative caching; a `force_fresh` primitive (a later 8A
+decision); store retention/cleanup policy (the store is naturally
+bounded at ~1 row per working day + corrections); any numeric TTL; any
+TARGET-calendar data dependency; any publication-time assumption.
+
+**17. Authority invariants (unchanged, re-proven).** Frozen 4A public
+market authority; Machine Price; Reviewed Price; deterministic identity;
+semantic identity; AI_ASSISTED_MATCH authority; vendor supplemental
+authority; human-confirmed authority; HARD_CONFLICT behavior; semantic
+production route (PRIMARY amax/qwen3.8-27b; FALLBACK
+vllm-262k/Qwen3.6-27B-262K; Nemotron-3-Super qualified/reference only);
+fallback semantics; review semantics. Regression: Machine Price snapshot
+bytes identical across LIVE / CACHE_HIT / FX-absent; compact-quote USD
+equivalent identical LIVE vs CACHE_HIT for the same document.
+
+**18. Files.** Production: NEW `research/fx_cache_contract.py`,
+`execution/fx_observation_cache.py`; `runs/models.py` (ADD
+`FxObservationStore`; ADD `ResearchFxSnapshot.acquisition`);
+`providers/fx.py` (ADD `FX_FEED_ID_ECB_DAILY` constant, no behavior
+change); `execution/orchestration.py` (`_try_fetch_fx_rates` gains the
+canonical cache branch + full-document fetch + acquisition threading;
+no other orchestration logic touched); `runs/__init__.py` (export
+`FxObservationStore`); `web/views.py` + `web/templates/web/
+research_detail.html` (additive FX evidence line). Migration: NEW 0011
+(CreateModel `FxObservationStore`, AddField `ResearchFxSnapshot.
+acquisition` with LIVE default); no historical migration rewritten or
+squashed. Tests: NEW `tests/research/test_fx_cache_contract.py`,
+`tests/runs/test_fx_observation_store.py`,
+`tests/execution/test_fx_observation_cache.py`,
+`tests/execution/test_fx_cache_orchestration.py`,
+`tests/execution/test_fx_cache_authority.py`,
+`tests/web/test_fx_evidence_presentation.py`; ADD nodes to
+`tests/providers/test_fx_provider.py` (feed-identity mirror-lock); model
+inventories in `test_provider_boundaries.py`,
+`test_research_identity_boundaries.py`, `test_research_run_boundaries.py`,
+`test_web_boundaries.py` updated to the exact supersets. All existing FX
+/ replay / boundary / authority suites unmodified and green.

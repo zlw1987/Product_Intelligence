@@ -20,6 +20,7 @@ Query flags used for transient error notices:
 from logging import getLogger
 
 import uuid
+from datetime import datetime, timezone
 
 from django.core.exceptions import ObjectDoesNotExist
 from django.http import HttpRequest, HttpResponse, JsonResponse
@@ -87,6 +88,22 @@ from .compact_quote_presentation import (
 from .micron_alias_presentation import (
     build_micron_alias_presentation,
 )
+
+
+def _format_fx_retrieved_at(value: str | None) -> str | None:
+    """Display-only rendering of the original provider retrieval instant.
+
+    PRODUCT-INTEL.8A-FX-A1: formats the persisted FX snapshot's
+    ``retrieved_at`` (codec V1 format: ISO-8601 UTC, second precision)
+    for the bounded FX freshness display line. The value was already
+    validated by the fail-closed FX codec when the snapshot was
+    decoded by the replay. ``None`` means no retrieval instant is
+    stored (nothing rendered).
+    """
+    if value is None:
+        return None
+    parsed = datetime.fromisoformat(value)
+    return parsed.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
 
 def healthz(request: HttpRequest) -> HttpResponse:
@@ -562,6 +579,7 @@ def research_detail(request: HttpRequest, run_id: uuid.UUID) -> HttpResponse:
 
     compact_quote = None
     compact_quote_unavailable = False
+    replay = None
 
     if decoded_result is not None:
         try:
@@ -610,6 +628,32 @@ def research_detail(request: HttpRequest, run_id: uuid.UUID) -> HttpResponse:
             )
             compact_quote = None
             compact_quote_unavailable = True
+
+    # --- PRODUCT-INTEL.8A-FX-A1: FX freshness display (additive) ---
+    #
+    # Makes FX evidence freshness auditable on the report, in clear
+    # bounded form: the ECB observation date, the original provider
+    # retrieval instant, and whether THIS run used LIVE or CACHE_HIT
+    # acquisition. Both replay branches (ALLOWED and DENIED) already
+    # decoded THIS run's own persisted ResearchFxSnapshot; the
+    # acquisition label comes from the same row. Nothing here exposes
+    # internal DB IDs, raw cache keys, exception text, or provider raw
+    # bodies, and the cross-run observation store is NEVER read on this
+    # GET path (the zero-live-work replay invariant is preserved).
+    fx_evidence = None
+    if replay is not None and replay.fx_snapshot is not None:
+        try:
+            fx_row = run.research_fx_snapshot
+        except ObjectDoesNotExist:
+            fx_row = None
+        if fx_row is not None:
+            fx_evidence = {
+                "observation_date": replay.fx_snapshot.observation_date,
+                "retrieved_at": _format_fx_retrieved_at(
+                    replay.fx_snapshot.retrieved_at,
+                ),
+                "acquisition": fx_row.acquisition,
+            }
 
     # --- PRODUCT-INTEL.4D-D: Micron packaging alias audit (historical) ---
     #
@@ -723,6 +767,12 @@ def research_detail(request: HttpRequest, run_id: uuid.UUID) -> HttpResponse:
         # commercial data for an unauthorized connection.
         "compact_quote": compact_quote,
         "compact_quote_unavailable": compact_quote_unavailable,
+        # PRODUCT-INTEL.8A-FX-A1: display-only FX freshness evidence for
+        # THIS run's own persisted FX snapshot (observation date, original
+        # provider retrieval instant, LIVE/CACHE_HIT acquisition label).
+        # None when the run has no FX evidence or the replay produced no
+        # projection. Never carries vendor data, store IDs, or cache keys.
+        "fx_evidence": fx_evidence,
         # PRODUCT-INTEL.4D-C-SEC: server-side network access authorization
         # for vendor commercial price visibility.  Boolean only — no raw payload,
         # no vendor rows, no sensitive metadata projected into template context.

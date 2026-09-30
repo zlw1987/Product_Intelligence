@@ -107,6 +107,25 @@
     </dd>
   </dl>
 
+  {% if fx_evidence %}
+    <dl class="fx-evidence">
+      <dt>ECB reference date</dt>
+      <dd>{{ fx_evidence.observation_date }}</dd>
+      {% if fx_evidence.retrieved_at %}
+      <dt>Rates retrieved</dt>
+      <dd>{{ fx_evidence.retrieved_at }}</dd>
+      {% endif %}
+      <dt>FX acquisition</dt>
+      <dd>
+        {% if fx_evidence.acquisition == "CACHE_HIT" %}
+          Reused from the canonical ECB observation cache
+        {% else %}
+          Retrieved live during this research run
+        {% endif %}
+      </dd>
+    </dl>
+  {% endif %}
+
   <h3>Comparable public market</h3>
   <p>
     <strong>{{ compact_quote.public_market_count }}</strong>

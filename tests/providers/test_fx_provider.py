@@ -379,3 +379,66 @@ class TestFxProviderErrors:
 
     def test_fx_network_error_is_fx_provider_error(self):
         assert issubclass(FxNetworkError, Exception)
+
+
+# ---------------------------------------------------------------------------
+# 8A-FX-A1: canonical feed identity mirror-lock
+# ---------------------------------------------------------------------------
+
+
+class TestFeedIdentityMirrorLock:
+    """The canonical feed identity constant is bound to the adapter's
+    deterministic facts. These tests prove the binding cannot drift
+    silently: the feed identity is the semantic external feed (not the
+    provider class name) and is locked to the endpoint, provider_id,
+    and base_currency that the adapter hard-codes.
+    """
+
+    def test_feed_id_is_stable_string_not_class_name(self):
+        from product_intelligence.providers.fx import FX_FEED_ID_ECB_DAILY
+
+        assert isinstance(FX_FEED_ID_ECB_DAILY, str)
+        assert FX_FEED_ID_ECB_DAILY  # non-empty
+        # It must NOT be derived from a provider class name.
+        assert "EcbFxProvider" not in FX_FEED_ID_ECB_DAILY
+        assert "Provider" not in FX_FEED_ID_ECB_DAILY
+        assert "class" not in FX_FEED_ID_ECB_DAILY.lower()
+
+    def test_feed_id_binds_endpoint_provider_base(self):
+        from product_intelligence.providers.fx import (
+            FX_FEED_ID_ECB_DAILY,
+            _ECB_STATISTICS_URL,
+            _parse_ecb_xml,
+        )
+
+        # The endpoint ownership stays in providers/fx.py and the feed
+        # identity references the daily eurofxref document it binds.
+        assert "eurofxref-daily" in FX_FEED_ID_ECB_DAILY
+        assert _ECB_STATISTICS_URL.endswith("eurofxref-daily.xml")
+
+        # The parsed document carries the exact provider/base invariants
+        # the feed identity is bound to.
+        parsed = _parse_ecb_xml(_ECB_VALID_XML)
+        assert parsed.provider_id == "ECB"
+        assert parsed.base_currency == "EUR"
+
+    def test_canonical_provider_hard_codes_feed_invariants(self):
+        from product_intelligence.providers.fx import _parse_ecb_xml
+
+        # The canonical adapter is what makes the feed ECB/EUR; a parsed
+        # document always reports those invariants (no configuration
+        # surface can change them).
+        parsed = _parse_ecb_xml(_ECB_VALID_XML)
+        assert parsed.provider_id == "ECB"
+        assert parsed.base_currency == "EUR"
+        assert parsed.observation_date == date(2024, 1, 15)
+
+    def test_no_env_or_config_surface_changes_feed(self):
+        # providers/fx.py has no os.environ/getenv surface: the feed is
+        # fully deterministic (endpoint + provider + base hard-coded).
+        import product_intelligence.providers.fx as fx_module
+        import inspect
+
+        source = inspect.getsource(fx_module)
+        assert "os.environ" not in source
+        assert "getenv" not in source

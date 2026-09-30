@@ -67,7 +67,7 @@ __all__ = [
     "UnsupportedResearchRunStateChange",
 ]
 
-_MODEL_EXPORTS = frozenset({"ALLOWED_TRANSITIONS", "ResearchRun", "TERMINAL_STATES", "PriceIntelligenceSnapshot", "ExecutionEvidenceRecord", "AiAssistedReviewCandidate", "ComparableResearchExecution", "ComparableResearchState", "ComparableResearchFailureReason", "ResearchSupplementSnapshot", "ResearchMicronAliasSnapshot"})
+_MODEL_EXPORTS = frozenset({"ALLOWED_TRANSITIONS", "ResearchRun", "TERMINAL_STATES", "PriceIntelligenceSnapshot", "ExecutionEvidenceRecord", "AiAssistedReviewCandidate", "ComparableResearchExecution", "ComparableResearchState", "ComparableResearchFailureReason", "ResearchSupplementSnapshot", "ResearchMicronAliasSnapshot", "FxObservationStore"})
 
 # Evidence enums and primitives are pure Python (no Django import), so they can
 # be exposed directly from this package without lazy loading.

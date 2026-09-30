@@ -603,9 +603,16 @@ def execute_research_run(
         # deterministic identity, or any existing pipeline statistics.
         # USD-only runs require ZERO ECB calls.
         # FX failure is NONFATAL — run still completes.
+        #
+        # 8A-FX-A1: on the canonical default path (fx_provider=None) the
+        # acquisition may be served from the cross-run observation store
+        # under the approved freshness contract; an explicitly injected
+        # provider bypasses the cache entirely. The per-run
+        # ResearchFxSnapshot publication below is unchanged in shape and
+        # gains only the additive acquisition provenance.
         # ================================================================
-        fx_payload: dict | None = None
-        fx_payload = _try_fetch_fx_rates(
+        fx_acquisition: _FxAcquisition | None = None
+        fx_acquisition = _try_fetch_fx_rates(
             claimed_run,
             aggregation_result,
             fx_provider,
@@ -636,11 +643,12 @@ def execute_research_run(
                 )
 
                 # 4D-C-A: Persist FX snapshot if FX evidence was obtained
-            if fx_payload is not None:
+            if fx_acquisition is not None:
                 ResearchFxSnapshot.objects.create(
                     run=claimed_run,
                     schema_version=1,
-                    payload=fx_payload,
+                    payload=fx_acquisition.payload,
+                    acquisition=fx_acquisition.acquisition,
                 )
 
             # Commit the entire publication atomically
@@ -1322,25 +1330,74 @@ def _get_required_fx_currencies(
     return frozenset(required)
 
 
+@dataclass(frozen=True)
+class _FxAcquisition:
+    """Internal result of the FX evidence acquisition step (4D-C-A + 8A-FX-A1).
+
+    Attributes:
+        payload: The V1-encoded FX payload for the run's
+            ``ResearchFxSnapshot`` (the per-run codec contract is
+            unchanged; the payload byte-shape is identical on the LIVE
+            and CACHE_HIT paths for the same document).
+        acquisition: How THIS run obtained its FX evidence —
+            ``ResearchFxSnapshot.ACQUISITION_LIVE`` or
+            ``ResearchFxSnapshot.ACQUISITION_CACHE_HIT``. Additive
+            provenance only; it never changes the payload or the
+            DISPLAY-SUPPLEMENTAL authority. REPLAY is a read behavior
+            (a later GET of this persisted snapshot), never a stored
+            value, and never written here.
+    """
+
+    payload: dict
+    acquisition: str
+
+
 def _try_fetch_fx_rates(
     claimed_run: ResearchRun,
     aggregation_result: PriceAggregationResult,
     fx_provider: object | None,
     supplemental_payload: dict | None = None,
-) -> dict | None:
-    """Try to fetch FX rate evidence for the completed aggregation.
+) -> _FxAcquisition | None:
+    """Acquire FX rate evidence for the completed aggregation.
 
-    Returns an encoded FX payload dict if FX evidence was obtained,
-    or None if FX evidence was not needed or not obtained.
+    Returns an encoded FX payload + acquisition provenance if FX
+    evidence was obtained, or None if FX evidence was not needed or not
+    obtained.
 
-    Rules:
-    * USD-only runs: returns None immediately (zero ECB calls)
+    Rules (4D-C-A, unchanged):
+    * USD-only runs: returns None immediately (zero ECB calls, and —
+      8A-FX-A1 — zero cache/store work: currency discovery precedes any
+      cache lookup)
     * Non-USD currencies from public buckets: included in FX call
     * Non-USD currencies from usable vendor observations: included in FX call
     * At most ONE FX provider fetch
     * FX failure (network, parse, timeout): NONFATAL, returns None
     * Programming/contract defects: propagate (NOT silently caught)
     * FX evidence remains DISPLAY-SUPPLEMENTAL
+
+    Rules (8A-FX-A1 — canonical observation cache):
+    * Cache eligibility is the CANONICAL DEFAULT path, declared at the
+      canonical-default construction site: ``fx_provider is None``.
+      Provider class identity is NOT eligibility semantics: ANY
+      explicitly injected provider (a fake, an EcbFxProvider instance,
+      a subclass, a wrapper, anything FxProvider-compatible) bypasses
+      the cache entirely and executes with the existing live
+      acquisition contract, byte-for-byte.
+    * Canonical path, reusable state (approved freshness contract):
+      ZERO provider calls; the run payload is projected from the FULL
+      cached document and carries the ORIGINAL provider retrieved_at;
+      acquisition = CACHE_HIT. A cache hit is never presented as LIVE.
+    * Canonical path, not reusable (working day, Monday boundary, first
+      request of the stretch, or empty store): ONE full-set ECB fetch;
+      the FULL parsed document is validated, digest-bound, and
+      persisted/reconciled in the cross-run store (its own
+      transaction, before the run's atomic final publication); the run
+      payload is projected from the same full set; acquisition = LIVE.
+    * A malformed/unsupported/corrupt EXISTING cache payload is NOT a
+      cache miss: its codec/integrity validation failure PROPAGATES
+      (fail closed). Only "no row" is an ordinary miss.
+    * Unexpected storage failures propagate; only the specifically
+      understood content-identity uniqueness race is reconciled.
 
     Parameters
     ----------
@@ -1349,14 +1406,16 @@ def _try_fetch_fx_rates(
     aggregation_result : PriceAggregationResult
         The completed aggregation with price buckets.
     fx_provider : FxProvider | None
-        Injected FX provider, or None for default EcbFxProvider.
+        Injected FX provider, or None for the canonical default
+        EcbFxProvider (the only cache-eligible path).
     supplemental_payload : dict | None
         Encoded 4D-B supplemental payload for vendor currency discovery.
 
     Returns
     -------
-    dict | None
-        Encoded FX payload for persistence, or None.
+    _FxAcquisition | None
+        The encoded FX payload + acquisition provenance for persistence,
+        or None.
     """
     # Determine which currencies need FX rates
     # Considers both public buckets AND usable vendor observations
@@ -1365,7 +1424,9 @@ def _try_fetch_fx_rates(
         supplemental_payload=supplemental_payload,
     )
 
-    # USD-only run — no FX call needed
+    # USD-only run — no FX call needed.
+    # 8A-FX-A1: discovery precedes any cache work — a USD-only run
+    # performs ZERO provider calls AND ZERO cache/store lookups.
     if not required_currencies:
         logger.info(
             "Run %s: all reportable prices are USD; "
@@ -1374,22 +1435,101 @@ def _try_fetch_fx_rates(
         )
         return None
 
-    # Resolve the provider
+    # 8A-FX-A1: canonical-feed cache eligibility is DECLARED at the
+    # canonical-default construction site (policy-as-code): the cache is
+    # active only when the caller did not inject any provider. This is
+    # a declaration, not a runtime inspection of the provider object —
+    # no isinstance/issubclass/class-identity check exists in this path.
+    fx_cache_eligible = fx_provider is None
+
+    # Resolve the provider (existing canonical default construction)
     if fx_provider is None:
         from product_intelligence.providers.fx import EcbFxProvider
         fx_provider = EcbFxProvider()
 
-    # At most ONE FX provider fetch per run
     from product_intelligence.providers.fx import FxProviderError
-    try:
-        observation_set = fx_provider.fetch_rates(
-            requested_currencies=required_currencies,
+
+    if not fx_cache_eligible:
+        # ----------------------------------------------------------
+        # Explicitly injected provider: the cache is BYPASSED entirely
+        # (zero store reads, zero store writes) and the existing live
+        # acquisition contract executes byte-for-byte (provider-side
+        # filtering, as today).
+        # ----------------------------------------------------------
+        try:
+            observation_set = fx_provider.fetch_rates(
+                requested_currencies=required_currencies,
+            )
+        except FxProviderError as exc:
+            # Bounded FX provider failure (FxNetworkError / FxParseError).
+            # NONFATAL — FX is display-supplemental only.
+            # The original source amount/currency remain authoritative.
+            # USD Equivalent will be "Unavailable" for affected currencies.
+            logger.info(
+                "FX rate fetch failed for run %s (class=%s); "
+                "USD Equivalent will be unavailable for non-USD currencies.",
+                claimed_run.id, type(exc).__name__,
+            )
+            return None
+        # NOTE: Any exception other than FxProviderError is a
+        # programming / contract defect (TypeError, ValueError,
+        # AssertionError, etc.) and MUST NOT be silently downgraded to a
+        # supplemental FX failure. It propagates to the outer
+        # catastrophic boundary.
+
+        fx_payload = encode_fx_observation_payload(observation_set)
+        logger.info(
+            "FX rates fetched for run %s: %d currencies (%s)",
+            claimed_run.id,
+            len(required_currencies),
+            ", ".join(sorted(required_currencies)),
         )
+        return _FxAcquisition(
+            payload=fx_payload,
+            acquisition=ResearchFxSnapshot.ACQUISITION_LIVE,
+        )
+
+    # ----------------------------------------------------------
+    # Canonical default path (fx_provider is None): the approved cache
+    # eligibility. Store READ and store WRITE both happen only here.
+    # ----------------------------------------------------------
+    from product_intelligence.execution import fx_observation_cache
+
+    # CACHE_HIT path: reuse the latest valid cached observation iff the
+    # pure freshness contract approves it at the current instant. Zero
+    # provider calls on a hit.
+    hit = fx_observation_cache.try_reuse_latest_observation(
+        required_currencies,
+    )
+    if hit is not None:
+        # Projected from the FULL cached set; the ORIGINAL provider
+        # retrieved_at is preserved (the serving time is never claimed
+        # as provider retrieval time). The per-run codec is unchanged.
+        fx_payload = encode_fx_observation_payload(hit)
+        logger.info(
+            "FX rates reused from the canonical observation store for "
+            "run %s (CACHE_HIT): observation_date=%s, original "
+            "retrieved_at=%s, %d required currencies (%s)",
+            claimed_run.id,
+            hit.observation_date.isoformat(),
+            hit.retrieved_at,
+            len(required_currencies),
+            ", ".join(sorted(required_currencies)),
+        )
+        return _FxAcquisition(
+            payload=fx_payload,
+            acquisition=ResearchFxSnapshot.ACQUISITION_CACHE_HIT,
+        )
+
+    # LIVE path: ONE full-set canonical fetch (the network artifact is
+    # the full document; the run's projection is computed below).
+    try:
+        observation_set = fx_provider.fetch_rates(requested_currencies=None)
     except FxProviderError as exc:
         # Bounded FX provider failure (FxNetworkError / FxParseError).
-        # NONFATAL — FX is display-supplemental only.
-        # The original source amount/currency remain authoritative.
-        # USD Equivalent will be "Unavailable" for affected currencies.
+        # NONFATAL — FX is display-supplemental only. The store is
+        # untouched: prior artifacts are retained (never deleted or
+        # overwritten by a failed refresh).
         logger.info(
             "FX rate fetch failed for run %s (class=%s); "
             "USD Equivalent will be unavailable for non-USD currencies.",
@@ -1398,31 +1538,81 @@ def _try_fetch_fx_rates(
         return None
     # NOTE: Any exception other than FxProviderError is a programming /
     # contract defect (TypeError, ValueError, AssertionError, etc.) and
-    # MUST NOT be silently downgraded to a supplemental FX failure.
-    # It propagates to the outer catastrophic boundary.
+    # MUST NOT be silently downgraded to a supplemental FX failure. It
+    # propagates to the outer catastrophic boundary. A malformed or
+    # corrupt EXISTING cache payload likewise propagates (fail closed —
+    # it is not a cache miss).
 
-    # Encode the observation through the V1 FX codec
-    try:
-        from product_intelligence.research.fx_codec import (
-            encode_fx_observation,
+    # Validate the returned observation against the canonical feed
+    # binding (contract defect -> propagate, do not store).
+    from product_intelligence.execution.fx_observation_cache import (
+        ECB_FEED_BASE_CURRENCY,
+        ECB_FEED_PROVIDER_ID,
+        FxObservationStoreIntegrityError,
+    )
+    from product_intelligence.providers.fx import FX_FEED_ID_ECB_DAILY
+    if (
+        observation_set.provider_id != ECB_FEED_PROVIDER_ID
+        or observation_set.base_currency != ECB_FEED_BASE_CURRENCY
+    ):
+        raise FxObservationStoreIntegrityError(
+            f"canonical ECB feed binding violated by the live "
+            f"observation: provider_id={observation_set.provider_id!r}, "
+            f"base_currency={observation_set.base_currency!r}"
         )
-        fx_payload = encode_fx_observation(
-            provider_id=observation_set.provider_id,
-            observation_date=observation_set.observation_date,
-            base_currency=observation_set.base_currency,
-            rates=observation_set.rates,
-            retrieved_at=observation_set.retrieved_at,
-        )
-    except Exception as exc:
-        # Codec error — programming/contract defect, NOT a provider failure.
-        # Do NOT silently downgrade.
-        raise
 
+    # Persist/reconcile the FULL parsed observation in the cross-run
+    # store (its own transaction; the successful proof instant is set
+    # here and only here). Unexpected storage failure propagates — we
+    # do not silently pretend the cache succeeded.
+    fx_observation_cache.record_live_observation(
+        observation_set, FX_FEED_ID_ECB_DAILY,
+    )
+
+    # Project the required currencies from the FULL parsed set (the
+    # same document-order filter the provider performs; the run payload
+    # is byte-identical to the pre-cache contract).
+    from product_intelligence.providers.fx import FxObservationSet
+    from product_intelligence.research.fx_cache_contract import (
+        project_required_rates,
+    )
+    projected_set = FxObservationSet(
+        provider_id=observation_set.provider_id,
+        observation_date=observation_set.observation_date,
+        base_currency=observation_set.base_currency,
+        rates=project_required_rates(
+            observation_set.rates, required_currencies,
+        ),
+        retrieved_at=observation_set.retrieved_at,
+    )
+
+    fx_payload = encode_fx_observation_payload(projected_set)
     logger.info(
         "FX rates fetched for run %s: %d currencies (%s)",
         claimed_run.id,
         len(required_currencies),
         ", ".join(sorted(required_currencies)),
     )
+    return _FxAcquisition(
+        payload=fx_payload,
+        acquisition=ResearchFxSnapshot.ACQUISITION_LIVE,
+    )
 
-    return fx_payload
+
+def encode_fx_observation_payload(observation_set: FxObservationSet) -> dict:
+    """Encode an (already projected) observation through the V1 FX codec.
+
+    The per-run codec contract is the existing 4D-C-A V1
+    ``encode_fx_observation`` — reused, not forked. A codec failure is a
+    programming/contract defect and propagates (never downgraded to a
+    provider failure).
+    """
+    from product_intelligence.research.fx_codec import encode_fx_observation
+
+    return encode_fx_observation(
+        provider_id=observation_set.provider_id,
+        observation_date=observation_set.observation_date,
+        base_currency=observation_set.base_currency,
+        rates=observation_set.rates,
+        retrieved_at=observation_set.retrieved_at,
+    )

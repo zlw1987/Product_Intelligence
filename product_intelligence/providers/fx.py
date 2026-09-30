@@ -227,6 +227,25 @@ _ECB_STATISTICS_URL = (
     "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml"
 )
 
+# Canonical feed identity for the production ECB daily reference-rate
+# feed (PRODUCT-INTEL.8A-FX-A1).
+#
+# This is a STABLE IDENTIFIER for the semantic external feed — NOT a
+# provider class name and NOT user-configurable. It is bound to exactly
+# these deterministic facts of the adapter below:
+#
+# * endpoint    = _ECB_STATISTICS_URL (the "latest daily" moving pointer);
+# * provider_id = "ECB" (hard-coded in _parse_ecb_xml);
+# * base_currency = "EUR" (hard-coded in _parse_ecb_xml);
+# * semantics   = one daily document, published on working days except
+#                 TARGET closing days (normally around 16:00 CET).
+#
+# A mirror-lock test proves the binding against the adapter so the
+# identity cannot drift silently. Using a provider class name (or any
+# provider-class identity) as feed identity is explicitly forbidden: a
+# feed is the external source, not one Python implementation of it.
+FX_FEED_ID_ECB_DAILY = "ecb:eurofxref-daily"
+
 
 def _parse_ecb_xml(body: str) -> FxObservationSet:
     """Parse an ECB eurofxref-daily XML document into an FxObservationSet.

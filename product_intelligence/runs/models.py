@@ -1240,12 +1240,32 @@ class ResearchFxSnapshot(models.Model):
         A ``JSONField`` holding the codec-encoded FX observation.
         The schema is owned by the codec, not the model.
 
+    ``acquisition``
+        8A-FX-A1 additive provenance: how THIS run obtained its FX
+        evidence — ``LIVE`` (a provider fetch during this run) or
+        ``CACHE_HIT`` (served from the canonical cross-run observation
+        store under the approved freshness contract). ``REPLAY`` is a
+        read behavior (a later GET of a persisted run), never a stored
+        value, and a replay never mutates this field. The column is
+        display-provenance only: it does not change the payload, the
+        codec contract, or the DISPLAY-SUPPLEMENTAL authority of the
+        evidence. Default ``LIVE`` is backward-compatible: every row
+        persisted before 8A-FX-A1 was acquired live.
+
     ``created_at``
         When the snapshot row was persisted.
 
     Cascade behavior:
         Deleting the ResearchRun cascades to this snapshot.
     """
+
+    # 8A-FX-A1 approved acquisition provenance vocabulary.
+    ACQUISITION_LIVE = "LIVE"
+    ACQUISITION_CACHE_HIT = "CACHE_HIT"
+    ACQUISITION_CHOICES = (
+        (ACQUISITION_LIVE, "LIVE"),
+        (ACQUISITION_CACHE_HIT, "CACHE_HIT"),
+    )
 
     run = models.OneToOneField(
         ResearchRun,
@@ -1262,6 +1282,21 @@ class ResearchFxSnapshot(models.Model):
 
     payload = models.JSONField(
         help_text="Versioned codec-encoded FX observation.",
+    )
+
+    acquisition = models.CharField(
+        max_length=16,
+        choices=ACQUISITION_CHOICES,
+        default=ACQUISITION_LIVE,
+        editable=False,
+        help_text=(
+            "How THIS run obtained its FX evidence: LIVE (provider fetch "
+            "during this run) or CACHE_HIT (served from the canonical "
+            "cross-run ECB observation store under the approved freshness "
+            "contract). Display-provenance only; never changes the FX "
+            "payload or its DISPLAY-SUPPLEMENTAL authority. REPLAY is a "
+            "read behavior, never a stored value."
+        ),
     )
 
     created_at = models.DateTimeField(
@@ -1369,3 +1404,195 @@ class ResearchMicronAliasSnapshot(models.Model):
 
     def __str__(self) -> str:
         return f"ResearchMicronAliasSnapshot {self.run_id} (v{self.schema_version})"
+
+
+# ---------------------------------------------------------------------------
+# FxObservationStore — 8A-FX-A1
+# ---------------------------------------------------------------------------
+
+
+class FxObservationStore(models.Model):
+    """Cross-run content store for canonical ECB FX observations.
+
+    PRODUCT-INTEL.8A-FX-A1.
+
+    This model is ACQUISITION CONTENT, not run evidence. One row holds
+    the FULL parsed daily rate set of the canonical ECB feed for one
+    (feed, observation_date, content) identity, exactly as a successful
+    canonical live acquisition proved it.
+
+    Ownership / lifetime
+    ---------------------
+
+    * Written ONLY by a successful canonical live acquisition
+      (``execution.fx_observation_cache.record_live_observation``), in
+      its OWN transaction — independent of, and prior to, the run's
+      atomic final publication. If a later current-run publication
+      fails, the row remains: it is legitimate, live-proven external
+      evidence, and it must not falsely imply the ResearchRun completed.
+    * Read ONLY during execution of a claimed run, and only when the
+      pure freshness contract approves reuse. It is NEVER read on the
+      historical report GET / replay path (zero-live-I/O invariant).
+    * NOT related to any ``ResearchRun`` (no cascade, no run authority):
+      deleting runs leaves the store intact; the store carries no
+      run/request/MPN/URL data and nothing in it can carry cross-run
+      authority.
+
+    Identity
+    --------
+
+    * ``feed_id`` — the stable canonical feed identity
+      (``providers.fx.FX_FEED_ID_ECB_DAILY``); the pre-fetch lookup key.
+    * ``observation_date`` — the document's own date (the XML ``time``
+      attribute), never "today".
+    * ``content_sha256`` — the deterministic canonical digest of the
+      FULL parsed rate observation
+      (``research.fx_cache_contract.fx_document_content_sha256``).
+      Together with ``feed_id`` and ``observation_date`` this is the
+      content identity: a correction/republication for the same
+      ``observation_date`` with changed rates yields a DIFFERENT digest
+      and therefore a DIFFERENT row. A correction never overwrites or
+      destroys the superseded revision (VALID_HISTORICAL).
+    * ``payload`` — the FULL document encoded with the reused, fail-
+      closed FX codec V1 (``research/fx_codec.py``); the payload's
+      ``schema_version`` is the codec version of record (no second
+      schema column is kept in step with it).
+    * ``provider_id`` / ``base_currency`` — the feed invariants ("ECB" /
+      "EUR"), stored explicitly and re-validated on every read.
+
+    Proof instants
+    --------------
+
+    * ``original_retrieved_at`` — the original PROVIDER retrieval instant
+      of the first live fetch of this exact content. IMMUTABLE: a
+      re-proof never touches it, and a cache hit serves THIS instant
+      (never the serving time). It is a timezone-aware instant, never
+      truncated to a date.
+    * ``last_proven_at`` — the timezone-aware instant of the LAST
+      successful canonical live acquisition that proved the feed was
+      serving this exact content (PROVEN_LATEST_AS_OF_T). Mutable only
+      via the convergent conditional re-proof update. Consumers never
+      reduce it to a UTC date or a local date before evaluating
+      eligibility.
+    * ``created_at`` — the row insertion instant (the cache service pins
+      it to the initial proof instant, so ``created_at <= last_proven_at``
+      always holds for an honest row).
+
+    The uniqueness constraint ``(feed_id, observation_date,
+    content_sha256)`` makes concurrent identical live acquisitions
+    converge on one canonical content identity; the bounded
+    reconciliation is owned by the execution cache service.
+    """
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+        help_text="Row identity (referential stability for re-proof updates).",
+    )
+
+    feed_id = models.CharField(
+        max_length=64,
+        editable=False,
+        help_text=(
+            "Stable canonical feed identity (pre-fetch lookup key); the "
+            "semantic external feed, not a provider class name."
+        ),
+    )
+
+    provider_id = models.CharField(
+        max_length=16,
+        editable=False,
+        help_text="Feed invariant; must be 'ECB' for the canonical feed.",
+    )
+
+    base_currency = models.CharField(
+        max_length=3,
+        editable=False,
+        help_text="Feed invariant; must be 'EUR' for the canonical feed.",
+    )
+
+    observation_date = models.DateField(
+        editable=False,
+        help_text="The document's own observation date (never 'today').",
+    )
+
+    content_sha256 = models.CharField(
+        max_length=64,
+        editable=False,
+        help_text=(
+            "Canonical digest of the FULL parsed rate observation "
+            "(research.fx_cache_contract.fx_document_content_sha256)."
+        ),
+    )
+
+    payload = models.JSONField(
+        editable=False,
+        help_text=(
+            "The FULL daily document encoded with the reused fail-closed "
+            "FX codec V1 (research/fx_codec.py), including the original "
+            "provider retrieved_at. The raw provider body is never "
+            "persisted."
+        ),
+    )
+
+    original_retrieved_at = models.DateTimeField(
+        editable=False,
+        help_text=(
+            "Original PROVIDER retrieval instant of the first live fetch "
+            "of this exact content. IMMUTABLE; a re-proof never updates "
+            "it and a cache hit serves it."
+        ),
+    )
+
+    last_proven_at = models.DateTimeField(
+        editable=False,
+        help_text=(
+            "Timezone-aware instant of the last successful canonical live "
+            "acquisition that proved the feed was serving this exact "
+            "content (PROVEN_LATEST_AS_OF_T). An instant, never a date; "
+            "updated only by the convergent conditional re-proof."
+        ),
+    )
+
+    created_at = models.DateTimeField(
+        default=timezone.now,
+        editable=False,
+        help_text="Row insertion instant.",
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["feed_id", "observation_date", "content_sha256"],
+                name="fx_observation_store_unique_feed_date_content",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(feed_id__gt=""),
+                name="fx_observation_store_feed_id_not_empty",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(provider_id__gt=""),
+                name="fx_observation_store_provider_id_not_empty",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(base_currency__gt=""),
+                name="fx_observation_store_base_currency_not_empty",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(content_sha256__gt=""),
+                name="fx_observation_store_content_sha256_not_empty",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["feed_id", "-observation_date", "-last_proven_at"],
+                name="fx_obs_latest_lookup",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return (
+            f"FxObservationStore {self.feed_id} {self.observation_date} "
+            f"({self.content_sha256[:12]}…)"
+        )
