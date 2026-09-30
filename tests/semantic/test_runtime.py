@@ -135,7 +135,7 @@ class TestQualifiedRouteIsPinned:
         config = SemanticRuntimeConfig()
 
         assert config.primary_provider == "amax"
-        assert config.primary_model == "nemotron-3-super"
+        assert config.primary_model == "qwen3.8-27b"
         assert config.fallback_provider == "vllm-262k"
         assert config.fallback_model == "Qwen3.6-27B-262K"
         assert config.temperature == 0.0
@@ -144,7 +144,7 @@ class TestQualifiedRouteIsPinned:
     def test_module_constants_are_the_qualified_route(self):
         """The exported constants name the qualified models."""
         assert PRIMARY_PROVIDER == "amax"
-        assert PRIMARY_MODEL == "nemotron-3-super"
+        assert PRIMARY_MODEL == "qwen3.8-27b"
         assert FALLBACK_PROVIDER == "vllm-262k"
         assert FALLBACK_MODEL == "Qwen3.6-27B-262K"
         assert SEMANTIC_TEMPERATURE == 0.0
@@ -156,6 +156,7 @@ class TestQualifiedRouteIsPinned:
             ("primary_provider", "openai"),
             ("primary_provider", "amax-2"),
             ("primary_model", "nemotron-3-super-thinking"),
+            ("primary_model", "nemotron-3-super"),
             ("primary_model", "gpt-oss-120b"),
             ("fallback_provider", "vllm-32k"),
             ("fallback_model", "Qwen3.5-27B"),
@@ -404,7 +405,7 @@ class TestTransportCallParameters:
         evaluate(make_runtime(primary=primary))
 
         assert len(primary.calls) == 1
-        assert primary.calls[0]["model"] == "nemotron-3-super"
+        assert primary.calls[0]["model"] == "qwen3.8-27b"
         assert "/" not in primary.calls[0]["model"]
 
     def test_fallback_receives_bare_qualified_model_name(self):
@@ -484,7 +485,7 @@ class TestValidPrimaryIsFinal:
         )
 
         assert result.actual_provider == "amax"
-        assert result.actual_model == "nemotron-3-super"
+        assert result.actual_model == "qwen3.8-27b"
         assert result.error_type is None
 
 
@@ -1019,13 +1020,13 @@ class TestModelIdentity:
         """The qualified model reporting itself is accepted."""
         primary = primary_transport(
             responses={CASE_ID: make_response("MATCH")},
-            provider_reported_model="nemotron-3-super",
+            provider_reported_model="qwen3.8-27b",
         )
 
         result = evaluate(make_runtime(primary=primary))
 
         assert result.decision.value == "MATCH"
-        assert result.actual_model == "nemotron-3-super"
+        assert result.actual_model == "qwen3.8-27b"
 
 
 # =============================================================================
@@ -1179,7 +1180,7 @@ class TestAttemptProvenance:
 
         assert len(result.attempts) == 1
         assert result.attempts[0].provider == "amax"
-        assert result.attempts[0].model == "nemotron-3-super"
+        assert result.attempts[0].model == "qwen3.8-27b"
         assert result.attempts[0].status is SemanticAttemptStatus.OK
         assert result.attempts[0].latency_ms >= 0.0
 
@@ -1205,7 +1206,7 @@ class TestAttemptProvenance:
 
         first, second = result.attempts
         assert first.provider == "amax"
-        assert first.model == "nemotron-3-super"
+        assert first.model == "qwen3.8-27b"
         assert first.status is SemanticAttemptStatus.TIMEOUT
 
         assert second.provider == "vllm-262k"
@@ -1234,7 +1235,7 @@ class TestAttemptProvenance:
         result = evaluate(make_runtime(primary=primary, fallback=fallback))
 
         assert result.requested_primary_provider == "amax"
-        assert result.requested_primary_model == "nemotron-3-super"
+        assert result.requested_primary_model == "qwen3.8-27b"
         assert result.actual_provider == "vllm-262k"
         assert result.actual_model == "Qwen3.6-27B-262K"
 
@@ -1312,11 +1313,11 @@ class TestFailureClaimsNoProvenance:
                 candidate_specs=None,
                 evidence_source="UNKNOWN",
                 requested_primary_provider="amax",
-                requested_primary_model="nemotron-3-super",
+                requested_primary_model="qwen3.8-27b",
                 attempts=(
                     SemanticAttempt(
                         provider="amax",
-                        model="nemotron-3-super",
+                        model="qwen3.8-27b",
                         status=SemanticAttemptStatus.CASE_REJECTED,
                         latency_ms=1.0,
                     ),
@@ -1324,7 +1325,7 @@ class TestFailureClaimsNoProvenance:
                 fallback_used=False,
                 fallback_reason=None,
                 actual_provider="amax",
-                actual_model="nemotron-3-super",
+                actual_model="qwen3.8-27b",
                 decision=None,
                 confidence=None,
                 matched_attributes=(),
@@ -1355,11 +1356,11 @@ class TestFailureClaimsNoProvenance:
                 candidate_specs=None,
                 evidence_source="UNKNOWN",
                 requested_primary_provider="amax",
-                requested_primary_model="nemotron-3-super",
+                requested_primary_model="qwen3.8-27b",
                 attempts=(
                     SemanticAttempt(
                         provider="amax",
-                        model="nemotron-3-super",
+                        model="qwen3.8-27b",
                         status=SemanticAttemptStatus.OK,
                         latency_ms=1.0,
                     ),
@@ -1367,7 +1368,7 @@ class TestFailureClaimsNoProvenance:
                 fallback_used=False,
                 fallback_reason=None,
                 actual_provider="amax",
-                actual_model="nemotron-3-super",
+                actual_model="qwen3.8-27b",
                 decision=SemanticDecision.MATCH,
                 confidence=None,
                 matched_attributes=(),

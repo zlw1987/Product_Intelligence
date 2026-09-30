@@ -15,7 +15,7 @@ Qualified route (pinned)
 The production route is fixed by formal qualification and is NOT caller
 configurable::
 
-    PRIMARY   amax / nemotron-3-super
+    PRIMARY   amax / qwen3.8-27b
     FALLBACK  vllm-262k / Qwen3.6-27B-262K
     temperature 0.0, max_tokens 32768
 
@@ -81,7 +81,7 @@ logger = logging.getLogger(__name__)
 
 
 PRIMARY_PROVIDER = "amax"
-PRIMARY_MODEL = "nemotron-3-super"
+PRIMARY_MODEL = "qwen3.8-27b"
 
 FALLBACK_PROVIDER = "vllm-262k"
 FALLBACK_MODEL = "Qwen3.6-27B-262K"

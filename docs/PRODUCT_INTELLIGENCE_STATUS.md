@@ -2,9 +2,150 @@
 
 ## Current state
 
-**PRODUCT-INTEL.SEMANTIC-QWEN38-PROMOTION-REGRESSION-A1 (Semantic
-PRIMARY Promotion-Regression Harness) — IMPLEMENTED / PENDING FINAL
+**PRODUCT-INTEL.SEMANTIC-QWEN38-PRODUCTION-PROMOTION-B1 (Production
+PRIMARY Route Promotion — Qwen 3.8) — IMPLEMENTED / PENDING FINAL
 REVIEW**
+
+Bounded production-route phase on the reviewed/frozen A1 HEAD
+`b26b50e4a5ea1ae6be7fae4e8d680a6d3a880331`. Implements the
+reviewer-authorized promotion of `amax/qwen3.8-27b` to the production
+semantic PRIMARY seat. It is ONLY a route-identity change: no semantic
+policy, prompt, parser, eligibility, authority, aggregation, or fallback
+topology change. (Canonical spec: PLAN §26.17; operator documentation:
+`docs/SEMANTIC_PROMOTION_REGRESSION.md`,
+`docs/SEMANTIC_BENCHMARK_RUNNER.md`.)
+
+Promotion basis (all frozen, independently reviewed):
+
+* Frozen 64-case FULL qualification of `amax/qwen3.8-27b`: 100% valid
+  output, 96.88% decision accuracy, 100% MATCH precision, 85.71% MATCH
+  recall, 0 false MATCH, safety cost 2, all hard gates PASS — exactly
+  matching the historical qualified Nemotron FULL-run headline metrics
+  and wrong-case IDs (SMQ-0053, SMQ-0062) under the same frozen
+  corpus/prompt/settings.
+* A1 production-shaped live promotion regression (22 processed cases,
+  16 semantic-called cases): both `amax/nemotron-3-super` and
+  `amax/qwen3.8-27b` passed ALL six objective promotion gates
+  (deterministic_states_verified,
+  no_semantic_override_of_deterministic_authority,
+  all_semantic_calls_valid, no_unsafe_match,
+  ai_assisted_authority_boundary, provenance_integrity).
+* Human review of the two surfaced model disagreements: SPR-0009
+  (expected UNCERTAIN; Nemotron NO_MATCH/HIGH; Qwen 3.8 UNCERTAIN/LOW —
+  no authority expansion) and SPR-0020 (expected MATCH; Nemotron
+  UNCERTAIN/LOW; Qwen 3.8 MATCH/MEDIUM — the candidate SKU provides the
+  exact target identity and the normalized title is aligned and
+  non-conflicting, so Qwen 3.8's AI_ASSISTED_MATCH authority is
+  supported). Both CLOSED: no promotion blocker.
+
+Route change (the ONLY production code change):
+
+* `product_intelligence/semantic/runtime.py`: `PRIMARY_MODEL` moved from
+  `nemotron-3-super` to `qwen3.8-27b` (plus the module docstring's
+  pinned-route block). The route remains code-pinned and NOT caller
+  configurable: `validate_runtime_config` and `SemanticRuntimeResult`
+  self-validation reject any other model in either seat, including the
+  demoted former primary.
+
+Production route after B1:
+
+| Role | Provider | Model |
+| --- | --- | --- |
+| PRIMARY | `amax` | `qwen3.8-27b` |
+| FALLBACK | `vllm-262k` | `Qwen3.6-27B-262K` |
+
+Frozen and unchanged (re-proven by the updated route-identity tests):
+
+* FALLBACK identity and topology — byte-for-byte unchanged. Nemotron is
+  NOT made the fallback: Nemotron and Qwen 3.8 share provider `amax`, so
+  preserving `amax -> vllm-262k` maintains provider-level execution
+  redundancy; the production fallback exists for EXECUTION FAILURE, not
+  semantic disagreement.
+* Fallback on execution failure only, via the existing explicit
+  allowlist; a valid primary response (MATCH / NO_MATCH / UNCERTAIN) is
+  FINAL; semantic disagreement never enters fallback.
+* Generation contract: temperature 0.0 (exact float), max_tokens 32768,
+  request-timeout behavior, prompt v1.1, parser, response schema,
+  enums, validation, reason-code handling.
+* Authority/execution contract: deterministic identity matching,
+  semantic eligibility (`_is_semantic_eligible`,
+  `_has_usable_evidence`), `_map_semantic_decision`,
+  AI_ASSISTED_MATCH authority (MATCH only), HARD_CONFLICT handling,
+  Working Quote policy, Reviewed Price policy, human confirmation
+  semantics, public 4A aggregation (AI_ASSISTED_MATCH remains excluded),
+  commercial/vendor authority, execution evidence semantics.
+* Frozen A1 artifacts: qualification corpus (SHA256 re-locked),
+  `evaluation/semantic_promotion_regression/cases.json`, the
+  promotion-regression harness behavior and its evaluation-only
+  authorized-model catalog (nemotron role `production_primary` /
+  qwen3.8-27b role `challenger` — frozen A1 evidence tooling, not
+  production routing); no special-casing of SPR-0009 / SPR-0020 /
+  SMQ-0053 / SMQ-0062.
+
+Model status after B1:
+
+* `amax/qwen3.8-27b` — production PRIMARY (reviewer-promoted).
+* `vllm-262k/Qwen3.6-27B-262K` — production FALLBACK (unchanged).
+* `amax/nemotron-3-super` — remains a formally QUALIFIED / REFERENCE
+  model (full-qualification catalog entry and promotion-regression
+  baseline); it is NOT the production primary and NOT the production
+  fallback.
+
+Test updates (route-identity freeze assertions only, moved from
+Nemotron to the reviewer-approved Qwen 3.8 primary):
+`tests/semantic/test_runtime.py`,
+`tests/execution/test_semantic_integration.py`,
+`tests/execution/test_4d_a_direct_acquisition.py`,
+`tests/execution/test_review_candidate_persistence.py`,
+`tests/web/test_cross_layer_regression.py`,
+`tests/evaluation/semantic/test_promotion_regression_authority.py`,
+`tests/evaluation/semantic/test_benchmark_runner.py`. All other
+safety/authority/fallback tests are unchanged in strength. Two route
+pins were strengthened (additive): the demoted former primary
+`nemotron-3-super` is now rejected in the PRIMARY seat by
+`validate_runtime_config`, and it is ALSO rejected in the FALLBACK
+seat (same provider as the primary — provider redundancy). No test
+was deleted, renamed, skipped, xfail'd, deselected, ignored, or
+weakened.
+
+Validation (this session, candidate pass — final approval remains with
+ChatGPT after independent review):
+
+* Collection: **5633** (A1-FU2 baseline 5632 + 1 new parametrize node).
+  Collection did not decrease.
+* Focused: `tests/semantic/test_runtime.py` 212 passed;
+  `tests/semantic/test_runtime_boundaries.py` 10 passed;
+  `tests/execution/test_semantic_integration.py` 50 passed;
+  `tests/evaluation/semantic/test_promotion_regression_authority.py`
+  58 passed; `tests/evaluation/semantic/test_promotion_regression_runner.py`
+  55 passed; `tests/evaluation/semantic/test_live_runner_contract.py`
+  48 passed; `tests/evaluation/semantic/test_benchmark_runner.py` +
+  promotion-regression corpus/comparison + `tests/semantic/test_contract_sharing.py`
+  + `tests/semantic/test_transport.py` 236 passed; the remaining
+  route-constructing execution/web/runs suites 216 passed. 0 errors,
+  0 skipped, 0 xfailed, 0 deselected.
+* Full suite: 5633 collected; **5633 passed, 0 failed, 0 errors,
+  0 skipped, 0 xfailed, 0 xpassed, 0 deselected**. No
+  Windows/Python-3.14 subprocess flakes were observed in this run
+  (they remain a known environmental class and would be reported if
+  seen).
+* `python manage.py check`: System check identified no issues (0
+  silenced). `python manage.py makemigrations --check --dry-run`:
+  No changes detected.
+* No corpus file, prompt, parser, harness file, migration, dependency,
+  or UI changed; no live model calls were made in this phase; no
+  deployment performed in this commit; final approval remains with
+  ChatGPT after independent GitHub review.
+
+**PRODUCT-INTEL.SEMANTIC-QWEN38-PROMOTION-REGRESSION-A1 (Semantic
+PRIMARY Promotion-Regression Harness) — IMPLEMENTED / APPROVED /
+FROZEN**
+
+A1 was independently reviewed and frozen at
+`b26b50e4a5ea1ae6be7fae4e8d680a6d3a880331`; its frozen evidence
+(qualification, live promotion regression, human review of the two
+surfaced disagreements) was the basis for the B1 production PRIMARY
+promotion recorded above.
 
 Bounded evaluation-only phase on the reviewed main HEAD
 `e8f5498f1c34803b4e13c85126ec57e3a3a8ff7d`. Builds a SEPARATE

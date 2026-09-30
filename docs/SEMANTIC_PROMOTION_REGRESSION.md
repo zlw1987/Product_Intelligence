@@ -1,8 +1,12 @@
 # Semantic PRIMARY Promotion-Regression Harness
 
 **Phase:** PRODUCT-INTEL.SEMANTIC-QWEN38-PROMOTION-REGRESSION-A1
-**Status:** IMPLEMENTED / PENDING FINAL REVIEW (evidence facility; no
-promotion decided)
+**Status:** IMPLEMENTED / APPROVED / FROZEN (independent review;
+frozen at `b26b50e4a5ea1ae6be7fae4e8d680a6d3a880331`). This facility's
+frozen evidence was the input to the separately reviewed B1 production
+PRIMARY promotion (PRODUCT-INTEL.SEMANTIC-QWEN38-PRODUCTION-PROMOTION-B1,
+PLAN §26.17), after which `amax/qwen3.8-27b` IS the production primary.
+At A1 itself, no promotion was decided.
 
 ## What this is
 
@@ -31,18 +35,25 @@ It is NOT:
 | Verdict | Qualification gates + leaderboard | Objective promotion-gate facts + mandatory human-review list. **No winner.** |
 
 **`qwen3.8-27b` passing FULL qualification does not itself change
-production.** Production remains pinned:
+production.** At A1 the production route remained pinned:
 
 ```
-PRIMARY   amax / nemotron-3-super
+PRIMARY   amax / nemotron-3-super      (historical, pre-B1)
 FALLBACK  vllm-262k / Qwen3.6-27B-262K
 temperature 0.0, max_tokens 32768
 ```
 
 The regression comparison is EVIDENCE for a later human-reviewed promotion
-decision. The harness computes objective gate facts and surfaces
-disagreements; it never weights latency/token/accuracy trade-offs and never
-declares a winner.
+decision. That decision was taken separately: the B1 phase (PLAN §26.17)
+promoted `amax/qwen3.8-27b` to production PRIMARY, based on the frozen
+FULL qualification, the A1 live promotion regression (22 processed /
+16 semantic-called cases, both models passing all six objective gates),
+and human review of the two surfaced disagreements (SPR-0009, SPR-0020 —
+both closed as no promotion blocker). The production FALLBACK is
+UNCHANGED (`vllm-262k/Qwen3.6-27B-262K`); Nemotron remains a
+qualified/reference model but is NOT the production fallback (it shares
+provider `amax` with the primary, and the fallback exists for
+provider-level execution redundancy).
 
 ## Architecture under test (preserved, not bypassed)
 
@@ -107,9 +118,11 @@ without a NEW explicit reviewer decision.
    working-quote policy re-proven for identity-critical conflicts).
 10. Semantic output does not create Reviewed Price authority by itself.
 11. Production fallback semantics remain execution-failure-only, never
-    semantic disagreement (frozen runtime re-proven; challenger model is
-    rejected by the frozen `validate_runtime_config` and cannot even be
-    named in a `SemanticRuntimeResult`).
+    semantic disagreement (frozen runtime re-proven; the non-pinned
+    production model — since B1 the demoted former primary
+    amax/nemotron-3-super — is rejected by the frozen
+    `validate_runtime_config` in either seat and cannot even be named as
+    the requested primary in a `SemanticRuntimeResult`).
 12. No caller-configurable model override was introduced into the frozen
     production `SemanticRuntime`; the harness builds its own
     evaluation-only transport configuration.
@@ -154,11 +167,11 @@ argument validated against the explicit authorization list.
 # 0. (optional) list the regression corpus
 python -m product_intelligence.evaluation.semantic.promotion_regression_cli list-cases
 
-# 1. production-primary baseline run
-python -m product_intelligence.evaluation.semantic.promotion_regression_cli run --provider amax --model nemotron-3-super
-
-# 2. challenger run
+# 1. current production-primary run (since B1)
 python -m product_intelligence.evaluation.semantic.promotion_regression_cli run --provider amax --model qwen3.8-27b
+
+# 2. reference baseline run (demoted former primary; still an authorized harness spec)
+python -m product_intelligence.evaluation.semantic.promotion_regression_cli run --provider amax --model nemotron-3-super
 
 # 3. compare the two run directories (print the paths shown by steps 1-2)
 python -m product_intelligence.evaluation.semantic.promotion_regression_cli compare <primary_run_dir> <challenger_run_dir>
@@ -184,7 +197,10 @@ provenance) and carries `"no_winner_declared": true`.
 ## What a live run does NOT do
 
 * does not change the production route or any production constant;
-* does not add `qwen3.8-27b` as a production fallback or primary;
+* does not add any model as a production fallback (the production
+  fallback remains the frozen `vllm-262k/Qwen3.6-27B-262K`; since B1 the
+  production primary is `amax/qwen3.8-27b`, and neither is selectable
+  through the harness);
 * does not retry invalid outputs (the first response is the recorded
   response);
 * does not fall back between models (each model is tested in the PRIMARY

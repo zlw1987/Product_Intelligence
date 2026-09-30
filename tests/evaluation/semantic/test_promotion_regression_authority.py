@@ -142,14 +142,15 @@ def _ideal_run(spec):
 
 
 # ---------------------------------------------------------------------------
-# 1. The production route is unchanged and rejects the challenger
+# 1. The production route is pinned (B1: qwen3.8-27b primary) and rejects
+#    every other model in either seat
 # ---------------------------------------------------------------------------
 
 
 class TestProductionRouteUnchanged:
     def test_primary_route_constants_are_frozen(self):
         assert PRIMARY_PROVIDER == "amax"
-        assert PRIMARY_MODEL == "nemotron-3-super"
+        assert PRIMARY_MODEL == "qwen3.8-27b"
 
     def test_fallback_route_constants_are_frozen(self):
         assert FALLBACK_PROVIDER == "vllm-262k"
@@ -162,20 +163,31 @@ class TestProductionRouteUnchanged:
         assert type(SEMANTIC_MAX_TOKENS) is int
 
     def test_production_runtime_rejects_challenger_as_primary(self):
-        """No caller-configurable model override: the frozen runtime
-        refuses to run qwen3.8-27b in the PRIMARY seat."""
-        config = SemanticRuntimeConfig(primary_model="qwen3.8-27b")
+        """No caller-configurable model override: after the B1 promotion
+        the frozen runtime refuses to run the demoted former production
+        primary (amax/nemotron-3-super) in the PRIMARY seat; only the
+        reviewer-qualified amax/qwen3.8-27b validates."""
+        config = SemanticRuntimeConfig(primary_model="nemotron-3-super")
         with pytest.raises(SemanticRuntimeConfigError):
             validate_runtime_config(config)
 
     def test_production_runtime_rejects_challenger_as_fallback(self):
+        """The fallback topology is frozen: amax/qwen3.8-27b (now the
+        production PRIMARY) is not the production fallback, and
+        amax/nemotron-3-super (same provider as the primary, so it would
+        reduce provider-level execution redundancy) is not either. Only
+        vllm-262k/Qwen3.6-27B-262K validates."""
         config = SemanticRuntimeConfig(fallback_model="qwen3.8-27b")
+        with pytest.raises(SemanticRuntimeConfigError):
+            validate_runtime_config(config)
+        config = SemanticRuntimeConfig(fallback_model="nemotron-3-super")
         with pytest.raises(SemanticRuntimeConfigError):
             validate_runtime_config(config)
 
     def test_production_result_cannot_carry_challenger_route(self):
         """SemanticRuntimeResult self-validates the pinned requested
-        primary; a challenger-named result cannot even be constructed."""
+        primary; a result naming the demoted former production primary
+        (nemotron-3-super) cannot even be constructed."""
         with pytest.raises(ValueError, match="pinned primary model"):
             SemanticRuntimeResult(
                 case_id="SPR-0001",
@@ -187,11 +199,11 @@ class TestProductionRouteUnchanged:
                 candidate_specs=None,
                 evidence_source="UNKNOWN",
                 requested_primary_provider="amax",
-                requested_primary_model="qwen3.8-27b",
+                requested_primary_model="nemotron-3-super",
                 attempts=(
                     SemanticAttempt(
                         provider="amax",
-                        model="qwen3.8-27b",
+                        model="nemotron-3-super",
                         status=SemanticAttemptStatus.OK,
                         latency_ms=1.0,
                     ),
@@ -199,7 +211,7 @@ class TestProductionRouteUnchanged:
                 fallback_used=False,
                 fallback_reason=None,
                 actual_provider="amax",
-                actual_model="qwen3.8-27b",
+                actual_model="nemotron-3-super",
                 decision=SemanticDecision.MATCH,
                 confidence=None,
                 matched_attributes=(),
@@ -487,8 +499,8 @@ class TestInterpretationMirrorLockedToRuntime:
                     latency_ms=10.0,
                     provider_status="200",
                     provider_id="amax",
-                    model_id="nemotron-3-super",
-                    provider_reported_model="nemotron-3-super",
+                    model_id="qwen3.8-27b",
+                    provider_reported_model="qwen3.8-27b",
                     finish_reason="stop",
                 ),
             ),
@@ -501,8 +513,8 @@ class TestInterpretationMirrorLockedToRuntime:
                     latency_ms=10.0,
                     provider_status="200",
                     provider_id="amax",
-                    model_id="nemotron-3-super",
-                    provider_reported_model="nemotron-3-super",
+                    model_id="qwen3.8-27b",
+                    provider_reported_model="qwen3.8-27b",
                     finish_reason="stop",
                 ),
             ),
@@ -512,7 +524,7 @@ class TestInterpretationMirrorLockedToRuntime:
                     raw_output="Here is the JSON:\n" + _VALID_MATCH,
                     latency_ms=10.0,
                     provider_status="200",
-                    provider_reported_model="nemotron-3-super",
+                    provider_reported_model="qwen3.8-27b",
                 ),
             ),
             (
@@ -521,7 +533,7 @@ class TestInterpretationMirrorLockedToRuntime:
                     raw_output="   ",
                     latency_ms=10.0,
                     provider_status="200",
-                    provider_reported_model="nemotron-3-super",
+                    provider_reported_model="qwen3.8-27b",
                 ),
             ),
             (
@@ -558,7 +570,7 @@ class TestInterpretationMirrorLockedToRuntime:
             target_description="d",
             candidate_title="c",
         )
-        harness = interpret_transport_outcome(outcome, "nemotron-3-super")
+        harness = interpret_transport_outcome(outcome, "qwen3.8-27b")
         assert harness.status is result.attempts[0].status, label
         if harness.status is SemanticAttemptStatus.OK:
             assert result.decision is harness.response.decision
@@ -589,7 +601,7 @@ class TestInterpretationMirrorLockedToRuntime:
             target_description="d",
             candidate_title="c",
         )
-        harness = interpret_transport_outcome(outcome, "nemotron-3-super")
+        harness = interpret_transport_outcome(outcome, "qwen3.8-27b")
         assert harness.status is result.attempts[0].status, error_code
         assert harness.transport_error_type == error_code
         # Fallback eligibility is decided by the mapped STATUS, exactly as in
@@ -614,7 +626,7 @@ class TestInterpretationMirrorLockedToRuntime:
             target_description="d",
             candidate_title="c",
         )
-        harness = interpret_transport_outcome(outcome, "nemotron-3-super")
+        harness = interpret_transport_outcome(outcome, "qwen3.8-27b")
         assert harness.status is SemanticAttemptStatus.UNKNOWN_ERROR
         assert result.attempts[0].status is SemanticAttemptStatus.UNKNOWN_ERROR
         assert sentinel.call_count == 0  # unknown code never buys a fallback
@@ -677,12 +689,14 @@ class TestAuthorityBoundaries:
         """The provenance the harness records for a MATCH is exactly what
         the frozen production AiAssistedMatchResult validates: a real
         SemanticRuntimeResult (pinned primary) + real assessment must
-        construct without error."""
+        construct without error. Since the B1 promotion the pinned
+        production primary seat is amax/qwen3.8-27b, so the harness run
+        is the qwen3.8-27b one."""
         from product_intelligence.execution.semantic_integration import (
             AiAssistedMatchResult,
         )
 
-        run, _ = _ideal_run(NEOTRON_SPEC)
+        run, _ = _ideal_run(QWEN_SPEC)
         case = CORPUS.get_case("SPR-0005")
         record = next(r for r in run.records if r.case_id == case.case_id)
         assert record.decision == "MATCH"

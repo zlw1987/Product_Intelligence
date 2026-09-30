@@ -1928,7 +1928,7 @@ class TestDirectSemanticAuthority:
         transport = FakeSemanticModelTransport(
             responses={case_id: response_json},
             case_ids=(case_id,),
-            provider_reported_model="nemotron-3-super",
+            provider_reported_model="qwen3.8-27b",
         )
         fake_runtime = SemanticRuntime(config=SemanticRuntimeConfig(), primary_transport=transport)
 

@@ -284,7 +284,10 @@ def test_full_qualification_model_count():
 
 
 def test_qwen38_catalog_authorization_does_not_change_production_route():
-    """Qwen3.8 is an evaluation challenger, not an implicit prod promotion."""
+    """Catalog authorization stays evaluation-only. The production route
+    is the separately reviewed B1 promotion: amax/qwen3.8-27b PRIMARY
+    with the frozen vllm-262k/Qwen3.6-27B-262K FALLBACK. No other catalog
+    entry (nemotron-3-super included) may move those constants."""
     from product_intelligence.semantic.runtime import (
         FALLBACK_MODEL,
         FALLBACK_PROVIDER,
@@ -293,7 +296,7 @@ def test_qwen38_catalog_authorization_does_not_change_production_route():
     )
 
     assert can_run_full("amax", "qwen3.8-27b") is True
-    assert (PRIMARY_PROVIDER, PRIMARY_MODEL) == ("amax", "nemotron-3-super")
+    assert (PRIMARY_PROVIDER, PRIMARY_MODEL) == ("amax", "qwen3.8-27b")
     assert (FALLBACK_PROVIDER, FALLBACK_MODEL) == (
         "vllm-262k",
         "Qwen3.6-27B-262K",

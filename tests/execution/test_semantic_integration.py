@@ -141,7 +141,7 @@ def _make_normalized(observation: ListingObservation) -> NormalizedListingObserv
 def _make_fake_runtime(
     responses: dict[str, str] | None = None,
     case_ids: tuple[str, ...] = (),
-    provider_reported_model: str = "nemotron-3-super",
+    provider_reported_model: str = "qwen3.8-27b",
 ) -> SemanticRuntime:
     """Create a fake SemanticRuntime for testing."""
     transport = FakeSemanticModelTransport(
@@ -181,7 +181,7 @@ def _failure_result() -> SemanticRuntimeResult:
     )
     primary_attempt = SemanticAttempt(
         provider="amax",
-        model="nemotron-3-super",
+        model="qwen3.8-27b",
         status=SemanticAttemptStatus.CONNECTION_ERROR,
         latency_ms=30000,
     )
@@ -201,7 +201,7 @@ def _failure_result() -> SemanticRuntimeResult:
         candidate_specs=None,
         evidence_source="UNKNOWN",
         requested_primary_provider="amax",
-        requested_primary_model="nemotron-3-super",
+        requested_primary_model="qwen3.8-27b",
         attempts=(primary_attempt, fallback_attempt),
         fallback_used=True,
         fallback_reason=SemanticRuntimeFallbackReason.CONNECTION_ERROR,
@@ -642,7 +642,7 @@ class TestAiAssistedMatchResultValidation:
             evidence_source = assessment.candidate_evidence_source.value
         attempt = SemanticAttempt(
             provider="amax",
-            model="nemotron-3-super",
+            model="qwen3.8-27b",
             status=SemanticAttemptStatus.OK,
             latency_ms=100,
         )
@@ -656,12 +656,12 @@ class TestAiAssistedMatchResultValidation:
             candidate_specs=None,
             evidence_source=evidence_source,
             requested_primary_provider="amax",
-            requested_primary_model="nemotron-3-super",
+            requested_primary_model="qwen3.8-27b",
             attempts=(attempt,),
             fallback_used=False,
             fallback_reason=None,
             actual_provider="amax",
-            actual_model="nemotron-3-super",
+            actual_model="qwen3.8-27b",
             decision=SemanticDecision.MATCH,
             confidence=ConfidenceLevel.HIGH,
             matched_attributes=("description",),
@@ -766,7 +766,7 @@ class TestAiAssistedMatchResultValidation:
         )
         attempt = SemanticAttempt(
             provider="amax",
-            model="nemotron-3-super",
+            model="qwen3.8-27b",
             status=SemanticAttemptStatus.OK,
             latency_ms=100,
         )
@@ -780,12 +780,12 @@ class TestAiAssistedMatchResultValidation:
             candidate_specs=None,
             evidence_source="UNKNOWN",
             requested_primary_provider="amax",
-            requested_primary_model="nemotron-3-super",
+            requested_primary_model="qwen3.8-27b",
             attempts=(attempt,),
             fallback_used=False,
             fallback_reason=None,
             actual_provider="amax",
-            actual_model="nemotron-3-super",
+            actual_model="qwen3.8-27b",
             decision=SemanticDecision.MATCH,
             confidence=ConfidenceLevel.HIGH,
             matched_attributes=("brand",),
@@ -866,7 +866,7 @@ class TestAiAssistedMatchResultValidation:
         assessment = assess_listing_identity(request, norm)
         attempt = SemanticAttempt(
             provider="amax",
-            model="nemotron-3-super",
+            model="qwen3.8-27b",
             status=SemanticAttemptStatus.OK,
             latency_ms=100,
         )
@@ -880,12 +880,12 @@ class TestAiAssistedMatchResultValidation:
             candidate_specs=None,
             evidence_source="UNKNOWN",
             requested_primary_provider="amax",
-            requested_primary_model="nemotron-3-super",
+            requested_primary_model="qwen3.8-27b",
             attempts=(attempt,),
             fallback_used=False,
             fallback_reason=None,
             actual_provider="amax",
-            actual_model="nemotron-3-super",
+            actual_model="qwen3.8-27b",
             decision=SemanticDecision.NO_MATCH,
             confidence=ConfidenceLevel.HIGH,
             matched_attributes=(),
@@ -1430,7 +1430,7 @@ class TestRealOrchestrationIntegration:
         # Fake semantic runtime returns a legitimate failure
         attempt = SemanticAttempt(
             provider="amax",
-            model="nemotron-3-super",
+            model="qwen3.8-27b",
             status=SemanticAttemptStatus.CASE_REJECTED,
             latency_ms=100,
         )
@@ -1444,7 +1444,7 @@ class TestRealOrchestrationIntegration:
             candidate_specs=None,
             evidence_source="TITLE_TEXT",
             requested_primary_provider="amax",
-            requested_primary_model="nemotron-3-super",
+            requested_primary_model="qwen3.8-27b",
             attempts=(attempt,),
             fallback_used=False,
             fallback_reason=None,

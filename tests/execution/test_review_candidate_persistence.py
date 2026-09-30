@@ -470,11 +470,11 @@ class TestRealAiAssistedMatchResultPersistence:
             candidate_specs=None,
             evidence_source=original_assessment.candidate_evidence_source.value,
             requested_primary_provider="amax",
-            requested_primary_model="nemotron-3-super",
+            requested_primary_model="qwen3.8-27b",
             attempts=(
                 SemanticAttempt(
                     provider="amax",
-                    model="nemotron-3-super",
+                    model="qwen3.8-27b",
                     status=SemanticAttemptStatus.OK,
                     latency_ms=1000.0,
                 ),
@@ -482,7 +482,7 @@ class TestRealAiAssistedMatchResultPersistence:
             fallback_used=False,
             fallback_reason=None,
             actual_provider="amax",
-            actual_model="nemotron-3-super",
+            actual_model="qwen3.8-27b",
             decision=SemanticDecision.MATCH,
             confidence=SemanticConfidenceLevel.MEDIUM,
             matched_attributes=("brand", "mpn"),
@@ -597,11 +597,11 @@ class TestRealAiAssistedMatchResultPersistence:
             candidate_specs=None,
             evidence_source=original.candidate_evidence_source.value,
             requested_primary_provider="amax",
-            requested_primary_model="nemotron-3-super",
+            requested_primary_model="qwen3.8-27b",
             attempts=(
                 SemanticAttempt(
                     provider="amax",
-                    model="nemotron-3-super",
+                    model="qwen3.8-27b",
                     status=SemanticAttemptStatus.OK,
                     latency_ms=1000.0,
                 ),
@@ -609,7 +609,7 @@ class TestRealAiAssistedMatchResultPersistence:
             fallback_used=False,
             fallback_reason=None,
             actual_provider="amax",
-            actual_model="nemotron-3-super",
+            actual_model="qwen3.8-27b",
             decision=SemanticDecision.MATCH,
             confidence=SemanticConfidenceLevel.HIGH,
             matched_attributes=("brand", "mpn", "category"),
@@ -634,6 +634,6 @@ class TestRealAiAssistedMatchResultPersistence:
         assert list(c.semantic_matched_attributes) == ["brand", "mpn", "category"]
         assert list(c.semantic_conflicting_attributes) == ["weight"]
         assert c.actual_provider == "amax"
-        assert c.actual_model == "nemotron-3-super"
+        assert c.actual_model == "qwen3.8-27b"
         assert c.prompt_version == "1.1"
         assert c.evidence_source == "TITLE_TEXT"

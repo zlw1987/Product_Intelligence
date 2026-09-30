@@ -32,7 +32,7 @@ These models may run FULL qualification:
 - `amax/minimax-m2.7` (PRIMARY_CANDIDATE)
 - `amax/minimax-m2.7-thinking` (PRIMARY_CANDIDATE)
 - `amax/nemotron-3-super` (PRIMARY_CANDIDATE)
-- `amax/qwen3.8-27b` (PRIMARY_CANDIDATE; challenger qualification only)
+- `amax/qwen3.8-27b` (PRIMARY_CANDIDATE; production PRIMARY since B1 — see below)
 - `amax/google/gemma-4-26B-A4B-it` (PRIMARY_CANDIDATE)
 - `amax/mistral-small-4` (PRIMARY_CANDIDATE)
 - `amax/mistral-small-24b-instruct-2501` (LIGHTWEIGHT_GENERAL)
@@ -61,13 +61,16 @@ These models cannot be benchmarked:
 
 **Unknown models are rejected** - the runner fails closed rather than falling back to allow any model.
 
-### Qwen 3.8 Challenger Boundary
+### Qwen 3.8 Catalog Boundary
 
-`amax/qwen3.8-27b` is authorized only in the evaluation model catalog so it can run the
-same FULL 64-case qualification as the existing candidates. This catalog entry does **not**
-change `product_intelligence.semantic.runtime`: production remains pinned to
-`amax/nemotron-3-super` primary with `vllm-262k/Qwen3.6-27B-262K` fallback until a
-separate reviewed promotion phase explicitly changes that frozen route.
+`amax/qwen3.8-27b` is authorized in the evaluation model catalog so it can run the
+same FULL 64-case qualification as the existing candidates. Catalog authorization
+alone never changes `product_intelligence.semantic.runtime`. The separate
+reviewed promotion phase (B1; PLAN §26.17) has since explicitly changed the
+pinned production route to `amax/qwen3.8-27b` primary with the UNCHANGED
+`vllm-262k/Qwen3.6-27B-262K` fallback. `amax/nemotron-3-super` remains a
+qualified/reference catalog entry (and the promotion-regression baseline), but
+is neither the production primary nor the production fallback.
 
 Qualification artifacts must retain the literal provider/model provenance
 `amax` / `qwen3.8-27b`; do not alias or rewrite the model ID in comparisons.

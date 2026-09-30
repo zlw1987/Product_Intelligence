@@ -2952,6 +2952,10 @@ IMPLEMENTED (frozen):
   FU3A  Production semantic runtime contract
   FU3B  Semantic execution integration
   HUMAN-REVIEW  Human review for AI-assisted semantic matches
+  SEMANTIC-QWEN38-PRODUCTION-PROMOTION-B1  Production semantic PRIMARY
+        route promotion (amax/qwen3.8-27b primary; frozen fallback
+        vllm-262k/Qwen3.6-27B-262K unchanged; PLAN §26.17)
+        IMPLEMENTED / PENDING FINAL REVIEW
 
 PLANNED:
   5A    Structured external API (not a blocker for current workflow)
@@ -4309,6 +4313,7 @@ This canonical plan does not duplicate that operational snapshot.
 | AD-060 | PROD-FIX1 production corrections (canonical spec §26.10): (1) the Internal Vendor adapter supports BOTH the canonical JSON wrapper and the production section-oriented response, parsed by a strict bounded recursive-descent literal parser (no eval/literal_eval, three exact section labels only, exact `{Not Found}` bounded marker, Decimal-exact numbers); the allowlist mappers remain the sole sensitive-data boundary. (2) Compact Quote price formatting renders no-symbol currencies once (`ZAR 30,999.0`), never code-as-prefix plus code-suffix. (3) AI-assisted semantic matches render immediately after Compact quote summary (presentation order only). (4) A valid run-scoped human-CONFIRMED semantic candidate contributes ONE Compact Quote row for the SAME run via a projection-layer extension: identity authority only; price/currency/condition exactly the persisted normalized values (UNKNOWN condition stays Unknown); explicit "Human Confirmed" provenance; persisted FX evidence only; the frozen PriceIntelligenceSnapshot and Machine Price are never mutated; UNREVIEWED/REJECTED/invalid-binding/cross-run candidates never enter; Undo removes the row on the next GET; historical GET stays zero-live-I/O. (5) The new-research form carries a front-end-only duplicate-click guard (disable + `Researching…`) — explicitly NOT a backend dedupe guarantee. (6) NO insecure TLS bypass, unverified context, or HTTP fallback was added for the ECB trust-chain failure, and regression tests mechanically guard against future bypasses. **Amended by AD-061 (FU1):** items (1) and (4) had production-fidelity / authority-ownership defects corrected by the bounded follow-up; item (6) no longer records an operational CA-store repair as an outstanding action (see AD-061). | Defects were discovered in real production use of the deployed PILOT-RELEASE-2 runtime. Each correction is the minimal bounded change to the identified defect: the Vendor parser adds a second supported upstream contract without weakening the allowlist privacy boundary; the currency fix changes display formatting only; the section move is template ordering only; the confirm->quote path reuses the existing fail-closed binding validation and adds a display projection (the frozen 4A/Reviewed Price authority contracts are untouched); the submit guard is client UX only; the TLS item preserves secure verification. No 8A caching, no new providers, no new models, no migrations. | SUPERSEDED IN PART BY AD-061 (PILOT-RELEASE-2-PROD-FIX1-FU1) |
 | AD-061 | PROD-FIX1-FU1 production review-blocker closure (canonical spec §26.11): (1) VENDOR WIRE FIDELITY — the adapter now supports the ACTUAL hybrid production Ingram placement (explicit `vendorPartNumber` + nested `pricing` customerPrice/retailPrice/currencyCode + TOP-LEVEL boolean availability + TOP-LEVEL `Avl_Quantity`) through the same bounded availability truth table (contradiction => UNKNOWN fail-closed; false+0 => OUT_OF_STOCK/0; true+positive => IN_STOCK), with the canonical nested form and flat compatibility form retained and separately tested (the flat form is NOT described as the only/exact production wire shape); the integration path proves the faithful hybrid Ingram + REAL nested Synnex EU (`OnlineCheck.Header.CurrencyCode`, `OnlineCheck.Item.ManufacturerItemIdentifier/UnitPriceAmount/AvailabilityTotal`) with fake/redacted SessionId/BuyerAccountId/SystemId at their realistic structural locations, stripped by the allowlist; section-scanner documentation and behavior are reconciled — only the three exact line-anchored labels establish sections, a COMPLETE bounded literal is authoritative, and unknown/interstitial text after it is never parsed into data nor allowed to poison the section, while malformed content INSIDE a literal still fails that source closed (no generic HTML scraping). (2) HUMAN-CONFIRMED AUTHORITY OWNERSHIP — the single pure candidate-to-assessment binding primitive (`research.matching.is_review_candidate_binding_valid`) is shared by the web GET/POST paths and both historical replay boundaries (no divergent rule copies; the 8-step POST validation is unchanged in strength); both replay entry points DERIVE the effective human-confirmed selection from persisted state (`derive_human_confirmed_assessment_indices`: CONFIRMED + this run + in-range index + full binding + human-review eligibility + persisted price/currency) and no longer accept ANY caller-supplied index — a bare integer can never mint HUMAN_CONFIRMED authority; the lowest-level pure projection helper is retained as an already-authorized-selection consumer with that contract stated; Machine Price untouched; human review run-scoped; historical GET zero-live-I/O. (3) ECB EVIDENCE CORRECTION — a later SECURE retry from the same production Python runtime (no certifi install, no manual certificate, no fx.py change, no TLS-verification bypass; observation date 2026-09-24, USD 1.1367, ZAR 18.6836) succeeded, so the documentation no longer states an unproven root cause or an outstanding CA-trust-store installation action as fact; the transient failure, its correct FxNetworkError classification, the run completing without ResearchFxSnapshot, and the retained failure-path regression tests are preserved as recorded evidence; NO TLS workaround was added or is required. (4) REVIEWED PRICE WORDING — the Reviewed Price summary now derives the truthful price-contributing counts from the reviewed buckets themselves (per-bucket `human_confirmed_count` / `deterministic_count` sums) instead of overstating them with the validated-CONFIRMED-candidate count; reviewed-price eligibility is NOT changed to make the count match. | Bounded append-only corrective follow-up to the independently reviewed PROD-FIX1 commit (8811104): correct ONLY the review blockers and any directly necessary tests/docs; retain the previous implementation. | IMPLEMENTED / PENDING FINAL REVIEW (PILOT-RELEASE-2-PROD-FIX1-FU1) |
 | AD-062 | PROD-FIX1-FU2 final review-blocker closure (canonical spec §26.12): the PUBLIC (denied-branch) historical compact quote replay now OWNS its price/currency/condition evidence authority exactly like the authorized replay. `replay_public_compact_quote_projection` no longer accepts ANY caller-supplied `PriceAggregationResult` (the `price_result` parameter is removed; the only parameter is `run`). It verifies the run is a real ResearchRun, loads `PriceIntelligenceSnapshot.objects.get(run=run)`, decodes it through the canonical price-result codec, verifies `decoded.request == run.to_research_request()`, and uses THAT decoded persisted result for the frozen public bucket projection, the shared human-confirmed binding derivation, and the human-confirmed price/currency/condition evidence. A same-request cross-run result — identical source URL / product title / MPN field / SKU / evidence source, different persisted price — can no longer substitute for the persisted snapshot, so a CONFIRMED candidate's identity authority can never be exercised over another run's price evidence (historical report immutability; run-scoped evidence authority; confirmation establishes identity authority only over the persisted evidence belonging to that same run). Fail-closed: missing snapshot (DoesNotExist, the existing persisted-artifact behavior), malformed payload / unsupported schema version (PriceResultCodecError), request-provenance-corrupt snapshot (CompactQuoteProjectionError). The denied branch remains vendor-free: NO ResearchSupplementSnapshot read, NO commercial supplement codec import, NO Vendor/Search/Page/ECB- live/Semantic/network work; persisted ResearchFxSnapshot remains allowed; zero live I/O. The authorized replay (`replay_compact_quote_projection`), Machine Price, and Human Review state semantics are UNCHANGED. | Final independent review of FU1 blocked on the public replay trusting caller-supplied price evidence: request equality alone does not prove the evidence is THIS run's persisted snapshot, and the shared binding primitive legitimately matches across same-request runs with identical identity fields. The correction is the minimal bounded change: the denied replay loads its own authority source, removing the caller-owned input rather than comparing against it. | IMPLEMENTED / PENDING FINAL REVIEW (PILOT-RELEASE-2-PROD-FIX1-FU2) |
+| AD-063 | B1 production semantic PRIMARY route promotion (canonical spec §26.17): the code-pinned production semantic route moves from `amax/nemotron-3-super` to `amax/qwen3.8-27b` as PRIMARY; the FALLBACK stays byte-for-byte `vllm-262k/Qwen3.6-27B-262K`. The only production change is `PRIMARY_MODEL` in `product_intelligence/semantic/runtime.py` (plus its pinned-route docstring block). Everything else is frozen: fallback on execution failure only (explicit allowlist; a valid primary decision is FINAL; semantic disagreement never triggers fallback); temperature 0.0 exact float / max_tokens 32768 / request-timeout behavior; prompt v1.1, parser, response schema, enums, validation, reason codes; deterministic identity matching, semantic eligibility, `_map_semantic_decision`, AI_ASSISTED_MATCH (MATCH only) authority and its 4A exclusion, HARD_CONFLICT, Working Quote, Reviewed Price, human confirmation, commercial/vendor authority, execution evidence; the frozen A1 promotion-regression facility and its evaluation-only model catalog; the qualification corpus. Nemotron remains a qualified/reference model but is NOT the production fallback (Nemotron and Qwen 3.8 share provider `amax`; the fallback exists for provider-level execution redundancy). | Reviewer decision based on frozen, independently reviewed evidence: the 64-case FULL qualification of `amax/qwen3.8-27b` (100% valid, 96.88% accuracy, 100% MATCH precision, 85.71% MATCH recall, 0 false MATCH, safety cost 2, all hard gates PASS — matching the historical qualified Nemotron headline metrics and wrong-case IDs), the A1 production-shaped live promotion regression (22 processed / 16 semantic-called cases, both models passing all six objective promotion gates), and human review closing the two surfaced disagreements (SPR-0009: no authority expansion; SPR-0020: candidate SKU provides exact target identity, supporting the AI_ASSISTED_MATCH authority). No caller-configurable routing, no model override surface, no third provider. | IMPLEMENTED / PENDING FINAL REVIEW (SEMANTIC-QWEN38-PRODUCTION-PROMOTION-B1) |
 
 ## 26. Customer Quote Research Expansion — 4D Phase Architecture
 
@@ -5851,12 +5856,15 @@ deployment.
 ### 26.16 SEMANTIC-QWEN38-PROMOTION-REGRESSION-A1: Semantic PRIMARY
 Promotion-Regression Harness
 
-**Status: IMPLEMENTED / PENDING FINAL REVIEW.** Bounded evaluation-only
-phase. It builds a SEPARATE promotion-regression facility for semantic
-PRIMARY candidates and changes NOTHING in the production semantic route,
-prompt, parser, eligibility rules, aggregation, or review authority. It
-is not authorization to promote `amax/qwen3.8-27b`; promotion remains a
-human-reviewed decision. (Operator documentation:
+**Status: IMPLEMENTED / APPROVED / FROZEN** (independent review;
+frozen HEAD `b26b50e4a5ea1ae6be7fae4e8d680a6d3a880331`). Bounded
+evaluation-only phase. It builds a SEPARATE promotion-regression
+facility for semantic PRIMARY candidates and changes NOTHING in the
+production semantic route, prompt, parser, eligibility rules,
+aggregation, or review authority. It is not authorization to promote
+`amax/qwen3.8-27b`; promotion remains a human-reviewed decision.
+The frozen A1 evidence was the input to the separately reviewed B1
+promotion (§26.17). (Operator documentation:
 `docs/SEMANTIC_PROMOTION_REGRESSION.md`.)
 
 **1. Two questions, two facilities.** Semantic QUALIFICATION
@@ -5916,7 +5924,12 @@ runs; any other provider/model fails closed. This is NOT production
 configuration: the frozen `SemanticRuntime` is untouched —
 `validate_runtime_config` still rejects the challenger, and a
 `SemanticRuntimeResult` still cannot carry a challenger-named requested
-primary (self-validation). The fallback model
+primary (self-validation). (Present-tense note, superseded by §26.17:
+after the B1 promotion the pinned production primary is
+`amax/qwen3.8-27b` and the non-pinned rejected model in either seat is
+the demoted former primary `amax/nemotron-3-super`; the harness
+authorization list above is frozen A1 evidence tooling and did not
+itself change.) The fallback model
 (`vllm-262k/Qwen3.6-27B-262K`) is not a PRIMARY promotion candidate and
 is not authorized by this harness. No environment variable, CLI flag, or
 code path selects a production model outside the frozen route.
@@ -6020,3 +6033,108 @@ comparison are executed by the human reviewer with the exact commands
 documented in `docs/SEMANTIC_PROMOTION_REGRESSION.md`; the resulting
 artifacts (gitignored) plus the pushed diff are the input to the
 human promotion decision.
+
+### 26.17 SEMANTIC-QWEN38-PRODUCTION-PROMOTION-B1: Production PRIMARY
+Route Promotion (qwen3.8-27b)
+
+**Status: IMPLEMENTED / PENDING FINAL REVIEW.** Bounded production-route
+phase implementing the reviewer-authorized promotion of
+`amax/qwen3.8-27b` to the production semantic PRIMARY seat, on the
+frozen A1 HEAD `b26b50e4a5ea1ae6be7fae4e8d680a6d3a880331`. It is a
+route-identity change ONLY.
+
+**1. Promotion basis (frozen evidence).** (a) Frozen 64-case FULL
+qualification of `amax/qwen3.8-27b`: 100% valid output, 96.88% decision
+accuracy, 100% MATCH precision, 85.71% MATCH recall, 0 false MATCH,
+safety cost 2, all hard gates PASS — exactly matching the historical
+qualified Nemotron FULL-run headline metrics and wrong-case IDs
+(SMQ-0053, SMQ-0062) under the same frozen corpus/prompt/settings. (b)
+A1 production-shaped live promotion regression (22 processed cases, 16
+semantic-called cases): both `amax/nemotron-3-super` and
+`amax/qwen3.8-27b` passed ALL six objective promotion gates. (c) Human
+review of the two surfaced disagreements: SPR-0009 (expected UNCERTAIN;
+Nemotron NO_MATCH/HIGH, Qwen 3.8 UNCERTAIN/LOW; no authority expansion)
+and SPR-0020 (expected MATCH; Nemotron UNCERTAIN/LOW, Qwen 3.8
+MATCH/MEDIUM; the candidate SKU provides the exact target identity and
+the normalized title is aligned and non-conflicting, so the
+AI_ASSISTED_MATCH authority is supported). Both CLOSED: no promotion
+blocker.
+
+**2. Route after B1 (the ONLY route change).**
+
+| Setting | Value |
+| --- | --- |
+| PRIMARY | `amax` / `qwen3.8-27b` |
+| FALLBACK | `vllm-262k` / `Qwen3.6-27B-262K` |
+| temperature | `0.0` (exact float) |
+| max_tokens | `32768` |
+
+Only the PRIMARY model changed. The fallback topology is FROZEN:
+Nemotron is deliberately NOT made the production fallback because
+Nemotron and Qwen 3.8 share provider `amax`. The production fallback
+exists for EXECUTION FAILURE (provider-level redundancy), not semantic
+disagreement; keeping `amax -> vllm-262k` preserves that redundancy.
+
+**3. Invariants (unchanged).** Fallback on execution failure only, via
+the existing explicit allowlist; a valid primary decision (MATCH /
+NO_MATCH / UNCERTAIN) is FINAL; no disagreement fallback, no
+low-confidence fallback, no reason-code fallback, no secondary-model
+voting, no consensus evaluation, no retry-to-Nemotron, no
+caller-selectable models, no model override parameters, no production
+model tournament logic, no third provider. Generation contract
+(temperature 0.0 exact float, max_tokens 32768, request-timeout
+behavior, prompt v1.1, parser, response schema, enums, validation,
+reason-code handling) unchanged. Authority/execution contract
+(deterministic identity matching, semantic eligibility —
+`_is_semantic_eligible`, `_has_usable_evidence` — `_map_semantic_decision`,
+AI_ASSISTED_MATCH = MATCH only, NO_MATCH/UNCERTAIN produce no semantic
+authority, HARD_CONFLICT handling, Working Quote policy, Reviewed Price
+policy, human confirmation semantics, public 4A aggregation with
+AI_ASSISTED_MATCH excluded, commercial/vendor authority, execution
+evidence semantics) unchanged.
+
+**4. Implementation scope.** Exactly one production file:
+`product_intelligence/semantic/runtime.py` (`PRIMARY_MODEL` constant +
+the module docstring's pinned-route block). No refactor, no renamed
+constants, no generalized model routing system, no
+environment-configurable PRIMARY/FALLBACK models. The route remains
+code-pinned and non-caller-configurable: `validate_runtime_config`
+rejects every other model in both seats — including the demoted
+`amax/nemotron-3-super` — and `SemanticRuntimeResult` self-validates
+the pinned requested primary and attempt provenance.
+
+**5. Frozen A1 artifacts untouched.** Qualification corpus, prompt v1.1,
+strict parser/validator, `evaluation/semantic_promotion_regression/
+cases.json`, the promotion-regression harness behavior, and the
+harness's evaluation-only authorized-model catalog (nemotron role
+`production_primary` / qwen3.8-27b role `challenger` — frozen A1
+evidence tooling, not production routing). No special-casing of
+SPR-0009 / SPR-0020 / SMQ-0053 / SMQ-0062: promotion is a route
+change, not corpus tuning.
+
+**6. Model status after B1.** `amax/nemotron-3-super` remains a
+qualified/reference model (full-qualification catalog entry and
+promotion-regression baseline) but is neither the production primary
+nor the production fallback. `vllm-262k/Qwen3.6-27B-262K` remains the
+sole production fallback.
+
+**7. Test updates.** Route-identity freeze assertions only, moved from
+Nemotron to the reviewer-approved Qwen 3.8 primary:
+`tests/semantic/test_runtime.py`,
+`tests/execution/test_semantic_integration.py`,
+`tests/execution/test_4d_a_direct_acquisition.py`,
+`tests/execution/test_review_candidate_persistence.py`,
+`tests/web/test_cross_layer_regression.py`,
+`tests/evaluation/semantic/test_promotion_regression_authority.py`,
+`tests/evaluation/semantic/test_benchmark_runner.py`. All other
+safety/authority/fallback tests unchanged in strength. Two route pins
+strengthened (additive): the demoted former primary is rejected in the
+PRIMARY seat, and it is ALSO rejected in the FALLBACK seat (provider
+redundancy). No test deleted, renamed, skipped, xfail'd, deselected,
+or weakened.
+
+**8. Unchanged.** Production FALLBACK identity; fallback eligibility
+allowlist; generation settings; prompt/parser/corpus; authority
+mapping; migrations/models; dependencies; no deployment; no live model
+calls in the implementation phase (promotion evidence is the already
+frozen, independently reviewed A1 record).

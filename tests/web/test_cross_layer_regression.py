@@ -160,11 +160,11 @@ class TestRejectedOriginalToReviewedPriceRegression:
             candidate_specs=None,
             evidence_source=assessment.candidate_evidence_source.value,
             requested_primary_provider="amax",
-            requested_primary_model="nemotron-3-super",
+            requested_primary_model="qwen3.8-27b",
             attempts=(
                 SemanticAttempt(
                     provider="amax",
-                    model="nemotron-3-super",
+                    model="qwen3.8-27b",
                     status=SemanticAttemptStatus.OK,
                     latency_ms=1000.0,
                 ),
@@ -172,7 +172,7 @@ class TestRejectedOriginalToReviewedPriceRegression:
             fallback_used=False,
             fallback_reason=None,
             actual_provider="amax",
-            actual_model="nemotron-3-super",
+            actual_model="qwen3.8-27b",
             decision=SemanticDecision.MATCH,
             confidence=SemanticConfidenceLevel.MEDIUM,
             matched_attributes=("brand", "mpn"),
