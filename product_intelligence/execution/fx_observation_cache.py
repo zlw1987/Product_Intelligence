@@ -254,17 +254,23 @@ def _validate_row_integrity(row: FxObservationStore, decoded) -> None:
         )
 
     # The original provider retrieved_at must be present (a canonical
-    # row always carries it) — and consistent with the column.
+    # row always carries it) — and EXACTLY consistent with the column.
+    # The payload retrieved_at and original_retrieved_at are the SAME
+    # immutable provenance fact (the original provider retrieval
+    # instant of this exact stored content): any disagreement in
+    # EITHER direction is corrupt (fail closed; never a miss).
     if decoded.retrieved_at is None:
         raise FxObservationStoreIntegrityError(
             f"store row {row.pk}: payload is missing the original "
             "provider retrieved_at (impossible for a canonical row)"
         )
     parsed_retrieved = _parse_retrieved_at(decoded.retrieved_at, row)
-    if parsed_retrieved > row.original_retrieved_at:
+    if parsed_retrieved != row.original_retrieved_at:
         raise FxObservationStoreIntegrityError(
-            f"store row {row.pk}: stored payload retrieved_at is later "
-            "than original_retrieved_at (impossible)"
+            f"store row {row.pk}: stored payload retrieved_at "
+            f"({decoded.retrieved_at!r}) is not the same instant as "
+            f"original_retrieved_at ({row.original_retrieved_at}); "
+            "both directions of disagreement are corrupt"
         )
 
     # Content digest binding: the stored digest must equal the canonical
@@ -351,6 +357,15 @@ def record_live_observation(
             f"retrieval instant {utc_retrieved.isoformat()} (impossible)"
         )
 
+    # The codec V1's deterministic representation is whole-second
+    # precision. The payload retrieved_at and the immutable
+    # original_retrieved_at column are the SAME provenance fact, and
+    # row integrity requires EXACT instant equality between them — so
+    # the column is pinned to the codec's precision ONCE here, at the
+    # write boundary (never truncated read-side: that would silently
+    # accept a corrupt row).
+    stored_retrieved = utc_retrieved.replace(microsecond=0)
+
     digest = fx_document_content_sha256(
         provider_id=full_set.provider_id,
         base_currency=full_set.base_currency,
@@ -362,7 +377,7 @@ def record_live_observation(
         observation_date=full_set.observation_date,
         base_currency=full_set.base_currency,
         rates=full_set.rates,
-        retrieved_at=utc_retrieved,
+        retrieved_at=stored_retrieved,
     )
 
     try:
@@ -374,7 +389,7 @@ def record_live_observation(
                 observation_date=full_set.observation_date,
                 content_sha256=digest,
                 payload=payload,
-                original_retrieved_at=utc_retrieved,
+                original_retrieved_at=stored_retrieved,
                 last_proven_at=now_utc,
                 created_at=now_utc,
             )

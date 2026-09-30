@@ -523,6 +523,40 @@ class TestCanonicalLive:
         assert row.last_proven_at == MON_09
         assert row.original_retrieved_at == original_retrieved
 
+    def test_later_reproof_of_identical_content_preserves_original_provenance(
+        self, research_run,
+    ):
+        # 8A-FX-A1-FU1: legitimate later live re-proof of identical
+        # content. The provider's own (different) re-proof
+        # retrieved_at must NOT replace the stored original provenance:
+        # convergence advances ONLY last_proven_at; the column and the
+        # stored payload keep the original instant.
+        original = SAT_09 - timedelta(minutes=4)
+        row = _seed_store_row(
+            last_proven_at=SAT_09 - timedelta(minutes=2),
+            original_retrieved_at=original,
+        )
+        seeded_id = row.id
+        seeded_payload = row.payload
+        urlopen = _arm_urlopen()
+        with urlopen, patch.object(
+            fx_observation_cache, "_utc_now", return_value=MON_10,
+        ):
+            result = _run_canonical(research_run)
+        assert result.run.current_state == ResearchRunState.COMPLETED
+        assert urlopen.mock.call_count == 1  # working day => live
+        assert (
+            ResearchFxSnapshot.objects.get(run=research_run).acquisition
+            == ResearchFxSnapshot.ACQUISITION_LIVE
+        )
+        # Converged on the SAME row; original provenance untouched:
+        assert FxObservationStore.objects.count() == 1
+        row.refresh_from_db()
+        assert row.id == seeded_id
+        assert row.last_proven_at == MON_10
+        assert row.original_retrieved_at == original
+        assert row.payload == seeded_payload
+
 
 # ===========================================================================
 # Canonical CACHE_HIT path
@@ -759,6 +793,42 @@ class TestFailureSemantics:
         assert research_run.current_state == ResearchRunState.FAILED
         # The corrupted row remains (visible, never deleted).
         assert FxObservationStore.objects.count() == 1
+
+    def test_payload_retrieved_at_earlier_than_column_fails_closed(
+        self, research_run,
+    ):
+        # 8A-FX-A1-FU1: a row whose payload retrieved_at PRECEDES its
+        # immutable original_retrieved_at column (in an otherwise
+        # reusable weekend state): corrupt. The run fails closed
+        # through the existing catastrophic boundary with ZERO live
+        # fallback; the corrupted row remains for forensic visibility
+        # (never deleted, never silently repaired).
+        original = SAT_09 - timedelta(minutes=4)
+        payload = encode_fx_observation(
+            provider_id=DOC_PROVIDER_ID, observation_date=DOC_OBS_DATE,
+            base_currency=DOC_BASE, rates=DOC_RATES,
+            retrieved_at=original - timedelta(hours=1),
+        )
+        row = _seed_store_row(
+            last_proven_at=SAT_09 - timedelta(minutes=2),
+            original_retrieved_at=original,
+            payload=payload,
+        )
+        seeded_payload = row.payload
+        urlopen = _arm_urlopen(fail=True)  # must NOT be called
+        with urlopen, patch.object(
+            fx_observation_cache, "_utc_now", return_value=SAT_09,
+        ):
+            with pytest.raises(ExecutionError):
+                _run_canonical(research_run)
+        urlopen.mock.assert_not_called()
+        research_run.refresh_from_db()
+        assert research_run.current_state == ResearchRunState.FAILED
+        # The corrupted row remains, byte-identical (no repair):
+        assert FxObservationStore.objects.count() == 1
+        row.refresh_from_db()
+        assert row.payload == seeded_payload
+        assert row.original_retrieved_at == original
 
     def test_unsupported_cache_codec_propagates(self, research_run):
         payload = encode_fx_observation(

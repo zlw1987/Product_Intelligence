@@ -2104,6 +2104,95 @@ was corrected by the exact-superset allowlist entry above (disclosed here
 and in the test file), after which the full suite showed only allowlist
 members.
 
+**8A-FX-A1-FU1 immutable retrieval-provenance integrity correction.**
+Independent review of the actual A1 GitHub commit (starting SHA
+`208a5a21c8fc1b8d9262983b4011e6c4611c5bc1`) found one bounded
+provenance-integrity blocker: `_validate_row_integrity` compared the
+decoded payload `retrieved_at` against the row's immutable
+`original_retrieved_at` column and rejected only ONE direction of
+disagreement (payload later than the column). The two values are the
+SAME immutable provenance fact — the original provider retrieval
+instant of this exact stored content — so a payload retrieved_at
+EARLIER than the column was incorrectly accepted. A1-FU1 (append-only
+correction; no A1 redesign, no caching/freshness/cache-identity/
+authority change, no migration 0011 change, no existing commit
+rewritten) makes the check EXACT instant equality after UTC
+normalization: any mismatch in EITHER direction raises
+`FxObservationStoreIntegrityError` (a persisted-cache integrity
+failure — never a cache miss, never a live fallback, never a delete,
+silent repair, or timestamp overwrite). No existing test encoded the
+asymmetric comparison as intended behavior (reviewed before changing);
+regression tests were added only.
+
+Exact production change (single file
+`product_intelligence/execution/fx_observation_cache.py`):
+
+1. `_validate_row_integrity`: `parsed_retrieved > row.original_retrieved_at`
+   replaced by `parsed_retrieved != row.original_retrieved_at` (exact
+   instant equality; both disagreement directions corrupt).
+2. `record_live_observation`: the immutable `original_retrieved_at`
+   column is pinned ONCE at the write boundary to the codec V1's
+deterministic whole-second precision (`stored_retrieved =
+   utc_retrieved.replace(microsecond=0)`), so the payload
+   representation and the column representation hold the SAME instant
+   by construction. The frozen A1 authority tests (a LIVE run proves
+   the document with the provider's real microsecond wall-clock
+   `retrieved_at`, then a CACHE_HIT run reuses that exact system-
+   written row) demonstrated that without this write-boundary pin,
+every wall-clock-written row would carry a sub-second payload-vs-
+column disagreement — precisely the state the FU1 contract classifies
+corrupt. The proof-before-retrieval sanity check still uses the
+full-precision instant (never loosened); the read path never
+truncates (no read-side tolerance); `last_proven_at` / `created_at`
+keep full precision. Cache identity, freshness policy, and all re-
+proof semantics are unchanged: a later identical-content re-proof
+still advances ONLY `last_proven_at`, and the re-proof input
+`retrieved_at` never replaces either stored instant.
+
+New regression nodes (8; no test deleted, renamed, skipped, xfailed,
+deselected, or weakened):
+
+* `tests/execution/test_fx_observation_cache.py` (+6): payload
+  retrieved_at EARLIER than column -> FxObservationStoreIntegrityError
+  (row retained); payload retrieved_at LATER than column ->
+  FxObservationStoreIntegrityError (row retained); same instant via an
+  equivalent Brussels-offset column representation -> accepted after
+  instant normalization; same instant via the codec-accepted `Z`
+  designator -> accepted; later identical-content re-proof (provider
+  T2) -> original_retrieved_at / payload / created_at unchanged, only
+  last_proven_at advanced; write boundary pins a microsecond wall-
+  clock retrieved_at to the codec instant and the system-written row
+  passes its own exact-instant validation on the next read.
+* `tests/execution/test_fx_cache_orchestration.py` (+2): CACHE_HIT run
+  over a row whose payload retrieved_at precedes its column -> fails
+  closed through the existing catastrophic boundary (ExecutionError;
+  run FAILED), ZERO ECB live fallback calls, corrupted row retained
+  byte-identical (no repair); legitimate later live re-proof of
+  identical content through a full canonical run -> converges on the
+  same row; original_retrieved_at and stored payload unchanged; only
+  last_proven_at advanced; run snapshot LIVE.
+
+A1-FU1 validation (this session, Windows / Python 3.14 workstation; no
+deployment performed):
+
+| Metric | Count |
+| --- | --- |
+| Collected (before) | 5783 |
+| Collected (after) | 5791 (+8; collection did not decrease) |
+| Focused FX cache suites | 67 passed (59 pre-existing + 8 new) |
+| All FX-related suites | 250 passed |
+| Full suite: passed | 5789 |
+| Full suite: failed | 2 (members of the fixed eleven-node Windows/Python 3.14 subprocess flake allowlist; each with the recorded `subprocess.Popen -> _winapi.DuplicateHandle -> OSError: [WinError 6]` signature; each re-passed on isolated retry; NO node outside the allowlist failed) |
+| Full suite: errors / skipped / xfailed / deselected | 0 / 0 / 0 / 0 |
+| Full suite: subtests passed | 39 |
+
+`git diff --check` clean; `python manage.py check` -> System check
+identified no issues (0 silenced); `python manage.py makemigrations
+--check --dry-run` -> No changes detected (no model change; 0011
+untouched). A1 remains PENDING FINAL REVIEW with this bounded
+correction appended; the fixed eleven-node flake allowlist remains the
+only permitted environmental failure set.
+
 ### PROD-FIX1-FU4-FU1 CANDIDATE ACCEPTANCE SNAPSHOT (PENDING FINAL
 REVIEW)
 

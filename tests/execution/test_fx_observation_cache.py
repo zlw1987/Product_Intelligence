@@ -17,6 +17,7 @@ from __future__ import annotations
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from unittest.mock import patch
+from zoneinfo import ZoneInfo
 
 import pytest
 from django.db import IntegrityError, OperationalError, transaction
@@ -318,6 +319,70 @@ class TestReadIntegrityFailClosed:
         with pytest.raises(FxObservationStoreIntegrityError):
             try_reuse_latest_observation(self.REQUIRED, now=self.NOW)
 
+    def test_payload_retrieved_at_earlier_than_column_propagates(self) -> None:
+        # 8A-FX-A1-FU1: the payload retrieved_at PRECEDES the immutable
+        # original_retrieved_at column. The two values are the SAME
+        # provenance fact, so this direction is corrupt too — it must
+        # fail closed, not be accepted (and not become a miss).
+        payload = encode_fx_observation(
+            provider_id="ECB", observation_date=OBS_DATE,
+            base_currency="EUR", rates=_rates(),
+            retrieved_at=datetime(2026, 1, 10, 6, 59, tzinfo=UTC),
+        )
+        row = _seed_row(payload=payload)  # column: RETRIEVED (07:59)
+        with pytest.raises(FxObservationStoreIntegrityError):
+            try_reuse_latest_observation(self.REQUIRED, now=self.NOW)
+        # The corrupted row remains (forensics; never deleted/repaired).
+        assert FxObservationStore.objects.filter(id=row.id).exists()
+
+    def test_payload_retrieved_at_later_than_column_propagates(self) -> None:
+        # 8A-FX-A1-FU1: the payload retrieved_at POSTDATES the immutable
+        # original_retrieved_at column (yet still precedes the proof
+        # instant, isolating THIS check): corrupt — fail closed.
+        payload = encode_fx_observation(
+            provider_id="ECB", observation_date=OBS_DATE,
+            base_currency="EUR", rates=_rates(),
+            retrieved_at=datetime(2026, 1, 10, 8, 30, tzinfo=UTC),
+        )
+        row = _seed_row(
+            payload=payload,
+            original_retrieved_at=RETRIEVED,  # 07:59
+            last_proven_at=datetime(2026, 1, 10, 9, 0, tzinfo=UTC),
+        )
+        with pytest.raises(FxObservationStoreIntegrityError):
+            try_reuse_latest_observation(self.REQUIRED, now=self.NOW)
+        assert FxObservationStore.objects.filter(id=row.id).exists()
+
+    def test_payload_retrieved_at_same_instant_equivalent_offset_accepted(
+        self,
+    ) -> None:
+        # 8A-FX-A1-FU1: the EXACT same instant represented with an
+        # equivalent timezone offset is NOT a mismatch — instant
+        # equality after normalization. The column is seeded with the
+        # Brussels representation of RETRIEVED (07:59 UTC = 08:59 CET);
+        # the payload carries the codec-deterministic UTC encoding.
+        bru_repr = datetime(2026, 1, 10, 8, 59,
+                            tzinfo=ZoneInfo("Europe/Brussels"))
+        assert bru_repr.astimezone(UTC) == RETRIEVED
+        _seed_row(original_retrieved_at=bru_repr)
+        hit = try_reuse_latest_observation(self.REQUIRED, now=self.NOW)
+        assert hit is not None
+        assert hit.retrieved_at == RETRIEVED
+
+    def test_payload_retrieved_at_z_suffix_same_instant_accepted(self) -> None:
+        # 8A-FX-A1-FU1: the codec also accepts the 'Z' UTC designator —
+        # the same instant under the equivalent representation is valid.
+        payload = encode_fx_observation(
+            provider_id="ECB", observation_date=OBS_DATE,
+            base_currency="EUR", rates=_rates(), retrieved_at=RETRIEVED,
+        )
+        assert payload["retrieved_at"].endswith("+00:00")
+        payload["retrieved_at"] = payload["retrieved_at"][:-6] + "Z"
+        _seed_row(payload=payload)
+        hit = try_reuse_latest_observation(self.REQUIRED, now=self.NOW)
+        assert hit is not None
+        assert hit.retrieved_at == RETRIEVED
+
     def test_corrupted_row_is_never_deleted(self) -> None:
         row = _seed_row(payload={"garbage": True})
         with pytest.raises(FxCodecError):
@@ -424,6 +489,49 @@ class TestRecordLive:
                 _full_set(), FX_FEED_ID_ECB_DAILY,
                 now=SAT_09_00_BRU.replace(tzinfo=None),
             )
+
+    def test_later_reproof_of_identical_content_preserves_original_provenance(
+        self,
+    ) -> None:
+        # 8A-FX-A1-FU1: a LATER live fetch of the SAME content — the
+        # provider returns a later retrieved_at (T2). The existing row
+        # must keep the original provenance (T1 in BOTH the column and
+        # the stored payload) and advance ONLY last_proven_at: the
+        # re-proof input never replaces either stored instant.
+        record_live_observation(_full_set(), FX_FEED_ID_ECB_DAILY,
+                                now=SAT_09_00_BRU)
+        later_retrieved = datetime(2026, 1, 11, 8, 30, tzinfo=UTC)  # T2
+        later_proof = datetime(2026, 1, 11, 9, 0, tzinfo=UTC)
+        row = record_live_observation(
+            _full_set(retrieved_at=later_retrieved),
+            FX_FEED_ID_ECB_DAILY, now=later_proof,
+        )
+        assert FxObservationStore.objects.count() == 1
+        assert row.last_proven_at == later_proof
+        # Original provenance unchanged (T1, never T2):
+        assert row.original_retrieved_at == RETRIEVED
+        assert row.created_at == SAT_09_00_BRU
+        assert row.payload["retrieved_at"] == "2026-01-10T07:59:00+00:00"
+
+    def test_write_pins_column_to_codec_precision_exact_instant(self) -> None:
+        # 8A-FX-A1-FU1: the provider's wall-clock retrieved_at carries
+        # sub-second precision; the codec V1's deterministic
+        # representation is whole-second. The row MUST hold the SAME
+        # instant in both places (the column is pinned at the write
+        # boundary), so the row passes its own exact-instant integrity
+        # check on the next read.
+        with_micros = datetime(2026, 1, 10, 7, 59, 0, 390049, tzinfo=UTC)
+        row = record_live_observation(
+            _full_set(retrieved_at=with_micros), FX_FEED_ID_ECB_DAILY,
+            now=SAT_09_00_BRU,
+        )
+        assert row.original_retrieved_at == RETRIEVED
+        assert row.payload["retrieved_at"] == "2026-01-10T07:59:00+00:00"
+        hit = try_reuse_latest_observation(
+            frozenset({"USD"}), now=SUN_10_00_BRU,
+        )
+        assert hit is not None
+        assert hit.retrieved_at == RETRIEVED
 
 
 # ===========================================================================
