@@ -10,11 +10,15 @@ An MPN and a description are untrusted input from any intake.
 <title>{% block title %}Product Intelligence{% endblock %}</title>
 <style>
   :root { color-scheme: light dark; }
+  /* The page content column defaults to the narrow reading width. A
+     wide report document may raise it by declaring --pi-page-max-width
+     on :root (see web/research_detail.html); the 44rem fallback keeps
+     every other page (e.g. the intake form) at the narrow column. */
   body {
     font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
     line-height: 1.5;
     margin: 0 auto;
-    max-width: 44rem;
+    max-width: var(--pi-page-max-width, 44rem);
     padding: 2rem 1.25rem 4rem;
   }
   header { border-bottom: 1px solid #8884; margin-bottom: 2rem; padding-bottom: 1rem; }

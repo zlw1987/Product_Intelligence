@@ -3,6 +3,17 @@
 {% block title %}Research run {{ run.id }} — Product Intelligence{% endblock %}
 
 {% block content %}
+<style>
+  /* PILOT-UX B2-FU1 (desktop report width): the durable report is a
+     wide page. Raise the shared content column from the base 44rem
+     default (which compressed the multi-column quote summary table
+     and forced horizontal scrolling on desktop) to 70rem. The column
+     stays capped: below 70rem the page flows at full viewport width
+     exactly as before, and .spec-table-wrapper keeps overflow-x: auto
+     as the narrow-screen safety. No other page declares this variable,
+     so the intake form keeps the narrow 44rem column. */
+  :root { --pi-page-max-width: 70rem; }
+</style>
 <h2>Research request</h2>
 
 <dl>
