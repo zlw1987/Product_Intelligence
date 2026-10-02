@@ -2,6 +2,107 @@
 
 ## Current state
 
+**PRODUCT-INTEL.PILOT-UX-PRICE-INTELLIGENCE-FU1 (Sub-3 Advanced-Evidence
+Median Presentation Correction) — IMPLEMENTED / PENDING FINAL REVIEW**
+
+Bounded presentation-only corrective follow-up on the approved / frozen /
+deployed starting SHA `284dce1d53e8e9406c4a3e3fac7b2d284716b119`,
+implementing the smallest correction identified by the approved read-only
+audit PRODUCT-INTEL.8A-POST / PILOT-UX-PRICE-INTELLIGENCE-AUDIT. The frozen
+4A domain contract is CORRECT and UNCHANGED: `PriceAggregateBucket.median`
+is an exact descriptive sample statistic that exists for every non-empty
+bucket (count 1: sole observation; count 2: exact midpoint; count >= 3:
+exact sample median); `market_range_low/high` remain threshold-gated to
+count >= 3. The defect corrected here is PRESENTATION ONLY.
+
+Delivered:
+
+* **Advanced Evidence numeric Median gated at 3 observations** — the ONLY
+  production change is
+  `product_intelligence/web/templates/web/research_detail.html`: in the
+  Price Intelligence Advanced Evidence bucket statistics (VERIFIED and
+  AMBIGUOUS branches) and the Reviewed Price Advanced Evidence bucket
+  statistics, the numeric `<dt>Median</dt>` row now renders only when
+  `bucket.count >= 3` (template-level count gating; no new
+  domain/display fields, no `web/presentation.py` change).
+* **Count 1 / count 2 (both branches):** observation count, Low, High,
+  Confidence, and the truthful small-sample explanation ("Sample size is
+  too small (N observation(s)) to establish an observed market range.")
+  render; NO numeric Median row; NO "Sample median" relabeling — the
+  sub-3 number is suppressed entirely, not renamed.
+* **Count >= 3 (both branches):** current behavior preserved — Low,
+  Median, High, Confidence, and the observed-market-range line.
+* **Reviewed Price presentation consistency corrected** — the Reviewed
+  Price Advanced Evidence branch had the same statistics contract but
+  lacked the small-sample notice; it now shows the identical truthful
+  notice for count < 3, matching the corresponding Price Intelligence
+  presentation. Reviewed Price computation and authority are UNCHANGED.
+* **4A domain median contract unchanged (re-proven):** the median is still
+  calculated by the frozen aggregation arithmetic, persisted in the
+  snapshot payload, round-tripped through the codec, integrity-validated
+  (tamper detection), and present on the domain object and display data
+  (stringified). Only its Advanced Evidence HTML presentation is gated.
+* **Frozen B2/B3 Quote & Market Summary authority unchanged:** 0
+  comparable NEW -> no canonical market median/range; 1-2 comparable NEW
+  -> observed span, no numeric median, "Not shown — fewer than 3
+  comparable NEW listings."; >= 3 -> canonical numeric median. No
+  REFURBISHED / USED / DAMAGED / condition-unknown / vendor / AI-assisted
+  evidence gains canonical NEW-market authority.
+
+No model changes. No migration. No changes to `research/aggregation.py`,
+`research/price_result_codec.py`, `execution/`, `providers/`, `semantic/`,
+`runs/models.py`, comparable research, human-review authority, vendor
+authority, or FX/cache/replay behavior.
+
+Test preservation: no test deleted, renamed, skipped, xfailed, deselected,
+or ignored. Three existing tests whose legacy wordings encoded the old
+presentation were corrected with their original contracts preserved or
+strengthened (section-scoped Advanced Evidence assertions; details in the
+phase report): `test_verified_snapshot_shows_median` (fixture moved to a
+genuine count-3 result so its "a legitimate median is rendered" contract
+is proven in the Advanced Evidence region — the shared count-1 fixture was
+left untouched for the other tests),
+`test_authorized_malformed_supplement_unavailable_no_partial` (the bare
+page-global "Median" proxy replaced by section-scoped evidence that the
+detailed stored report still renders: count / Low / High / stored price /
+confidence / small-sample notice / VERIFIED status), and three further
+"Median" proxy assertions in `test_compact_quote_report.py` resoped to the
+Advanced Evidence section (stored Low/High value) so they prove the
+detailed-report contract instead of the B2/B3 note. Six new focused nodes
+prove the sub-3 suppression / count-3 preservation boundary for BOTH the
+Machine (Price Intelligence, VERIFIED + AMBIGUOUS) and Reviewed Price
+branches, scoped to the Advanced Evidence section and distinct from the
+B2/B3 Quote & Market Summary.
+
+Validation (this session, candidate pass — final approval remains with
+ChatGPT after independent GitHub review):
+
+* Collection baseline at `284dce1`: **5796**; final: **5802** (+6 new
+  nodes: 3 in `tests/web/test_price_report.py`, 3 in
+  `tests/web/test_human_confirmed_compact_quote.py`). Collection did not
+  decrease; no node removed.
+* Focused: `tests/web/test_price_report.py` + `test_presentation.py` +
+  `test_compact_quote_report.py` + `test_compact_quote_presentation.py` +
+  `test_report_layout.py` + `test_human_review.py` +
+  `test_human_confirmed_compact_quote.py` + the research aggregation / 4A
+  contract / price-result-codec / reviewed-aggregation suites -> **348
+  passed, 0 failed**, 0 errors, 0 skipped, 0 xfailed, 0 deselected.
+* Full suite (5802 collected): run 1 -> **5800 passed, 2 failed**; run 2
+  -> **5791 passed, 11 failed**. Every failure in both runs is the
+  documented pre-existing Windows/Python 3.14 clean-interpreter
+  subprocess flake class (`subprocess.Popen -> _winapi.DuplicateHandle ->
+  OSError: [WinError 6] The handle is invalid`); the exact 11-node
+  failing set reproduced identically on the pristine starting SHA in a
+  throwaway worktree (not caused by this phase), and every failed node
+  re-passed on isolated retry. 0 errors, 0 skipped, 0 xfailed, 0
+  deselected in both runs.
+* `python manage.py check`: System check identified no issues (0
+  silenced). `python manage.py makemigrations --check --dry-run`: No
+  changes detected.
+
+No deployment performed in this commit; production does not move until
+independently reviewed approval.
+
 **PRODUCT-INTEL.8A-FX-A1 (Canonical ECB Observation Cache) — IMPLEMENTED /
 PENDING FINAL REVIEW**
 

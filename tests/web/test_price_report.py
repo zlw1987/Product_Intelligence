@@ -12,6 +12,7 @@ Tests that:
 
 from __future__ import annotations
 
+import re
 from decimal import Decimal
 
 import pytest
@@ -249,6 +250,94 @@ def _attach_snapshot(run: ResearchRun, result: PriceAggregationResult) -> None:
     )
 
 
+def _make_multi_observation_result(
+    run: ResearchRun,
+    specs: tuple[tuple[Decimal, str], ...],
+) -> PriceAggregationResult:
+    """Build a result from distinct accepted observations through the
+    frozen 4A aggregation.
+
+    *specs* is a tuple of ``(price, currency_code)`` pairs. Every
+    observation is NEW / EXACT / ACCEPTED with a distinct source URL,
+    title, and SKU, so the bucket statistics (count / low / exact
+    Decimal median / high / market range / confidence) are computed by
+    the unchanged domain code.
+    """
+    from product_intelligence.research.aggregation import aggregate_listing_prices
+
+    mpn = run.manufacturer_part_number or "TEST-001"
+    assessments = []
+    for index, (price, currency) in enumerate(specs):
+        obs = ListingObservation(
+            source_url=f"https://example.com/ssd-1tb-{index}",
+            extraction_method=ExtractionMethod.JSON_LD,
+            product_title=f"Samsung 980 PRO 1TB variant {index}",
+            manufacturer_part_number_text=mpn,
+            sku_text=f"SSD-980-1T-{index}",
+            brand_text="Samsung",
+            price_text=str(price),
+            currency_text=currency,
+            availability_text="In Stock",
+            condition_text="New",
+            seller_text="Example Store",
+            offer_url_text=None,
+            raw_reference=f"https://example.com/ssd-1tb-{index}",
+        )
+        norm = NormalizedListingObservation(
+            observation=obs,
+            price_amount=price,
+            currency_code=currency,
+            availability=NormalizedAvailability.IN_STOCK,
+            condition=NormalizedCondition.NEW,
+            seller_name="Example Store",
+            normalization_issues=(),
+        )
+        assessments.append(
+            ListingIdentityAssessment(
+                normalized_listing=norm,
+                requested_part_number=mpn,
+                candidate_part_number_raw=mpn,
+                candidate_part_number_compared=mpn,
+                candidate_evidence_source=EvidenceSource.EXPLICIT_MPN_FIELD,
+                match_type=IdentityMatchType.EXACT,
+                decision=EvidenceDecision.ACCEPTED,
+                rejection_reason=None,
+            )
+        )
+    return aggregate_listing_prices(run.to_research_request(), tuple(assessments))
+
+
+#: Advanced Evidence & Audit — Price intelligence details block (literal
+#: template text renders with a bare & and an em dash).
+PRICE_ADVANCED_SECTION_MARKER = "Advanced Evidence & Audit — Price intelligence"
+
+_BUCKET_H3_RE = re.compile(
+    r"<h3>(?:Comparable price group|Price group: [^<]*)</h3>\s*<dl>(.*?)</dl>",
+    re.S,
+)
+
+
+def _price_intelligence_advanced_section(html: str) -> str:
+    """The rendered Advanced Evidence & Audit — Price intelligence block."""
+    start = html.index(PRICE_ADVANCED_SECTION_MARKER)
+    end = html.index("</details>", start)
+    return html[start:end]
+
+
+def _quote_market_summary_section(html: str) -> str:
+    """The rendered Quote & Market Summary region (B2/B3), up to the
+    Advanced Evidence price-intelligence block."""
+    start = html.index("<h2>Quote & Market Summary</h2>")
+    end = html.index(PRICE_ADVANCED_SECTION_MARKER)
+    return html[start:end]
+
+
+def _bucket_stats_blocks(section: str) -> list[str]:
+    """The statistics <dl> of every price bucket in *section* (render
+    order)."""
+    return _BUCKET_H3_RE.findall(section)
+
+
 # ---------------------------------------------------------------------------
 # Test cases
 # ---------------------------------------------------------------------------
@@ -304,14 +393,154 @@ class TestValidSnapshot(TestCase):
         self.assertContains(response, "109.99")
 
     def test_verified_snapshot_shows_median(self) -> None:
+        """A legitimate (count >= 3) exact sample median renders in the
+        Advanced Evidence bucket statistics.
+
+        FU1 presentation gate: this test previously used the shared
+        count-1 fixture, where the page-global "Median" assertion could
+        only pass via the frozen B2/B3 Quote & Market Summary sub-3
+        note — proving the wrong region. The original intended contract
+        ("a legitimate median is rendered") is now proven with a
+        genuine 3-observation bucket, scoped to the Advanced Evidence
+        section.
+        """
         run = _create_run()
-        result = _make_simple_result(run)
+        result = _make_multi_observation_result(
+            run,
+            (
+                (Decimal("100.00"), "USD"),
+                (Decimal("109.99"), "USD"),
+                (Decimal("119.99"), "USD"),
+            ),
+        )
         _attach_snapshot(run, result)
 
         response = self.client.get(_detail_url(run))
 
-        self.assertContains(response, "Median")
         self.assertContains(response, "109.99")
+        section = _price_intelligence_advanced_section(response.content.decode())
+        stats = _bucket_stats_blocks(section)[0]
+        self.assertIn("<dt>Median</dt>", stats)
+        # 109.99 is the exact 4A sample median; in the statistics block it
+        # appears exactly once (Low=100.00, High=119.99 are the other two).
+        self.assertEqual(stats.count("USD 109.99"), 1)
+        # count >= 3 preserves the observed market range presentation.
+        self.assertIn("<strong>Observed market range:</strong>", section)
+
+    def test_verified_snapshot_count_1_suppresses_median_in_advanced_evidence(self) -> None:
+        """FU1 presentation gate: a count-1 bucket publishes NO numeric
+        Median row in Advanced Evidence. The domain median is unchanged
+        (it equals the sole observation); only its presentation is
+        gated. Count / Low / High / Confidence / the truthful
+        small-sample notice remain, and the frozen B2/B3 Quote & Market
+        Summary keeps its own sub-3 median contract."""
+        run = _create_run()
+        result = _make_simple_result(run)  # count=1, sole value 109.99 USD
+        _attach_snapshot(run, result)
+
+        response = self.client.get(_detail_url(run))
+        html = response.content.decode()
+
+        section = _price_intelligence_advanced_section(html)
+        stats = _bucket_stats_blocks(section)[0]
+        # No Median row in the bucket statistics block...
+        self.assertNotIn("<dt>Median</dt>", stats)
+        # ...and the sole observation value appears in the statistics
+        # block exactly twice (Low and High) — never a third Median entry.
+        self.assertEqual(stats.count("USD 109.99"), 2)
+        # Observation count / Low / High / Confidence remain rendered.
+        for label in (
+            "<dt>Observations</dt>",
+            "<dd>1</dd>",
+            "<dt>Low</dt>",
+            "<dt>High</dt>",
+            "<dt>Confidence</dt>",
+            "<dd>LOW</dd>",
+        ):
+            self.assertIn(label, stats)
+        # The truthful small-sample explanation remains rendered.
+        collapsed = " ".join(section.split())
+        self.assertIn(
+            "Sample size is too small (1 observation) to establish an "
+            "observed market range.",
+            collapsed,
+        )
+        self.assertNotIn("<strong>Observed market range:</strong>", section)
+        # The frozen B2/B3 Quote & Market Summary still applies its own
+        # sub-3 contract (this is the ONLY legitimate "Median" text on
+        # the page for a count-1 bucket — distinct from Advanced
+        # Evidence).
+        summary = _quote_market_summary_section(html)
+        self.assertIn(
+            "<strong>Median:</strong> Not shown — fewer than 3 comparable "
+            "NEW listings.",
+            " ".join(summary.split()),
+        )
+
+    def test_verified_snapshot_count_2_suppresses_median_in_advanced_evidence(self) -> None:
+        """FU1 presentation gate: a count-2 bucket publishes NO numeric
+        Median row in Advanced Evidence. The exact 4A midpoint (102.50)
+        is neither Low (100.00) nor High (105.00), so it must not appear
+        anywhere in the section — the number itself is suppressed, not
+        merely a label."""
+        run = _create_run()
+        result = _make_multi_observation_result(
+            run,
+            ((Decimal("100.00"), "USD"), (Decimal("105.00"), "USD")),
+        )
+        _attach_snapshot(run, result)
+
+        response = self.client.get(_detail_url(run))
+        html = response.content.decode()
+
+        section = _price_intelligence_advanced_section(html)
+        stats = _bucket_stats_blocks(section)[0]
+        self.assertNotIn("<dt>Median</dt>", stats)
+        # The domain median (exact midpoint 102.50) is not published
+        # anywhere in the Advanced Evidence section.
+        self.assertNotIn("102.50", section)
+        # Low / High / count / confidence remain rendered.
+        for label in (
+            "<dt>Observations</dt>",
+            "<dd>2</dd>",
+            "USD 100.00",
+            "USD 105.00",
+            "<dt>Confidence</dt>",
+            "<dd>LOW</dd>",
+        ):
+            self.assertIn(label, stats)
+        collapsed = " ".join(section.split())
+        self.assertIn(
+            "Sample size is too small (2 observations) to establish an "
+            "observed market range.",
+            collapsed,
+        )
+        self.assertNotIn("<strong>Observed market range:</strong>", section)
+
+    def test_ambiguous_snapshot_count_1_buckets_suppress_median_in_advanced_evidence(self) -> None:
+        """FU1 presentation gate applies to EVERY Advanced Evidence
+        price-bucket presentation: the AMBIGUOUS branch (two non-
+        comparable sub-3 buckets) publishes no numeric Median row in
+        either bucket statistics block."""
+        run = _create_run()
+        result = _make_multi_observation_result(
+            run,
+            ((Decimal("100.00"), "USD"), (Decimal("1500.00"), "EUR")),
+        )
+        _attach_snapshot(run, result)
+
+        response = self.client.get(_detail_url(run))
+        html = response.content.decode()
+
+        section = _price_intelligence_advanced_section(html)
+        self.assertContains(response, "AMBIGUOUS")
+        stats_blocks = _bucket_stats_blocks(section)
+        self.assertEqual(len(stats_blocks), 2)
+        for stats in stats_blocks:
+            self.assertNotIn("<dt>Median</dt>", stats)
+        collapsed = " ".join(section.split())
+        self.assertEqual(collapsed.count("Sample size is too small (1 observation)"), 2)
+        self.assertNotIn("<strong>Observed market range:</strong>", section)
 
     def test_verified_snapshot_shows_confidence(self) -> None:
         run = _create_run()

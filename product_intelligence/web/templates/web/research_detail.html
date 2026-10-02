@@ -534,8 +534,10 @@
         <dt>Low</dt>
         <dd>{{ bucket.currency_code }} {{ bucket.low }}</dd>
 
+        {% if bucket.count >= 3 %}
         <dt>Median</dt>
         <dd>{{ bucket.currency_code }} {{ bucket.median }}</dd>
+        {% endif %}
 
         <dt>High</dt>
         <dd>{{ bucket.currency_code }} {{ bucket.high }}</dd>
@@ -673,8 +675,10 @@
         <dt>Low</dt>
         <dd>{{ bucket.currency_code }} {{ bucket.low }}</dd>
 
+        {% if bucket.count >= 3 %}
         <dt>Median</dt>
         <dd>{{ bucket.currency_code }} {{ bucket.median }}</dd>
+        {% endif %}
 
         <dt>High</dt>
         <dd>{{ bucket.currency_code }} {{ bucket.high }}</dd>
@@ -845,8 +849,10 @@
         <dd>{{ bucket.human_confirmed_count }}</dd>
         <dt>Low</dt>
         <dd>{{ bucket.currency_code }} {{ bucket.low }}</dd>
+        {% if bucket.count >= 3 %}
         <dt>Median</dt>
         <dd>{{ bucket.currency_code }} {{ bucket.median }}</dd>
+        {% endif %}
         <dt>High</dt>
         <dd>{{ bucket.currency_code }} {{ bucket.high }}</dd>
         <dt>Confidence</dt>
@@ -858,6 +864,11 @@
           <strong>Observed market range:</strong>
           {{ bucket.currency_code }} {{ bucket.market_range_low }}
           — {{ bucket.currency_code }} {{ bucket.market_range_high }}
+        </p>
+      {% elif bucket.count < 3 %}
+        <p class="notice">
+          Sample size is too small ({{ bucket.count }} observation{{ bucket.count|pluralize }})
+          to establish an observed market range.
         </p>
       {% endif %}
 

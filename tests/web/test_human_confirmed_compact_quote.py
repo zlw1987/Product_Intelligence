@@ -833,6 +833,213 @@ def test_reviewed_price_wording_when_no_confirmed_listing_is_price_eligible(
     assert "No price groups are available" in summary
     assert "includes 1 human-confirmed" not in summary
 
+
+# ---------------------------------------------------------------------------
+# FU1: Reviewed Price Advanced Evidence sub-3 median presentation gate.
+#
+# The Reviewed Price branch uses the same frozen 4A statistics contract as
+# Price Intelligence: below 3 observations the numeric Median row is
+# presentation-suppressed (the domain median is still calculated, persisted,
+# and integrity-validated), and the truthful small-sample notice — previously
+# missing in this branch — now renders, matching the corresponding Price
+# Intelligence presentation. Count >= 3 preserves the current Median +
+# observed-market-range behavior.
+# ---------------------------------------------------------------------------
+
+
+def _reviewed_price_advanced_section(html: str) -> str:
+    """The rendered Advanced Evidence & Audit — Reviewed price details
+    block."""
+    marker = "Advanced Evidence & Audit — Reviewed price"
+    start = html.index(marker)
+    end = html.index("</details>", start)
+    return html[start:end]
+
+
+def _reviewed_stats_block(section: str) -> str:
+    """The first reviewed bucket statistics <dl> in *section*."""
+    import re
+
+    match = re.search(
+        r"<h3>Reviewed comparable price group</h3>\s*<dl>(.*?)</dl>",
+        section,
+        re.S,
+    )
+    assert match is not None, "reviewed bucket statistics block not found"
+    return match.group(1)
+
+
+def _make_reviewed_median_run(
+    n_deterministic: int,
+) -> tuple[ResearchRun, AiAssistedReviewCandidate]:
+    """A COMPLETED run with ``n_deterministic`` deterministic ACCEPTED
+    USD/NEW listings ($100.00 / $110.00 / $120.00 ...) and one
+    semantic-eligible REJECTED USD/NEW listing ($90.00) that a human may
+    confirm.
+
+    After confirmation the reviewed USD/NEW bucket holds
+    ``n_deterministic + 1`` observations. Returns the run and the binding-
+    exact candidate for the semantic assessment (index
+    ``n_deterministic``).
+    """
+    request = ResearchRequest(
+        manufacturer_part_number=MPN, description=DESCRIPTION
+    )
+    run = ResearchRun.objects.create_from_request(request)
+    run.transition_to(ResearchRunState.RUNNING)
+    run.transition_to(ResearchRunState.COMPLETED)
+
+    assessments = [
+        _accepted_assessment(
+            f"https://revmed-det-{i}.example.com/a",
+            Decimal(f"{100 + 10 * i}.00"),
+            "USD",
+        )
+        for i in range(n_deterministic)
+    ]
+
+    obs_sem = _semantic_observation(
+        "https://revmed-sem.example.com/s",
+        f"Confirmed {MPN} unit 90",
+        Decimal("90.00"),
+        "USD",
+        "New",
+    )
+    sem = _semantic_assessment(
+        obs_sem, NormalizedCondition.NEW, Decimal("90.00"), "USD"
+    )
+    assessments.append(sem)
+
+    price_result = aggregate_listing_prices(request, tuple(assessments))
+    PriceIntelligenceSnapshot.objects.create(
+        run=run,
+        schema_version=1,
+        payload=encode_price_aggregation_result(price_result),
+    )
+    cand = _make_candidate(run, obs_sem, n_deterministic)
+    return run, cand
+
+
+@pytest.mark.usefixtures("human_confirmed_db_isolation")
+def test_reviewed_price_count_1_suppresses_median_in_advanced_evidence(
+    client: Client,
+) -> None:
+    """FU1: a 1-observation reviewed bucket publishes NO numeric Median
+    row in Advanced Evidence and shows the truthful small-sample notice
+    (previously missing in the Reviewed Price branch). Count / Low / High
+    remain rendered."""
+    run, cand = _make_reviewed_median_run(0)
+    client.post(_review_url(run, cand), {"action": "confirm"})
+
+    with _settings_patch():
+        response = client.get(_detail_url(run), REMOTE_ADDR=DENIED_ADDR)
+    assert response.status_code == 200
+
+    # Reviewed bucket count = 1 (human-confirmed only).
+    assert response.context["confirmed_count"] == 1
+    reviewed = response.context["reviewed_result"]
+    assert reviewed is not None
+    assert reviewed.buckets[0].count == 1
+    assert reviewed.buckets[0].human_confirmed_count == 1
+
+    html = response.content.decode()
+    section = _reviewed_price_advanced_section(html)
+    stats = _reviewed_stats_block(section)
+
+    # No numeric Median row in the reviewed bucket statistics...
+    assert "<dt>Median</dt>" not in stats
+    # ...and the sole observed value appears in the statistics block
+    # exactly twice (Low and High) — never a third time as a Median.
+    assert stats.count("USD 90.00") == 2
+    assert "<dt>Low</dt>" in stats
+    assert "<dt>High</dt>" in stats
+    assert "<dd>1</dd>" in stats
+    # The truthful small-sample notice now renders in the Reviewed Price
+    # branch — the same wording as the Price Intelligence presentation.
+    collapsed = " ".join(section.split())
+    assert (
+        "Sample size is too small (1 observation) to establish an "
+        "observed market range."
+    ) in collapsed
+    assert "<strong>Observed market range:</strong>" not in section
+
+
+@pytest.mark.usefixtures("human_confirmed_db_isolation")
+def test_reviewed_price_count_2_suppresses_median_in_advanced_evidence(
+    client: Client,
+) -> None:
+    """FU1: a 2-observation reviewed bucket publishes NO numeric Median
+    row. The exact 4A midpoint (95.00) is neither Low (90.00) nor High
+    (100.00), so it must not appear anywhere in the section — the number
+    itself is suppressed, not merely a label."""
+    run, cand = _make_reviewed_median_run(1)
+    client.post(_review_url(run, cand), {"action": "confirm"})
+
+    with _settings_patch():
+        response = client.get(_detail_url(run), REMOTE_ADDR=DENIED_ADDR)
+    assert response.status_code == 200
+
+    reviewed = response.context["reviewed_result"]
+    assert reviewed is not None
+    assert reviewed.buckets[0].count == 2
+    assert reviewed.buckets[0].deterministic_count == 1
+    assert reviewed.buckets[0].human_confirmed_count == 1
+
+    html = response.content.decode()
+    section = _reviewed_price_advanced_section(html)
+    stats = _reviewed_stats_block(section)
+
+    assert "<dt>Median</dt>" not in stats
+    # Domain median = (90.00 + 100.00) / 2 = 95.00: unpublished.
+    assert "95.00" not in section
+    # Low / High are still rendered.
+    assert "USD 90.00" in stats
+    assert "USD 100.00" in stats
+    collapsed = " ".join(section.split())
+    assert (
+        "Sample size is too small (2 observations) to establish an "
+        "observed market range."
+    ) in collapsed
+    assert "<strong>Observed market range:</strong>" not in section
+
+
+@pytest.mark.usefixtures("human_confirmed_db_isolation")
+def test_reviewed_price_count_3_renders_median_and_market_range_in_advanced_evidence(
+    client: Client,
+) -> None:
+    """FU1: a count >= 3 reviewed bucket preserves the current behavior:
+    the numeric Median row IS rendered and the observed market range
+    remains."""
+    run, cand = _make_reviewed_median_run(2)
+    client.post(_review_url(run, cand), {"action": "confirm"})
+
+    with _settings_patch():
+        response = client.get(_detail_url(run), REMOTE_ADDR=DENIED_ADDR)
+    assert response.status_code == 200
+
+    reviewed = response.context["reviewed_result"]
+    assert reviewed is not None
+    bucket = reviewed.buckets[0]
+    assert bucket.count == 3
+    assert bucket.deterministic_count == 2
+    assert bucket.human_confirmed_count == 1
+    assert bucket.has_market_range
+
+    html = response.content.decode()
+    section = _reviewed_price_advanced_section(html)
+    stats = _reviewed_stats_block(section)
+
+    # Numeric median row renders: the exact 4A sample median of
+    # {90.00, 100.00, 110.00} is 100.00 (it appears exactly once in the
+    # statistics block: Low=90.00, High=110.00 are the other two).
+    assert "<dt>Median</dt>" in stats
+    assert stats.count("USD 100.00") == 1
+    # Observed market range remains; no small-sample notice.
+    collapsed = " ".join(section.split())
+    assert "<strong>Observed market range:</strong>" in section
+    assert "USD 90.00 — USD 110.00" in collapsed
+    assert "Sample size is too small" not in section
+
 # ---------------------------------------------------------------------------
 # B3 end-to-end: auto-included HIGH SKU row + inline remove/restore
 # ---------------------------------------------------------------------------

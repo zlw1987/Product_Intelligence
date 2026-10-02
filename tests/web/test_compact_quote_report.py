@@ -350,6 +350,29 @@ def _detail_url(run: ResearchRun) -> str:
     return reverse("research-detail", kwargs={"run_id": run.id})
 
 
+def _price_intelligence_advanced_section(html: str) -> str:
+    """The rendered Advanced Evidence & Audit — Price intelligence
+    details block (the detailed stored-report region, distinct from the
+    frozen B2/B3 Quote & Market Summary)."""
+    marker = "Advanced Evidence & Audit — Price intelligence"
+    start = html.index(marker)
+    end = html.index("</details>", start)
+    return html[start:end]
+
+
+def _bucket_stats_block(section: str) -> str:
+    """The first bucket statistics <dl> in *section*."""
+    import re
+
+    match = re.search(
+        r"<h3>(?:Comparable price group|Price group: [^<]*)</h3>\s*<dl>(.*?)</dl>",
+        section,
+        re.S,
+    )
+    assert match is not None, "bucket statistics block not found in section"
+    return match.group(1)
+
+
 def _get(client: Client, url: str, remote_addr: str) -> "object":
     return client.get(url, REMOTE_ADDR=remote_addr)
 
@@ -623,7 +646,11 @@ class TestAuthorizedVendorTable:
         # --- Existing detailed report sections remain ---
         assert "Price aggregation status:" in html
         assert "VERIFIED" in html
-        assert "Median" in html
+        # FU1: a sub-3 bucket publishes no numeric Median row in the
+        # detailed Advanced Evidence section; the stored bucket evidence
+        # (Low/High) still renders there.
+        section = _price_intelligence_advanced_section(html)
+        assert "EUR 1500.00" in section
 
     def test_authorized_context_contains_vendor_rows(self) -> None:
         run = _create_quote_run()
@@ -816,7 +843,10 @@ class TestDeniedPathNeverTouchesSupplement:
         # Existing detailed public report still renders
         assert "Price aggregation status:" in html
         assert "VERIFIED" in html
-        assert "Median" in html
+        # FU1: sub-3 bucket -> no numeric Median row in the detailed
+        # section; the stored Low/High value still renders there.
+        section = _price_intelligence_advanced_section(html)
+        assert "EUR 1500.00" in section
         assert "Quote & Market Summary unavailable." not in html
 
 
@@ -859,7 +889,10 @@ class TestDeniedPublicTable:
 
         # Detailed public report renders normally
         assert "Price aggregation status:" in html
-        assert "Median" in html
+        # FU1: sub-3 bucket -> no numeric Median row in the detailed
+        # section; the stored Low/High value still renders there.
+        section = _price_intelligence_advanced_section(html)
+        assert "EUR 1500.00" in section
 
     def test_denied_security_boolean_is_not_row_hiding_mechanism(self) -> None:
         """The DENIED template context contains no vendor display rows at
@@ -998,9 +1031,30 @@ class TestErrorBehavior:
         assert "Quote & Market Summary unavailable." in html
         assert "USD Equivalent" not in html
         assert "€1,500.00 EUR" not in html.split("Quote & Market Summary")[-1].split("Price intelligence")[0]
-        # Detailed existing report still renders
-        assert "Price aggregation status:" in html
-        assert "Median" in html
+        # Detailed existing report still renders — scoped to the Advanced
+        # Evidence & Audit — Price intelligence section (FU1: the bare
+        # page-global "Median" assertion is obsolete below 3 observations;
+        # the count-1 bucket's numeric median is presentation-suppressed
+        # while the stored snapshot still renders its frozen evidence).
+        section = _price_intelligence_advanced_section(html)
+        assert "Price aggregation status:" in section
+        assert "VERIFIED" in section
+        stats = _bucket_stats_block(section)
+        assert "<dt>Observations</dt>" in stats
+        assert "<dd>1</dd>" in stats
+        # The stored price value is still published as Low and High —
+        # exactly twice, never as a third Median entry.
+        assert stats.count("EUR 1500.00") == 2
+        assert "<dt>Median</dt>" not in stats
+        assert "<dt>Confidence</dt>" in stats
+        assert "<dd>LOW</dd>" in stats
+        # The truthful small-sample explanation renders in the section.
+        collapsed = " ".join(section.split())
+        assert (
+            "Sample size is too small (1 observation) to establish an "
+            "observed market range."
+        ) in collapsed
+        assert "<strong>Observed market range:</strong>" not in section
         # No sensitive payload / error text in HTML
         for forbidden in (
             "SupplementCodecError",
