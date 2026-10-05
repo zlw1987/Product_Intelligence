@@ -469,17 +469,29 @@ class TestExactMpnRecallEndToEnd:
 
 
 # ---------------------------------------------------------------------------
-# 3. Provider-level cap: the Serper adapter requests the larger organic
-#    page and maps every returned item (no client-side truncation)
+# 3. Serper wire contract: the request carries ONLY the query text (no
+#    explicit result-count parameter — PUBLIC-RESEARCH-RECALL-FU2) and the
+#    adapter maps every returned organic item (no client-side truncation)
 # ---------------------------------------------------------------------------
 
 
 class TestSerperProviderRecallPage:
-    def test_wire_body_requests_the_documented_organic_page(
+    def test_wire_body_carries_only_the_query_text_without_result_count(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """One paid request; the wire body asks for the larger organic page
-        (50), not the provider default (10)."""
+        """One paid request; the wire body carries ONLY the exact query
+        text (FU1's `num=50` wire-body pin replaced in place — the
+        correction authorized by production provider evidence, FU2).
+
+        The production Serper account rejects an explicit `num`
+        result-count override on this request (HTTP 400, "Query pattern
+        not allowed for free accounts"), while the identical exact-quoted-
+        MPN query WITHOUT `num` returns HTTP 200 with exact-MPN evidence.
+        The provider's default organic result count therefore applies. The
+        complete-payload pin asserts the exact query text AND the absence
+        of every other field — no count, no pagination, no retry
+        parameter.
+        """
         from product_intelligence.providers import serper
 
         captured: dict = {}
@@ -505,10 +517,10 @@ class TestSerperProviderRecallPage:
         )
         provider = serper.SerperSearchProvider("k")
         provider.search(SearchQuery(text=f'"{PRODUCTION_MPN}"'))
-        assert json.loads(captured["body"].decode("utf-8")) == {
-            "q": f'"{PRODUCTION_MPN}"',
-            "num": 50,
-        }
+        payload = json.loads(captured["body"].decode("utf-8"))
+        assert payload["q"] == f'"{PRODUCTION_MPN}"'
+        assert "num" not in payload
+        assert payload == {"q": f'"{PRODUCTION_MPN}"'}
 
     def test_adapter_maps_every_returned_organic_item(
         self, monkeypatch: pytest.MonkeyPatch

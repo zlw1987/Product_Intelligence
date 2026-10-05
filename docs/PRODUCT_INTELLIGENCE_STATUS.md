@@ -2,8 +2,142 @@
 
 ## Current state
 
+**PRODUCT-INTEL.PUBLIC-RESEARCH-RECALL-FU2 (Serper wire-contract
+compatibility correction) — IMPLEMENTED / PENDING FINAL REVIEW**
+
+Bounded production-runtime compatibility correction to the approved /
+deployed FU1 (canonical spec: PLAN §26.20), on the authoritative starting
+SHA `2326d1d62738801598f8b52143d59b0bcdc86819` (baseline collection
+5838). Transport/retrieval compatibility only: the ONLY production change
+is the Serper request wire body. Nothing changes any identity, pricing,
+vendor, semantic, human-review, comparable, FX, cache, or replay
+authority.
+
+After FU1 deployment, production request `f123617a-f467-4b0c-8302-
+4272a108dd9f` (MPN `MTC20F2085S1RC64BH1T`, description `Micron 32GB
+DDR5-6400 ECC 2Rx8 RDIMM CL52 Tray`) FAILED at the search step
+(`PROVIDER_ERROR`). Persisted execution evidence shows FU1 working as
+designed up to the provider call: the exact requested MPN was a first-
+class exact-phrase search query, and the Micron 7500 SSD alias policy was
+NOT_APPLICABLE ("request description explicitly establishes a
+memory-module product; Micron 7500 SSD catalog policy does not apply")
+with zero catalog fetches — the FU1 applicability gate is production-
+validated and MUST NOT be changed by this phase. Controlled production
+probes of `POST https://google.serper.dev/search` on the current
+production account established the root cause:
+
+* Probe A — `{"q": "\"MTC20F2085S1RC64BH1T\"", "num": 50}` => HTTP 400
+  `{"message": "Query pattern not allowed for free accounts.",
+  "statusCode": 400}`.
+* Probe B — `{"q": "\"MTC20F2085S1RC64BH1T\""}` (same exact quoted MPN,
+  WITHOUT `num`) => HTTP 200, with exact-MPN evidence in the organic
+  results (first result: CDW, snippet including `Mfg #
+  MTC20F2085S1RC64BH1T`).
+
+Root cause: the explicit `num=50` result-count parameter introduced by
+FU1 is incompatible with the current production Serper account; the exact
+quoted MPN query itself is supported and useful.
+
+Delivered:
+
+* **Wire body is query text only** — `providers/serper.py` (the ONLY
+  production file changed): the ordinary Serper request body again
+  contains only `{"q": query.text}`; the provider's default organic
+  result count applies. `DEFAULT_ORGANIC_RESULT_COUNT` removed; no dead
+  constant, no misleading documentation. NO replacement value (e.g. 10),
+  NO other explicit result-count parameter, NO pagination, NO second
+  Serper call, NO retry behavior, NO account-tier detection, NO catch-and-
+  silent-retry of the HTTP 400.
+* **FU1 retrieval behavior remains** — `build_search_query(...)` still
+  produces the exact quoted requested MPN as the entire paid query for an
+  MPN + description request (the description is NOT re-added); MPN-only
+  and description-only forms unchanged; the 4D-D alias-expanded query
+  shape unchanged; the adapter still maps EVERY returned organic item
+  (response contract preserved and test-pinned).
+* **Identity/alias authority remains production-validated** — the
+  production MPN classifies the Micron 7500 SSD alias policy
+  NOT_APPLICABLE with zero catalog fetches when the description
+  establishes DDR5/RDIMM/memory-module identity; generic pages with no
+  explicit requested-MPN evidence are still rejected
+  (NO_EXPLICIT_MPN_EVIDENCE); explicit conflicting MPN evidence is still
+  rejected (MPN_MISMATCH); a stripped-base page is not an exact
+  requested-MPN match merely because the requested MPN ends in T; no
+  RDIMM packaging alias policy invented, no T-suffix authority
+  established.
+
+Test preservation: no test deleted, skipped, xfailed, deselected, or
+ignored; no safety/authority assertion weakened. Exactly one FU1-added
+node — the wire-body `num=50` pin in
+`tests/execution/test_public_research_recall.py` (`TestSerperProvider
+RecallPage.test_wire_body_requests_the_documented_organic_page`) — was
+replaced in place (same class, same position, still collected; the old
+name encoded the invalidated contract) with
+`test_wire_body_carries_only_the_query_text_without_result_count`, which
+pins the complete wire payload `payload == {"q": "<exact-MPN phrase>"}`
+AND the explicit absence `"num" not in payload` — the contract
+correction authorized by the production provider evidence (PLAN §26.20
+item 2). The credential wire-body node in
+`tests/providers/test_serper_provider.py`
+(`test_search_sends_the_credential_in_a_header_never_in_the_url`) was
+corrected in place: FU1's `num` pin replaced by the same complete-payload
++ `"num"`-absence pins (credential contract — header, never URL, never
+body — preserved; import of the removed constant dropped). The companion
+50-item response-mapping node (`test_adapter_maps_every_returned_
+organic_item`) is preserved UNCHANGED: it proves the response contract
+(map every returned organic item), independent of the request parameter.
+All other FU1 recall, alias, codec, and presentation nodes are
+unchanged.
+
+Validation (this session, candidate pass — final approval remains with
+ChatGPT after independent GitHub review):
+
+* Collection baseline at `2326d1d`: **5838**; final: **5838** (the
+  FU1 wire-body node was replaced in place — no node added, removed,
+  renamed to avoid collection, or deselected).
+* Focused:
+  `tests/providers/test_serper_provider.py` -> **36 passed, 0
+  failed**; `tests/execution/test_public_research_recall.py` ->
+  **13 passed, 0 failed** (combined run **49 passed**); execution/
+  orchestration + 4D-D + 4C-B + Micron alias batch (`test_execution_
+  orchestration.py`, `test_execution_orchestration_duplicates.py`,
+  `test_4d_d_orchestration.py`, `test_4d_d_fu1_real_adapter.py`,
+  `test_4c_b_corrective_pass.py`, `test_micron_alias_authority.py`,
+  `tests/research/test_micron_packaging_alias.py`,
+  `tests/research/test_micron_alias_codec.py`,
+  `tests/web/test_micron_alias_report.py`,
+  `tests/web/test_micron_alias_presentation.py`,
+  `tests/runs/test_micron_alias_snapshot.py`) -> **386 passed, 0
+  failed**; full `tests/providers/` directory -> **831 passed, 3
+  failed** where the 3 failures are exclusively the documented
+  pre-existing Windows/Python-3.14 clean-interpreter subprocess flake
+  class (`subprocess.Popen -> OSError: [WinError 6] The handle is
+  invalid` / `[WinError 50] The request is not supported`):
+  `test_provider_boundaries.py::test_importing_the_provider_boundary_
+  pulls_in_no_third_party_dependency`,
+  `::test_importing_the_page_boundary_pulls_in_no_third_party_
+  dependency`, `::test_http_pdf_imports_no_third_party_dependency`
+  — all three reproduced identically on the pristine starting SHA in a
+  throwaway worktree (not caused by FU2) and all re-passed on isolated
+  retry (146/146 in the file).
+* Full suite: **5838 collected, 5838 passed, 39 subtests passed, 0
+  failed, 0 errors, 0 skipped, 0 xfailed, 0 deselected** (a clean
+  consecutive run; the flake class did not manifest in it).
+* `python manage.py check`: System check identified no issues (0
+  silenced). `python manage.py makemigrations --check --dry-run`: No
+  changes detected.
+* No live Serper call was made by the automated suite (the wire contract
+  is proven at the real adapter request-construction boundary with
+  `urllib.request.urlopen` monkeypatched); no production credentials
+  were used.
+
+No deployment performed in this commit; production does not move until
+independently reviewed approval.
+
 **PRODUCT-INTEL.PUBLIC-RESEARCH-RECALL-FU1 (Production-priority
-Exact-MPN Recall Defect) — IMPLEMENTED / PENDING FINAL REVIEW**
+Exact-MPN Recall Defect) — IMPLEMENTED / APPROVED / DEPLOYED** (runtime
+SHA `2326d1d62738801598f8b52143d59b0bcdc86819`; the Serper wire contract
+it introduced — explicit `num=50` — was corrected by FU2, PLAN §26.20,
+see the FU2 section above)
 
 Bounded production-priority corrective follow-up on the approved /
 frozen / deployed starting SHA `2b66ac65fbce86adcd4218dfefe1a5c7349128e4`
@@ -62,13 +196,16 @@ human-review/comparable/FX/cache/replay authority):
   without the MPN can only ever be REJECTED. The frozen 4D-D
   alias-expanded query shape is unchanged. No second paid search; the
   frozen 4C one-paid-call-per-run claim contract is untouched.
-* **Adapter-internal recall page** — `providers/serper.py`:
-  `DEFAULT_ORGANIC_RESULT_COUNT = 50` (value test-locked) is requested in
-  the wire body alongside `q`. The provider-neutral `SearchQuery` contract
-  has no result limit (frozen 2B); the page size is a vendor
-  payload-shape decision owned by the adapter. One request per run
-  (unchanged); the adapter maps every returned organic item; orchestration
-  processes every result (no client-side candidate cap exists).
+* **Adapter-internal recall page — CORRECTED BY FU2** —
+  `providers/serper.py`: at FU1 time, `DEFAULT_ORGANIC_RESULT_COUNT = 50`
+  (value test-locked) was requested in the wire body alongside `q`. FU2
+  (PLAN §26.20) removed the explicit `num` parameter after the
+  production Serper account rejected it (HTTP 400, "Query pattern not
+  allowed for free accounts"; the identical query without `num` returns
+  HTTP 200): the wire body is again `{"q": query.text}` only, the
+  provider's default organic count applies, and the adapter still maps
+  every returned organic item. One request per run (unchanged); the
+  frozen 4C one-paid-call-per-run claim contract is untouched.
 * **NOT_APPLICABLE policy applicability gate** —
   `research/micron_packaging_alias.py` +
   `execution/micron_alias_authority.py`: a new bounded pre-fetch
@@ -112,7 +249,9 @@ orchestration pipeline; 11-broad + exact-last large page survives; generic
 `Micron 32GB DDR5` pages still REJECTED NO_EXPLICIT_MPN_EVIDENCE;
 conflicting explicit MPNs (incl. the T-stripped base form) still REJECTED
 MPN_MISMATCH; title-only pages never acquire identity; Serper wire body
-`num=50`; adapter maps a 50-item page in full; NOT_APPLICABLE with zero
+query-text-only with NO explicit result-count parameter (FU1's `num=50`
+wire-body pin corrected by FU2, PLAN §26.20); adapter maps a 50-item
+response page in full; NOT_APPLICABLE with zero
 catalog fetches; priority over INVALID_LOOKUP_BASE; legitimate 7500 SSD
 ESTABLISHED behavior and non-Micron SSD NO_AUTHORITY_MATCH behavior
 intact), `tests/research/test_micron_packaging_alias.py` (17 — vocabulary
@@ -129,8 +268,10 @@ MPN phrase form; the 4D-D contracts under test — ONE bounded authority
 fetch, audit persisted before the search, exactly ONE search, bounded
 status — unchanged), and
 `test_search_sends_the_credential_in_a_header_never_in_the_url` (wire-body
-assertion now `{"q": ..., "num": 50}` — credential contract preserved and
-the recall page size value-locked).
+assertion pinned `{"q": ..., "num": 50}` at FU1 time — credential contract
+preserved and the recall page size value-locked; corrected by FU2 to the
+query-text-only wire body with an explicit `"num"`-absence pin, PLAN
+§26.20).
 
 Validation (this session, candidate pass — final approval remains with
 ChatGPT after independent GitHub review):
@@ -2023,7 +2164,8 @@ FU3B wires the frozen FU3A semantic runtime into real research execution:
 | PILOT-RELEASE-2-PROD-FIX1-FU1 | Bounded review-blocker closure (vendor hybrid production-wire fidelity + section-scanner consistency, human-confirmed authority ownership at the replay boundary, ECB evidence correction, Reviewed Price wording accuracy) | **IMPLEMENTED / FINAL REVIEW BLOCKER CORRECTED BY FU2 / PENDING FINAL REVIEW** (no deployment in this commit; canonical spec PLAN §26.11) |
 | PILOT-RELEASE-2-PROD-FIX1-FU2 | Final review-blocker closure (public/denied historical replay binds to the run's own persisted PriceIntelligenceSnapshot; caller-supplied price results removed as an authority input) | **IMPLEMENTED / PENDING FINAL REVIEW** (no deployment in this commit; canonical spec PLAN §26.12) |
 | PILOT-RELEASE-2-PROD-FIX1-FU3 | Bounded production defect closure (vendor section scanner: exact observed `<p>` paragraph-prefix envelope — narrow literal, NOT a generic HTML parser) | **IMPLEMENTED / PENDING FINAL REVIEW** (no deployment in this commit; canonical spec PLAN §26.13) |
-| PUBLIC-RESEARCH-RECALL-FU1 | Production-priority exact-MPN recall defect (exact-MPN first-class retrieval query; adapter recall page `num=50`; Micron 7500 SSD policy NOT_APPLICABLE applicability gate) | **IMPLEMENTED / PENDING FINAL REVIEW** (no deployment in this commit; canonical spec PLAN §26.19; baseline 5802 collected) |
+| PUBLIC-RESEARCH-RECALL-FU1 | Production-priority exact-MPN recall defect (exact-MPN first-class retrieval query; adapter recall page — `num=50` at FU1 time, corrected by FU2; Micron 7500 SSD policy NOT_APPLICABLE applicability gate) | **IMPLEMENTED / APPROVED / DEPLOYED** (runtime SHA 2326d1d62738801598f8b52143d59b0bcdc86819; canonical spec PLAN §26.19; baseline 5802 collected; Serper wire contract corrected by FU2, PLAN §26.20) |
+| PUBLIC-RESEARCH-RECALL-FU2 | Serper wire-contract compatibility correction (explicit `num=50` result-count parameter removed; wire body `{"q": ...}` only; provider default organic count; all FU1 retrieval/identity/alias behavior unchanged) | **IMPLEMENTED / PENDING FINAL REVIEW** (no deployment in this commit; canonical spec PLAN §26.20; baseline 5838 collected) |
 | 8A-PRE | Caching & Freshness Architecture Audit | **APPROVED / COMPLETE** (design audit delivered; READ-ONLY phase, no caching implementation; record: `docs/PRODUCT_INTEL_8A_PRE_CACHING_FRESHNESS_AUDIT.md`) |
 | 8A-FX-DESIGN | FX cache lookup identity & freshness design | **APPROVED / COMPLETE** (design record; superseded where corrected by FU1; `docs/PRODUCT_INTEL_8A_FX_DESIGN.md`) |
 | 8A-FX-DESIGN-FU1 | Freshness proof & canonical-feed eligibility closure | **APPROVED / FROZEN as design** (corrects the same-UTC-day proof window and the isinstance feed gate; `docs/PRODUCT_INTEL_8A_FX_DESIGN_FU1.md`) |

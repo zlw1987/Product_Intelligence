@@ -33,7 +33,6 @@ from product_intelligence.providers.search import (
 )
 from product_intelligence.providers.serper import (
     DEFAULT_ENDPOINT,
-    DEFAULT_ORGANIC_RESULT_COUNT,
     PROVIDER_ID,
     SERPER_API_KEY_ENV_VAR,
     SerperSearchProvider,
@@ -370,18 +369,19 @@ def test_search_sends_the_credential_in_a_header_never_in_the_url(
         next(n for n in captured["headers"] if n.lower() == "x-api-key")
     ] == "secret-key-123"
     assert b"secret-key-123" not in captured["body"]
-    # The wire body carries the query text and the adapter-internal organic
-    # page size (PUBLIC-RESEARCH-RECALL-FU1): the provider-neutral query
-    # contract has no result limit, so the requested page size is a
-    # vendor payload-shape decision owned by this adapter. The value is
-    # locked explicitly (recall policy, not an implementation detail):
-    # one paid request, the larger documented organic page (50), never the
-    # provider's default 10-result page (see the recorded 2C fixture).
-    assert DEFAULT_ORGANIC_RESULT_COUNT == 50
-    assert json.loads(captured["body"].decode("utf-8")) == {
-        "q": "MZ-QL23T800",
-        "num": DEFAULT_ORGANIC_RESULT_COUNT,
-    }
+    # The wire body carries ONLY the query text (credential contract
+    # preserved; PUBLIC-RESEARCH-RECALL-FU2 contract correction): the
+    # provider's default organic result count applies and NO explicit
+    # result-count parameter is sent — the production Serper account
+    # rejects an explicit `num` override on this request (HTTP 400, "Query
+    # pattern not allowed for free accounts"; the identical query without
+    # `num` returns HTTP 200). The complete-payload pin below asserts both
+    # the exact query text and the ABSENCE of every other field, so a
+    # reintroduced count, pagination, or retry parameter fails here.
+    payload = json.loads(captured["body"].decode("utf-8"))
+    assert payload["q"] == "MZ-QL23T800"
+    assert "num" not in payload
+    assert payload == {"q": "MZ-QL23T800"}
     assert response.results == ()
 
 

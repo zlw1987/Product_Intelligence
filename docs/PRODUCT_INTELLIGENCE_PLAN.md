@@ -6407,8 +6407,8 @@ inventories in `test_provider_boundaries.py`,
 / replay / boundary / authority suites unmodified and green.
 
 ### 26.19 PUBLIC-RESEARCH-RECALL-FU1: Production-priority exact-MPN recall
-defect + Micron 7500 SSD policy applicability (IMPLEMENTED / PENDING FINAL
-REVIEW)
+defect + Micron 7500 SSD policy applicability (IMPLEMENTED / APPROVED /
+DEPLOYED; Serper wire contract corrected by §26.20)
 
 Production-priority corrective follow-up on the approved / frozen /
 deployed starting SHA `2b66ac65fbce86adcd4218dfefe1a5c7349128e4`. Two
@@ -6468,7 +6468,14 @@ search per ResearchRun). Because the paid query is MPN-first, results
 beyond the provider default are further exact-MPN candidates, not
 description noise. The adapter maps every returned organic item (no
 client-side truncation), and orchestration processes every result (no
-candidate cap).
+candidate cap). CORRECTED BY FU2 (§26.20): the explicit `num = 50`
+parameter was rejected by the production Serper account (HTTP 400, "Query
+pattern not allowed for free accounts") while the identical exact-quoted-
+MPN query without it succeeds (HTTP 200); the wire body again carries
+only `q`, the provider's default organic count applies, and the adapter
+still maps every returned organic item. The exact-MPN phrase query (item
+2) and the NOT_APPLICABLE applicability gate (item 4) remain deployed and
+unchanged.
 
 **4. Micron 7500 SSD policy applicability (NOT_APPLICABLE).** The 4D-D v1
 policy is Micron 7500 SSD ONLY, but acquisition previously ran for EVERY
@@ -6508,7 +6515,8 @@ change.
 
 **6. Files.** Production: `execution/search_query.py` (exact-MPN phrase
 query for explicit-MPN requests; MPN-only/description-only unchanged),
-`providers/serper.py` (adapter-internal `num=50` organic page),
+`providers/serper.py` (adapter-internal `num=50` organic page at the
+time; corrected by §26.20 to a query-text-only wire body),
 `research/micron_packaging_alias.py` (bounded non-SSD vocabulary +
 `find_non_ssd_category_evidence`; `NOT_APPLICABLE` status + contract
 invariants), `execution/micron_alias_authority.py` (pre-fetch
@@ -6525,8 +6533,8 @@ preserved/strengthened, none deleted/renamed/skipped): the 4C-B
 `test_mpn_plus_description_query` and the three 4D-D bounded-authority
 ordinary-query assertions (now the exact-MPN phrase form; the 4D-D
 authority/snapshot/single-search/firewall contracts unchanged) and the
-Serper wire-body assertion (now pins `num=50` alongside the credential
-contract).
+Serper wire-body assertion (pinned `num=50` alongside the credential
+contract at the time; corrected by §26.20).
 
 **7. Explicit non-fixes.** No second paid search per run. No identity-
 threshold change. No semantic-override of explicit identity conflicts.
@@ -6538,3 +6546,82 @@ exact-MPN / memory-class rules). No memory-catalog alias mechanism is
 invented: if a Micron RDIMM packaging relationship ever requires authority
 it needs its own reviewed manufacturer-source evidence and policy, out of
 scope here.
+
+### 26.20 PUBLIC-RESEARCH-RECALL-FU2: Serper wire-contract compatibility
+correction (IMPLEMENTED / PENDING FINAL REVIEW)
+
+Production-runtime compatibility correction to the approved / deployed
+§26.19 (FU1), on the authoritative starting SHA `2326d1d62738801598f8b52143d59b0bcdc86819`
+(baseline collection 5838). Transport/retrieval compatibility ONLY: the
+correction touches the Serper request wire body. Nothing in this section
+changes identity, pricing, vendor, semantic, human-review, comparable,
+FX, cache, replay, or authority behavior.
+
+**1. Production evidence and root cause.** After FU1 deployment,
+production request `f123617a-f467-4b0c-8302-4272a108dd9f` (MPN
+`MTC20F2085S1RC64BH1T`, description `Micron 32GB DDR5-6400 ECC 2Rx8 RDIMM
+CL52 Tray`) failed at the search step (`PROVIDER_ERROR`). Persisted
+execution evidence shows FU1 working as designed up to the provider call:
+the exact requested MPN was issued as a first-class exact-phrase search
+query, and the Micron 7500 SSD alias policy was classified
+NOT_APPLICABLE ("request description explicitly establishes a
+memory-module product; Micron 7500 SSD catalog policy does not apply")
+with zero catalog fetches. Controlled production probes of
+`POST https://google.serper.dev/search` on the current production account
+then established the root cause:
+
+* Probe A — `{"q": "\"MTC20F2085S1RC64BH1T\"", "num": 50}` => HTTP 400
+  `{"message": "Query pattern not allowed for free accounts.",
+  "statusCode": 400}`.
+* Probe B — `{"q": "\"MTC20F2085S1RC64BH1T\""}` (same exact quoted MPN,
+  WITHOUT `num`) => HTTP 200, with exact-MPN evidence in the organic
+  results (first result: CDW, snippet including `Mfg #
+  MTC20F2085S1RC64BH1T`).
+
+The exact quoted MPN query is therefore supported and useful; the
+explicit `num` result-count parameter introduced by FU1 is the sole
+incompatibility with the current production Serper account.
+
+**2. Correction (binding, narrowest possible).** The ordinary Serper
+request body carries ONLY the query text: `{"q": query.text}`. The
+provider's default organic result count applies. NO replacement value
+(e.g. 10), NO other explicit result-count parameter, NO pagination, NO
+second Serper call, NO retry behavior, NO account-tier detection, and NO
+catch-and-silent-retry of the HTTP 400: the request contract itself
+stops sending the incompatible parameter. `DEFAULT_ORGANIC_RESULT_COUNT`
+is removed; no dead constant and no documentation claiming an explicit
+50-result request remains in the adapter.
+
+**3. Unchanged (re-proven by the preserved §26.19 regression suite).** The
+exact-MPN phrase paid query for explicit-MPN requests (§26.19 item 2;
+MPN-only and description-only forms byte-identical); the frozen 4D-D
+alias-expanded query shape; the adapter's mapping of EVERY returned
+organic item (response contract, independent of any request parameter);
+frozen 3C identity gates (generic no-MPN evidence rejected
+NO_EXPLICIT_MPN_EVIDENCE; explicit conflicting MPN rejected MPN_MISMATCH;
+the T-stripped base form remains ONLY whatever bounded retrieval /
+diagnostic pointer §26.19 already permits, never identity authority);
+the NOT_APPLICABLE applicability gate with zero Micron 7500 catalog
+fetches for established memory-module requests; legitimate 7500 SSD
+ESTABLISHED and non-Micron SSD NO_AUTHORITY_MATCH behavior; and every
+§26.19 item 5 authority invariant.
+
+**4. Files.** Production: `providers/serper.py` ONLY (constant removed;
+wire body `{"q": query.text}`; docstrings corrected to record the
+production-account compatibility constraint). Tests:
+`tests/providers/test_serper_provider.py` (the credential wire-body node
+corrected in place — FU1's `num` pin replaced by the complete-payload
+`{"q": ...}` pin plus an explicit `"num"`-absence pin; the credential
+contract — header, never URL, never body — preserved; import of the
+removed constant dropped) and `tests/execution/test_public_research_
+recall.py` (the FU1 wire-body `num=50` node replaced in place with the
+corrected contract — exact query text, complete payload, explicit
+`"num"` absence — same class, same position, still collected; the
+companion 50-item response-mapping node preserved unchanged). Docs: this
+section + STATUS.
+
+**5. Explicit non-fixes.** No Serper account upgrade as part of this
+correction; no retry/fallback on HTTP 400; no result-count negotiation;
+no change to any identity, pricing, vendor, semantic, human-review,
+comparable, FX, cache, or replay authority; no model or migration
+change.
