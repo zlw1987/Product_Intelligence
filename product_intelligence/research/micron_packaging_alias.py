@@ -42,6 +42,7 @@ corruption of the document it was asked to read raises
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
@@ -109,6 +110,41 @@ manufacturers, families, or suffix sets.
 
 SSD_EVIDENCE_ATTR_ID: Final[str] = "is-ssd"
 """The catalog attribute id that carries the structured SSD flag."""
+
+
+#: Request-side NON-SSD category evidence (v1 policy applicability gate).
+#:
+#: The reviewed v1 policy applies to the Micron 7500 SSD family ONLY. A
+#: request whose description explicitly establishes the product as a memory
+#: module (DIMM/DRAM class) cannot be a member of that family, so the
+#: policy is NOT_APPLICABLE to the request BEFORE any catalog lookup is
+#: attempted (PRODUCT-INTEL.PUBLIC-RESEARCH-RECALL-FU1).
+#:
+#: These terms are the only request-side evidence the gate uses: a bounded,
+#: recorded vocabulary of unambiguous memory-module class terms, matched as
+#: standalone ASCII tokens (case-insensitive, not embedded in a longer
+#: alphanumeric run). No other request-side signal (manufacturer wording,
+#: MPN prefix, capacity, speed, anything else) participates — the gate is a
+#: NEGATIVE applicability filter only. It establishes no manufacturer, no
+#: category, no identity, and no pricing authority for anything; it merely
+#: abstains from consulting the SSD catalog. A description carrying no such
+#: term leaves applicability unresolved and the catalog lookup proceeds
+#: exactly as before — the catalog remains the only POSITIVE authority.
+MICRON_7500_NON_SSD_CATEGORY_EVIDENCE: Final[frozenset[str]] = frozenset(
+    {
+        "DIMM",
+        "RDIMM",
+        "UDIMM",
+        "SODIMM",
+        "LPCAMM",
+        "LPCAMM2",
+        "DRAM",
+        "DDR2",
+        "DDR3",
+        "DDR4",
+        "DDR5",
+    }
+)
 
 
 # ---------------------------------------------------------------------------
@@ -405,6 +441,49 @@ def derive_lookup_base_candidate(mpn: str | None) -> str | None:
 
 
 # ---------------------------------------------------------------------------
+# Request-side non-SSD category evidence (v1 policy applicability gate)
+# ---------------------------------------------------------------------------
+
+
+def find_non_ssd_category_evidence(description: str | None) -> tuple[str, ...]:
+    """Deterministic request-side applicability evidence for the v1 policy.
+
+    Scans the request description for the bounded vocabulary of explicit
+    memory-module class terms (``MICRON_7500_NON_SSD_CATEGORY_EVIDENCE``).
+    A term counts only as a standalone ASCII token: case-insensitive, and
+    not embedded in a longer alphanumeric run (``DDR5-6400`` counts for
+    ``DDR5``; ``XDDR5Y`` and ``DIMMed`` do not; ``dimm`` counts for
+    ``DIMM``).
+
+    Returns the sorted tuple of matched vocabulary terms (canonical
+    spelling), or an empty tuple when the description carries no explicit
+    non-SSD category evidence.
+
+    This is a NEGATIVE applicability filter only (see the vocabulary
+    comment): non-empty return means "the request explicitly establishes a
+    memory-module product, so the Micron 7500 SSD policy is NOT_APPLICABLE
+    and no catalog lookup is attempted". It never establishes manufacturer,
+    category, identity, or pricing authority, and it never converts any
+    comparison to a match.
+    """
+    if description is None:
+        return ()
+    if not isinstance(description, str):
+        raise TypeError(
+            f"description must be a string or None, got {type(description).__name__}"
+        )
+    if not description:
+        return ()
+    found: set[str] = set()
+    for term in MICRON_7500_NON_SSD_CATEGORY_EVIDENCE:
+        if re.search(
+            rf"(?<![A-Za-z0-9]){term}(?![A-Za-z0-9])", description, re.IGNORECASE
+        ):
+            found.add(term)
+    return tuple(sorted(found))
+
+
+# ---------------------------------------------------------------------------
 # Packaging alias relation (customer-defined retrieval metadata)
 # ---------------------------------------------------------------------------
 
@@ -606,22 +685,30 @@ class MicronAliasEligibilityStatus(str, Enum):
     relation. Every other status is a bounded abstention or failure: no
     alias relation, no authority, no query or pricing behavior change.
 
-    The two pre-fetch abstentions are distinct persisted audit states and
+    The three pre-fetch abstentions are distinct persisted audit states and
     must never be conflated:
 
     * NO_REQUESTED_MPN — the request MPN is actually absent/empty. There
       is no input to derive a lookup base from.
+    * NOT_APPLICABLE — the request MPN is present, but the request
+      description explicitly establishes the product as a memory module
+      (DIMM/DRAM class, bounded vocabulary). The reviewed v1 policy is
+      Micron 7500 SSD ONLY, so it does not apply to this request and no
+      catalog lookup is attempted. Distinct from NO_REQUESTED_MPN (missing
+      input) and INVALID_LOOKUP_BASE (structurally unusable input):
+      NOT_APPLICABLE is a policy-scope abstention on a valid input.
     * INVALID_LOOKUP_BASE — the request MPN is non-empty but structurally
       unusable under the v1 customer rule (e.g. "-R" / "-T" / "R":
       stripping the final uppercase suffix leaves no content-bearing base).
       This is an invalid structural input, not a missing input.
 
-    Both perform zero fetches. Every other status is a bounded acquisition
-    outcome (fetch attempted or not) with no authority.
+    All three perform zero fetches. Every other status is a bounded
+    acquisition outcome (fetch attempted or not) with no authority.
     """
 
     ESTABLISHED = "ESTABLISHED"
     NO_REQUESTED_MPN = "NO_REQUESTED_MPN"
+    NOT_APPLICABLE = "NOT_APPLICABLE"
     INVALID_LOOKUP_BASE = "INVALID_LOOKUP_BASE"
     NO_AUTHORITY_MATCH = "NO_AUTHORITY_MATCH"
     AMBIGUOUS_AUTHORITY_MATCH = "AMBIGUOUS_AUTHORITY_MATCH"
@@ -646,6 +733,7 @@ _FETCHED_STATES = frozenset(
 _NO_FETCH_STATES = frozenset(
     {
         MicronAliasEligibilityStatus.NO_REQUESTED_MPN,
+        MicronAliasEligibilityStatus.NOT_APPLICABLE,
         MicronAliasEligibilityStatus.INVALID_LOOKUP_BASE,
         MicronAliasEligibilityStatus.FETCH_FAILED,
         MicronAliasEligibilityStatus.SOURCE_REFUSED,
@@ -944,6 +1032,31 @@ class MicronAliasEligibilityResult:
                 if self.requested_source_url is not None:
                     raise ValueError(
                         "NO_REQUESTED_MPN must not carry fetch provenance"
+                    )
+            elif self.status is MicronAliasEligibilityStatus.NOT_APPLICABLE:
+                # Policy-scope abstention: the request explicitly establishes
+                # a non-SSD memory-module product, so the v1 (Micron 7500
+                # SSD ONLY) policy does not apply. A distinct persisted
+                # state, never conflated with missing/structurally unusable
+                # input. The applicability evidence must re-derive from the
+                # stored request description (bounded vocabulary, standalone
+                # tokens); a payload relabeled NOT_APPLICABLE without that
+                # evidence fails closed.
+                if not self.request.manufacturer_part_number:
+                    raise ValueError(
+                        "NOT_APPLICABLE requires a non-empty request MPN; an "
+                        "absent/empty MPN is NO_REQUESTED_MPN"
+                    )
+                if not find_non_ssd_category_evidence(self.request.description):
+                    raise ValueError(
+                        "NOT_APPLICABLE requires the request description to "
+                        "carry explicit non-SSD (memory-module) category "
+                        "evidence under the bounded v1 applicability "
+                        "vocabulary"
+                    )
+                if self.requested_source_url is not None:
+                    raise ValueError(
+                        "NOT_APPLICABLE must not carry fetch provenance"
                     )
             elif self.status is MicronAliasEligibilityStatus.INVALID_LOOKUP_BASE:
                 # Present but structurally unusable input (e.g. "-R"): a

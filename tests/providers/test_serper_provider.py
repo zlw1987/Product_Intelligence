@@ -33,6 +33,7 @@ from product_intelligence.providers.search import (
 )
 from product_intelligence.providers.serper import (
     DEFAULT_ENDPOINT,
+    DEFAULT_ORGANIC_RESULT_COUNT,
     PROVIDER_ID,
     SERPER_API_KEY_ENV_VAR,
     SerperSearchProvider,
@@ -369,7 +370,18 @@ def test_search_sends_the_credential_in_a_header_never_in_the_url(
         next(n for n in captured["headers"] if n.lower() == "x-api-key")
     ] == "secret-key-123"
     assert b"secret-key-123" not in captured["body"]
-    assert json.loads(captured["body"].decode("utf-8")) == {"q": "MZ-QL23T800"}
+    # The wire body carries the query text and the adapter-internal organic
+    # page size (PUBLIC-RESEARCH-RECALL-FU1): the provider-neutral query
+    # contract has no result limit, so the requested page size is a
+    # vendor payload-shape decision owned by this adapter. The value is
+    # locked explicitly (recall policy, not an implementation detail):
+    # one paid request, the larger documented organic page (50), never the
+    # provider's default 10-result page (see the recorded 2C fixture).
+    assert DEFAULT_ORGANIC_RESULT_COUNT == 50
+    assert json.loads(captured["body"].decode("utf-8")) == {
+        "q": "MZ-QL23T800",
+        "num": DEFAULT_ORGANIC_RESULT_COUNT,
+    }
     assert response.results == ()
 
 

@@ -123,6 +123,32 @@ def _degenerate_result(mpn: str = "-R") -> MicronAliasEligibilityResult:
     )
 
 
+def _not_applicable_result(
+    mpn: str = "MTC20F2085S1RC64BH1T",
+    description: str = "Micron 32GB DDR5-6400 ECC 2Rx8 RDIMM CL52 Tray",
+) -> MicronAliasEligibilityResult:
+    """A valid NOT_APPLICABLE (policy-scope abstention) result: the stored
+    request description carries explicit memory-module evidence, and no
+    fetch provenance exists (PUBLIC-RESEARCH-RECALL-FU1)."""
+    return MicronAliasEligibilityResult(
+        status=MicronAliasEligibilityStatus.NOT_APPLICABLE,
+        request=ResearchRequest(manufacturer_part_number=mpn, description=description),
+        lookup_base_candidate=derive_lookup_base_candidate(mpn),
+        policy_id=MICRON_7500_POLICY_ID,
+        manufacturer=None,
+        category=None,
+        requested_source_url=None,
+        fetched_final_url=None,
+        retrieved_at=None,
+        source_name=None,
+        matched_base_mpn=None,
+        part_number_match=None,
+        ssd_category_evidence=None,
+        alias_relation=None,
+        body_sha256=None,
+    )
+
+
 class TestRoundTrip:
     @pytest.mark.parametrize("mpn", [BASE, BASER, BASET])
     def test_established_round_trip_all_request_forms(self, mpn: str) -> None:
@@ -407,6 +433,53 @@ class TestDecodeTamperResistant:
     def test_request_binding_mismatch_rejected(self) -> None:
         # A payload whose request does not re-derive its candidate fails.
         payload = encode_micron_alias_snapshot(_established_result())
+        payload["lookup_base_candidate"] = "WRONG-CANDIDATE"
+        with pytest.raises(MicronAliasCodecError):
+            decode_micron_alias_snapshot(payload, schema_version=1)
+
+
+# ---------------------------------------------------------------------------
+# NOT_APPLICABLE (policy-scope abstention, PUBLIC-RESEARCH-RECALL-FU1)
+# ---------------------------------------------------------------------------
+
+
+class TestNotApplicableCodec:
+    def test_not_applicable_round_trip(self) -> None:
+        result = _not_applicable_result()
+        payload = encode_micron_alias_snapshot(result)
+        assert payload["status"] == "NOT_APPLICABLE"
+        decoded = decode_micron_alias_snapshot(payload, schema_version=1)
+        assert decoded == result
+        assert decoded.status is MicronAliasEligibilityStatus.NOT_APPLICABLE
+        assert decoded.manufacturer is None
+        assert decoded.category is None
+        assert decoded.alias_relation is None
+
+    def test_not_applicable_without_description_evidence_rejected(self) -> None:
+        # A payload claiming NOT_APPLICABLE whose stored description carries
+        # no explicit memory-module evidence cannot re-derive: reject.
+        payload = encode_micron_alias_snapshot(_not_applicable_result())
+        payload["description"] = "Micron 7500 3.84TB datacenter SSD"
+        with pytest.raises(MicronAliasCodecError):
+            decode_micron_alias_snapshot(payload, schema_version=1)
+
+    def test_not_applicable_with_absent_mpn_rejected(self) -> None:
+        # NOT_APPLICABLE on an absent MPN is NO_REQUESTED_MPN territory.
+        payload = encode_micron_alias_snapshot(_not_applicable_result())
+        payload["requested_mpn"] = ""
+        with pytest.raises(MicronAliasCodecError):
+            decode_micron_alias_snapshot(payload, schema_version=1)
+
+    def test_relabelled_fetched_state_to_not_applicable_rejected(self) -> None:
+        # A fetched bounded state (NO_AUTHORITY_MATCH) relabeled
+        # NOT_APPLICABLE carries fetch provenance the state may not have.
+        payload = encode_micron_alias_snapshot(_bounded_result())
+        payload["status"] = "NOT_APPLICABLE"
+        with pytest.raises(MicronAliasCodecError):
+            decode_micron_alias_snapshot(payload, schema_version=1)
+
+    def test_not_applicable_lookup_binding_mismatch_rejected(self) -> None:
+        payload = encode_micron_alias_snapshot(_not_applicable_result())
         payload["lookup_base_candidate"] = "WRONG-CANDIDATE"
         with pytest.raises(MicronAliasCodecError):
             decode_micron_alias_snapshot(payload, schema_version=1)

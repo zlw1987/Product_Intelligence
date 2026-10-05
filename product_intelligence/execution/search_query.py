@@ -15,13 +15,40 @@ from product_intelligence.research.micron_packaging_alias import (
 def build_search_query(request: ResearchRequest) -> SearchQuery:
     """Build one deterministic search query from the ResearchRequest.
 
-    Rules (PRICE MVP):
-    * If MPN exists: make exact MPN the primary search term
-    * If description also exists: use it only as additional context
-    * If only description exists: search by the canonical description
+    Rules:
+    * If MPN exists (with or without a description): the paid query is the
+      EXACT requested MPN — the exact-MPN phrase, and nothing else.
+    * If only description exists: search by the canonical description.
 
-    A reasonable target form when both exist is conceptually:
-        "<exact MPN>" <description>
+    Exact-MPN retrieval is a first-class retrieval path
+    (PRODUCT-INTEL.PUBLIC-RESEARCH-RECALL-FU1):
+
+    For an explicit-MPN request the query must not be a blend of the MPN and
+    the description. Search engines treat quoted phrases as a strong but SOFT
+    ranking signal, and every extra term in the query is a channel through
+    which the engine can displace the rare exact-MPN results with broad
+    description matches (production request MTC20F2085S1RC64BH1T /
+    "Micron 32GB DDR5-6400 ECC 2Rx8 RDIMM CL52 Tray": the blended query
+    returned only generic "Micron 32GB DDR5" pages while the exact-MPN pages
+    were absent from the response). A degradation can only drift toward terms
+    that are present in the query; with the description removed from the paid
+    query, every result the engine returns — even its phrase-degraded
+    fallbacks — stays inside the requested MPN's token space.
+
+    Removing the description from the PAID QUERY loses nothing the identity
+    pipeline can use: a listing is ACCEPTED only when the page itself
+    publishes an explicit MPN field that is EXACT / NORMALIZED_EXACT to the
+    requested MPN (frozen 3C). Any page the frozen gate can accept therefore
+    contains the exact MPN string, is indexed under it, and is reachable by
+    the exact-MPN phrase query. Pages that do not contain the MPN can only
+    ever be REJECTED (NO_EXPLICIT_MPN_EVIDENCE / MPN_MISMATCH) — retrieving
+    them is cost and noise, not recall. The description remains fully in
+    effect as pipeline context (identity assessment, semantic evaluation,
+    presentation); it simply no longer competes with the MPN for the paid
+    query's ranking.
+
+    The MPN-only and description-only forms are unchanged from the original
+    PRICE MVP contract.
 
     The query builder is pure and directly tested.
 
@@ -33,13 +60,12 @@ def build_search_query(request: ResearchRequest) -> SearchQuery:
     mpn = request.manufacturer_part_number
     description = request.description
 
-    if mpn and description:
-        # Both exist: MPN primary, description as context
-        # Use exact match quotes for MPN, append description
-        query_text = f'"{mpn}" {description}'
-    elif mpn:
-        # Only MPN exists
-        query_text = mpn
+    if mpn:
+        # Explicit-MPN request (with or without a description): the exact
+        # requested MPN is the entire paid query. With a description the
+        # phrase is quoted so the exact identifier is the search term, not a
+        # bag of its tokens.
+        query_text = f'"{mpn}"' if description else mpn
     else:
         # Only description exists
         query_text = description

@@ -29,6 +29,7 @@ from product_intelligence.research.micron_packaging_alias import (
     MICRON_7500_APPROVED_ORIGIN,
     MICRON_7500_CATEGORY,
     MICRON_7500_MANUFACTURER,
+    MICRON_7500_NON_SSD_CATEGORY_EVIDENCE,
     MICRON_7500_POLICY_ID,
     MICRON_7500_REQUESTED_CATALOG_URL,
     MICRON_7500_SOURCE_NAME,
@@ -44,6 +45,7 @@ from product_intelligence.research.micron_packaging_alias import (
     derive_lookup_base_candidate,
     extract_micron_7500_catalog_records,
     find_alias_reference,
+    find_non_ssd_category_evidence,
     matched_ssd_category_evidence,
     packaging_alias_family,
     url_within_origin,
@@ -729,11 +731,14 @@ def _established_result() -> MicronAliasEligibilityResult:
 def _non_established_result(
     status: MicronAliasEligibilityStatus,
     mpn: str = BASE,
+    description: str = "test",
     **overrides: object,
 ) -> MicronAliasEligibilityResult:
     kwargs: dict = dict(
         status=status,
-        request=ResearchRequest(manufacturer_part_number=mpn, description="test"),
+        request=ResearchRequest(
+            manufacturer_part_number=mpn, description=description
+        ),
         lookup_base_candidate=derive_lookup_base_candidate(mpn) or None,
         policy_id=MICRON_7500_POLICY_ID,
         manufacturer=None,
@@ -833,6 +838,15 @@ class TestEligibilityResultNonEstablished:
         mpn = "" if status is MicronAliasEligibilityStatus.NO_REQUESTED_MPN else BASE
         if status is MicronAliasEligibilityStatus.INVALID_LOOKUP_BASE:
             mpn = "-R"
+        # NOT_APPLICABLE must be mechanically re-derivable: its applicability
+        # evidence is the request description itself, so the constructed
+        # state carries an explicit memory-module description (the frozen
+        # customer-rule MPN BASE is used unchanged).
+        description = (
+            "Micron 32GB DDR5-6400 ECC 2Rx8 RDIMM"
+            if status is MicronAliasEligibilityStatus.NOT_APPLICABLE
+            else "test"
+        )
         overrides: dict = {}
         if status in (
             MicronAliasEligibilityStatus.FETCH_FAILED,
@@ -858,7 +872,9 @@ class TestEligibilityResultNonEstablished:
                 fetched_final_url="https://evil.example/catalog.json",
                 retrieved_at=FIXED_AT,
             )
-        result = _non_established_result(status, mpn=mpn, **overrides)
+        result = _non_established_result(
+            status, mpn=mpn, description=description, **overrides
+        )
         assert result.is_established is False
         assert result.can_supply_alias_relation is False
         assert result.can_supply_authority is False
@@ -1005,3 +1021,200 @@ class TestTwoARegressionInvariant:
         comparison = compare_part_numbers(a, b)
         assert comparison.match_type is IdentityMatchType.UNKNOWN
         assert comparison.match_type not in ESTABLISHED_MATCH_TYPES
+
+
+# ---------------------------------------------------------------------------
+# Request-side non-SSD category evidence (v1 applicability gate,
+# PRODUCT-INTEL.PUBLIC-RESEARCH-RECALL-FU1)
+# ---------------------------------------------------------------------------
+
+
+class TestNonSsdCategoryEvidence:
+    """The bounded negative applicability vocabulary and its matching rule.
+
+    This is a NEGATIVE filter: it only abstains the SSD catalog lookup for
+    requests that explicitly establish a memory-module product. It confers
+    no authority of its kind.
+    """
+
+    def test_vocabulary_is_pinned(self) -> None:
+        assert MICRON_7500_NON_SSD_CATEGORY_EVIDENCE == frozenset(
+            {
+                "DIMM",
+                "RDIMM",
+                "UDIMM",
+                "SODIMM",
+                "LPCAMM",
+                "LPCAMM2",
+                "DRAM",
+                "DDR2",
+                "DDR3",
+                "DDR4",
+                "DDR5",
+            }
+        )
+
+    def test_production_memory_description_carries_evidence(self) -> None:
+        evidence = find_non_ssd_category_evidence(
+            "Micron 32GB DDR5-6400 ECC 2Rx8 RDIMM CL52 Tray"
+        )
+        # Deterministic: canonical spelling, sorted, all matched terms.
+        assert evidence == ("DDR5", "RDIMM")
+
+    def test_ssd_description_carries_no_evidence(self) -> None:
+        assert find_non_ssd_category_evidence(
+            "Micron 7500 3.84TB datacenter SSD"
+        ) == ()
+
+    def test_general_ssd_description_carries_no_evidence(self) -> None:
+        assert find_non_ssd_category_evidence(
+            "Samsung SSD 970 EVO Plus 1TB NVMe PCIe M.2 Internal Solid State Drive"
+        ) == ()
+
+    def test_standalone_token_match_case_insensitive(self) -> None:
+        assert find_non_ssd_category_evidence("micron 32gb ddr5 rdimm") == (
+            "DDR5",
+            "RDIMM",
+        )
+        assert find_non_ssd_category_evidence("32GB UDIMM module") == ("UDIMM",)
+        assert find_non_ssd_category_evidence("lpcamm2 256GB") == ("LPCAMM2",)
+        assert find_non_ssd_category_evidence("LPCAMM 256GB") == ("LPCAMM",)
+        assert find_non_ssd_category_evidence("16GB DRAM buffer") == ("DRAM",)
+
+    def test_generation_suffixes_do_not_overmatch(self) -> None:
+        # DDR5-6400: the generation term is standalone (hyphen boundary).
+        assert find_non_ssd_category_evidence("DDR5-6400") == ("DDR5",)
+        # DDR4 is not DDR40, and DDR5 does not match a DDR4 description.
+        assert find_non_ssd_category_evidence("DDR4 module") == ("DDR4",)
+        assert find_non_ssd_category_evidence("DDR5 module") == ("DDR5",)
+
+    def test_embedded_alphanumeric_runs_do_not_match(self) -> None:
+        assert find_non_ssd_category_evidence("XDDR5Y") == ()
+        assert find_non_ssd_category_evidence("DIMMed") == ()
+        assert find_non_ssd_category_evidence("1RDIMM") == ()
+
+    def test_none_and_empty_description(self) -> None:
+        assert find_non_ssd_category_evidence(None) == ()
+        assert find_non_ssd_category_evidence("") == ()
+
+    def test_non_string_description_raises(self) -> None:
+        with pytest.raises(TypeError):
+            find_non_ssd_category_evidence(42)  # type: ignore[arg-type]
+
+    def test_multiple_terms_are_all_reported_deterministically(self) -> None:
+        # Sorted() order: DDR* precedes DIMM ('D' < 'I'), DIMM precedes DRAM
+        # ('I' < 'R').
+        assert find_non_ssd_category_evidence(
+            "UDIMM and SODIMM and DDR3 and DDR4 and DDR5 and DIMM and DRAM"
+        ) == (
+            "DDR3",
+            "DDR4",
+            "DDR5",
+            "DIMM",
+            "DRAM",
+            "SODIMM",
+            "UDIMM",
+        )
+
+
+# ---------------------------------------------------------------------------
+# NOT_APPLICABLE result contract (PUBLIC-RESEARCH-RECALL-FU1)
+# ---------------------------------------------------------------------------
+
+
+class TestNotApplicableResultContract:
+    """The policy-scope abstention state: zero fetches, no authority, and
+    applicability evidence that must re-derive from the stored request."""
+
+    DDR5_DESCRIPTION = "Micron 32GB DDR5-6400 ECC 2Rx8 RDIMM"
+
+    def test_valid_not_applicable_construction(self) -> None:
+        result = _non_established_result(
+            MicronAliasEligibilityStatus.NOT_APPLICABLE,
+            description=self.DDR5_DESCRIPTION,
+        )
+        assert result.status is MicronAliasEligibilityStatus.NOT_APPLICABLE
+        assert result.is_established is False
+        assert result.can_supply_alias_relation is False
+        assert result.can_supply_authority is False
+        # The retrieval pointer is still truthfully recorded (shape-only).
+        assert result.lookup_base_candidate is not None
+        # No fetch provenance of any kind.
+        assert result.requested_source_url is None
+        assert result.fetched_final_url is None
+        assert result.retrieved_at is None
+        assert result.source_name is None
+        assert result.body_sha256 is None
+
+    def test_requires_non_empty_mpn(self) -> None:
+        with pytest.raises(ValueError):
+            _non_established_result(
+                MicronAliasEligibilityStatus.NOT_APPLICABLE,
+                mpn="",
+                description=self.DDR5_DESCRIPTION,
+            )
+
+    def test_requires_description_evidence(self) -> None:
+        with pytest.raises(ValueError):
+            _non_established_result(
+                MicronAliasEligibilityStatus.NOT_APPLICABLE,
+                description="Micron 7500 3.84TB datacenter SSD",
+            )
+
+    def test_must_not_carry_fetch_provenance(self) -> None:
+        with pytest.raises(ValueError):
+            _non_established_result(
+                MicronAliasEligibilityStatus.NOT_APPLICABLE,
+                description=self.DDR5_DESCRIPTION,
+                requested_source_url=MICRON_7500_REQUESTED_CATALOG_URL,
+            )
+        with pytest.raises(ValueError):
+            _non_established_result(
+                MicronAliasEligibilityStatus.NOT_APPLICABLE,
+                description=self.DDR5_DESCRIPTION,
+                fetched_final_url=MICRON_7500_REQUESTED_CATALOG_URL,
+            )
+        with pytest.raises(ValueError):
+            _non_established_result(
+                MicronAliasEligibilityStatus.NOT_APPLICABLE,
+                description=self.DDR5_DESCRIPTION,
+                source_name=MICRON_7500_SOURCE_NAME,
+            )
+        with pytest.raises(ValueError):
+            _non_established_result(
+                MicronAliasEligibilityStatus.NOT_APPLICABLE,
+                description=self.DDR5_DESCRIPTION,
+                body_sha256=FIXTURE_SHA256,
+            )
+
+    def test_must_not_carry_authority(self) -> None:
+        with pytest.raises(ValueError):
+            _non_established_result(
+                MicronAliasEligibilityStatus.NOT_APPLICABLE,
+                description=self.DDR5_DESCRIPTION,
+                manufacturer="Micron",
+            )
+        with pytest.raises(ValueError):
+            _non_established_result(
+                MicronAliasEligibilityStatus.NOT_APPLICABLE,
+                description=self.DDR5_DESCRIPTION,
+                category="SSD",
+            )
+        with pytest.raises(ValueError):
+            _non_established_result(
+                MicronAliasEligibilityStatus.NOT_APPLICABLE,
+                description=self.DDR5_DESCRIPTION,
+                matched_base_mpn=BASE,
+            )
+
+    def test_degenerate_mpn_with_conflict_is_not_applicable_candidate_none(self) -> None:
+        """Priority: NOT_APPLICABLE < INVALID_LOOKUP_BASE — the policy-scope
+        abstention is the primary reason when both apply; the lookup-base
+        pointer is None (shape-only, authority-free)."""
+        result = _non_established_result(
+            MicronAliasEligibilityStatus.NOT_APPLICABLE,
+            mpn="-T",
+            description=self.DDR5_DESCRIPTION,
+        )
+        assert result.status is MicronAliasEligibilityStatus.NOT_APPLICABLE
+        assert result.lookup_base_candidate is None

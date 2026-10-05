@@ -736,17 +736,38 @@ class TestDatabaseIsolation:
 class TestQueryVariants:
     """Test that SearchProvider receives correct query variants.
 
-    Required assertions:
-    MPN + description: SearchQuery(text='"MZ-QL23T800" <description>')
-    MPN only: SearchQuery(text='MZ-QL23T800')
-    description only: SearchQuery(text='<description>')
+    Required assertions (PUBLIC-RESEARCH-RECALL-FU1):
+    MPN + description: SearchQuery(text='"<MPN>"') — the exact requested
+        MPN phrase is the ENTIRE paid query. The description is pipeline
+        context (identity / semantic / presentation) and no longer a
+        co-ranked paid-query term: production evidence (request
+        MTC20F2085S1RC64BH1T / "Micron 32GB DDR5-6400 ECC 2Rx8 RDIMM CL52
+        Tray") showed the blended '"<MPN>" <description>' query let the
+        search engine replace exact-MPN retrieval with broad description
+        matches (quoted phrases are a soft ranking signal, and degradation
+        can only drift toward terms present in the query). The original
+        4C-B contract — "if MPN exists: make exact MPN the primary search
+        term" — is preserved and strengthened: the exact MPN is the primary
+        AND sole search term. Any page the frozen 3C gate can accept
+        contains the exact MPN and is therefore reachable by the phrase
+        query; pages without the MPN can only ever be REJECTED.
+    MPN only: SearchQuery(text='<MPN>') — unchanged (already exact-MPN
+        only; no displacement channel existed).
+    description only: SearchQuery(text='<description>') — unchanged (no
+        MPN to protect).
     """
 
     def test_mpn_plus_description_query(
         self,
         search_request: ResearchRequest,
     ) -> None:
-        """MPN + description -> query with quoted MPN followed by description."""
+        """MPN + description -> the exact MPN phrase is the entire paid query.
+
+        The description must NOT be appended to the paid query: it is
+        pipeline context only (frozen 3C identity, semantic eligibility,
+        presentation all read the request's description directly, never the
+        search query).
+        """
         result = MagicMock()
         result.source_url = "https://example.com"
         result.title = "Product"
@@ -770,13 +791,15 @@ class TestQueryVariants:
             search_provider=provider,
         )
 
-        # Verify provider.search was called exactly once with correct query
+        # Verify provider.search was called exactly once with the exact-MPN
+        # phrase as the entire query (description absent).
         provider.search.assert_called_once()
         call_args = provider.search.call_args
         search_query = call_args[0][0]  # First positional arg
 
-        expected = f'"{search_request.manufacturer_part_number}" {search_request.description}'
+        expected = f'"{search_request.manufacturer_part_number}"'
         assert search_query.text == expected
+        assert search_request.description not in search_query.text
 
     def test_mpn_only_query(
         self,

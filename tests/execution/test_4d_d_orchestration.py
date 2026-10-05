@@ -439,9 +439,12 @@ class TestBoundedAuthorityFailure:
 
         assert result.run.current_state is ResearchRunState.COMPLETED
         provider.search.assert_called_once()
+        # Ordinary (non-alias) query: the exact requested MPN phrase is the
+        # entire paid query (PUBLIC-RESEARCH-RECALL-FU1). The 4D-D contracts
+        # under test — ONE bounded authority fetch, audit persisted before
+        # the search, exactly ONE search, bounded status — are unchanged.
         assert (
-            provider.search.call_args.args[0].text
-            == f'"{BASER}" Micron 7500 3.84TB datacenter SSD'
+            provider.search.call_args.args[0].text == f'"{BASER}"'
         )
         snapshot = ResearchMicronAliasSnapshot.objects.get(run=run)
         decoded_alias = decode_micron_alias_snapshot(
@@ -462,9 +465,10 @@ class TestBoundedAuthorityFailure:
 
         assert result.run.current_state is ResearchRunState.COMPLETED
         provider.search.assert_called_once()
+        # Ordinary (non-alias) query: exact requested MPN phrase only
+        # (PUBLIC-RESEARCH-RECALL-FU1); 4D-D contracts unchanged.
         assert (
-            provider.search.call_args.args[0].text
-            == f'"{BASER}" Micron 7500 3.84TB datacenter SSD'
+            provider.search.call_args.args[0].text == f'"{BASER}"'
         )
         decoded_alias = decode_micron_alias_snapshot(
             ResearchMicronAliasSnapshot.objects.get(run=run).payload,
@@ -485,9 +489,10 @@ class TestBoundedAuthorityFailure:
 
         assert result.run.current_state is ResearchRunState.COMPLETED
         provider.search.assert_called_once()
+        # Ordinary (non-alias) query: exact requested MPN phrase only
+        # (PUBLIC-RESEARCH-RECALL-FU1); 4D-D contracts unchanged.
         assert (
-            provider.search.call_args.args[0].text
-            == '"NOT-IN-CATALOG" Micron 7500 3.84TB datacenter SSD'
+            provider.search.call_args.args[0].text == '"NOT-IN-CATALOG"'
         )
         decoded_alias = decode_micron_alias_snapshot(
             ResearchMicronAliasSnapshot.objects.get(run=run).payload,

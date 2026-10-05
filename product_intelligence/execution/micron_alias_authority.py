@@ -84,6 +84,7 @@ from product_intelligence.research.micron_packaging_alias import (
     build_packaging_alias_relation,
     derive_lookup_base_candidate,
     extract_micron_7500_catalog_records,
+    find_non_ssd_category_evidence,
     matched_ssd_category_evidence,
     url_within_origin,
     verify_ssd_category_evidence,
@@ -151,6 +152,16 @@ def acquire_micron_alias_eligibility(
        "-T") is a distinct bounded abstention with zero fetches
        (INVALID_LOOKUP_BASE) — invalid structural input is never
        persisted as missing input.
+    1b. Policy applicability gate (PUBLIC-RESEARCH-RECALL-FU1). The
+       reviewed v1 policy is Micron 7500 SSD ONLY. When the request
+       description explicitly establishes the product as a memory module
+       (DIMM/DRAM class, bounded vocabulary — a negative applicability
+       filter that confers no authority of its own), the policy is
+       NOT_APPLICABLE: a bounded pre-fetch abstention with ZERO fetches,
+       persisted like the others so the retrieval decision is evidenced
+       without the SSD catalog ever being consulted for an established
+       non-SSD product. Priority: NO_REQUESTED_MPN < NOT_APPLICABLE <
+       INVALID_LOOKUP_BASE.
     2. Fetch the exact reviewed family-catalog URL through the existing
        PageFetcher protocol. Source refusal and fetch failure are
        bounded (SOURCE_REFUSED / FETCH_FAILED). A fetcher dependency that
@@ -189,6 +200,37 @@ def acquire_micron_alias_eligibility(
             status=MicronAliasEligibilityStatus.NO_REQUESTED_MPN,
             request=request,
             lookup_base_candidate=None,
+            policy_id=policy.policy_id,
+            manufacturer=None,
+            category=None,
+            requested_source_url=None,
+            fetched_final_url=None,
+            retrieved_at=None,
+            source_name=None,
+            matched_base_mpn=None,
+            part_number_match=None,
+            ssd_category_evidence=None,
+            alias_relation=None,
+            body_sha256=None,
+        )
+
+    # Step 1b: policy applicability gate (PUBLIC-RESEARCH-RECALL-FU1).
+    #
+    # The reviewed v1 policy is Micron 7500 SSD ONLY. When the request
+    # description explicitly establishes the product as a memory module
+    # (DIMM/DRAM class under the bounded vocabulary), the policy does not
+    # apply to this request: ZERO fetches, no lookup-base authority, no
+    # provenance — a bounded pre-fetch abstention persisted like the
+    # others. This is a NEGATIVE filter: it confers no authority and never
+    # blocks a request whose description carries no such evidence (the
+    # catalog lookup below remains the only positive authority).
+    if find_non_ssd_category_evidence(request.description):
+        return MicronAliasEligibilityResult(
+            status=MicronAliasEligibilityStatus.NOT_APPLICABLE,
+            request=request,
+            lookup_base_candidate=derive_lookup_base_candidate(
+                request.manufacturer_part_number
+            ),
             policy_id=policy.policy_id,
             manufacturer=None,
             category=None,

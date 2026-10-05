@@ -291,6 +291,10 @@
     <strong>Alias authority status:</strong> {{ micron_alias.status }}
     {% if micron_alias.established %}
       (established from the reviewed Micron 7500 SSD family catalog)
+    {% elif micron_alias.not_applicable %}
+      (not applicable: the request description explicitly establishes a
+      memory-module product — the reviewed Micron 7500 SSD catalog policy
+      does not apply to this request, and no catalog lookup was attempted)
     {% else %}
       (bounded non-established result; no alias-expanded retrieval was used)
     {% endif %}

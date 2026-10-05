@@ -2867,6 +2867,11 @@ PRODUCT-INTEL.8A-FX-DESIGN-FU1  Freshness proof & canonical-feed
 PRODUCT-INTEL.8A-FX-A1  Canonical ECB Observation Cache
                    (first safe caching slice)                   IMPLEMENTED / PENDING FINAL REVIEW
 
+----- PRODUCTION-PRIORITY PUBLIC RESEARCH RECALL -----
+
+PRODUCT-INTEL.PUBLIC-RESEARCH-RECALL-FU1  Exact-MPN recall defect
+                   + Micron 7500 SSD policy applicability        IMPLEMENTED / PENDING FINAL REVIEW
+
 ----- FOXPRO MVP + HUMAN REVIEW -----
 
 PRODUCT-INTEL.6A   Product specification framework            IMPLEMENTED
@@ -6400,3 +6405,136 @@ inventories in `test_provider_boundaries.py`,
 `test_research_identity_boundaries.py`, `test_research_run_boundaries.py`,
 `test_web_boundaries.py` updated to the exact supersets. All existing FX
 / replay / boundary / authority suites unmodified and green.
+
+### 26.19 PUBLIC-RESEARCH-RECALL-FU1: Production-priority exact-MPN recall
+defect + Micron 7500 SSD policy applicability (IMPLEMENTED / PENDING FINAL
+REVIEW)
+
+Production-priority corrective follow-up on the approved / frozen /
+deployed starting SHA `2b66ac65fbce86adcd4218dfefe1a5c7349128e4`. Two
+independent retrieval defects surfaced on one high-frequency AMAX request
+(MPN `MTC20F2085S1RC64BH1T`, description `Micron 32GB DDR5-6400 ECC 2Rx8
+RDIMM CL52 Tray`): (1) the exact-MPN public comparable pipeline received
+zero exact-MPN candidates, and (2) the request was routed to — and the
+report presented as evaluated against — the `micron-7500-ssd-part-catalog-
+v1` policy even though the requested product is DDR5 RDIMM memory, not a
+Micron 7500 SSD. This section records the binding design of the fix.
+Retrieval recall and identity authority are separate concerns: this phase
+only changes WHICH candidates reach the pipeline and WHEN the SSD catalog
+policy is consulted; it changes no identity, pricing, vendor, semantic,
+human-review, comparable, FX, cache, or replay authority.
+
+**1. Root cause of the exact-MPN recall defect.** The one paid search
+issued the blended query `"<MPN>" <description>` (`build_search_query`),
+and the Serper adapter sent `{"q": ...}` with no result-count parameter,
+relying on the provider's default page (the recorded 2C fixture is exactly
+10 organic results). Search engines treat a quoted phrase as a strong but
+SOFT ranking signal, and a query can only degenerate toward terms present
+in the query. With the description's high-document-frequency terms
+co-ranked against a rare exact MPN, the engine returned broad description
+matches (generic `Micron 32GB DDR5` aggregator pages) and the few exact-
+MPN pages never entered the response; any exact-MPN pages ranked past the
+default page were truncated at the wire. The downstream pipeline is
+correct: every returned result is fetched, extracted, normalized, and
+gated by frozen 3C; an exact-MPN page that publishes the requested MPN in
+an explicit field is ACCEPTED, and a generic page fails closed with
+NO_EXPLICIT_MPN_EVIDENCE. The defect was entirely at the retrieval
+boundary.
+
+**2. Exact-MPN retrieval is a first-class path.** For an explicit-MPN
+request (MPN + description), the paid query is now the exact-MPN phrase
+alone: `"<MPN>"`. The description is removed from the PAID QUERY and
+remains pipeline context (frozen 3C identity reads the request's MPN;
+semantic eligibility, presentation, and review all read the request's
+description directly, never the search query). MPN-only and description-
+only forms are unchanged. Rationale (binding): a page the frozen 3C gate
+can ACCEPT contains the exact requested MPN in an explicit field, is
+therefore indexed under that phrase, and is reachable by the exact-MPN
+phrase query; a page without the MPN can only ever be REJECTED, so
+description terms add cost and noise, not recall, and their presence in
+the query is precisely the displacement channel. A phrase-only query's
+degraded fallbacks still stay inside the MPN's token space. The frozen 4D-
+D alias-expanded query shape is unchanged.
+
+**3. Provider page size is an adapter-internal policy.** The provider-
+neutral `SearchQuery` contract carries no result limit (frozen 2B); how
+many organic results one paid call requests is a vendor payload-shape
+decision owned by the adapter. `SerperSearchProvider` now requests
+`num = 50` (the larger documented organic page for one ordinary-search
+request; constant `DEFAULT_ORGANIC_RESULT_COUNT`, value locked by test).
+This adds NO second paid call: one request per run (frozen 4C claim
+contract unchanged; `claim_execution` still ensures at most one paid
+search per ResearchRun). Because the paid query is MPN-first, results
+beyond the provider default are further exact-MPN candidates, not
+description noise. The adapter maps every returned organic item (no
+client-side truncation), and orchestration processes every result (no
+candidate cap).
+
+**4. Micron 7500 SSD policy applicability (NOT_APPLICABLE).** The 4D-D v1
+policy is Micron 7500 SSD ONLY, but acquisition previously ran for EVERY
+non-empty-MPN request — triggered by the MPN suffix shape alone, with no
+evidence that the requested product belongs to the SSD catalog. A DDR5
+RDIMM request therefore fetched the SSD catalog and the report presented
+the `micron-7500-ssd-part-catalog-v1` policy / `Micron 7500 SSD catalog`
+source as though applicable. A new bounded pre-fetch abstention
+`NOT_APPLICABLE` (no fetches, no provenance, no authority) is returned
+when the request description explicitly establishes the product as a
+memory module under a bounded, recorded, NEGATIVE vocabulary of unambiguous
+memory-class terms (`DIMM`, `RDIMM`, `UDIMM`, `SODIMM`, `LPCAMM`,
+`LPCAMM2`, `DRAM`, `DDR2`–`DDR5`; standalone ASCII tokens, case-
+insensitive). This is a negative applicability filter: it confers no
+manufacturer/category/identity/pricing authority and never blocks a
+request whose description carries no such evidence (the catalog remains
+the only POSITIVE authority; SSD evidence still comes only from the
+matched row's own `is-ssd` attribute). Priority: NO_REQUESTED_MPN <
+NOT_APPLICABLE < INVALID_LOOKUP_BASE < fetch. The T-strip lookup-base
+derivation is unchanged and remains a retrieval pointer ONLY: the apparent
+`MTC20F2085S1RC64BH1T -> MTC20F2085S1RC64BH1` relationship is NOT
+established as authoritative by this phase (no new manufacturer-source
+authority for memory packaging exists in the architecture); a page
+publishing the stripped base form is still an explicit MPN CONFLICT
+(MPN_MISMATCH) under frozen 2A/3C.
+
+**5. Authority invariants (unchanged, re-proven).** Frozen 3C identity
+acceptance (explicit MPN field EXACT/NORMALIZED_EXACT only);
+NO_EXPLICIT_MPN_EVIDENCE remains a valid rejection and generic
+`Micron 32GB DDR5` evidence can never become exact-MPN authority;
+semantic MATCH remains advisory; AI_ASSISTED_MATCH, Working Quote,
+Reviewed Price, Machine Price, 4A public market authority, B2/B3
+presentation, vendor supplemental authority, human-review authority,
+comparable research (7C), FX/cache (8A-FX-A1), replay, and the count<3
+median presentation contract are all untouched. No model or migration
+change.
+
+**6. Files.** Production: `execution/search_query.py` (exact-MPN phrase
+query for explicit-MPN requests; MPN-only/description-only unchanged),
+`providers/serper.py` (adapter-internal `num=50` organic page),
+`research/micron_packaging_alias.py` (bounded non-SSD vocabulary +
+`find_non_ssd_category_evidence`; `NOT_APPLICABLE` status + contract
+invariants), `execution/micron_alias_authority.py` (pre-fetch
+applicability gate), `web/micron_alias_presentation.py` +
+`web/templates/web/research_detail.html` (truthful NOT_APPLICABLE
+applicability wording; zero fetch provenance). Tests: NEW
+`tests/execution/test_public_research_recall.py`; NEW nodes in
+`tests/research/test_micron_packaging_alias.py`,
+`tests/research/test_micron_alias_codec.py`,
+`tests/execution/test_micron_alias_authority.py` (via the recall file's
+gate class), `tests/web/test_micron_alias_report.py`,
+`tests/providers/test_serper_provider.py`; corrected in place (contract
+preserved/strengthened, none deleted/renamed/skipped): the 4C-B
+`test_mpn_plus_description_query` and the three 4D-D bounded-authority
+ordinary-query assertions (now the exact-MPN phrase form; the 4D-D
+authority/snapshot/single-search/firewall contracts unchanged) and the
+Serper wire-body assertion (now pins `num=50` alongside the credential
+contract).
+
+**7. Explicit non-fixes.** No second paid search per run. No identity-
+threshold change. No semantic-override of explicit identity conflicts.
+No UNKNOWN->MATCH conversion. No vendor-authority expansion. No FX/cache/
+replay change. No comparable-research change. No hard-coded Micron MPN,
+manufacturer, or reseller domain in the retrieval fix (the regression
+fixture uses the production MPN only as data; the rules are general
+exact-MPN / memory-class rules). No memory-catalog alias mechanism is
+invented: if a Micron RDIMM packaging relationship ever requires authority
+it needs its own reviewed manufacturer-source evidence and policy, out of
+scope here.

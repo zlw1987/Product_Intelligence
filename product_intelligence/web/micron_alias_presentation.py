@@ -101,6 +101,12 @@ class MicronAliasPresentation:
 
     status: str
     established: bool
+    # True only for the NOT_APPLICABLE policy-scope abstention (PUBLIC-
+    # RESEARCH-RECALL-FU1): the request description explicitly established
+    # a non-SSD memory-module product, so the reviewed Micron 7500 SSD
+    # catalog policy does not apply and no catalog lookup was attempted.
+    # Display-only — never an authority source.
+    not_applicable: bool
     # Authority audit (bounded provenance; None values render as absent)
     policy_id: str
     requested_mpn: str
@@ -150,6 +156,7 @@ def build_micron_alias_presentation(
     presentation = MicronAliasPresentation(
         status=status.value,
         established=status is MicronAliasEligibilityStatus.ESTABLISHED,
+        not_applicable=status is MicronAliasEligibilityStatus.NOT_APPLICABLE,
         policy_id=alias_result.policy_id,
         requested_mpn=alias_result.request.manufacturer_part_number,
         lookup_base_candidate=alias_result.lookup_base_candidate,

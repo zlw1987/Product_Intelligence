@@ -399,6 +399,50 @@ class TestMicronAliasReport(TestCase):
         self.assertNotIn(SIBLING_URL, section)
         self.assertNotIn("<code>MTFDKCC3T8TGP-1BK1DABYY</code>", section)
 
+    def test_not_applicable_memory_module_request_renders_applicability_note(self) -> None:
+        """An established non-SSD (memory-module) request renders the
+        NOT_APPLICABLE audit with truthful applicability wording — the
+        Micron 7500 SSD catalog is presented as the policy evaluated, not
+        as the applicable authority — with zero fetch provenance.
+        (PUBLIC-RESEARCH-RECALL-FU1.)"""
+        mpn = "MTC20F2085S1RC64BH1T"
+        description = "Micron 32GB DDR5-6400 ECC 2Rx8 RDIMM CL52 Tray"
+        result = _acquire_for(mpn, description)
+        self.assertIsNone(
+            result.requested_source_url,
+            "NOT_APPLICABLE must be a zero-fetch abstention",
+        )
+        payload = encode_micron_alias_snapshot(result)
+        run = _make_run(mpn=mpn, description=description, alias_payload=payload)
+        html = self._get(run).content.decode("utf-8")
+        section = _section(html, "Micron packaging alias evidence")
+        self.assertTrue(section)
+        self.assertIn("NOT_APPLICABLE", section)
+        # Truthful applicability wording: the policy does not apply, and no
+        # catalog lookup was attempted.
+        self.assertIn("does not apply to this request", section)
+        self.assertIn("no catalog lookup was attempted", section)
+        # Not presented as established from the reviewed catalog.
+        self.assertNotIn("ESTABLISHED", section)
+        self.assertNotIn(
+            "established from the reviewed Micron 7500 SSD family catalog",
+            section,
+        )
+        self.assertIn("Not attempted", section)
+        # The old bounded-result parenthetical belongs to the fetched
+        # states, not to the applicability abstention.
+        self.assertNotIn(
+            "bounded non-established result; no alias-expanded retrieval "
+            "was used",
+            section,
+        )
+        # No reference rows, no alias relation.
+        self.assertNotIn("Customer-defined packaging alias reference", section)
+        self.assertNotIn(SIBLING_URL, section)
+        # Main report intact.
+        self.assertIn("<h2>Price intelligence</h2>", html)
+        self.assertIn("Comparable price group", html)
+
     def test_malformed_snapshot_bounded_unavailable_main_report_renders(self) -> None:
         run = _make_run(alias_payload={"garbage": True})
         response = self._get(run)

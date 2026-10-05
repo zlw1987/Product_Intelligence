@@ -87,6 +87,26 @@ DEFAULT_TIMEOUT_SECONDS = 10.0
 #: `SearchResponse.provider_id` for every response this adapter returns.
 PROVIDER_ID = "serper"
 
+#: Organic result count requested from the provider per paid call.
+#: Adapter-internal recall policy (PRODUCT-INTEL.PUBLIC-RESEARCH-RECALL-FU1).
+#:
+#: The provider-neutral `SearchQuery` contract carries no result limit
+#: (frozen 2B: a limit is a vendor payload-shape decision and stays inside
+#: the adapter). Without this parameter the endpoint answers with its
+#: default page — the recorded 2C fixture shows the default response is
+#: exactly 10 organic results. For an explicit-MPN research request the
+#: paid query is the exact-MPN phrase (first-class retrieval path); the
+#: set of traceable pages publishing that phrase (reseller listings,
+#: datasheets, community pages) can exceed the provider's default page, and
+#: truncating it there would displace exact-MPN candidates from the
+#: deterministic identity pipeline before it ever sees them. 50 is the
+#: larger documented organic page for one ordinary-search request: it adds
+#: NO second paid call (one request per run — the frozen 4C claim contract
+#: is unchanged) and, because the paid query is MPN-first, results beyond
+#: the default page are further exact-MPN candidates rather than
+#: description noise.
+DEFAULT_ORGANIC_RESULT_COUNT = 50
+
 
 def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
@@ -215,14 +235,22 @@ class SerperSearchProvider:
         """Execute one query against Serper's ordinary Google Search endpoint
         (`DEFAULT_ENDPOINT`) and return what it observed.
 
-        The endpoint is fixed and not caller-configurable: this adapter
-        implements exactly one Serper mode, and an overridable endpoint would
-        let a caller redirect the `X-API-KEY` credential to an arbitrary host.
+        The request body carries the query text and the adapter-internal
+        organic page size (`DEFAULT_ORGANIC_RESULT_COUNT`) — see that
+        constant's comment for the recall rationale. The endpoint is fixed
+        and not caller-configurable: this adapter implements exactly one
+        Serper mode, and an overridable endpoint would let a caller redirect
+        the `X-API-KEY` credential to an arbitrary host.
         """
         if not isinstance(query, SearchQuery):
             raise TypeError(f"query must be a SearchQuery, got {type(query).__name__}")
 
-        request_body = json.dumps({"q": query.text}).encode("utf-8")
+        request_body = json.dumps(
+            {
+                "q": query.text,
+                "num": DEFAULT_ORGANIC_RESULT_COUNT,
+            }
+        ).encode("utf-8")
         request = urllib.request.Request(
             DEFAULT_ENDPOINT,
             data=request_body,

@@ -2,6 +2,173 @@
 
 ## Current state
 
+**PRODUCT-INTEL.PUBLIC-RESEARCH-RECALL-FU1 (Production-priority
+Exact-MPN Recall Defect) — IMPLEMENTED / PENDING FINAL REVIEW**
+
+Bounded production-priority corrective follow-up on the approved /
+frozen / deployed starting SHA `2b66ac65fbce86adcd4218dfefe1a5c7349128e4`
+(baseline collection 5802). Canonical spec: PLAN §26.19.
+
+Production request `bb280c99-7b75-445e-b476-f612cadc1b27` (MPN
+`MTC20F2085S1RC64BH1T`, description `Micron 32GB DDR5-6400 ECC 2Rx8 RDIMM
+CL52 Tray`) completed with 0 comparable NEW listings: the one paid search
+issued the blended query `"<MPN>" <description>`, and the engine returned
+broad `Micron 32GB DDR5` description matches (all correctly rejected
+NO_EXPLICIT_MPN_EVIDENCE) while no exact-full-MPN page entered the
+response; the Serper adapter relied on the provider's default 10-result
+page (no `num` requested). The same request was also routed to, and the
+report presented as evaluated against, the `micron-7500-ssd-part-catalog-
+v1` policy (Result NO_AUTHORITY_MATCH) even though the product is DDR5
+RDIMM memory, not a Micron 7500 SSD. Independent public-web checking found
+pages exposing the full requested MPN (SHI, CDW, CoreWave Labs,
+CompSource) — used only as the reproduction clue; the fix is proven by
+deterministic fixtures, not by live-web behavior.
+
+Root causes (code-evidenced):
+
+1. **Query displacement channel.** `execution/search_query.py` blended the
+   description into the paid query. A quoted phrase is a SOFT ranking
+   signal, and a query can only degenerate toward terms present in the
+   query: the description's high-document-frequency terms displaced the
+   rare exact-MPN results. The downstream pipeline is correct — every
+   returned result is fetched/extracted/gated by frozen 3C — so the defect
+   was entirely at the retrieval boundary.
+2. **Provider default page cap.** `providers/serper.py` sent `{"q": ...}`
+   with no result-count parameter: the response was truncated at the
+   provider default (10 organic results, per the recorded 2C fixture),
+   which can exceed the exact-MPN phrase's traceable candidate set only in
+   the truncating direction.
+3. **Shape-triggered SSD catalog policy.**
+   `execution/micron_alias_authority.py` acquired the 7500 SSD alias
+   authority for EVERY non-empty-MPN request (trigger = final R/T suffix
+   shape only, no product-class evidence); a DDR5 RDIMM request therefore
+   fetched the SSD catalog and the report showed the policy/source as
+   though applicable. Authority was safe (NO_AUTHORITY_MATCH established
+   nothing) but the applicability was not gated and the presentation was
+   misleading.
+
+Delivered (retrieval recall and identity authority remain separate
+concerns; NOTHING below changes any identity/pricing/vendor/semantic/
+human-review/comparable/FX/cache/replay authority):
+
+* **Exact-MPN first-class retrieval path** — `execution/search_query.py`:
+  for an explicit-MPN request (MPN + description) the paid query is now
+  the exact-MPN phrase alone (`"<MPN>"`); the description is removed from
+  the PAID QUERY and remains pipeline context (frozen 3C reads the
+  request's MPN; semantic/presentation/review read the request's
+  description directly). MPN-only and description-only forms are
+  byte-identical to before. Any page the frozen 3C gate can ACCEPT
+  contains the exact MPN and is reachable by the phrase query; pages
+  without the MPN can only ever be REJECTED. The frozen 4D-D
+  alias-expanded query shape is unchanged. No second paid search; the
+  frozen 4C one-paid-call-per-run claim contract is untouched.
+* **Adapter-internal recall page** — `providers/serper.py`:
+  `DEFAULT_ORGANIC_RESULT_COUNT = 50` (value test-locked) is requested in
+  the wire body alongside `q`. The provider-neutral `SearchQuery` contract
+  has no result limit (frozen 2B); the page size is a vendor
+  payload-shape decision owned by the adapter. One request per run
+  (unchanged); the adapter maps every returned organic item; orchestration
+  processes every result (no client-side candidate cap exists).
+* **NOT_APPLICABLE policy applicability gate** —
+  `research/micron_packaging_alias.py` +
+  `execution/micron_alias_authority.py`: a new bounded pre-fetch
+  abstention `NOT_APPLICABLE` (zero fetches, no provenance, no authority)
+  is returned when the request description explicitly establishes a
+  memory-module product under a bounded NEGATIVE vocabulary (`DIMM`,
+  `RDIMM`, `UDIMM`, `SODIMM`, `LPCAMM`, `LPCAMM2`, `DRAM`, `DDR2`–`DDR5`;
+  standalone ASCII tokens, case-insensitive; vocabulary pinned by test).
+  Priority: NO_REQUESTED_MPN < NOT_APPLICABLE < INVALID_LOOKUP_BASE <
+  fetch. It confers no authority and never blocks a request without such
+  evidence (the catalog remains the only positive authority; SSD category
+  evidence still comes only from the matched row's own `is-ssd`
+  attribute). The result contract re-derives the applicability evidence
+  from the stored description at construction (tamper-fail-closed); the
+  V1 codec round-trips the new status with no schema change. Presentation:
+  the report renders the truthful applicability wording ("does not apply
+  to this request … no catalog lookup was attempted") and the not-
+  applicable audit carries zero fetch provenance.
+* **T-strip relationship NOT established** — the apparent
+  `MTC20F2085S1RC64BH1T -> MTC20F2085S1RC64BH1` packaging relationship is
+  NOT made authoritative by this phase (no reviewed manufacturer-source
+  authority for memory packaging exists in the architecture). A page
+  publishing the stripped base form is still an explicit MPN CONFLICT
+  (MPN_MISMATCH) under frozen 2A/3C (regression-proven). If an RDIMM
+  alias mechanism is ever needed it requires its own reviewed authority
+  policy — explicitly out of scope.
+
+Test preservation: no test deleted, renamed, skipped, xfailed,
+deselected, or ignored. Five existing nodes whose pins encoded the
+displaced-query / default-page / blended-ordinary-query behavior were
+corrected in place with their original contracts preserved or
+strengthened (details below). One test helper gained a `description`
+parameter (the auto-expanded non-established-state matrix now constructs a
+mechanically re-derivable NOT_APPLICABLE instance; its contract — no
+non-established state carries authority — is unchanged and extended).
+
+New regression nodes (36): `tests/execution/test_public_research_recall.py`
+(13 — production MPN fixture: exact-MPN phrase query; exact candidate
+ranked last among broad candidates still ACCEPTED through the real
+orchestration pipeline; 11-broad + exact-last large page survives; generic
+`Micron 32GB DDR5` pages still REJECTED NO_EXPLICIT_MPN_EVIDENCE;
+conflicting explicit MPNs (incl. the T-stripped base form) still REJECTED
+MPN_MISMATCH; title-only pages never acquire identity; Serper wire body
+`num=50`; adapter maps a 50-item page in full; NOT_APPLICABLE with zero
+catalog fetches; priority over INVALID_LOOKUP_BASE; legitimate 7500 SSD
+ESTABLISHED behavior and non-Micron SSD NO_AUTHORITY_MATCH behavior
+intact), `tests/research/test_micron_packaging_alias.py` (17 — vocabulary
+pin + matching rules + NOT_APPLICABLE result contract + 1
+auto-expanded state-matrix node), `tests/research/test_micron_alias_codec.py`
+(5 — NOT_APPLICABLE round-trip + four tamper rejections),
+`tests/web/test_micron_alias_report.py` (1 — truthful NOT_APPLICABLE
+presentation). Corrected existing nodes: `test_mpn_plus_description_query`
+(now: explicit-MPN request issues the exact-MPN phrase as the ENTIRE paid
+query — original contract "exact MPN is the primary search term" preserved
+and strengthened; description-absence asserted), the three 4D-D
+`TestBoundedAuthorityFailure` ordinary-query assertions (now the exact-
+MPN phrase form; the 4D-D contracts under test — ONE bounded authority
+fetch, audit persisted before the search, exactly ONE search, bounded
+status — unchanged), and
+`test_search_sends_the_credential_in_a_header_never_in_the_url` (wire-body
+assertion now `{"q": ..., "num": 50}` — credential contract preserved and
+the recall page size value-locked).
+
+Validation (this session, candidate pass — final approval remains with
+ChatGPT after independent GitHub review):
+
+* Collection baseline at `2b66ac6`: **5802**; final: **5838** (+36 new
+  nodes: 13 in `tests/execution/test_public_research_recall.py` (new
+  file), 17 in `tests/research/test_micron_packaging_alias.py`
+  (16 new nodes + 1 auto-expanded non-established-state matrix node),
+  5 in `tests/research/test_micron_alias_codec.py`, 1 in
+  `tests/web/test_micron_alias_report.py`). Collection did not decrease;
+  no node removed.
+* Focused (all touched subsystems + authority preservation): the
+  recall/4D-D/orchestration/micron/serper/matching/boundary/web-report
+  batch -> **1196 passed** (4 clean-interpreter subprocess-boundary nodes
+  exhibited the documented Windows/Python-3.14 flake class and re-passed
+  on isolated retry); the vendor/compact-quote/B2-B3 replay/human-review/
+  semantic/comparable/FX authority batch -> **489 passed, 0 failed**.
+* Full suite: **5838 collected, 5838 passed, 39 subtests passed, 0
+  failed, 0 errors, 0 skipped, 0 xfailed, 0 deselected** (a consecutive
+  full run). Intermittent full-run failures in this session were limited
+  to the documented pre-existing Windows/Python-3.14 clean-interpreter
+  subprocess flake class (`subprocess.Popen -> OSError: [WinError 6] The
+  handle is invalid` in the import-boundary nodes); the exact node class
+  reproduced identically on the pristine starting SHA in a throwaway
+  worktree (not caused by this phase), and every failed node re-passed on
+  isolated retry.
+* `python manage.py check`: System check identified no issues (0
+  silenced). `python manage.py makemigrations --check --dry-run`: No
+  changes detected.
+* Live diagnostic: not performed. The only supported local live path
+  (`scripts/serper_live_smoke.py`) requires the production `SERPER_API_KEY`
+  (mission: do not require production credentials) and would consume paid
+  search credits (provider-cost boundary); deterministic fixtures are the
+  implementation proof, per the mission.
+
+No deployment performed in this commit; production does not move until
+independently reviewed approval.
+
 **PRODUCT-INTEL.PILOT-UX-PRICE-INTELLIGENCE-FU1 (Sub-3 Advanced-Evidence
 Median Presentation Correction) — IMPLEMENTED / PENDING FINAL REVIEW**
 
@@ -1856,6 +2023,7 @@ FU3B wires the frozen FU3A semantic runtime into real research execution:
 | PILOT-RELEASE-2-PROD-FIX1-FU1 | Bounded review-blocker closure (vendor hybrid production-wire fidelity + section-scanner consistency, human-confirmed authority ownership at the replay boundary, ECB evidence correction, Reviewed Price wording accuracy) | **IMPLEMENTED / FINAL REVIEW BLOCKER CORRECTED BY FU2 / PENDING FINAL REVIEW** (no deployment in this commit; canonical spec PLAN §26.11) |
 | PILOT-RELEASE-2-PROD-FIX1-FU2 | Final review-blocker closure (public/denied historical replay binds to the run's own persisted PriceIntelligenceSnapshot; caller-supplied price results removed as an authority input) | **IMPLEMENTED / PENDING FINAL REVIEW** (no deployment in this commit; canonical spec PLAN §26.12) |
 | PILOT-RELEASE-2-PROD-FIX1-FU3 | Bounded production defect closure (vendor section scanner: exact observed `<p>` paragraph-prefix envelope — narrow literal, NOT a generic HTML parser) | **IMPLEMENTED / PENDING FINAL REVIEW** (no deployment in this commit; canonical spec PLAN §26.13) |
+| PUBLIC-RESEARCH-RECALL-FU1 | Production-priority exact-MPN recall defect (exact-MPN first-class retrieval query; adapter recall page `num=50`; Micron 7500 SSD policy NOT_APPLICABLE applicability gate) | **IMPLEMENTED / PENDING FINAL REVIEW** (no deployment in this commit; canonical spec PLAN §26.19; baseline 5802 collected) |
 | 8A-PRE | Caching & Freshness Architecture Audit | **APPROVED / COMPLETE** (design audit delivered; READ-ONLY phase, no caching implementation; record: `docs/PRODUCT_INTEL_8A_PRE_CACHING_FRESHNESS_AUDIT.md`) |
 | 8A-FX-DESIGN | FX cache lookup identity & freshness design | **APPROVED / COMPLETE** (design record; superseded where corrected by FU1; `docs/PRODUCT_INTEL_8A_FX_DESIGN.md`) |
 | 8A-FX-DESIGN-FU1 | Freshness proof & canonical-feed eligibility closure | **APPROVED / FROZEN as design** (corrects the same-UTC-day proof window and the isinstance feed gate; `docs/PRODUCT_INTEL_8A_FX_DESIGN_FU1.md`) |
@@ -1966,20 +2134,23 @@ FU3B wires the frozen FU3A semantic runtime into real research execution:
 | Commercial Price Access Gate (4D-C-SEC) | `web/commercial_access.py` | **Implemented (approved / frozen)** |
 | Compact Quote Public Replay (4D-C) | `execution/compact_quote_public_replay.py` | **Implemented (approved / frozen)** |
 | Compact Quote Browser Presentation (4D-C) | `web/compact_quote_presentation.py` | **Implemented (approved / frozen)** |
-| Micron 7500 Packaging Alias Contracts (4D-D) | `research/micron_packaging_alias.py` | **Implemented (approved / frozen)** |
-| Micron Alias Snapshot Codec (4D-D) | `research/micron_alias_codec.py` | **Implemented (approved / frozen)** |
-| Micron Alias Authority Acquisition (4D-D) | `execution/micron_alias_authority.py` | **Implemented (approved / frozen)** |
+| Micron 7500 Packaging Alias Contracts (4D-D) | `research/micron_packaging_alias.py` | **Implemented (approved / frozen)**; extended by PUBLIC-RESEARCH-RECALL-FU1 (bounded non-SSD applicability vocabulary + `NOT_APPLICABLE` pre-fetch abstention; v1 scope and all 4D-D authority semantics unchanged) |
+| Micron Alias Snapshot Codec (4D-D) | `research/micron_alias_codec.py` | **Implemented (approved / frozen)**; round-trips the new `NOT_APPLICABLE` status with no schema change (V1) |
+| Micron Alias Authority Acquisition (4D-D) | `execution/micron_alias_authority.py` | **Implemented (approved / frozen)**; extended by PUBLIC-RESEARCH-RECALL-FU1 (pre-fetch NOT_APPLICABLE applicability gate; zero fetches for established memory-module requests) |
 | Alias Snapshot Model (4D-D) | `runs/models.py` (ResearchMicronAliasSnapshot) + migration 0010 | **Implemented (approved / frozen)** |
 | Alias Browser Presentation (4D-D) | `web/micron_alias_presentation.py` | **Implemented (approved / frozen)** |
 
 ## Research orchestration
 
-Base 4C orchestration contract: **frozen**
+Base 4C orchestration contract: **frozen** (exact-MPN query prioritization
+corrected by PUBLIC-RESEARCH-RECALL-FU1 — the paid query for an
+explicit-MPN request is the exact-MPN phrase; see PLAN §26.19)
 FU3B semantic execution extension: **APPROVED / FROZEN**
 
 Implementation snapshot:
 
-- Research orchestration: Base 4C frozen; FU3B semantic extension frozen
+- Research orchestration: Base 4C frozen (recall correction per
+  PUBLIC-RESEARCH-RECALL-FU1); FU3B semantic extension frozen
 - Semantic execution integration: Implemented / APPROVED / FROZEN
 
 ## Web layer architecture
