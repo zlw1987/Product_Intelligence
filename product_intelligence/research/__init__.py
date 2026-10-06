@@ -94,6 +94,15 @@ conflict taxonomy, distinct context provenance classes, the authority-tier
 matrix as data, and the future UI display vocabulary). CONTRACT ONLY: it is
 called by nothing in production (no execution / semantic / runs / web /
 providers wiring), it changes no V1 behavior, and it performs no I/O.
+
+PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-S2-A-FU1 corrected the S2-A contract:
+the authority prerequisites are now two ORTHOGONAL dimensions —
+``ProductEvidenceQuality`` (bounded product/description evidence, never
+model-derived) and ``RelationshipAuthority`` (state-specific identifier
+relationship; NOT_APPLICABLE for U4_NO_MPN, so U4 auto-authority never
+requires ``MANUFACTURER_RELATION_AUTHORITY``) — and every frozen contract
+mapping is a runtime-immutable tuple of immutable entries with a pure
+lookup function (no mutable global state).
 """
 
 from product_intelligence.research.aggregation import (
@@ -203,6 +212,7 @@ from product_intelligence.research.semantic_authority_v2 import (
     AuthorityDecisionV2,
     AuthorityRuleV2,
     AuthorityTier,
+    CandidateProductEvidenceSource,
     COMPATIBILITY_WORDING_VOCABULARY,
     CONTEXT_PROVENANCE_CAPABILITIES,
     ConflictClass,
@@ -210,7 +220,6 @@ from product_intelligence.research.semantic_authority_v2 import (
     ConflictSubstateV2,
     ContextCapability,
     ContextProvenance,
-    ContextQuality,
     DETERMINISTIC_STATE_POLICIES,
     DeterministicStatePolicy,
     FORBIDDEN_MARKET_EVIDENCE_HEADLINE,
@@ -226,10 +235,17 @@ from product_intelligence.research.semantic_authority_v2 import (
     PRICING_ELIGIBLE_SUMMARY_TEMPLATE,
     PRICING_ELIGIBLE_TIERS,
     PRICE_DIMENSION_ONLY_CONFLICT_CLASSES,
+    ProductEvidenceDimension,
+    ProductEvidenceFactV2,
+    ProductEvidenceProfileV2,
+    ProductEvidenceQuality,
+    RelationshipAuthority,
     REVIEWABLE_CONFLICT_CLASSES,
     SEMANTIC_OUTCOME_TIER_MATRIX,
     SemanticEvaluationStateV2,
     SemanticEvaluationV2,
+    STRONG_PRODUCT_EVIDENCE_MIN_MATCHED_DIMENSIONS,
+    STRONG_PRODUCT_EVIDENCE_MIN_MATCHED_FACTS,
     TierSummaryV2,
     UNAVAILABLE_IS_NEVER_NO_MATCH,
     UncertainSubstateV2,
@@ -238,11 +254,15 @@ from product_intelligence.research.semantic_authority_v2 import (
     V2Confidence,
     V2SemanticDecision,
     VerifiedSubstateV2,
+    authority_tier_badge,
     conflict_class_severity,
+    context_provenance_capabilities,
     derive_authority_tier,
-    derive_context_quality,
     derive_identity_state_v2,
+    derive_product_evidence_quality,
+    derive_relationship_authority,
     derive_tier_summary,
+    deterministic_state_policy,
     has_relationship_authority,
     is_hard_conflict_class,
     is_near_miss_substitution,
@@ -251,6 +271,7 @@ from product_intelligence.research.semantic_authority_v2 import (
     is_reviewable_conflict_class,
     is_v2_semantic_entry_point,
     near_miss_shape,
+    semantic_outcome_tier,
 )
 
 __all__ = [
@@ -262,6 +283,7 @@ __all__ = [
     "AuthorityRuleV2",
     "AuthorityTier",
     "CANONICAL_SEPARATOR",
+    "CandidateProductEvidenceSource",
     "COMPATIBILITY_WORDING_VOCABULARY",
     "COMPARABLE_RESULT_SCHEMA_VERSION",
     "ConflictClass",
@@ -269,7 +291,6 @@ __all__ = [
     "ConflictSubstateV2",
     "ContextCapability",
     "ContextProvenance",
-    "ContextQuality",
     "DETERMINISTIC_STATE_POLICIES",
     "DeterministicStatePolicy",
     "ENTERPRISE_SSD_SCHEMA",
@@ -291,10 +312,17 @@ __all__ = [
     "PRICE_RESULT_SCHEMA_VERSION",
     "PRICING_ELIGIBLE_SUMMARY_TEMPLATE",
     "PRICING_ELIGIBLE_TIERS",
+    "ProductEvidenceDimension",
+    "ProductEvidenceFactV2",
+    "ProductEvidenceProfileV2",
+    "ProductEvidenceQuality",
+    "RelationshipAuthority",
     "REVIEWABLE_CONFLICT_CLASSES",
     "SEMANTIC_OUTCOME_TIER_MATRIX",
     "SemanticEvaluationStateV2",
     "SemanticEvaluationV2",
+    "STRONG_PRODUCT_EVIDENCE_MIN_MATCHED_DIMENSIONS",
+    "STRONG_PRODUCT_EVIDENCE_MIN_MATCHED_FACTS",
     "STRUCTURAL_CHARACTERS",
     "TierSummaryV2",
     "UNAVAILABLE_IS_NEVER_NO_MATCH",
@@ -304,11 +332,15 @@ __all__ = [
     "V2Confidence",
     "V2SemanticDecision",
     "VerifiedSubstateV2",
+    "authority_tier_badge",
     "conflict_class_severity",
+    "context_provenance_capabilities",
     "derive_authority_tier",
-    "derive_context_quality",
     "derive_identity_state_v2",
+    "derive_product_evidence_quality",
+    "derive_relationship_authority",
     "derive_tier_summary",
+    "deterministic_state_policy",
     "has_relationship_authority",
     "is_hard_conflict_class",
     "is_near_miss_substitution",
@@ -317,6 +349,7 @@ __all__ = [
     "is_reviewable_conflict_class",
     "is_v2_semantic_entry_point",
     "near_miss_shape",
+    "semantic_outcome_tier",
     "AuthorityAttemptResult",
     "AuthorityAuditOutcomeKind",
     "CandidateDisposition",

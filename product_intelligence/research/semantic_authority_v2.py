@@ -6,6 +6,55 @@ near-miss relationship signals, the structured conflict taxonomy, the context
 provenance classes, the authority-tier matrix, and the future UI display
 vocabulary **in code**. It wires nothing into production:
 
+PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-S2-A-FU1 (this module as corrected)
+fixed two independent-review blockers in the S2-A contract:
+
+1. **U4 description-match was re-conservatized.** S2-A made
+   ``ContextQuality.STRONG`` globally equivalent to the presence of
+   ``MANUFACTURER_RELATION_AUTHORITY``; since the matrix's only
+   ``AI_ASSISTED_COMPARABLE`` row is MATCH + HIGH + STRONG, a U4_NO_MPN
+candidate — which by definition has no candidate identifier for a
+   manufacturer source to establish a relationship for — could never reach
+   the automatic tier. The authority prerequisites are now TWO ORTHOGONAL
+   dimensions, each derived independently:
+
+   * **A. Product evidence quality** (``ProductEvidenceQuality``:
+     STRONG / LIMITED / WEAK) — derived ONLY from the bounded
+     product/description evidence profile (usable product title + bounded
+     matched-attribute facts grounded in frozen page or reviewed product
+     evidence) and from reviewed product grounding provenance classes.
+     Never from model confidence, decisions, or model-claimed attributes.
+     A matched-attribute fact can be grounded ONLY in the bounded sources
+     ``LISTING_PRODUCT_TITLE`` or ``REVIEWED_PRODUCT_CONTEXT`` — the
+     vocabulary has no member for a model claim, so the future semantic
+     runtime cannot self-promote its authority by asserting attributes.
+
+   * **B. Identifier relationship authority** (``RelationshipAuthority``:
+     ESTABLISHED / NOT_ESTABLISHED / NOT_APPLICABLE) — derived from the
+     candidate state (does an identifier-relationship question exist?) and
+     from the context provenance classes (``MANUFACTURER_RELATION_AUTHORITY``
+     is the class that may answer it; ``CUSTOMER_RETRIEVAL_RELATION``
+     confers ZERO relationship authority).
+
+   The matrix is keyed on product evidence quality. The
+   identifier-relationship question is state-specific: it does NOT exist for
+   U4_NO_MPN (NOT_APPLICABLE — no candidate identifier exists for a
+   relationship to establish), so U4 auto-authority never requires
+   ``MANUFACTURER_RELATION_AUTHORITY``. For U1/U2/U3/U5 the question DOES
+   exist, and reaching ``AI_ASSISTED_COMPARABLE`` requires it to be answered
+   ESTABLISHED (the NM-2 ceiling, Product-lead amendment 1, remains the
+   explicit frozen form of that requirement for U5 +
+   NEAR_MISS_SUBSTITUTION).
+
+2. **Frozen contract tables were mutable dicts.** ``Final[dict[...]]`` is
+   not runtime immutability. Every authority/context/display mapping in this
+   module is now a frozen tuple of immutable entries (tuples, enums, frozen
+   dataclasses, frozensets, str) with a pure lookup function, self-checked
+   for completeness at import. No mutable global state of any kind exists in
+   this module.
+
+It wires nothing into production:
+
 * V2 is NOT called from execution, semantic, runs, web, or providers.
 * The frozen 2A comparator, 3C assessment, rejection reasons, Price
   Intelligence Snapshot V1, 4A aggregation, the current semantic V1 contract
@@ -48,17 +97,19 @@ Product-lead amendments frozen here
    semantic AI, but WITHOUT reviewed authoritative relationship context
    (``MANUFACTURER_RELATION_AUTHORITY`` or another future reviewed
    relationship-authority provenance) its maximum automatic workflow tier is
-   ``NEEDS_REVIEW``. The ceiling is data in the authority matrix, not a
-   prompt convention.
+   ``NEEDS_REVIEW`` — even for MATCH + HIGH + strong product evidence. The
+   ceiling is data in the authority matrix, not a prompt convention.
 2. **Distinct context provenance classes.** ``MANUFACTURER_PRODUCT_CONTEXT``
-   (reviewed manufacturer product facts — base MPN/category/family; does NOT
-   establish the identifier relationship), ``MANUFACTURER_RELATION_AUTHORITY``
-   (reviewed manufacturer / approved authoritative source explicitly
-   establishing the relevant identifier relationship), and
-   ``CUSTOMER_RETRIEVAL_RELATION`` (project-defined retrieval recall aid;
-   NEVER identity authority, NEVER an alias/equivalence proof, never raises
-   context to authoritative STRONG, never enters 4A) are distinct bounded
-   classes with disjoint capability sets.
+   (reviewed manufacturer product facts — base MPN/category/family; may
+   strengthen PRODUCT evidence grounding but does NOT establish the
+   identifier relationship), ``MANUFACTURER_RELATION_AUTHORITY`` (reviewed
+   manufacturer / approved authoritative source explicitly establishing the
+   relevant identifier relationship — the class that may answer the
+   identifier-relationship question ESTABLISHED where that question exists),
+   and ``CUSTOMER_RETRIEVAL_RELATION`` (project-defined retrieval recall aid;
+   NEVER identity authority, NEVER an alias/equivalence proof, ZERO
+   relationship authority, no product grounding, never enters 4A) are
+   distinct bounded classes with disjoint capability sets.
 3. **Summary wording.** The future display summary is
    ``"Market evidence found: N listings"`` (NEEDS_REVIEW counts under market
    evidence), with a separate
@@ -68,6 +119,36 @@ Product-lead amendments frozen here
    ``"N comparable NEW listings (machine-verified)"`` may remain. The
    misleading "Comparable evidence: N listings" headline is forbidden when
    the count contains NEEDS_REVIEW items.
+
+S2-A-FU1 corrections (frozen here)
+----------------------------------
+
+* ``ContextQuality`` / ``derive_context_quality`` (the S2-A global
+  RELATION-iff-STRONG coupling) are REMOVED and replaced by the two
+  orthogonal dimensions above (``ProductEvidenceQuality`` +
+  ``RelationshipAuthority``).
+* ``ProductEvidenceProfileV2`` is the bounded future-V2 input for product/
+  description evidence: a usable-product-title fact plus bounded
+  matched-attribute facts (dimension + grounded candidate-side sources).
+  The STRONG bar is bounded and testable: a usable title AND at least
+  ``STRONG_PRODUCT_EVIDENCE_MIN_MATCHED_FACTS`` matched facts spanning at
+  least ``STRONG_PRODUCT_EVIDENCE_MIN_MATCHED_DIMENSIONS`` distinct hard
+  product dimensions. A title alone is NOT strong; a model claim is NOT a
+  source.
+* ``derive_relationship_authority`` is state-specific: U4_NO_MPN is
+  NOT_APPLICABLE (the identifier-relationship question does not exist);
+  U1/U2/U3/U5 are ESTABLISHED only with reviewed relationship provenance;
+  verified states are ESTABLISHED by the frozen deterministic comparator;
+  C1 is NOT_ESTABLISHED; E1/E2 are NOT_APPLICABLE.
+* The authority matrix is keyed on (decision, confidence, PRODUCT evidence
+  quality); reaching ``AI_ASSISTED_COMPARABLE`` additionally requires the
+  state-specific identifier-relationship question to be NOT_APPLICABLE
+  (U4) or ESTABLISHED (U1/U2/U3/U5) — the general form of the NM-2
+  ceiling, which remains its own frozen audit rule for U5 +
+  NEAR_MISS_SUBSTITUTION.
+* Every frozen contract mapping in this module is a runtime-immutable
+  tuple of immutable entries plus a pure lookup function (no mutable
+  global state, no ``dict`` anywhere in the module's globals).
 
 Deliberately NOT implemented (out of contract):
 
@@ -105,12 +186,12 @@ __all__ = [
     "AuthorityDecisionV2",
     "AuthorityRuleV2",
     "AuthorityTier",
+    "CandidateProductEvidenceSource",
     "ConflictClass",
     "ConflictSeverity",
     "ConflictSubstateV2",
     "ContextCapability",
     "ContextProvenance",
-    "ContextQuality",
     "DETERMINISTIC_STATE_POLICIES",
     "DeterministicStatePolicy",
     "FORBIDDEN_MARKET_EVIDENCE_HEADLINE",
@@ -127,10 +208,17 @@ __all__ = [
     "PRICING_ELIGIBLE_SUMMARY_TEMPLATE",
     "PRICING_ELIGIBLE_TIERS",
     "PRICE_DIMENSION_ONLY_CONFLICT_CLASSES",
+    "ProductEvidenceDimension",
+    "ProductEvidenceFactV2",
+    "ProductEvidenceProfileV2",
+    "ProductEvidenceQuality",
     "REVIEWABLE_CONFLICT_CLASSES",
+    "RelationshipAuthority",
     "SEMANTIC_OUTCOME_TIER_MATRIX",
     "SemanticEvaluationStateV2",
     "SemanticEvaluationV2",
+    "STRONG_PRODUCT_EVIDENCE_MIN_MATCHED_DIMENSIONS",
+    "STRONG_PRODUCT_EVIDENCE_MIN_MATCHED_FACTS",
     "TierSummaryV2",
     "UNAVAILABLE_IS_NEVER_NO_MATCH",
     "UncertainSubstateV2",
@@ -139,11 +227,15 @@ __all__ = [
     "V2Confidence",
     "V2SemanticDecision",
     "VerifiedSubstateV2",
+    "authority_tier_badge",
     "conflict_class_severity",
+    "context_provenance_capabilities",
     "derive_authority_tier",
-    "derive_context_quality",
     "derive_identity_state_v2",
+    "derive_product_evidence_quality",
+    "derive_relationship_authority",
     "derive_tier_summary",
+    "deterministic_state_policy",
     "has_relationship_authority",
     "is_hard_conflict_class",
     "is_near_miss_substitution",
@@ -152,6 +244,7 @@ __all__ = [
     "is_reviewable_conflict_class",
     "is_v2_semantic_entry_point",
     "near_miss_shape",
+    "semantic_outcome_tier",
     "CONTEXT_PROVENANCE_CAPABILITIES",
     "COMPATIBILITY_WORDING_VOCABULARY",
 ]
@@ -387,58 +480,81 @@ def _has_compatibility_wording(title: str | None) -> bool:
 
 # The per-substate sets of permitted primary relationship signals. A direct
 # construction that mixes a sub-state with a foreign signal is rejected at
-# construction time (fail closed).
-_PRIMARY_SIGNALS_BY_SUBSTATE: Final[dict[str, frozenset[IdentityRelationshipSignal]]] = (
-    {
-        "V_EXACT": frozenset({IdentityRelationshipSignal.EXACT}),
-        "V_NORMALIZED_EXACT": frozenset({IdentityRelationshipSignal.NORMALIZED_EXACT}),
-        "U1_TITLE_MPN": frozenset({IdentityRelationshipSignal.TITLE_MPN_TOKEN}),
-        "U2_SKU_ONLY": frozenset(
-            {
-                IdentityRelationshipSignal.SKU_EQUALS_TARGET,
-                IdentityRelationshipSignal.SKU_NOT_TARGET,
-            }
-        ),
-        "U3_PARTIAL_BOUNDARY": frozenset(
-            {IdentityRelationshipSignal.PARTIAL_BOUNDARY}
-        ),
-        "U4_NO_MPN": frozenset(
-            {
-                IdentityRelationshipSignal.NO_RELATION,
-                IdentityRelationshipSignal.EMPTY_MPN_FIELD,
-            }
-        ),
-        "U5_NEAR_MISS_MPN": frozenset(
-            {
-                IdentityRelationshipSignal.NEAR_MISS_TRUNCATION,
-                IdentityRelationshipSignal.NEAR_MISS_SUBSTITUTION,
-            }
-        ),
-        "C1_INCOMPATIBLE_EXPLICIT_MPN": frozenset(
-            {IdentityRelationshipSignal.NO_RELATION}
-        ),
-        "E1_NO_TARGET_MPN": frozenset({IdentityRelationshipSignal.NO_RELATION}),
-        "E2_NO_CANDIDATE_EVIDENCE": frozenset(
-            {
-                IdentityRelationshipSignal.NO_RELATION,
-                IdentityRelationshipSignal.EMPTY_MPN_FIELD,
-            }
-        ),
-    }
+# construction time (fail closed). Frozen tuple of immutable entries with a
+# pure lookup helper (S2-A-FU1: no mutable global state).
+_PRIMARY_SIGNALS_BY_SUBSTATE: Final[
+    tuple[tuple[str, frozenset[IdentityRelationshipSignal]], ...]
+] = (
+    ("C1_INCOMPATIBLE_EXPLICIT_MPN", frozenset({IdentityRelationshipSignal.NO_RELATION})),
+    ("E1_NO_TARGET_MPN", frozenset({IdentityRelationshipSignal.NO_RELATION})),
+    ("E2_NO_CANDIDATE_EVIDENCE", frozenset(
+        {
+            IdentityRelationshipSignal.NO_RELATION,
+            IdentityRelationshipSignal.EMPTY_MPN_FIELD,
+        }
+    )),
+    ("U1_TITLE_MPN", frozenset({IdentityRelationshipSignal.TITLE_MPN_TOKEN})),
+    ("U2_SKU_ONLY", frozenset(
+        {
+            IdentityRelationshipSignal.SKU_EQUALS_TARGET,
+            IdentityRelationshipSignal.SKU_NOT_TARGET,
+        }
+    )),
+    ("U3_PARTIAL_BOUNDARY", frozenset(
+        {IdentityRelationshipSignal.PARTIAL_BOUNDARY}
+    )),
+    ("U4_NO_MPN", frozenset(
+        {
+            IdentityRelationshipSignal.NO_RELATION,
+            IdentityRelationshipSignal.EMPTY_MPN_FIELD,
+        }
+    )),
+    ("U5_NEAR_MISS_MPN", frozenset(
+        {
+            IdentityRelationshipSignal.NEAR_MISS_TRUNCATION,
+            IdentityRelationshipSignal.NEAR_MISS_SUBSTITUTION,
+        }
+    )),
+    ("V_EXACT", frozenset({IdentityRelationshipSignal.EXACT})),
+    ("V_NORMALIZED_EXACT", frozenset(
+        {IdentityRelationshipSignal.NORMALIZED_EXACT}
+    )),
 )
 
-_STATE_OF_SUBSTATE: Final[dict[str, IdentityStateV2]] = {
-    "V_EXACT": IdentityStateV2.DETERMINISTIC_VERIFIED,
-    "V_NORMALIZED_EXACT": IdentityStateV2.DETERMINISTIC_VERIFIED,
-    "U1_TITLE_MPN": IdentityStateV2.DETERMINISTIC_UNCERTAIN,
-    "U2_SKU_ONLY": IdentityStateV2.DETERMINISTIC_UNCERTAIN,
-    "U3_PARTIAL_BOUNDARY": IdentityStateV2.DETERMINISTIC_UNCERTAIN,
-    "U4_NO_MPN": IdentityStateV2.DETERMINISTIC_UNCERTAIN,
-    "U5_NEAR_MISS_MPN": IdentityStateV2.DETERMINISTIC_UNCERTAIN,
-    "C1_INCOMPATIBLE_EXPLICIT_MPN": IdentityStateV2.DETERMINISTIC_CONFLICT,
-    "E1_NO_TARGET_MPN": IdentityStateV2.DETERMINISTIC_UNEVALUABLE,
-    "E2_NO_CANDIDATE_EVIDENCE": IdentityStateV2.DETERMINISTIC_UNEVALUABLE,
-}
+
+def _primary_signals_for_substate(
+    substate_value: str,
+) -> frozenset[IdentityRelationshipSignal]:
+    """Pure lookup over the frozen per-substate primary-signal table."""
+    for value, signals in _PRIMARY_SIGNALS_BY_SUBSTATE:
+        if value == substate_value:
+            return signals
+    raise ValueError(
+        f"sub-state {substate_value} has no permitted primary relationship "
+        "signals in the frozen V2 contract; fail closed"
+    )
+
+
+_STATE_OF_SUBSTATE: Final[tuple[tuple[str, IdentityStateV2], ...]] = (
+    ("C1_INCOMPATIBLE_EXPLICIT_MPN", IdentityStateV2.DETERMINISTIC_CONFLICT),
+    ("E1_NO_TARGET_MPN", IdentityStateV2.DETERMINISTIC_UNEVALUABLE),
+    ("E2_NO_CANDIDATE_EVIDENCE", IdentityStateV2.DETERMINISTIC_UNEVALUABLE),
+    ("U1_TITLE_MPN", IdentityStateV2.DETERMINISTIC_UNCERTAIN),
+    ("U2_SKU_ONLY", IdentityStateV2.DETERMINISTIC_UNCERTAIN),
+    ("U3_PARTIAL_BOUNDARY", IdentityStateV2.DETERMINISTIC_UNCERTAIN),
+    ("U4_NO_MPN", IdentityStateV2.DETERMINISTIC_UNCERTAIN),
+    ("U5_NEAR_MISS_MPN", IdentityStateV2.DETERMINISTIC_UNCERTAIN),
+    ("V_EXACT", IdentityStateV2.DETERMINISTIC_VERIFIED),
+    ("V_NORMALIZED_EXACT", IdentityStateV2.DETERMINISTIC_VERIFIED),
+)
+
+
+def _state_for_substate(substate_value: str) -> IdentityStateV2 | None:
+    """Pure lookup over the frozen sub-state -> state table (None if absent)."""
+    for value, state in _STATE_OF_SUBSTATE:
+        if value == substate_value:
+            return state
+    return None
 
 
 @dataclass(frozen=True)
@@ -496,7 +612,7 @@ class IdentityStateAssessmentV2:
 
         # State/sub-state consistency: the sub-state enum family must match
         # the top-level state (U3 in a CONFLICT overlay is impossible).
-        expected_state = _STATE_OF_SUBSTATE.get(self.substate.value)
+        expected_state = _state_for_substate(self.substate.value)
         if expected_state is not self.state:
             raise ValueError(
                 f"sub-state {self.substate.value} belongs to "
@@ -514,7 +630,7 @@ class IdentityStateAssessmentV2:
                 "relationship_signals must contain exactly one primary "
                 f"identifier-relationship signal, got {sorted(s.value for s in primary)}"
             )
-        permitted = _PRIMARY_SIGNALS_BY_SUBSTATE[self.substate.value]
+        permitted = _primary_signals_for_substate(self.substate.value)
         if not primary <= permitted:
             raise ValueError(
                 f"sub-state {self.substate.value} does not permit primary "
@@ -903,7 +1019,23 @@ def is_price_dimension_only_class(conflict_class: ConflictClass) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Context provenance classes (Product-lead amendment 2)
+# Orthogonal authority prerequisites (Product-lead amendment 2, as
+# corrected by S2-A-FU1)
+#
+# The S2-A contract coupled context quality to identifier-relationship
+# authority (STRONG iff MANUFACTURER_RELATION_AUTHORITY present), which
+# re-conservatized U4_NO_MPN: a no-MPN candidate has no identifier
+# relationship for a manufacturer source to establish, and was therefore
+# locked out of the automatic tier. The authority prerequisites are now
+# TWO ORTHOGONAL dimensions, each derived independently:
+#
+#   A. Product evidence quality (ProductEvidenceQuality) — how strongly
+#      the candidate's product/description evidence is grounded (bounded
+#      evidence bar; never derived from model output).
+#   B. Identifier relationship authority (RelationshipAuthority) — state-
+#      specific: does the candidate pose an identifier-relationship
+#      question, and if so, is it answered by reviewed authoritative
+#      relationship provenance?
 # ---------------------------------------------------------------------------
 
 
@@ -914,19 +1046,21 @@ class ContextProvenance(str, Enum):
 
     * ``MANUFACTURER_PRODUCT_CONTEXT`` — a reviewed manufacturer source
       establishes facts about the base product (base MPN / category /
-      family). It does NOT establish the relationship between the requested
-      and the candidate MPN.
+      family). It may strengthen PRODUCT evidence grounding. It does NOT
+      establish the identifier relationship.
     * ``MANUFACTURER_RELATION_AUTHORITY`` — a reviewed manufacturer or
       equivalent approved authoritative source explicitly establishes the
       relevant relationship/equivalence between identifiers. This is the
-      class that MAY raise relationship authority / context quality.
+      class that MAY answer the identifier-relationship question
+      ESTABLISHED where that question exists. It also carries reviewed
+      product grounding.
     * ``CUSTOMER_RETRIEVAL_RELATION`` — a customer/project-defined
       relationship existing solely to improve retrieval recall. It is NOT
       manufacturer-published identity/equivalence authority and MUST NEVER,
       by itself: establish identity, produce machine-verified authority,
-      raise NM-2 to automatic comparable, raise context quality to
-      authoritative STRONG, override conflict, enter 4A, or be described to
-      the model as manufacturer-established equivalence.
+      raise NM-2 to automatic comparable, confer any relationship
+      authority, ground product evidence, override conflict, enter 4A, or
+      be described to the model as manufacturer-established equivalence.
     """
 
     MANUFACTURER_PRODUCT_CONTEXT = "MANUFACTURER_PRODUCT_CONTEXT"
@@ -938,33 +1072,67 @@ class ContextCapability(str, Enum):
     """What a context provenance class is permitted to do."""
 
     GROUND_PRODUCT_FACTS = "GROUND_PRODUCT_FACTS"
-    """Reviewed product facts (base MPN / category / family grounding)."""
+    """Reviewed product facts (base MPN / category / family grounding).
+    May ground matched-attribute facts and raise product evidence quality
+    to LIMITED; does NOT establish the identifier relationship."""
 
     ESTABLISH_IDENTIFIER_RELATIONSHIP = "ESTABLISH_IDENTIFIER_RELATIONSHIP"
     """A reviewed authoritative identifier relationship/equivalence. The
-    only capability that can satisfy the matrix's relationship-context gate
-    and raise context quality to authoritative STRONG."""
+    only capability that can answer the state-specific
+    identifier-relationship question ESTABLISHED. It does NOT by itself
+    supply product evidence quality (that is dimension A)."""
 
     RETRIEVAL_RECALL_ONLY = "RETRIEVAL_RECALL_ONLY"
-    """Recall aid. No identity, no equivalence, no authority of any kind."""
+    """Recall aid. No identity, no equivalence, no authority of any kind,
+    and no product grounding."""
 
 
-CONTEXT_PROVENANCE_CAPABILITIES: Final[dict[ContextProvenance, frozenset[ContextCapability]]] = (
-    {
-        ContextProvenance.MANUFACTURER_PRODUCT_CONTEXT: frozenset(
-            {ContextCapability.GROUND_PRODUCT_FACTS}
-        ),
-        ContextProvenance.MANUFACTURER_RELATION_AUTHORITY: frozenset(
+#: Frozen capability table (S2-A contract; S2-A-FU1 representation):
+#: runtime-immutable tuple of (provenance, capabilities) entries with a
+#: pure lookup function.
+CONTEXT_PROVENANCE_CAPABILITIES: Final[
+    tuple[tuple[ContextProvenance, frozenset[ContextCapability]], ...]
+] = (
+    (
+        ContextProvenance.MANUFACTURER_PRODUCT_CONTEXT,
+        frozenset({ContextCapability.GROUND_PRODUCT_FACTS}),
+    ),
+    (
+        ContextProvenance.MANUFACTURER_RELATION_AUTHORITY,
+        frozenset(
             {
                 ContextCapability.GROUND_PRODUCT_FACTS,
                 ContextCapability.ESTABLISH_IDENTIFIER_RELATIONSHIP,
             }
         ),
-        ContextProvenance.CUSTOMER_RETRIEVAL_RELATION: frozenset(
-            {ContextCapability.RETRIEVAL_RECALL_ONLY}
-        ),
-    }
+    ),
+    (
+        ContextProvenance.CUSTOMER_RETRIEVAL_RELATION,
+        frozenset({ContextCapability.RETRIEVAL_RECALL_ONLY}),
+    ),
 )
+
+
+def context_provenance_capabilities(
+    provenance: ContextProvenance,
+) -> frozenset[ContextCapability]:
+    """Pure lookup of the frozen capability set of one provenance class.
+
+    Fails closed on anything that is not a ``ContextProvenance`` member or
+    that the frozen table does not define.
+    """
+    if not isinstance(provenance, ContextProvenance):
+        raise TypeError(
+            "provenance must be ContextProvenance, "
+            f"got {type(provenance).__name__}"
+        )
+    for entry_provenance, capabilities in CONTEXT_PROVENANCE_CAPABILITIES:
+        if entry_provenance is provenance:
+            return capabilities
+    raise ValueError(
+        f"provenance {provenance.value} has no frozen capability entry; "
+        "the capability table must cover the whole vocabulary"
+    )
 
 
 def _union_capabilities(
@@ -977,7 +1145,7 @@ def _union_capabilities(
                 "context provenances must be ContextProvenance members, "
                 f"got {provenance!r}"
             )
-        capabilities |= CONTEXT_PROVENANCE_CAPABILITIES[provenance]
+        capabilities |= context_provenance_capabilities(provenance)
     return frozenset(capabilities)
 
 
@@ -991,6 +1159,12 @@ def has_relationship_authority(
     ``MANUFACTURER_RELATION_AUTHORITY``; a future reviewed authoritative
     relationship source would be a new class holding this capability).
     ``CUSTOMER_RETRIEVAL_RELATION`` can never make this True.
+
+    Note: presence of relationship provenance is necessary but NOT
+    sufficient for relationship authority to be ESTABLISHED — the question
+    must exist for the candidate state (see
+    ``derive_relationship_authority``: U4_NO_MPN is NOT_APPLICABLE even
+    with relationship provenance present).
     """
     if not isinstance(provenances, frozenset):
         raise TypeError("provenances must be a frozenset")
@@ -998,46 +1172,311 @@ def has_relationship_authority(
     return ContextCapability.ESTABLISH_IDENTIFIER_RELATIONSHIP in capabilities
 
 
-class ContextQuality(str, Enum):
-    """Bounded context quality vocabulary."""
+class RelationshipAuthority(str, Enum):
+    """Dimension B — the state-specific identifier-relationship question.
 
-    STRONG = "STRONG"
-    """Authoritative: a reviewed identifier relationship is established."""
-
-    LIMITED = "LIMITED"
-    """Reviewed product grounding without an identifier relationship."""
-
-    WEAK = "WEAK"
-    """No reviewed product/relationship grounding (or retrieval aid only)."""
-
-
-def derive_context_quality(
-    provenances: frozenset[ContextProvenance],
-) -> ContextQuality:
-    """Compute context quality from persisted/extracted provenance classes.
-
-    Conservative by contract:
-
-    * quality is computed ONLY from provenance classes — never from model
-      confidence and never from AI ``matched_attributes`` (the matrix takes
-      no AI-input context quality; an AI outcome cannot raise its own
-      authority);
-    * ``CUSTOMER_RETRIEVAL_RELATION`` alone cannot raise context to
-      authoritative STRONG (it is WEAK);
-    * ``MANUFACTURER_PRODUCT_CONTEXT`` may strengthen product grounding
-      (LIMITED) but does not prove identifier equivalence;
-    * ``MANUFACTURER_RELATION_AUTHORITY`` is the class that establishes a
-      reviewed identifier relationship (STRONG), regardless of what else is
-      present.
+    Orthogonal to product evidence quality: relationship authority answers
+    "does a reviewed authoritative source establish the identifier
+    relationship for this candidate?", which is a different question from
+    "how well grounded is the candidate's product evidence?".
     """
+
+    ESTABLISHED = "ESTABLISHED"
+    """The identifier-relationship question is answered: by the frozen
+    deterministic comparator (verified states) or by reviewed authoritative
+    relationship provenance (MANUFACTURER_RELATION_AUTHORITY)."""
+
+    NOT_ESTABLISHED = "NOT_ESTABLISHED"
+    """The candidate poses an identifier-relationship question (U1/U2/U3/U5)
+    that no reviewed authoritative relationship provenance answers."""
+
+    NOT_APPLICABLE = "NOT_APPLICABLE"
+    """No identifier-relationship question exists for this candidate
+    (U4_NO_MPN: there is no candidate identifier for a relationship to
+    establish; E1/E2: no target or no candidate evidence at all).
+    Relationship provenance cannot change this: there is nothing for it to
+    establish."""
+
+
+def derive_relationship_authority(
+    assessment_v2: IdentityStateAssessmentV2,
+    provenances: frozenset[ContextProvenance],
+) -> RelationshipAuthority:
+    """Derive dimension B for one candidate: state-specific.
+
+    * U4_NO_MPN -> NOT_APPLICABLE, regardless of provenance: by definition
+      the candidate publishes no usable identifier, so there is no
+      identifier relationship for any source to establish. U4 auto-
+      authority therefore NEVER requires
+      ``MANUFACTURER_RELATION_AUTHORITY``.
+    * U1 / U2 / U3 / U5 -> the identifier-relationship question EXISTS
+      (the candidate published identifier-like evidence the frozen 3C gate
+      could not resolve). ESTABLISHED only with reviewed authoritative
+      relationship provenance (``has_relationship_authority``); otherwise
+      NOT_ESTABLISHED. ``CUSTOMER_RETRIEVAL_RELATION`` confers zero
+      relationship authority.
+    * Verified states -> ESTABLISHED: the relationship is established by
+      the frozen deterministic comparator (the assessment itself is the
+      authority).
+    * C1 -> NOT_ESTABLISHED: the question exists and the explicit
+      mismatch is deterministic (AI-ineligible state regardless).
+    * E1 / E2 -> NOT_APPLICABLE: no target MPN / no candidate evidence.
+    """
+    if not isinstance(assessment_v2, IdentityStateAssessmentV2):
+        raise TypeError(
+            "assessment_v2 must be IdentityStateAssessmentV2, "
+            f"got {type(assessment_v2).__name__}"
+        )
     if not isinstance(provenances, frozenset):
         raise TypeError("provenances must be a frozenset")
+
+    if assessment_v2.substate is UncertainSubstateV2.U4_NO_MPN:
+        return RelationshipAuthority.NOT_APPLICABLE
+    if assessment_v2.state is IdentityStateV2.DETERMINISTIC_VERIFIED:
+        return RelationshipAuthority.ESTABLISHED
+    if assessment_v2.state is IdentityStateV2.DETERMINISTIC_UNCERTAIN:
+        if has_relationship_authority(provenances):
+            return RelationshipAuthority.ESTABLISHED
+        return RelationshipAuthority.NOT_ESTABLISHED
+    if assessment_v2.state is IdentityStateV2.DETERMINISTIC_CONFLICT:
+        return RelationshipAuthority.NOT_ESTABLISHED
+    return RelationshipAuthority.NOT_APPLICABLE
+
+
+class ProductEvidenceQuality(str, Enum):
+    """Dimension A — how strongly the candidate's product/description
+    evidence is grounded. Orthogonal to identifier relationship authority.
+
+    Computed ONLY from the bounded product-evidence profile (usable
+    product title + grounded matched-attribute facts) and reviewed product
+    grounding provenance classes — never from model confidence, model
+    decisions, or model-claimed matched attributes.
+    """
+
+    STRONG = "STRONG"
+    """Meets the full bounded STRONG evidence bar: a usable product title
+    plus at least ``STRONG_PRODUCT_EVIDENCE_MIN_MATCHED_FACTS`` bounded
+    matched-attribute facts spanning at least
+    ``STRONG_PRODUCT_EVIDENCE_MIN_MATCHED_DIMENSIONS`` distinct hard
+    product dimensions, each grounded in frozen page evidence or reviewed
+    product context."""
+
+    LIMITED = "LIMITED"
+    """Some product grounding exists (usable title, reviewed product
+    grounding, or at least one matched fact) but the full bounded STRONG
+    bar is not met."""
+
+    WEAK = "WEAK"
+    """No usable product title, no reviewed product grounding, and no
+    bounded matched facts (or retrieval-aid provenance only, which grounds
+    nothing)."""
+
+
+class ProductEvidenceDimension(str, Enum):
+    """Bounded hard product-identity dimensions a matched-attribute fact
+    may name (S2-A-FU1).
+
+    The vocabulary mirrors the ALWAYS_HARD conflict classes of the same
+    name: a MATCH on one of these dimensions is the positive of a hard
+    conflict on it, so a STRONG profile corroborates exactly the identity
+    dimensions a conflict would break. Deliberately excluded: price /
+    packaging / condition dimensions (not product identity) and reviewable
+    dimensions (REVISION_OR_SUFFIX / BRAND — a reviewable difference is not
+    strong corroboration). Extending the vocabulary is a future reviewed
+    change, not a runtime decision.
+    """
+
+    PRODUCT_FAMILY = "PRODUCT_FAMILY"
+    GENERATION = "GENERATION"
+    CAPACITY = "CAPACITY"
+    INTERFACE = "INTERFACE"
+    FORM_FACTOR = "FORM_FACTOR"
+    PRODUCT_ROLE = "PRODUCT_ROLE"
+
+
+class CandidateProductEvidenceSource(str, Enum):
+    """Bounded candidate-side sources that may ground a matched-attribute
+    fact (S2-A-FU1).
+
+    Only frozen page evidence and reviewed product context qualify. The
+    vocabulary deliberately has NO member for a model claim: the future
+    semantic runtime's output cannot ground its own evidence, so a model
+    cannot self-promote its authority by asserting arbitrary matched
+    attributes.
+    """
+
+    LISTING_PRODUCT_TITLE = "LISTING_PRODUCT_TITLE"
+    """The candidate's frozen listing product title text (page evidence).
+    Requires the profile to carry a usable product title."""
+
+    REVIEWED_PRODUCT_CONTEXT = "REVIEWED_PRODUCT_CONTEXT"
+    """A reviewed product-context provenance (one carrying
+    ``GROUND_PRODUCT_FACTS``: MANUFACTURER_PRODUCT_CONTEXT or
+    MANUFACTURER_RELATION_AUTHORITY). Requires such a provenance to be
+    present; CUSTOMER_RETRIEVAL_RELATION can never ground a fact."""
+
+
+#: Bounded STRONG evidence bar (S2-A-FU1, future-qualifiable by V3): the
+#: minimum number of bounded matched-attribute facts, and the minimum
+#: number of DISTINCT hard product dimensions they must span, required for
+#: STRONG product evidence quality (together with a usable product title).
+STRONG_PRODUCT_EVIDENCE_MIN_MATCHED_FACTS: Final[int] = 2
+STRONG_PRODUCT_EVIDENCE_MIN_MATCHED_DIMENSIONS: Final[int] = 2
+
+
+@dataclass(frozen=True)
+class ProductEvidenceFactV2:
+    """One bounded matched-attribute fact (S2-A-FU1).
+
+    Asserts that the requested product and the candidate agree on one hard
+    product dimension, with the candidate-side value grounded in at least
+    one bounded candidate-side source. Construction fails closed on an
+    empty source set: an ungrounded (model-claimed) fact is outside the
+    contract.
+    """
+
+    dimension: ProductEvidenceDimension
+    sources: frozenset[CandidateProductEvidenceSource]
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.dimension, ProductEvidenceDimension):
+            raise TypeError(
+                "dimension must be ProductEvidenceDimension, "
+                f"got {type(self.dimension).__name__}"
+            )
+        if not isinstance(self.sources, frozenset):
+            raise TypeError(
+                "sources must be a frozenset, "
+                f"got {type(self.sources).__name__}"
+            )
+        if not self.sources:
+            raise ValueError(
+                "a matched-attribute fact requires at least one bounded "
+                "candidate-side source; an ungrounded (model-claimed) fact "
+                "is outside the contract and cannot carry authority"
+            )
+        for source in self.sources:
+            if not isinstance(source, CandidateProductEvidenceSource):
+                raise TypeError(
+                    "sources must contain only CandidateProductEvidenceSource "
+                    f"members, got {source!r}"
+                )
+
+
+@dataclass(frozen=True)
+class ProductEvidenceProfileV2:
+    """The bounded product/description evidence profile of one candidate
+    (S2-A-FU1).
+
+    This is the future-V2 input contract for dimension A: what the V2
+    harness may supply as product evidence. It is derived from FROZEN
+    evidence (the listing's product title, reviewed product context) —
+    never from model output. The authority contract, not the model, decides
+    which inputs can satisfy the auto-authority bar.
+
+    Cross-consistency (fail closed): a fact grounded in the listing product
+    title requires the profile to carry a usable product title.
+    """
+
+    has_usable_product_title: bool
+    matched_facts: frozenset[ProductEvidenceFactV2]
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.has_usable_product_title, bool):
+            raise TypeError("has_usable_product_title must be bool")
+        if not isinstance(self.matched_facts, frozenset):
+            raise TypeError(
+                "matched_facts must be a frozenset, "
+                f"got {type(self.matched_facts).__name__}"
+            )
+        for fact in self.matched_facts:
+            if not isinstance(fact, ProductEvidenceFactV2):
+                raise TypeError(
+                    "matched_facts must contain only ProductEvidenceFactV2, "
+                    f"got {fact!r}"
+                )
+            if (
+                CandidateProductEvidenceSource.LISTING_PRODUCT_TITLE
+                in fact.sources
+                and not self.has_usable_product_title
+            ):
+                raise ValueError(
+                    "a matched-attribute fact grounded in the listing "
+                    "product title requires a usable product title; the "
+                    "profile is internally inconsistent"
+                )
+
+
+def derive_product_evidence_quality(
+    profile: ProductEvidenceProfileV2,
+    provenances: frozenset[ContextProvenance],
+) -> ProductEvidenceQuality:
+    """Derive dimension A for one candidate (S2-A-FU1).
+
+    Bounded, testable STRONG bar (frozen; future-qualifiable by V3):
+
+    * STRONG <=> the profile carries a usable product title AND at least
+      ``STRONG_PRODUCT_EVIDENCE_MIN_MATCHED_FACTS`` bounded matched facts
+      spanning at least
+      ``STRONG_PRODUCT_EVIDENCE_MIN_MATCHED_DIMENSIONS`` distinct hard
+      product dimensions.
+    * LIMITED <=> not STRONG, and some product grounding exists: a usable
+      product title, reviewed product grounding (a provenance carrying
+      ``GROUND_PRODUCT_FACTS``), or at least one matched fact.
+    * WEAK <=> no usable title, no reviewed product grounding, no matched
+      facts. ``CUSTOMER_RETRIEVAL_RELATION`` alone is WEAK (it carries no
+      grounding capability).
+
+    A title alone is NOT strong: corroboration across distinct hard product
+    dimensions is the bar. Model confidence / decisions / claimed
+    attributes never enter this derivation.
+
+    Fails closed (ValueError) on an unsupported profile: a fact grounded in
+    ``REVIEWED_PRODUCT_CONTEXT`` requires a provenance carrying
+    ``GROUND_PRODUCT_FACTS`` to be present (customer retrieval can never
+    ground a fact).
+    """
+    if not isinstance(profile, ProductEvidenceProfileV2):
+        raise TypeError(
+            "profile must be ProductEvidenceProfileV2, "
+            f"got {type(profile).__name__}"
+        )
+    if not isinstance(provenances, frozenset):
+        raise TypeError("provenances must be a frozenset")
+
     capabilities = _union_capabilities(provenances)
-    if ContextCapability.ESTABLISH_IDENTIFIER_RELATIONSHIP in capabilities:
-        return ContextQuality.STRONG
-    if ContextCapability.GROUND_PRODUCT_FACTS in capabilities:
-        return ContextQuality.LIMITED
-    return ContextQuality.WEAK
+    reviewed_grounding = (
+        ContextCapability.GROUND_PRODUCT_FACTS in capabilities
+    )
+    for fact in profile.matched_facts:
+        if (
+            CandidateProductEvidenceSource.REVIEWED_PRODUCT_CONTEXT
+            in fact.sources
+            and not reviewed_grounding
+        ):
+            raise ValueError(
+                "a matched-attribute fact grounded in reviewed product "
+                "context requires a reviewed product provenance "
+                "(MANUFACTURER_PRODUCT_CONTEXT or MANUFACTURER_RELATION_"
+                "AUTHORITY); the profile is unsupported"
+            )
+
+    distinct_dimensions = {fact.dimension for fact in profile.matched_facts}
+    if (
+        profile.has_usable_product_title
+        and len(profile.matched_facts)
+        >= STRONG_PRODUCT_EVIDENCE_MIN_MATCHED_FACTS
+        and len(distinct_dimensions)
+        >= STRONG_PRODUCT_EVIDENCE_MIN_MATCHED_DIMENSIONS
+    ):
+        return ProductEvidenceQuality.STRONG
+    if (
+        profile.has_usable_product_title
+        or reviewed_grounding
+        or profile.matched_facts
+    ):
+        return ProductEvidenceQuality.LIMITED
+    return ProductEvidenceQuality.WEAK
 
 
 # ---------------------------------------------------------------------------
@@ -1238,144 +1677,231 @@ class DeterministicStatePolicy:
     human_confirmation_permitted: bool
 
 
-DETERMINISTIC_STATE_POLICIES: Final[dict[IdentityStateV2, DeterministicStatePolicy]] = (
-    {
-        IdentityStateV2.DETERMINISTIC_VERIFIED: DeterministicStatePolicy(
+#: Frozen per-state policies (S2-A contract; S2-A-FU1 representation):
+#: runtime-immutable tuple of (state, policy) entries with a pure lookup
+#: function.
+DETERMINISTIC_STATE_POLICIES: Final[
+    tuple[tuple[IdentityStateV2, DeterministicStatePolicy], ...]
+] = (
+    (
+        IdentityStateV2.DETERMINISTIC_VERIFIED,
+        DeterministicStatePolicy(
             deterministic_tier=AuthorityTier.MACHINE_VERIFIED,
             semantic_eligible=False,
             ai_authority_permitted=False,
             human_confirmation_permitted=False,
         ),
-        IdentityStateV2.DETERMINISTIC_CONFLICT: DeterministicStatePolicy(
-            deterministic_tier=AuthorityTier.HARD_CONFLICT,
-            semantic_eligible=False,
-            ai_authority_permitted=False,
-            human_confirmation_permitted=False,
-        ),
-        IdentityStateV2.DETERMINISTIC_UNEVALUABLE: DeterministicStatePolicy(
-            deterministic_tier=AuthorityTier.EXCLUDED_LOW_CONFIDENCE,
-            semantic_eligible=False,
-            ai_authority_permitted=False,
-            human_confirmation_permitted=False,
-        ),
-        IdentityStateV2.DETERMINISTIC_UNCERTAIN: DeterministicStatePolicy(
+    ),
+    (
+        IdentityStateV2.DETERMINISTIC_UNCERTAIN,
+        DeterministicStatePolicy(
             deterministic_tier=AuthorityTier.NEEDS_REVIEW,
             semantic_eligible=True,
             ai_authority_permitted=True,
             human_confirmation_permitted=True,
         ),
-    }
+    ),
+    (
+        IdentityStateV2.DETERMINISTIC_CONFLICT,
+        DeterministicStatePolicy(
+            deterministic_tier=AuthorityTier.HARD_CONFLICT,
+            semantic_eligible=False,
+            ai_authority_permitted=False,
+            human_confirmation_permitted=False,
+        ),
+    ),
+    (
+        IdentityStateV2.DETERMINISTIC_UNEVALUABLE,
+        DeterministicStatePolicy(
+            deterministic_tier=AuthorityTier.EXCLUDED_LOW_CONFIDENCE,
+            semantic_eligible=False,
+            ai_authority_permitted=False,
+            human_confirmation_permitted=False,
+        ),
+    ),
 )
 
 
-#: The semantic outcome matrix, as data: (decision, confidence, context
-#: quality) -> tier, BEFORE ceilings and before hard-conflict supersession.
+def deterministic_state_policy(
+    state: IdentityStateV2,
+) -> DeterministicStatePolicy:
+    """Pure lookup of the frozen policy of one V2 state.
+
+    Fails closed on anything that is not an ``IdentityStateV2`` member or
+    that the frozen table does not define.
+    """
+    if not isinstance(state, IdentityStateV2):
+        raise TypeError(
+            "state must be IdentityStateV2, "
+            f"got {type(state).__name__}"
+        )
+    for entry_state, policy in DETERMINISTIC_STATE_POLICIES:
+        if entry_state is state:
+            return policy
+    raise ValueError(
+        f"state {state.value} has no frozen policy entry; the policy "
+        "table must cover the whole state vocabulary"
+    )
+
+
+#: The semantic outcome matrix, as data: (decision, confidence, PRODUCT
+#: evidence quality) -> tier, BEFORE ceilings and before hard-conflict
+#: supersession. S2-A-FU1: the quality dimension is the orthogonal
+#: ProductEvidenceQuality (bounded product/description evidence bar), NOT
+#: identifier-relationship authority. Runtime-immutable tuple of
+#: ((key), tier) entries with a pure lookup function.
 #:
-#: Frozen rules (S2-A contract):
+#: Frozen rules (S2-A contract, S2-A-FU1 key):
 #:
-#: * MATCH + HIGH requires authoritative STRONG context (only reviewed
-#:   relationship authority produces it) to reach AI_ASSISTED_COMPARABLE;
-#:   incomplete (LIMITED/WEAK) context caps it at NEEDS_REVIEW.
+#: * MATCH + HIGH requires STRONG product evidence to reach
+#:   AI_ASSISTED_COMPARABLE (the row base; the state-specific
+#:   identifier-relationship gate then applies on top); incomplete
+#:   (LIMITED/WEAK) product evidence caps it at NEEDS_REVIEW.
 #: * MATCH + MEDIUM is always at most NEEDS_REVIEW.
 #: * MATCH + LOW, and every NO_MATCH, is EXCLUDED_LOW_CONFIDENCE.
-#: * UNCERTAIN with actionable context (LIMITED/STRONG) is NEEDS_REVIEW;
-#:   with no actionable context (WEAK) it is EXCLUDED_LOW_CONFIDENCE.
+#: * UNCERTAIN with actionable product evidence (LIMITED/STRONG) is
+#:   NEEDS_REVIEW; with no actionable product evidence (WEAK) it is
+#:   EXCLUDED_LOW_CONFIDENCE.
 #: * UNCERTAIN + LOW is weak evidence: EXCLUDED_LOW_CONFIDENCE.
 #:
-#: All 27 (decision x confidence x quality) combinations are defined; the
-#: matrix lookup fails closed on anything outside this table.
+#: All 27 (decision x confidence x product evidence quality) combinations
+#: are defined; the matrix lookup fails closed on anything outside this
+#: table.
 SEMANTIC_OUTCOME_TIER_MATRIX: Final[
-    dict[tuple[V2SemanticDecision, V2Confidence, ContextQuality], AuthorityTier]
-] = {
-    (V2SemanticDecision.MATCH, V2Confidence.HIGH, ContextQuality.STRONG): (
+    tuple[
+        tuple[tuple[V2SemanticDecision, V2Confidence, ProductEvidenceQuality], AuthorityTier],
+        ...
+    ]
+] = (
+    ((V2SemanticDecision.MATCH, V2Confidence.HIGH, ProductEvidenceQuality.STRONG), (
         AuthorityTier.AI_ASSISTED_COMPARABLE
-    ),
-    (V2SemanticDecision.MATCH, V2Confidence.HIGH, ContextQuality.LIMITED): (
+    )),
+    ((V2SemanticDecision.MATCH, V2Confidence.HIGH, ProductEvidenceQuality.LIMITED), (
         AuthorityTier.NEEDS_REVIEW
-    ),
-    (V2SemanticDecision.MATCH, V2Confidence.HIGH, ContextQuality.WEAK): (
+    )),
+    ((V2SemanticDecision.MATCH, V2Confidence.HIGH, ProductEvidenceQuality.WEAK), (
         AuthorityTier.NEEDS_REVIEW
-    ),
-    (V2SemanticDecision.MATCH, V2Confidence.MEDIUM, ContextQuality.STRONG): (
+    )),
+    ((V2SemanticDecision.MATCH, V2Confidence.MEDIUM, ProductEvidenceQuality.STRONG), (
         AuthorityTier.NEEDS_REVIEW
-    ),
-    (V2SemanticDecision.MATCH, V2Confidence.MEDIUM, ContextQuality.LIMITED): (
+    )),
+    ((V2SemanticDecision.MATCH, V2Confidence.MEDIUM, ProductEvidenceQuality.LIMITED), (
         AuthorityTier.NEEDS_REVIEW
-    ),
-    (V2SemanticDecision.MATCH, V2Confidence.MEDIUM, ContextQuality.WEAK): (
+    )),
+    ((V2SemanticDecision.MATCH, V2Confidence.MEDIUM, ProductEvidenceQuality.WEAK), (
         AuthorityTier.NEEDS_REVIEW
-    ),
-    (V2SemanticDecision.MATCH, V2Confidence.LOW, ContextQuality.STRONG): (
+    )),
+    ((V2SemanticDecision.MATCH, V2Confidence.LOW, ProductEvidenceQuality.STRONG), (
         AuthorityTier.EXCLUDED_LOW_CONFIDENCE
-    ),
-    (V2SemanticDecision.MATCH, V2Confidence.LOW, ContextQuality.LIMITED): (
+    )),
+    ((V2SemanticDecision.MATCH, V2Confidence.LOW, ProductEvidenceQuality.LIMITED), (
         AuthorityTier.EXCLUDED_LOW_CONFIDENCE
-    ),
-    (V2SemanticDecision.MATCH, V2Confidence.LOW, ContextQuality.WEAK): (
+    )),
+    ((V2SemanticDecision.MATCH, V2Confidence.LOW, ProductEvidenceQuality.WEAK), (
         AuthorityTier.EXCLUDED_LOW_CONFIDENCE
-    ),
-    (V2SemanticDecision.NO_MATCH, V2Confidence.HIGH, ContextQuality.STRONG): (
+    )),
+    ((V2SemanticDecision.NO_MATCH, V2Confidence.HIGH, ProductEvidenceQuality.STRONG), (
         AuthorityTier.EXCLUDED_LOW_CONFIDENCE
-    ),
-    (V2SemanticDecision.NO_MATCH, V2Confidence.HIGH, ContextQuality.LIMITED): (
+    )),
+    ((V2SemanticDecision.NO_MATCH, V2Confidence.HIGH, ProductEvidenceQuality.LIMITED), (
         AuthorityTier.EXCLUDED_LOW_CONFIDENCE
-    ),
-    (V2SemanticDecision.NO_MATCH, V2Confidence.HIGH, ContextQuality.WEAK): (
+    )),
+    ((V2SemanticDecision.NO_MATCH, V2Confidence.HIGH, ProductEvidenceQuality.WEAK), (
         AuthorityTier.EXCLUDED_LOW_CONFIDENCE
-    ),
-    (V2SemanticDecision.NO_MATCH, V2Confidence.MEDIUM, ContextQuality.STRONG): (
+    )),
+    ((V2SemanticDecision.NO_MATCH, V2Confidence.MEDIUM, ProductEvidenceQuality.STRONG), (
         AuthorityTier.EXCLUDED_LOW_CONFIDENCE
-    ),
-    (V2SemanticDecision.NO_MATCH, V2Confidence.MEDIUM, ContextQuality.LIMITED): (
+    )),
+    ((V2SemanticDecision.NO_MATCH, V2Confidence.MEDIUM, ProductEvidenceQuality.LIMITED), (
         AuthorityTier.EXCLUDED_LOW_CONFIDENCE
-    ),
-    (V2SemanticDecision.NO_MATCH, V2Confidence.MEDIUM, ContextQuality.WEAK): (
+    )),
+    ((V2SemanticDecision.NO_MATCH, V2Confidence.MEDIUM, ProductEvidenceQuality.WEAK), (
         AuthorityTier.EXCLUDED_LOW_CONFIDENCE
-    ),
-    (V2SemanticDecision.NO_MATCH, V2Confidence.LOW, ContextQuality.STRONG): (
+    )),
+    ((V2SemanticDecision.NO_MATCH, V2Confidence.LOW, ProductEvidenceQuality.STRONG), (
         AuthorityTier.EXCLUDED_LOW_CONFIDENCE
-    ),
-    (V2SemanticDecision.NO_MATCH, V2Confidence.LOW, ContextQuality.LIMITED): (
+    )),
+    ((V2SemanticDecision.NO_MATCH, V2Confidence.LOW, ProductEvidenceQuality.LIMITED), (
         AuthorityTier.EXCLUDED_LOW_CONFIDENCE
-    ),
-    (V2SemanticDecision.NO_MATCH, V2Confidence.LOW, ContextQuality.WEAK): (
+    )),
+    ((V2SemanticDecision.NO_MATCH, V2Confidence.LOW, ProductEvidenceQuality.WEAK), (
         AuthorityTier.EXCLUDED_LOW_CONFIDENCE
-    ),
-    (V2SemanticDecision.UNCERTAIN, V2Confidence.HIGH, ContextQuality.STRONG): (
+    )),
+    ((V2SemanticDecision.UNCERTAIN, V2Confidence.HIGH, ProductEvidenceQuality.STRONG), (
         AuthorityTier.NEEDS_REVIEW
-    ),
-    (V2SemanticDecision.UNCERTAIN, V2Confidence.HIGH, ContextQuality.LIMITED): (
+    )),
+    ((V2SemanticDecision.UNCERTAIN, V2Confidence.HIGH, ProductEvidenceQuality.LIMITED), (
         AuthorityTier.NEEDS_REVIEW
-    ),
-    (V2SemanticDecision.UNCERTAIN, V2Confidence.HIGH, ContextQuality.WEAK): (
+    )),
+    ((V2SemanticDecision.UNCERTAIN, V2Confidence.HIGH, ProductEvidenceQuality.WEAK), (
         AuthorityTier.EXCLUDED_LOW_CONFIDENCE
-    ),
-    (V2SemanticDecision.UNCERTAIN, V2Confidence.MEDIUM, ContextQuality.STRONG): (
+    )),
+    ((V2SemanticDecision.UNCERTAIN, V2Confidence.MEDIUM, ProductEvidenceQuality.STRONG), (
         AuthorityTier.NEEDS_REVIEW
-    ),
-    (V2SemanticDecision.UNCERTAIN, V2Confidence.MEDIUM, ContextQuality.LIMITED): (
+    )),
+    ((V2SemanticDecision.UNCERTAIN, V2Confidence.MEDIUM, ProductEvidenceQuality.LIMITED), (
         AuthorityTier.NEEDS_REVIEW
-    ),
-    (V2SemanticDecision.UNCERTAIN, V2Confidence.MEDIUM, ContextQuality.WEAK): (
+    )),
+    ((V2SemanticDecision.UNCERTAIN, V2Confidence.MEDIUM, ProductEvidenceQuality.WEAK), (
         AuthorityTier.EXCLUDED_LOW_CONFIDENCE
-    ),
-    (V2SemanticDecision.UNCERTAIN, V2Confidence.LOW, ContextQuality.STRONG): (
+    )),
+    ((V2SemanticDecision.UNCERTAIN, V2Confidence.LOW, ProductEvidenceQuality.STRONG), (
         AuthorityTier.EXCLUDED_LOW_CONFIDENCE
-    ),
-    (V2SemanticDecision.UNCERTAIN, V2Confidence.LOW, ContextQuality.LIMITED): (
+    )),
+    ((V2SemanticDecision.UNCERTAIN, V2Confidence.LOW, ProductEvidenceQuality.LIMITED), (
         AuthorityTier.EXCLUDED_LOW_CONFIDENCE
-    ),
-    (V2SemanticDecision.UNCERTAIN, V2Confidence.LOW, ContextQuality.WEAK): (
+    )),
+    ((V2SemanticDecision.UNCERTAIN, V2Confidence.LOW, ProductEvidenceQuality.WEAK), (
         AuthorityTier.EXCLUDED_LOW_CONFIDENCE
-    ),
-}
+    )),
+)
+
+
+def semantic_outcome_tier(
+    decision: V2SemanticDecision,
+    confidence: V2Confidence,
+    quality: ProductEvidenceQuality,
+) -> AuthorityTier | None:
+    """Pure lookup of the frozen matrix entry for one combination.
+
+    Returns the base tier BEFORE ceilings and before hard-conflict
+    supersession. Returns ``None`` when the combination is outside the
+    frozen table (the caller fails closed). No mutable lookup cache
+    exists: the frozen tuple is scanned directly.
+    """
+    if not isinstance(decision, V2SemanticDecision):
+        raise TypeError(
+            "decision must be V2SemanticDecision, "
+            f"got {type(decision).__name__}"
+        )
+    if not isinstance(confidence, V2Confidence):
+        raise TypeError(
+            "confidence must be V2Confidence, "
+            f"got {type(confidence).__name__}"
+        )
+    if not isinstance(quality, ProductEvidenceQuality):
+        raise TypeError(
+            "quality must be ProductEvidenceQuality, "
+            f"got {type(quality).__name__}"
+        )
+    for (entry_decision, entry_confidence, entry_quality), tier in (
+        SEMANTIC_OUTCOME_TIER_MATRIX
+    ):
+        if (
+            entry_decision is decision
+            and entry_confidence is confidence
+            and entry_quality is quality
+        ):
+            return tier
+    return None
 
 
 #: The NM-2 auto-authority ceiling (Product-lead amendment 1): for
 #: U5_NEAR_MISS_MPN + NEAR_MISS_SUBSTITUTION without reviewed relationship
 #: authority, the maximum automatic tier is NEEDS_REVIEW — even for
-#: MATCH + HIGH + STRONG-context-shaped inputs from other sub-states. This
-#: is a generic safety rule, not a manufacturer special case.
+#: MATCH + HIGH + STRONG product evidence. This is a generic safety rule,
+#: not a manufacturer special case, and it cannot be bypassed by
+#: excellent description/product alignment.
 NEAR_MISS_SUBSTITUTION_WITHOUT_RELATION_AUTHORITY: Final[AuthorityTier] = (
     AuthorityTier.NEEDS_REVIEW
 )
@@ -1419,6 +1945,16 @@ class AuthorityRuleV2(str, Enum):
     )
     """The NM-2 ceiling capped a MATCH at NEEDS_REVIEW (no reviewed
     relationship authority)."""
+
+    CEILING_IDENTIFIER_RELATIONSHIP_NOT_ESTABLISHED = (
+        "CEILING_IDENTIFIER_RELATIONSHIP_NOT_ESTABLISHED"
+    )
+    """The state-specific identifier-relationship requirement (S2-A-FU1):
+    the candidate poses an identifier-relationship question (U1/U2/U3/U5)
+    that no reviewed authoritative relationship provenance answers, so the
+    automatic tier was capped at NEEDS_REVIEW. Never applies to U4
+    (NOT_APPLICABLE: there is no candidate identifier for a relationship
+    to establish)."""
 
     HARD_CONFLICT_SUPERSEDES = "HARD_CONFLICT_SUPERSEDES"
     """An ALWAYS_HARD conflict superseded everything else, including any
@@ -1465,13 +2001,17 @@ class AuthorityDecisionV2:
     """The pure authority derivation result for one candidate.
 
     ``tier`` is the derived workflow tier; ``fired_rules`` is the bounded
-    audit trail of which contract rules produced it; ``context_quality`` is
-    the provenance-derived quality (never AI-derived).
+    audit trail of which contract rules produced it; the two orthogonal
+    prerequisites (S2-A-FU1) are recorded for audit: ``product_evidence_
+    quality`` (dimension A — bounded product/description evidence, never
+    model-derived) and ``relationship_authority`` (dimension B — state-
+    specific identifier-relationship answer).
     """
 
     tier: AuthorityTier
     fired_rules: frozenset[AuthorityRuleV2]
-    context_quality: ContextQuality
+    product_evidence_quality: ProductEvidenceQuality
+    relationship_authority: RelationshipAuthority
 
     def __post_init__(self) -> None:
         if not isinstance(self.tier, AuthorityTier):
@@ -1494,27 +2034,88 @@ class AuthorityDecisionV2:
                     "fired_rules must contain only AuthorityRuleV2 "
                     f"members, got {rule!r}"
                 )
-        if not isinstance(self.context_quality, ContextQuality):
+        if not isinstance(self.product_evidence_quality, ProductEvidenceQuality):
             raise TypeError(
-                "context_quality must be ContextQuality, "
-                f"got {type(self.context_quality).__name__}"
+                "product_evidence_quality must be ProductEvidenceQuality, "
+                f"got {type(self.product_evidence_quality).__name__}"
             )
+        if not isinstance(
+            self.relationship_authority, RelationshipAuthority
+        ):
+            raise TypeError(
+                "relationship_authority must be RelationshipAuthority, "
+                f"got {type(self.relationship_authority).__name__}"
+            )
+
+
+def _default_product_evidence_profile(
+    assessment_v2: IdentityStateAssessmentV2,
+) -> ProductEvidenceProfileV2:
+    """The conservative default profile when none is supplied (S2-A-FU1).
+
+    The usable-title fact is state-derived where the frozen derivation
+    already established it (U4: usable title; every other state: not
+    asserted). No matched facts are ever assumed: automatic authority
+    requires an explicit bounded profile, so the default can at most reach
+    LIMITED and never STRONG.
+    """
+    has_title = assessment_v2.substate is UncertainSubstateV2.U4_NO_MPN
+    return ProductEvidenceProfileV2(
+        has_usable_product_title=has_title,
+        matched_facts=frozenset(),
+    )
+
+
+def _validate_profile_against_state(
+    assessment_v2: IdentityStateAssessmentV2,
+    profile: ProductEvidenceProfileV2,
+) -> None:
+    """Fail closed on a product-evidence profile that contradicts the
+    derived state (S2-A-FU1): U4 candidates were derived through the
+    frozen usable-title gate (a usable title exists); E2 candidates carry
+    no usable product title at all.
+    """
+    if (
+        assessment_v2.substate is UncertainSubstateV2.U4_NO_MPN
+        and not profile.has_usable_product_title
+    ):
+        raise ValueError(
+            "U4_NO_MPN candidates are derived through the frozen usable-"
+            "title gate; a product-evidence profile without a usable "
+            "product title contradicts the state"
+        )
+    if (
+        assessment_v2.substate
+        is UnevaluableSubstateV2.E2_NO_CANDIDATE_EVIDENCE
+        and profile.has_usable_product_title
+    ):
+        raise ValueError(
+            "E2_NO_CANDIDATE_EVIDENCE candidates carry no usable product "
+            "title; a product-evidence profile with one contradicts the "
+            "state"
+        )
 
 
 def derive_authority_tier(
     assessment_v2: IdentityStateAssessmentV2,
     evaluation: SemanticEvaluationV2 | None = None,
     context_provenances: frozenset[ContextProvenance] = frozenset(),
+    product_evidence: ProductEvidenceProfileV2 | None = None,
     human_review: HumanReviewStateV2 | None = None,
 ) -> AuthorityDecisionV2:
     """Derive the bounded workflow authority tier for one candidate.
 
-    Pure contract data application. Precedence (frozen):
+    Pure contract data application over TWO ORTHOGONAL prerequisites
+    (S2-A-FU1): product evidence quality (dimension A, from the bounded
+    product-evidence profile + reviewed product grounding) and identifier
+    relationship authority (dimension B, state-specific). Precedence
+    (frozen):
 
         HARD_CONFLICT > HUMAN_CONFIRMED > AI authority
 
     and, inside the AI path, the NEEDS_REVIEW ceilings (reviewable
-    conflict; NM-2 without relationship authority) restrict but never lift.
+    conflict; NM-2 without relationship authority; identifier-relationship
+    question unanswered) restrict but never lift.
 
     * ``DETERMINISTIC_VERIFIED`` -> MACHINE_VERIFIED, no AI needed: any
       supplied semantic outcome is ignored (ineligible state).
@@ -1525,9 +2126,23 @@ def derive_authority_tier(
     * ``DETERMINISTIC_UNCERTAIN`` -> the future semantic AI entry point:
       no evaluation -> NEEDS_REVIEW; runtime failure -> SEMANTIC_
       UNAVAILABLE (never NO_MATCH); a decision -> the 27-entry matrix
-      (decision x confidence x provenance-derived context quality), then
-      the ceilings, then hard-conflict supersession, then the human
-      overlay.
+      (decision x confidence x product evidence quality), then the
+      ceilings, then hard-conflict supersession, then the human overlay.
+      Reaching AI_ASSISTED_COMPARABLE additionally requires the
+      state-specific identifier-relationship question to be NOT_APPLICABLE
+      (U4: it does not exist — there is no candidate identifier for a
+      relationship to establish) or ESTABLISHED (U1/U2/U3/U5: answered by
+      reviewed relationship provenance).
+
+    ``product_evidence`` defaults to the conservative state-derived
+    profile (the U4 usable-title fact, else no title; no matched facts),
+    which can never by itself reach STRONG: an explicit bounded profile is
+    required for automatic authority.
+
+    Fails closed (ValueError) on a profile that contradicts the derived
+    state (U4 without a usable title; E2 with one) and on an unsupported
+    profile (reviewed-context-grounded facts without reviewed product
+    provenance).
     """
     if not isinstance(assessment_v2, IdentityStateAssessmentV2):
         raise TypeError(
@@ -1543,6 +2158,14 @@ def derive_authority_tier(
         )
     if not isinstance(context_provenances, frozenset):
         raise TypeError("context_provenances must be a frozenset")
+    if product_evidence is None:
+        product_evidence = _default_product_evidence_profile(assessment_v2)
+    elif not isinstance(product_evidence, ProductEvidenceProfileV2):
+        raise TypeError(
+            "product_evidence must be ProductEvidenceProfileV2 or None, "
+            f"got {type(product_evidence).__name__}"
+        )
+    _validate_profile_against_state(assessment_v2, product_evidence)
     if human_review is not None and not isinstance(
         human_review, HumanReviewStateV2
     ):
@@ -1551,8 +2174,13 @@ def derive_authority_tier(
             f"got {type(human_review).__name__}"
         )
 
-    policy = DETERMINISTIC_STATE_POLICIES[assessment_v2.state]
-    context_quality = derive_context_quality(context_provenances)
+    policy = deterministic_state_policy(assessment_v2.state)
+    product_evidence_quality = derive_product_evidence_quality(
+        product_evidence, context_provenances
+    )
+    relationship_authority = derive_relationship_authority(
+        assessment_v2, context_provenances
+    )
     rules: set[AuthorityRuleV2] = set()
 
     if not policy.semantic_eligible:
@@ -1576,12 +2204,10 @@ def derive_authority_tier(
         else:
             assert evaluation.decision is not None
             assert evaluation.confidence is not None
-            base_tier = SEMANTIC_OUTCOME_TIER_MATRIX.get(
-                (
-                    evaluation.decision,
-                    evaluation.confidence,
-                    context_quality,
-                )
+            base_tier = semantic_outcome_tier(
+                evaluation.decision,
+                evaluation.confidence,
+                product_evidence_quality,
             )
             if base_tier is None:
                 # Fail closed: any combination the matrix does not define
@@ -1615,6 +2241,22 @@ def derive_authority_tier(
                     AuthorityRuleV2
                     .CEILING_NEAR_MISS_SUBSTITUTION_WITHOUT_RELATION_AUTHORITY
                 )
+            if (
+                tier is AuthorityTier.AI_ASSISTED_COMPARABLE
+                and relationship_authority
+                is RelationshipAuthority.NOT_ESTABLISHED
+            ):
+                # State-specific identifier-relationship requirement
+                # (S2-A-FU1): the candidate poses an identifier-
+                # relationship question (U1/U2/U3/U5, including NM-1) that
+                # no reviewed authoritative relationship provenance
+                # answers. For U4 the question does not exist
+                # (NOT_APPLICABLE) and this gate never fires.
+                tier = AuthorityTier.NEEDS_REVIEW
+                rules.add(
+                    AuthorityRuleV2
+                    .CEILING_IDENTIFIER_RELATIONSHIP_NOT_ESTABLISHED
+                )
 
             # Hard-conflict supersession (always last inside the AI path).
             if hard_conflicts:
@@ -1641,7 +2283,8 @@ def derive_authority_tier(
     return AuthorityDecisionV2(
         tier=tier,
         fired_rules=frozenset(rules),
-        context_quality=context_quality,
+        product_evidence_quality=product_evidence_quality,
+        relationship_authority=relationship_authority,
     )
 
 
@@ -1649,17 +2292,41 @@ def derive_authority_tier(
 # Future UI display vocabulary (S2-A contract only; no UI implemented)
 # ---------------------------------------------------------------------------
 
-#: Mandatory future badge concepts, one per authority tier.
-AUTHORITY_TIER_BADGES: Final[dict[AuthorityTier, str]] = {
-    AuthorityTier.MACHINE_VERIFIED: "Machine Verified",
-    AuthorityTier.AI_ASSISTED_COMPARABLE: "AI-Assisted Comparable — not machine verified",
-    AuthorityTier.NEEDS_REVIEW: "Needs Review — not verified",
-    AuthorityTier.HUMAN_CONFIRMED: "Human Confirmed",
-    AuthorityTier.HUMAN_REJECTED: "Human Rejected",
-    AuthorityTier.HARD_CONFLICT: "Hard Conflict — excluded",
-    AuthorityTier.EXCLUDED_LOW_CONFIDENCE: "Low Confidence",
-    AuthorityTier.SEMANTIC_UNAVAILABLE: "AI Evidence Unavailable",
-}
+#: Mandatory future badge concepts, one per authority tier. Frozen tuple
+#: of (tier, badge) entries with a pure lookup function (S2-A-FU1).
+AUTHORITY_TIER_BADGES: Final[tuple[tuple[AuthorityTier, str], ...]] = (
+    (AuthorityTier.MACHINE_VERIFIED, "Machine Verified"),
+    (
+        AuthorityTier.AI_ASSISTED_COMPARABLE,
+        "AI-Assisted Comparable — not machine verified",
+    ),
+    (AuthorityTier.NEEDS_REVIEW, "Needs Review — not verified"),
+    (AuthorityTier.HUMAN_CONFIRMED, "Human Confirmed"),
+    (AuthorityTier.HUMAN_REJECTED, "Human Rejected"),
+    (AuthorityTier.HARD_CONFLICT, "Hard Conflict — excluded"),
+    (AuthorityTier.EXCLUDED_LOW_CONFIDENCE, "Low Confidence"),
+    (AuthorityTier.SEMANTIC_UNAVAILABLE, "AI Evidence Unavailable"),
+)
+
+
+def authority_tier_badge(tier: AuthorityTier) -> str:
+    """Pure lookup of the frozen badge concept for one authority tier.
+
+    Fails closed on anything that is not an ``AuthorityTier`` member or
+    that the frozen table does not define.
+    """
+    if not isinstance(tier, AuthorityTier):
+        raise TypeError(
+            "tier must be AuthorityTier, got "
+            f"{type(tier).__name__}"
+        )
+    for entry_tier, badge in AUTHORITY_TIER_BADGES:
+        if entry_tier is tier:
+            return badge
+    raise ValueError(
+        f"tier {tier.value} has no frozen badge entry; the badge table "
+        "must define one badge per authority tier"
+    )
 
 #: Frozen future attention order. Ordering means ATTENTION, not authority:
 #: 1. NEEDS REVIEW; 2. AI-ASSISTED COMPARABLE; 3. RESOLVED (HUMAN CONFIRMED,
@@ -1718,11 +2385,14 @@ PRICING_ELIGIBLE_TIERS: Final[frozenset[AuthorityTier]] = frozenset(
 )
 
 
-# Mechanical self-consistency of the frozen count sets, verified once at
-# import (pure data check, no mutable state): market evidence is exactly the
-# pricing-eligible tiers plus NEEDS_REVIEW, and NEEDS_REVIEW is never
-# pricing-eligible. If a future edit breaks the amendment-3 wording
-# contract, the module refuses to import.
+# Mechanical self-consistency of the frozen contract data, verified once
+# at import (pure data check, no mutable state): market evidence is
+# exactly the pricing-eligible tiers plus NEEDS_REVIEW, NEEDS_REVIEW is
+# never pricing-eligible, the attention order / badges / policies /
+# capabilities / matrix tables are complete over their vocabularies, and
+# (S2-A-FU1) the module's global namespace carries NO mutable containers
+# at all. If a future edit breaks any of these contracts, the module
+# refuses to import.
 if MARKET_EVIDENCE_TIERS != PRICING_ELIGIBLE_TIERS | {AuthorityTier.NEEDS_REVIEW}:
     raise RuntimeError(
         "MARKET_EVIDENCE_TIERS must equal PRICING_ELIGIBLE_TIERS plus "
@@ -1740,7 +2410,9 @@ if (
     raise RuntimeError(
         "UI_ATTENTION_ORDER must list every authority tier exactly once"
     )
-if set(AUTHORITY_TIER_BADGES) != set(AuthorityTier):
+if {
+    entry_tier for entry_tier, _badge in AUTHORITY_TIER_BADGES
+} != set(AuthorityTier) or len(AUTHORITY_TIER_BADGES) != len(AuthorityTier):
     raise RuntimeError(
         "AUTHORITY_TIER_BADGES must define one badge per authority tier"
     )
@@ -1759,23 +2431,49 @@ if (
     or REVIEWABLE_CONFLICT_CLASSES & PRICE_DIMENSION_ONLY_CONFLICT_CLASSES
 ):
     raise RuntimeError("the conflict severity sets must be disjoint")
+if len(DETERMINISTIC_STATE_POLICIES) != len(IdentityStateV2) or {
+    entry_state for entry_state, _policy in DETERMINISTIC_STATE_POLICIES
+} != set(IdentityStateV2):
+    raise RuntimeError(
+        "DETERMINISTIC_STATE_POLICIES must define exactly one policy per "
+        "V2 state"
+    )
+if len(CONTEXT_PROVENANCE_CAPABILITIES) != len(ContextProvenance) or {
+    entry_provenance
+    for entry_provenance, _capabilities in CONTEXT_PROVENANCE_CAPABILITIES
+} != set(ContextProvenance):
+    raise RuntimeError(
+        "CONTEXT_PROVENANCE_CAPABILITIES must define exactly one "
+        "capability entry per provenance class"
+    )
 if len(SEMANTIC_OUTCOME_TIER_MATRIX) != len(V2SemanticDecision) * len(
     V2Confidence
-) * len(ContextQuality):
+) * len(ProductEvidenceQuality):
     raise RuntimeError(
         "SEMANTIC_OUTCOME_TIER_MATRIX must define every (decision, "
-        "confidence, context quality) combination"
+        "confidence, product evidence quality) combination"
     )
-if set(SEMANTIC_OUTCOME_TIER_MATRIX) != {
+if {
+    key for key, _tier in SEMANTIC_OUTCOME_TIER_MATRIX
+} != {
     (decision, confidence, quality)
     for decision in V2SemanticDecision
     for confidence in V2Confidence
-    for quality in ContextQuality
+    for quality in ProductEvidenceQuality
 }:
     raise RuntimeError(
         "SEMANTIC_OUTCOME_TIER_MATRIX must define exactly the (decision, "
-        "confidence, context quality) grid"
+        "confidence, product evidence quality) grid"
     )
+for _global_name, _global_value in list(globals().items()):
+    if _global_name.startswith("__"):
+        continue
+    if isinstance(_global_value, (dict, list, set)):
+        raise RuntimeError(
+            f"semantic_authority_v2 global {_global_name} is a mutable "
+            "container; frozen contract data must be runtime-immutable "
+            "(S2-A-FU1)"
+        )
 
 
 @dataclass(frozen=True)

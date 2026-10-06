@@ -19,8 +19,11 @@ Together with the auto-expanded research-core scans in
 from __future__ import annotations
 
 import ast
+import dataclasses
 import sys
 from pathlib import Path
+
+import pytest
 
 from tests.domain.test_domain_boundaries import (
     CALLER_TOKENS,
@@ -177,22 +180,105 @@ def test_v2_uses_only_authorized_research_submodules() -> None:
 
 def test_v2_contract_tables_are_immutable_data() -> None:
     """The matrix, policies, severity sets, capability table, badge map,
-    and attention order are frozen data, not mutable global state."""
+    and attention order are frozen data, not mutable global state.
+
+    S2-A-FU1: this test ACTUALLY proves runtime immutability — the
+    authoritative stored contract itself is a tuple of immutable entries
+    (tuples / enums / frozen dataclasses / frozensets / str), and concrete
+    mutation attempts are shown to fail. The severity frozensets and the
+    attention-order tuple remain immutable as before.
+    """
     from product_intelligence.research import semantic_authority_v2 as v2
 
-    assert isinstance(v2.SEMANTIC_OUTCOME_TIER_MATRIX, dict)
-    for key, value in v2.SEMANTIC_OUTCOME_TIER_MATRIX.items():
+    # -- SEMANTIC_OUTCOME_TIER_MATRIX: frozen entry tuple ---------------
+    matrix = v2.SEMANTIC_OUTCOME_TIER_MATRIX
+    assert isinstance(matrix, tuple)
+    assert len(matrix) == 27
+    for entry in matrix:
+        assert isinstance(entry, tuple) and len(entry) == 2
+        key, tier = entry
         assert isinstance(key, tuple) and len(key) == 3
-        assert isinstance(value, v2.AuthorityTier)
+        assert isinstance(key[0], v2.V2SemanticDecision)
+        assert isinstance(key[1], v2.V2Confidence)
+        assert isinstance(key[2], v2.ProductEvidenceQuality)
+        assert isinstance(tier, v2.AuthorityTier)
+    with pytest.raises(TypeError):
+        matrix[0] = matrix[0]  # tuple: no item assignment
+    with pytest.raises(AttributeError):
+        matrix.append(matrix[0])  # no list mutation surface
+    with pytest.raises(AttributeError):
+        matrix.clear()  # no dict mutation surface
+    # Deterministically iterable, equality-testable, completeness-
+    # checkable: the frozen table equals the one rebuilt from its own
+    # pure lookup function in canonical (enum definition) order.
+    assert list(matrix) == list(matrix)
+    assert matrix == tuple(
+        (key, v2.semantic_outcome_tier(*key))
+        for key in sorted(
+            {key for key, _tier in matrix},
+            key=lambda k: (
+                list(v2.V2SemanticDecision).index(k[0]),
+                list(v2.V2Confidence).index(k[1]),
+                list(v2.ProductEvidenceQuality).index(k[2]),
+            ),
+        )
+    )
 
-    assert len(v2.DETERMINISTIC_STATE_POLICIES) == 4
-    for state, policy in v2.DETERMINISTIC_STATE_POLICIES.items():
+    # -- DETERMINISTIC_STATE_POLICIES: frozen entry tuple ---------------
+    policies = v2.DETERMINISTIC_STATE_POLICIES
+    assert isinstance(policies, tuple)
+    assert len(policies) == 4
+    for entry in policies:
+        assert isinstance(entry, tuple) and len(entry) == 2
+        state, policy = entry
         assert isinstance(state, v2.IdentityStateV2)
+        # Frozen dataclass entry: attribute mutation fails closed
+        # (proven by the FrozenInstanceError attempt below).
         assert isinstance(policy.deterministic_tier, v2.AuthorityTier)
         assert isinstance(policy.semantic_eligible, bool)
         assert isinstance(policy.ai_authority_permitted, bool)
         assert isinstance(policy.human_confirmation_permitted, bool)
+    with pytest.raises(TypeError):
+        policies[0] = policies[0]
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        policies[0][1].deterministic_tier = (
+            v2.AuthorityTier.MACHINE_VERIFIED
+        )  # frozen dataclass entry
+    assert dataclasses.is_dataclass(type(policies[0][1]))
 
+    # -- CONTEXT_PROVENANCE_CAPABILITIES: frozen entry tuple ------------
+    capabilities = v2.CONTEXT_PROVENANCE_CAPABILITIES
+    assert isinstance(capabilities, tuple)
+    assert len(capabilities) == 3
+    for entry in capabilities:
+        assert isinstance(entry, tuple) and len(entry) == 2
+        provenance, caps = entry
+        assert isinstance(provenance, v2.ContextProvenance)
+        assert isinstance(caps, frozenset)
+    with pytest.raises(TypeError):
+        capabilities[0] = capabilities[0]
+
+    # -- AUTHORITY_TIER_BADGES: frozen entry tuple ----------------------
+    badges = v2.AUTHORITY_TIER_BADGES
+    assert isinstance(badges, tuple)
+    assert len(badges) == 8
+    for entry in badges:
+        assert isinstance(entry, tuple) and len(entry) == 2
+        tier, badge = entry
+        assert isinstance(tier, v2.AuthorityTier)
+        assert isinstance(badge, str) and badge
+    with pytest.raises(TypeError):
+        badges[0] = badges[0]
+
+    # -- private derivation tables: frozen entry tuples -----------------
+    for private in (v2._PRIMARY_SIGNALS_BY_SUBSTATE, v2._STATE_OF_SUBSTATE):
+        assert isinstance(private, tuple)
+        for entry in private:
+            assert isinstance(entry, tuple) and len(entry) == 2
+        with pytest.raises(TypeError):
+            private[0] = private[0]
+
+    # -- severity / count / vocabulary frozensets -----------------------
     for table in (
         v2.ALWAYS_HARD_CONFLICT_CLASSES,
         v2.REVIEWABLE_CONFLICT_CLASSES,
@@ -202,17 +288,31 @@ def test_v2_contract_tables_are_immutable_data() -> None:
         v2.COMPATIBILITY_WORDING_VOCABULARY,
     ):
         assert isinstance(table, frozenset), table
+        with pytest.raises(AttributeError):
+            table.add(None)  # frozenset: no mutation surface
 
-    assert isinstance(v2.CONTEXT_PROVENANCE_CAPABILITIES, dict)
-    for provenance, capabilities in v2.CONTEXT_PROVENANCE_CAPABILITIES.items():
-        assert isinstance(provenance, v2.ContextProvenance)
-        assert isinstance(capabilities, frozenset)
-
+    # -- attention order tuple ------------------------------------------
     assert isinstance(v2.UI_ATTENTION_ORDER, tuple)
-    assert isinstance(v2.AUTHORITY_TIER_BADGES, dict)
-    for tier, badge in v2.AUTHORITY_TIER_BADGES.items():
-        assert isinstance(tier, v2.AuthorityTier)
-        assert isinstance(badge, str) and badge
+    with pytest.raises(TypeError):
+        v2.UI_ATTENTION_ORDER[0] = v2.UI_ATTENTION_ORDER[1]
+
+
+def test_v2_module_has_no_mutable_global_state() -> None:
+    """S2-A-FU1: the module's claim of 'no mutable global state' is
+    mechanically proved — no top-level module global is a dict, list, or
+    set: every frozen contract mapping is a tuple of immutable entries
+    (or a frozenset / tuple / scalar), consumable by future V3 harness /
+    runtime code without copying into a mutable authority table."""
+    import product_intelligence.research.semantic_authority_v2 as v2
+
+    mutable = {
+        name: type(value).__name__
+        for name, value in vars(v2).items()
+        if not name.startswith("__") and isinstance(value, (dict, list, set))
+    }
+    assert not mutable, (
+        f"mutable global state found in the V2 contract module: {mutable}"
+    )
 
 
 def test_v2_names_no_external_vendor_or_caller_system() -> None:
@@ -227,7 +327,12 @@ def test_v2_is_exported_by_the_research_package() -> None:
     expected_exports = {
         "derive_identity_state_v2",
         "derive_authority_tier",
-        "derive_context_quality",
+        "derive_product_evidence_quality",
+        "derive_relationship_authority",
+        "semantic_outcome_tier",
+        "deterministic_state_policy",
+        "context_provenance_capabilities",
+        "authority_tier_badge",
         "IdentityStateV2",
         "IdentityStateAssessmentV2",
         "IdentityRelationshipSignal",
@@ -236,7 +341,12 @@ def test_v2_is_exported_by_the_research_package() -> None:
         "ConflictSeverity",
         "ContextProvenance",
         "ContextCapability",
-        "ContextQuality",
+        "ProductEvidenceQuality",
+        "RelationshipAuthority",
+        "ProductEvidenceProfileV2",
+        "ProductEvidenceFactV2",
+        "ProductEvidenceDimension",
+        "CandidateProductEvidenceSource",
         "AuthorityTier",
         "SemanticEvaluationV2",
         "AuthorityDecisionV2",
@@ -247,7 +357,12 @@ def test_v2_is_exported_by_the_research_package() -> None:
         "PRICE_DIMENSION_ONLY_CONFLICT_CLASSES",
         "UI_ATTENTION_ORDER",
         "AUTHORITY_TIER_BADGES",
+        "STRONG_PRODUCT_EVIDENCE_MIN_MATCHED_FACTS",
+        "STRONG_PRODUCT_EVIDENCE_MIN_MATCHED_DIMENSIONS",
         "derive_tier_summary",
         "TierSummaryV2",
     }
     assert expected_exports <= set(research.__all__)
+    # S2-A-FU1: the removed S2-A global-STRONG coupling must not come back.
+    assert "ContextQuality" not in set(research.__all__)
+    assert "derive_context_quality" not in set(research.__all__)

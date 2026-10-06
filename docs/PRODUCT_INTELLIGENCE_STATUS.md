@@ -2,8 +2,417 @@
 
 ## Current state
 
+**PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-S2-A-FU1 (Semantic Authority
+Contract V2 — corrective follow-up: orthogonal evidence gates + frozen
+mappings) — IMPLEMENTED / PENDING FINAL REVIEW**
+
+Bounded CONTRACT-ONLY corrective follow-up on the pending S2-A
+candidate (canonical spec: PLAN §26.22; decision record: AD-066; S2-A
+spec: PLAN §26.21 / AD-065, amended in part), on the authoritative
+starting SHA `46869f9a3ee6fad638b87b71cd14ed848224c057` (baseline
+collection 5972). Two independent-review blockers in the S2-A contract
+were corrected. S2-B was NOT started; no persistence/migrations; no
+production execution/runtime/UI wiring; no deployment. After S2-A-FU1,
+production behavior is identical to the starting SHA. V3 qualification
+has NOT happened; AI authority in production has NOT expanded.
+
+**Blocker 1 — U4 description-match was re-conservatized.** S2-A made
+`ContextQuality.STRONG` globally equivalent to the presence of
+`MANUFACTURER_RELATION_AUTHORITY`, and the matrix's only
+`AI_ASSISTED_COMPARABLE` row was MATCH + HIGH + STRONG — so a U4_NO_MPN
+candidate, which by definition has no candidate MPN relationship for a
+manufacturer source to establish, could not normally obtain
+AI_ASSISTED_COMPARABLE. The authority prerequisites are now TWO
+ORTHOGONAL, state-specific dimensions, each derived independently:
+
+* **A. Product evidence quality** — `ProductEvidenceQuality`
+  (STRONG/LIMITED/WEAK), computed ONLY from the bounded
+  `ProductEvidenceProfileV2` (usable product title + bounded
+  matched-attribute facts) and reviewed product-grounding provenance
+  classes — never from model confidence, decisions, or model-claimed
+  attributes. Each matched-attribute fact is a
+  (`ProductEvidenceDimension`, grounded candidate-side source) pair:
+  the dimension vocabulary is the six hard product dimensions
+  (PRODUCT_FAMILY, GENERATION, CAPACITY, INTERFACE, FORM_FACTOR,
+  PRODUCT_ROLE — mirroring the same-named ALWAYS_HARD conflict
+  classes); the source vocabulary is EXACTLY {LISTING_PRODUCT_TITLE,
+  REVIEWED_PRODUCT_CONTEXT} — no model-claim source exists, so the
+  future semantic runtime cannot self-promote its authority by
+  asserting arbitrary matched attributes. The frozen STRONG bar is
+  bounded and testable (future-qualifiable by V3): usable title AND
+  >= `STRONG_PRODUCT_EVIDENCE_MIN_MATCHED_FACTS` (2) matched facts
+  spanning >= `STRONG_PRODUCT_EVIDENCE_MIN_MATCHED_DIMENSIONS` (2)
+  distinct hard product dimensions. A title alone is NOT strong.
+  CUSTOMER_RETRIEVAL_RELATION grounds nothing; MANUFACTURER_PRODUCT_
+  CONTEXT strengthens product grounding only; unsupported or
+  state-contradicting profiles fail closed (ValueError).
+* **B. Identifier relationship authority** — `RelationshipAuthority`
+  (ESTABLISHED/NOT_ESTABLISHED/NOT_APPLICABLE) via
+  `derive_relationship_authority`: U4_NO_MPN -> NOT_APPLICABLE (the
+  question does not exist; relation provenance cannot change it);
+  U1/U2/U3/U5 -> ESTABLISHED only with reviewed relation provenance
+  (customer retrieval confers ZERO); verified -> ESTABLISHED by the
+  frozen deterministic comparator; C1 -> NOT_ESTABLISHED; E1/E2 ->
+  NOT_APPLICABLE.
+
+The 27-row matrix is re-keyed on (decision x confidence x product
+evidence quality) with the SAME tier values. Reaching
+AI_ASSISTED_COMPARABLE additionally requires the state-specific
+relationship question to be NOT_APPLICABLE (U4) or ESTABLISHED
+(U1/U2/U3/U5) — the new general state-specific gate (fired rule
+CEILING_IDENTIFIER_RELATIONSHIP_NOT_ESTABLISHED) preserves S2-A's
+effective requirement for U1/U2/U3 and U5-NM-1 (no authority expansion
+there). The NM-2 ceiling (amendment 1) REMAINS FROZEN: U5 +
+NEAR_MISS_SUBSTITUTION without reviewed authoritative identifier
+relationship caps the maximum automatic tier at NEEDS_REVIEW — even
+for MATCH + HIGH + STRONG product evidence; CUSTOMER_RETRIEVAL_RELATION
+cannot satisfy that gate. `ContextQuality` / `derive_context_quality`
+are removed; `derive_authority_tier` gains a bounded `product_evidence`
+profile parameter (default = conservative state-derived profile that
+can never reach STRONG by itself).
+
+Contracted + tested required behavior:
+
+1. U4 + MATCH/HIGH + strong approved product evidence + no conflicts
+   CAN produce AI_ASSISTED_COMPARABLE.
+2. U4 does NOT require MANUFACTURER_RELATION_AUTHORITY (relationship
+   authority is NOT_APPLICABLE for U4 with or without relation
+   provenance).
+3. U4 weak/incomplete evidence remains NEEDS_REVIEW or
+   EXCLUDED_LOW_CONFIDENCE per the frozen matrix.
+4. U5 NM-2 + MATCH/HIGH + strong product evidence but NO
+   MANUFACTURER_RELATION_AUTHORITY remains NEEDS_REVIEW (NM-2 rule
+   fires).
+5. U5 NM-2 + valid MANUFACTURER_RELATION_AUTHORITY may pass that
+   specific ceiling, subject to the rest of the authority gates
+   (STRONG product evidence required; reviewable conflict caps; hard
+   conflict supersedes).
+6. CUSTOMER_RETRIEVAL_RELATION cannot satisfy the NM-2 relationship
+   gate (zero relationship authority; with or without product
+   grounding).
+
+**Blocker 2 — frozen contract tables were mutable dicts.** Python
+`Final` does not make a dict runtime-immutable. Every frozen contract
+mapping is now a runtime-immutable tuple of immutable entries (tuples /
+enums / frozen dataclasses / frozensets / str) with a pure lookup
+function: `SEMANTIC_OUTCOME_TIER_MATRIX` (27; `semantic_outcome_tier`),
+`DETERMINISTIC_STATE_POLICIES` (4; `deterministic_state_policy`),
+`CONTEXT_PROVENANCE_CAPABILITIES` (3; `context_provenance_capabilities`),
+`AUTHORITY_TIER_BADGES` (8; `authority_tier_badge`), and the private
+`_PRIMARY_SIGNALS_BY_SUBSTATE` / `_STATE_OF_SUBSTATE` derivation
+tables. The severity frozensets and the attention-order tuple remain
+immutable. The module's global namespace is import-self-checked to
+contain NO dict/list/set at all, and
+`test_v2_contract_tables_are_immutable_data` now actually proves
+immutability with real mutation attempts (TypeError / AttributeError /
+FrozenInstanceError) over every frozen authority/context/display
+mapping — no `.copy()` of mutable globals; the authoritative stored
+contract itself is immutable (deterministically iterable,
+equality-testable, completeness-checkable).
+
+Delivered (only production changes: `research/semantic_authority_v2.py`
+and its public export surface in `research/__init__.py`):
+
+* `ProductEvidenceQuality`, `ProductEvidenceDimension` (6 members),
+  `CandidateProductEvidenceSource` (2 members), `ProductEvidenceFactV2`,
+  `ProductEvidenceProfileV2` (fail-closed construction +
+  cross-consistency), `STRONG_PRODUCT_EVIDENCE_MIN_MATCHED_FACTS` /
+  `STRONG_PRODUCT_EVIDENCE_MIN_MATCHED_DIMENSIONS` (2/2),
+  `derive_product_evidence_quality` (fail closed on unsupported
+  profiles).
+* `RelationshipAuthority`, `derive_relationship_authority` (state-
+  specific; U4 NOT_APPLICABLE), `has_relationship_authority` retained.
+* `AuthorityDecisionV2` now records BOTH orthogonal dimensions
+  (`product_evidence_quality` + `relationship_authority`) for audit;
+  `AuthorityRuleV2` gains `CEILING_IDENTIFIER_RELATIONSHIP_NOT_
+  ESTABLISHED`; `derive_authority_tier` gains the bounded
+  `product_evidence` parameter and state/profile consistency checks
+  (U4 without a usable title, or E2 with one, fails closed).
+* Frozen mappings converted to immutable entry tuples + pure lookups
+  (Blocker 2); import-time global-namespace check forbids any mutable
+  container; matrix/policy/capability/badge completeness self-checks
+  retained and adapted.
+* Export surface: `ContextQuality` / `derive_context_quality` removed;
+  the symbols above + the four lookup functions added.
+
+Test preservation: no test deleted, renamed, skipped, xfailed,
+deselected, ignored, or weakened. New nodes: 16 in
+`tests/research/test_semantic_authority_v2.py` (TestU4AutoAuthority 3 —
+blocker items 1–3; TestNM2CeilingWithStrongEvidence 3 — blocker items
+4–6; TestRelationshipAuthorityStates 4; TestProductEvidenceBar 6 —
+bounded evidence bar, no model self-promotion, fail-closed profiles,
+state consistency) + 1 in
+`tests/research/test_semantic_authority_v2_boundaries.py`
+(`test_v2_module_has_no_mutable_global_state`). Existing S2-A nodes
+corrected in place ONLY where they encoded the now-identified flawed
+U4/global-STRONG contract (each correction preserves or strengthens the
+surrounding safety contract; exact nodes, old/new expectations, and
+justification enumerated below). NM-2, customer-retrieval, HARD_
+CONFLICT, frozen V1, 3C, and 4A tests were NOT weakened.
+
+Corrected existing nodes (requirement corrections, not
+implementation-fitting):
+
+* `TestNM2AuthorityCeiling::test_ceiling_without_any_context` — old:
+  NM-2 + MATCH/HIGH, no provenance (implicit WEAK context: the matrix
+  base was already NEEDS_REVIEW, so the ceiling constrained nothing)
+  -> NEEDS_REVIEW + NM-2 rule. corrected: + explicit STRONG product-
+  evidence profile -> NEEDS_REVIEW + NM-2 rule (+ STRONG quality and
+  NOT_ESTABLISHED relationship assertions). why: blocker 1 requires
+  proving the NM-2 ceiling cannot be bypassed by "excellent
+  description/product alignment"; the old pin had no product evidence
+  at all. strengthened.
+* `TestNM2AuthorityCeiling::test_ceiling_with_manufacturer_product_
+  context` — old: + PRODUCT_CTX (LIMITED base). corrected: + STRONG
+  reviewed-grounded profile (AI-eligible base) -> NEEDS_REVIEW + rule.
+  why: product grounding != relationship authority; the ceiling must
+  visibly cap an AI-eligible base. strengthened.
+* `TestNM2AuthorityCeiling::test_ceiling_with_customer_retrieval_
+  relation` — old: + CUSTOMER_CTX (WEAK base). corrected: + STRONG
+  title-grounded profile -> NEEDS_REVIEW + rule + NOT_ESTABLISHED.
+  why: blocker item 6. strengthened.
+* `TestNM2AuthorityCeiling::test_ceiling_with_customer_plus_product_
+  context` — old: combined provenance (LIMITED base). corrected: +
+  STRONG reviewed-grounded profile -> NEEDS_REVIEW + rule.
+  strengthened.
+* `TestNM2AuthorityCeiling::test_relation_authority_satisfies_the_gate`
+  — old: RELATION_CTX alone -> AI_ASSISTED + `context_quality is
+  ContextQuality.STRONG` (the flawed global-STRONG coupling: RELATION
+  implied STRONG, hence the auto tier, with no product evidence).
+  corrected: RELATION_CTX + STRONG reviewed-grounded profile ->
+  AI_ASSISTED + STRONG product quality + ESTABLISHED relationship + no
+  NM-2 rule. why: blocker 1 — the matrix row is now fed by the
+  orthogonal product-evidence dimension; "may pass that specific
+  ceiling, subject to the rest of the authority gates".
+* `TestNM2AuthorityCeiling::test_nm2_may_remain_reviewable_even_with_
+  match_high` — old: PRODUCT_CTX (LIMITED base) -> NEEDS_REVIEW; human
+  CONFIRMED -> HUMAN_CONFIRMED. corrected: + STRONG reviewed-grounded
+  profile -> NEEDS_REVIEW (ceiling caps an AI-eligible base); HUMAN_
+  CONFIRMED preserved. strengthened.
+* `TestNM2AuthorityCeiling::test_nm1_has_no_substitution_ceiling` —
+  old: RELATION_CTX alone -> AI_ASSISTED (implicit STRONG via RELATION).
+  corrected: RELATION_CTX + STRONG profile -> AI_ASSISTED + no NM-2
+  rule + no general relationship-gate rule. why: the old expectation
+  relied on the flawed coupling; NM-1 + ESTABLISHED relationship +
+  STRONG product evidence reaches the auto tier under the corrected
+  contract. contract preserved.
+* `TestNM2AuthorityCeiling::test_hard_conflict_still_supersedes_
+  ceilinged_nm2` — old: NO_CTX (WEAK base) + CAPACITY conflict ->
+  HARD_CONFLICT + rule. corrected: + STRONG profile (would-be AI base)
+  -> HARD_CONFLICT + rule. strengthened.
+* `TestContextProvenance::test_capability_table_is_exactly_frozen` —
+  old: `CONTEXT_PROVENANCE_CAPABILITIES == {dict}`. corrected: frozen
+  entry-tuple full-vocabulary coverage + exact per-entry capability
+  sets via `context_provenance_capabilities`. why: blocker 2
+  representation; exact capability contract preserved.
+* `TestContextProvenance::test_customer_retrieval_is_not_manufacturer_
+  context` — old: dict subscript. corrected: pure lookup. mechanical
+  (blocker 2); assertions unchanged.
+* `TestContextProvenance::test_product_context_does_not_establish_the_
+  relationship` — old: `derive_context_quality(PRODUCT_CTX) is
+  ContextQuality.LIMITED`. corrected: `derive_product_evidence_quality`
+  (no-title/no-facts profile, PRODUCT_CTX) is LIMITED + U5
+  relationship NOT_ESTABLISHED. why: blocker 1 — context quality was
+  the flawed coupling; corrected semantics: product grounding
+  strengthens dimension A but does not establish dimension B.
+* `TestContextProvenance::test_customer_retrieval_alone_is_weak_and_
+  gateless` — old: `derive_context_quality(CUSTOMER_CTX/NO_CTX) is
+  WEAK`. corrected: `derive_product_evidence_quality`(empty profile,
+  CUSTOMER_CTX/NO_CTX) is WEAK. why: customer retrieval grounds no
+  product evidence and no relationship.
+* `TestContextProvenance::test_relation_authority_establishes_the_
+  relationship` — old: `derive_context_quality(RELATION_CTX) is
+  STRONG` (exactly the flawed global-STRONG assertion). corrected:
+  `derive_relationship_authority`(U5, RELATION_CTX) is ESTABLISHED /
+  (U5, PRODUCT_CTX) is NOT_ESTABLISHED. why: blocker 1 — the assertion
+  now tests dimension B semantics.
+* `TestContextProvenance::test_customer_plus_product_stays_limited_and_
+  gateless` — old: quality LIMITED. corrected: product evidence LIMITED
+  (empty profile) + no relationship. why: blocker 1.
+* `TestContextProvenance::test_relation_plus_customer_stays_strong` —
+  old: `derive_context_quality(combined) is STRONG`. corrected: U1
+  relationship authority ESTABLISHED with the combined provenance
+  (customer retrieval does not dilute). why: the old STRONG assertion
+  encoded the flawed coupling; corrected semantics: the relationship
+  stays ESTABLISHED.
+* `TestContextProvenance::test_customer_retrieval_cannot_grant_auto_
+  authority` — old: U1 + MATCH/HIGH + CUSTOMER_CTX -> `context_quality
+  is WEAK` + NEEDS_REVIEW. corrected: + STRONG title-grounded profile
+  -> STRONG quality + NOT_ESTABLISHED relationship + NEEDS_REVIEW +
+  general gate rule. why: blocker 1 — even STRONG product evidence
+  cannot reach auto authority through customer retrieval. strengthened.
+* `TestContextProvenance::test_manufacturer_product_context_alone_
+  cannot_reach_auto_tier` — old: PRODUCT_CTX -> LIMITED + NEEDS_REVIEW.
+  corrected: + STRONG reviewed-grounded profile -> STRONG + NOT_
+  ESTABLISHED + NEEDS_REVIEW. strengthened (product grounding alone,
+  even at STRONG product evidence, cannot reach the auto tier).
+* `TestContextProvenance::test_relation_authority_can_satisfy_the_
+  matrix_gate` — old: RELATION_CTX -> STRONG + AI_ASSISTED. corrected:
+  RELATION_CTX + STRONG reviewed-grounded profile -> STRONG +
+  ESTABLISHED + AI_ASSISTED. why: both orthogonal dimensions must be
+  met.
+* `TestContextProvenance::test_context_quality_is_never_ai_derived` —
+  old: quality pure in provenances; MATCH/LOW -> STRONG + EXCLUDED.
+  corrected: quality pure in (profile, provenances); MATCH/LOW + STRONG
+  profile -> STRONG + EXCLUDED. why: the no-AI-self-derivation contract
+  is preserved on the corrected dimension.
+* `TestContextProvenance::test_provenance_input_must_be_a_frozenset` —
+  old: `derive_context_quality(set())` TypeError. corrected:
+  `derive_product_evidence_quality(profile, set())` +
+  `derive_relationship_authority(v2, set())` TypeErrors (+ retained
+  `has_relationship_authority(set())`). boundary extended.
+* `TestCompatibilityWording::test_wording_never_changes_the_authority_
+  tier_by_itself` — old: `decision.context_quality` equality.
+  corrected: `product_evidence_quality` + `relationship_authority`
+  equality. why: field rename under the orthogonal redesign; the
+  contract (wording overlay never changes the tier) is unchanged.
+* `TestAuthorityMatrixCompleteness::test_matrix_defines_all_27_
+  combinations` — old: grid over ContextQuality; `set(dict)`.
+  corrected: grid over ProductEvidenceQuality; entry-tuple key set.
+  why: blocker 1 re-key + blocker 2 representation; completeness (27)
+  preserved.
+* `TestAuthorityMatrixCompleteness::test_matrix_full_table_is_frozen`
+  — old: `dict == expected`. corrected: entry tuple == expected in
+  canonical order + per-row `semantic_outcome_tier` lookups. why:
+  blocker 2; exact tier values unchanged.
+* `TestAuthorityMatrixCompleteness::test_state_policy_table_is_
+  complete_and_bounded` — old: dict subscript / `.items()`. corrected:
+  entry tuple + `deterministic_state_policy` lookups. mechanical
+  (blocker 2); policy contract unchanged.
+* `TestAuthorityMatrixCompleteness::test_match_high_incomplete_
+  context_is_needs_review` — old: implicit LIMITED/WEAK context from
+  provenances. corrected: explicit LIMITED profile (title, no facts) +
+  LIMITED-quality assertions, all three provenance sets. why: blocker 1
+  — the "incomplete evidence" premise is carried by the orthogonal
+  product-evidence dimension.
+* `TestAuthorityMatrixCompleteness::test_match_high_reviewable_
+  conflict_is_needs_review` — old: RELATION_CTX + conflict (implicit
+  STRONG). corrected: + STRONG reviewed-grounded profile -> NEEDS_
+  REVIEW + rule + STRONG assertion. strengthened (the reviewable-
+  conflict ceiling visibly caps an AI-eligible base).
+* `TestAuthorityMatrixCompleteness::test_condition_only_conflict_
+  never_caps_authority` — old: RELATION_CTX -> AI_ASSISTED (implicit
+  STRONG). corrected: + STRONG profile -> AI_ASSISTED. why: the auto
+  row is now fed by explicit product evidence.
+* `TestAuthorityMatrixCompleteness::test_hard_conflict_supersedes_
+  match_high_strong` — old: RELATION_CTX -> HARD_CONFLICT. corrected: +
+  STRONG profile -> HARD_CONFLICT. why: "strong" in the pin now means
+  STRONG product evidence.
+* `TestAuthorityMatrixCompleteness::test_uncertain_decision_with_
+  actionable_context_is_needs_review` — old: PRODUCT_CTX (implicit
+  LIMITED). corrected: + explicit LIMITED profile -> NEEDS_REVIEW +
+  LIMITED assertion. why: the actionable premise is made explicit.
+* `TestAuthorityMatrixCompleteness::test_precedence_hard_over_confirmed
+  _over_ai` — old: parts 2/3 used RELATION_CTX (implicit STRONG); part
+  1 positional human argument. corrected: + STRONG reviewed-grounded
+  profile for parts 2/3; `human_review=` keyword for part 1. why: the
+  AI premise requires explicit product evidence; precedence contract
+  unchanged; positional -> keyword forced by the new
+  `product_evidence` signature parameter.
+* `TestAuthorityMatrixCompleteness::test_human_rejected_on_uncertain`,
+  `::test_human_outcome_not_applicable_on_verified`,
+  `::test_total_combination_space_is_defined_and_fail_closed` —
+  corrected: positional human argument -> `human_review=` keyword (new
+  signature); the total-combination node now asserts
+  `decision.product_evidence_quality is derive_product_evidence_
+  quality(default_profile, context)` (was `context_quality is
+  derive_context_quality(context)`). mechanical adaptation; all tier /
+  rule / fail-closed contracts unchanged.
+* `TestUiVocabularyContract::test_badge_concepts_are_frozen` — old:
+  `dict == expected`. corrected: entry tuple + `authority_tier_badge`
+  lookups + full-vocabulary coverage. why: blocker 2; exact badge
+  strings preserved.
+* `tests/research/test_semantic_authority_v2_boundaries.py::test_v2_
+  contract_tables_are_immutable_data` — old: `isinstance(..., dict)` +
+  shape checks (did NOT prove immutability). corrected: real mutation
+  attempts over every frozen authority/context/display mapping (public
+  + private) proving TypeError / AttributeError / FrozenInstanceError;
+  deterministic iterability; equality against lookup-rebuilt tables;
+  completeness; severity frozensets and attention-order tuple
+  invariants retained. why: blocker 2 requirement.
+* `tests/research/test_semantic_authority_v2_boundaries.py::test_v2_is_
+  exported_by_the_research_package` — old: expected export set
+  including ContextQuality / derive_context_quality. corrected: the
+  S2-A-FU1 export surface (orthogonal dimensions + lookup functions)
+  + explicit absence pins for the removed symbols. why: the export
+  surface is the public contract of the corrected module.
+
+Unchanged (still collected and green): every section A/B/C/D/G node not
+enumerated above (incl. `test_nm2_match_medium_stays_needs_review`,
+`test_uncertain_decision_without_actionable_context_is_excluded`,
+`test_u4_does_not_gain_deterministic_authority`,
+`test_u4_weak_evidence_stays_distinguishable` — docstring wording only,
+`test_verified_state_needs_no_ai`, `test_conflict_state_is_hard_and_ai_
+eligible`, `test_unevaluable_state_has_no_ai_authority`,
+`test_uncertain_state_not_evaluated_is_needs_review`,
+`test_runtime_failure_is_semantic_unavailable_never_no_match`,
+`test_match_medium_is_needs_review`, `test_low_confidence_is_excluded`,
+`test_no_match_is_excluded`), the full no-wiring / frozen-V1 section,
+all 3C/2A/4A suites, the semantic runtime suites, and every other
+frozen regression suite.
+
+Validation (this session, candidate pass — final approval remains with
+ChatGPT after independent GitHub review):
+
+* Collection baseline at `46869f9`: **5972**; final: **5989** (+17: 16
+  new orthogonal-dimension nodes in `test_semantic_authority_v2.py` +
+  1 new no-mutable-global-state guard in
+  `test_semantic_authority_v2_boundaries.py`). Collection did not
+  decrease.
+* Focused S2-A: `tests/research/test_semantic_authority_v2.py` -> **133
+  passed, 0 failed**; `tests/research/test_semantic_authority_v2_
+  boundaries.py` -> **10 passed, 0 failed**.
+* Focused directly-affected batch (`tests/semantic/`, 2A comparator +
+  normalization, 3C matching + boundaries + real fixtures, 4A
+  aggregation suites + reviewed aggregation, human-review eligibility
+  contract, execution semantic integration): **775 passed, 0 failed**.
+* `tests/research/` directory: 2442 collected -> **2437 passed, 5
+  failed**; the 5 failures are EXACTLY allowlist nodes 6–10
+  (`test_enterprise_ssd_boundaries` x2, `test_listing_normalization_
+  boundaries`, `test_research_identity_boundaries`, `test_specification
+  _boundaries` — the clean-interpreter import guards), each with the
+  recorded `subprocess.Popen -> _winapi.DuplicateHandle -> OSError:
+  [WinError 6] The handle is invalid` signature before any project code
+  runs; each re-passed on isolated retry (5/5).
+* Full suite (run 1): **5989 collected, 5987 passed, 39 subtests
+  passed, 2 failed, 0 errors, 0 skipped, 0 xfailed, 0 deselected**. The
+  2 failures are EXACTLY allowlist nodes 1–2 (`test_domain_boundaries
+  .py::test_domain_imports_without_django_network_or_llm_dependencies`,
+  `test_evaluation_boundaries.py::test_loading_the_corpus_imports_no_
+  framework_or_provider`), each with the recorded WinError-6 signature
+  at `subprocess.py:1431` (`Popen -> _make_inheritable ->
+  _winapi.DuplicateHandle`); each re-passed on isolated retry (2/2).
+  NO node outside the allowlist failed. (The same two nodes reproduced
+  the signature again on a batched file retry — the documented load-
+  sensitive flake class — and re-passed in isolation.)
+* `python manage.py check`: System check identified no issues (0
+  silenced). `python manage.py makemigrations --check --dry-run`: No
+  changes detected.
+* `git diff --check`: clean. No test deleted/renamed; no production
+  file changed other than `research/semantic_authority_v2.py` +
+  `research/__init__.py`; no migrations; no wiring (the no-wiring tests
+  pass unchanged).
+
+No deployment performed in this commit; production does not move until
+independently reviewed approval, and S2-A-FU1 explicitly MUST NOT
+deploy.
+
 **PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-S2-A (Semantic Authority Contract
-V2 — contract freeze) — IMPLEMENTED / PENDING FINAL REVIEW**
+V2 — contract freeze) — IMPLEMENTED / AMENDED BY S2-A-FU1 (PENDING FINAL
+REVIEW)**
+
+CORRECTED BY S2-A-FU1 (section above; canonical spec PLAN §26.22, AD-
+066, amending AD-065 in part): (a) the authority matrix recorded below
+was keyed on a global `ContextQuality` whose STRONG value was equivalent
+to the presence of MANUFACTURER_RELATION_AUTHORITY — re-conservatizing
+U4_NO_MPN; S2-A-FU1 replaced it with two orthogonal prerequisites
+(bounded product evidence quality + state-specific identifier
+relationship authority, with U4 NOT_APPLICABLE) and removed
+ContextQuality/derive_context_quality; (b) the frozen contract tables
+recorded below were mutable dicts; S2-A-FU1 made them runtime-immutable
+tuples of immutable entries with pure lookup functions. All other S2-A
+content (states, near-miss, taxonomy, tiers, UI vocabulary, summary
+wording, no-wiring proof) stands as recorded below.
 
 Bounded CONTRACT-ONLY phase on the authoritative starting SHA
 `1a3c4a91bfbc6acda32025fa5145805f572185ff` (baseline collection 5838).
@@ -75,7 +484,12 @@ public export):
     NEVER interpreted as NO_MATCH. Ceilings restrict only (never lift).
     Precedence: HARD_CONFLICT > HUMAN_CONFIRMED > AI authority. Semantic
     or human inputs supplied for non-eligible states are ignored (fail
-    closed).
+    closed). CORRECTED BY S2-A-FU1: the matrix is re-keyed on (decision
+    x confidence x PRODUCT evidence quality) with the same tier values,
+    and the STRONG row's identifier-relationship requirement is state-
+    specific — U4_NO_MPN is NOT_APPLICABLE, so U4 auto-authority never
+    requires MANUFACTURER_RELATION_AUTHORITY; `ContextQuality` /
+    `derive_context_quality` are removed (PLAN §26.22, AD-066).
   - Future UI display vocabulary (no UI implemented): the 8 mandatory
     badge concepts; frozen attention order (NEEDS_REVIEW, AI_ASSISTED_
     COMPARABLE, HUMAN_CONFIRMED, MACHINE_VERIFIED, HUMAN_REJECTED,
@@ -111,7 +525,12 @@ The three Product-lead amendments (frozen in data + tests):
    be described to the model as manufacturer-established equivalence
    (all structurally proved by tests). Context quality (STRONG / LIMITED /
    WEAK) is computed only from provenance classes — never from model
-   confidence or AI matched_attributes.
+   confidence or AI matched_attributes. CORRECTED BY S2-A-FU1: the single
+   context-quality dimension is split into TWO orthogonal prerequisites —
+   bounded product evidence quality (profile + reviewed product
+   grounding) and state-specific identifier relationship authority (U4
+   NOT_APPLICABLE); the provenance classes and capability sets are
+   unchanged (PLAN §26.22, AD-066).
 3. **Summary wording.** The misleading headline "Comparable evidence: N
    listings" is forbidden when the count contains NEEDS_REVIEW items
    (frozen `FORBIDDEN_MARKET_EVIDENCE_HEADLINE`). The future wording is
@@ -127,8 +546,9 @@ DETERMINISTIC_UNCERTAIN / U4_NO_MPN and a future semantic AI entry point
 (an intentional recall feature). S2-A defines the state/policy only — no
 calls are wired. The CURRENT V1 runtime gate is unchanged and does not
 call the AI on U4 (proved by test). Weak/generic descriptions stay
-distinguishable through the future context-quality/confidence gates;
-eligibility does not mean authority.
+distinguishable through the future product-evidence-quality/confidence
+gates (S2-A-FU1: the "context-quality" gates were corrected to the
+orthogonal product evidence bar); eligibility does not mean authority.
 
 Test preservation: no test deleted, renamed, skipped, xfailed,
 deselected, ignored, or weakened. New nodes: 117 in
