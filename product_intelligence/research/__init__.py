@@ -103,6 +103,19 @@ relationship; NOT_APPLICABLE for U4_NO_MPN, so U4 auto-authority never
 requires ``MANUFACTURER_RELATION_AUTHORITY``) — and every frozen contract
 mapping is a runtime-immutable tuple of immutable entries with a pure
 lookup function (no mutable global state).
+
+PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-S2-A-FU2 made the identifier-
+relationship gate STATE/SUB-STATE-SPECIFIC: reaching
+``AI_ASSISTED_COMPARABLE`` is now governed by the frozen
+``SUBSTATE_RELATIONSHIP_REQUIREMENTS`` table (one
+``RelationshipRequirement`` per permitted (sub-state, primary signal)
+combination, pure fail-closed lookup ``substate_relationship_requirement``,
+import-self-checked for completeness) — U1_TITLE_MPN (NOT_REQUIRED) and
+U2 + SKU_EQUALS_TARGET (NOT_APPLICABLE: frozen-2A identical to the
+target) do NOT require ``MANUFACTURER_RELATION_AUTHORITY``; U2 +
+SKU_NOT_TARGET, U3, U5 + NM-1, and U5 + NM-2 (the frozen NM-2 ceiling)
+do. U4 behavior is unchanged; the relationship-authority derivation itself
+(dimension B) is unchanged from FU1.
 """
 
 from product_intelligence.research.aggregation import (
@@ -240,12 +253,14 @@ from product_intelligence.research.semantic_authority_v2 import (
     ProductEvidenceProfileV2,
     ProductEvidenceQuality,
     RelationshipAuthority,
+    RelationshipRequirement,
     REVIEWABLE_CONFLICT_CLASSES,
     SEMANTIC_OUTCOME_TIER_MATRIX,
     SemanticEvaluationStateV2,
     SemanticEvaluationV2,
     STRONG_PRODUCT_EVIDENCE_MIN_MATCHED_DIMENSIONS,
     STRONG_PRODUCT_EVIDENCE_MIN_MATCHED_FACTS,
+    SUBSTATE_RELATIONSHIP_REQUIREMENTS,
     TierSummaryV2,
     UNAVAILABLE_IS_NEVER_NO_MATCH,
     UncertainSubstateV2,
@@ -272,6 +287,7 @@ from product_intelligence.research.semantic_authority_v2 import (
     is_v2_semantic_entry_point,
     near_miss_shape,
     semantic_outcome_tier,
+    substate_relationship_requirement,
 )
 
 __all__ = [
@@ -317,6 +333,7 @@ __all__ = [
     "ProductEvidenceProfileV2",
     "ProductEvidenceQuality",
     "RelationshipAuthority",
+    "RelationshipRequirement",
     "REVIEWABLE_CONFLICT_CLASSES",
     "SEMANTIC_OUTCOME_TIER_MATRIX",
     "SemanticEvaluationStateV2",
@@ -324,6 +341,7 @@ __all__ = [
     "STRONG_PRODUCT_EVIDENCE_MIN_MATCHED_DIMENSIONS",
     "STRONG_PRODUCT_EVIDENCE_MIN_MATCHED_FACTS",
     "STRUCTURAL_CHARACTERS",
+    "SUBSTATE_RELATIONSHIP_REQUIREMENTS",
     "TierSummaryV2",
     "UNAVAILABLE_IS_NEVER_NO_MATCH",
     "UncertainSubstateV2",
@@ -350,6 +368,7 @@ __all__ = [
     "is_v2_semantic_entry_point",
     "near_miss_shape",
     "semantic_outcome_tier",
+    "substate_relationship_requirement",
     "AuthorityAttemptResult",
     "AuthorityAuditOutcomeKind",
     "CandidateDisposition",

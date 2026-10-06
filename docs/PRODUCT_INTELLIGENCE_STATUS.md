@@ -2,9 +2,244 @@
 
 ## Current state
 
+**PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-S2-A-FU2 (Semantic Authority
+Contract V2 — corrective follow-up: state-specific relationship
+requirements) — IMPLEMENTED / PENDING FINAL REVIEW**
+
+Bounded CONTRACT-ONLY corrective follow-up on the pending S2-A-FU1
+candidate (canonical spec: PLAN §26.23; decision record: AD-067; S2-A-
+FU1 spec: PLAN §26.22 / AD-066, amended in part), on the authoritative
+starting SHA `f54489dbd4ea8375ba6924e21f3bce161caac9e1` (baseline
+collection 5989). A third independent-review blocker in the S2-A line
+was corrected: FU1's identifier-relationship gate was over-broad. S2-B
+was NOT started; no persistence/migrations; no production execution/
+runtime/UI wiring; no deployment. After S2-A-FU2, production behavior is
+identical to the starting SHA. V3 qualification has NOT happened; AI
+authority in production has NOT expanded.
+
+**Blocker — the relationship gate was global, not state-specific.**
+S2-A-FU1 correctly restored U4_NO_MPN (relationship authority
+NOT_APPLICABLE), but then introduced an over-broad general gate: U1 / U2
+/ U3 / U5 required `RelationshipAuthority.ESTABLISHED` before
+AI_ASSISTED_COMPARABLE was allowed. That is NOT the approved contract:
+the relationship-authority requirement must itself be STATE-SPECIFIC.
+The purpose of semantic AI is to resolve deterministic uncertainty; the
+absence of deterministic / manufacturer relationship proof must not
+force every uncertain identifier-shaped listing into human review.
+
+The relationship requirement is now bounded state/sub-state-specific
+contract data — `SUBSTATE_RELATIONSHIP_REQUIREMENTS`: one
+`RelationshipRequirement` (NOT_APPLICABLE / NOT_REQUIRED /
+REVIEWED_RELATION_AUTHORITY_REQUIRED) per permitted (sub-state, primary
+identifier-relationship signal) combination (14 entries). Runtime-
+immutable tuple of immutable entries, pure fail-closed lookup
+`substate_relationship_requirement` (TypeError on non-V2 inputs;
+ValueError on any combination the table does not define — unknown
+combinations never gain authority), completeness self-checked at import
+against `_PRIMARY_SIGNALS_BY_SUBSTATE` (exactly one entry per permitted
+pair). Explicit per-case policies:
+
+* **U1_TITLE_MPN -> NOT_REQUIRED.** The state exists precisely because
+deterministic 3C refuses to treat title text as manufacturer identity
+authority; the semantic evaluation determines whether the MPN denotes
+the product itself or is merely compatibility/reference/SEO text.
+MATCH + HIGH + STRONG bounded product evidence + no HARD conflict + no
+REVIEWABLE conflict => AI_ASSISTED_COMPARABLE is CAPABLE WITHOUT
+MANUFACTURER_RELATION_AUTHORITY (tested with no provenance at all, with
+customer retrieval only, and with product grounding only).
+COMPATIBILITY_WORDING / accessory / product-role conflicts remain safety
+inputs through the structured conflict taxonomy (ALWAYS_HARD
+supersession; reviewable ceiling) — no recall expansion bypasses safety
+(tested: U1 + COMPATIBILITY_WORDING overlay + ACCESSORY_RELATION /
+PRODUCT_ROLE => HARD_CONFLICT; + OTHER_MATERIAL_CONFLICT => NEEDS_REVIEW).
+* **U2_SKU_ONLY -> primary-signal-specific.** SKU_EQUALS_TARGET ->
+NOT_APPLICABLE: the published SKU is frozen-2A identical to the target —
+the relationship is deterministically established, so there is nothing
+for a reviewed source to establish; U2 + SKU_EQUALS_TARGET + MATCH/HIGH
++ STRONG + clean conflicts => capable of AI_ASSISTED_COMPARABLE without
+MANUFACTURER_RELATION_AUTHORITY (tested). SKU_NOT_TARGET ->
+REVIEWED_RELATION_AUTHORITY_REQUIRED: the explicitly chosen conservative
+policy (the published SKU is not the target) — capped at NEEDS_REVIEW
+without reviewed relationship authority (including customer retrieval,
+which never satisfies it); met with MANUFACTURER_RELATION_AUTHORITY
+(tested).
+* **U3_PARTIAL_BOUNDARY -> REVIEWED_RELATION_AUTHORITY_REQUIRED.**
+Explicit conservative policy: PARTIAL boundary evidence is weaker than
+U1's exact-title-MPN. The U3 choice is bounded and explicit — the
+identical (NO_CTX, MATCH/HIGH, STRONG, clean) inputs are NOT capped for
+U1 (tested), so the U3 policy does not silently determine U1/U2/U5
+behavior.
+* **U4_NO_MPN -> NOT_APPLICABLE.** FU1 behavior unchanged: relationship
+authority NOT_APPLICABLE with or without relation provenance; MATCH +
+HIGH + STRONG product evidence + clean conflicts => AI_ASSISTED_COMPARABLE capable; the gate rule never fires for U4 (tested; the FU1
+TestU4AutoAuthority nodes pass unchanged).
+* **U5_NEAR_MISS_MPN -> near-miss-shape-specific.** NM-1
+(NEAR_MISS_TRUNCATION) -> REVIEWED_RELATION_AUTHORITY_REQUIRED: an
+explicit bounded U5/NM-1 policy (strict prefix/truncation is uncertainty
+only, never identity proof) — capped at NEEDS_REVIEW without reviewed
+relationship authority, and the NM-2-specific substitution-ceiling rule
+does NOT fire for NM-1 (tested). NM-2 (NEAR_MISS_SUBSTITUTION) ->
+REVIEWED_RELATION_AUTHORITY_REQUIRED: the frozen Product-lead ceiling
+(amendment 1) keeps its own explicit audit rule (CEILING_NEAR_MISS_SUBSTITUTION_WITHOUT_RELATION_AUTHORITY) — without reviewed
+authoritative identifier relationship the maximum automatic tier is
+NEEDS_REVIEW even for MATCH + HIGH + STRONG product evidence;
+MANUFACTURER_RELATION_AUTHORITY may clear that specific ceiling, subject
+to all remaining gates; CUSTOMER_RETRIEVAL_RELATION never does (tested;
+the FU1 NM-2 nodes pass unchanged). For U5 + NM-2 the NM-2-specific
+caps-first rule is the explicit audit form of the same requirement and
+subsumes the general gate (which is conditioned on the tier still being
+AI_ASSISTED).
+* **Verified / C1 / E1 / E2 -> NOT_APPLICABLE** (no AI-authority path
+consults the requirement).
+
+The automatic tier is capped at NEEDS_REVIEW (fired rule
+CEILING_IDENTIFIER_RELATIONSHIP_NOT_ESTABLISHED, name unchanged) when —
+and only when — the candidate's table entry requires
+REVIEWED_RELATION_AUTHORITY and dimension B is not ESTABLISHED. The
+orthogonal dimensions themselves (A: `derive_product_evidence_quality`;
+B: `derive_relationship_authority`) are unchanged from FU1; all FU1
+immutable-table protections are retained (27-row matrix, 4 state
+policies, 3 capability entries, 8 badges, private derivation tables,
+no-mutable-globals import self-check) and the new requirement table is
+added to the immutability proof. Precedence HARD_CONFLICT > HUMAN_CONFIRMED > AI authority is unchanged (existing precedence node passes
+unchanged). CUSTOMER_RETRIEVAL_RELATION zero-authority and the NM-2
+ceiling are unchanged.
+
+Delivered (production changes only: `research/semantic_authority_v2.py`
+and its public export surface in `research/__init__.py`):
+
+* `RelationshipRequirement` (3 members), `SUBSTATE_RELATIONSHIP_REQUIREMENTS` (14 frozen entries), `substate_relationship_requirement`
+(pure fail-closed lookup); import-time completeness self-check.
+* `derive_authority_tier` gate re-keyed on the requirement table (the
+FU1 blanket U1/U2/U3/U5 condition removed); fired-rule name preserved,
+semantics documented as the state/sub-state-specific form.
+* Module docstrings, `AuthorityRuleV2` rule docstring, and U1-U5
+sub-state docstrings updated to the FU2 contract; export surface adds
+the three new symbols.
+
+Test preservation: no test deleted, renamed, skipped, xfailed,
+deselected, ignored, or weakened. Exactly three FU1 nodes — the ones
+that encoded the newly identified blanket relationship gate — were
+corrected in place (each correction preserves or redirects the
+surrounding safety contract; details below). New nodes: 14 in
+`tests/research/test_semantic_authority_v2.py` (TestStateSpecificRelationshipRequirement 6 — frozen/complete table, per-case requirement
+pins, fail-closed lookup; TestU1AutoAuthorityWithoutRelationRequirement
+3 — required behaviors 1-2 + no-cross-state-leakage; TestU2U3U5StateSpecificPolicies 5 — required behaviors 3-5, 7-10). Boundary file
+corrected/extended in place: `test_v2_contract_tables_are_immutable_data` gains the requirement-table immutability/completeness/fail-closed
+block; `test_v2_is_exported_by_the_research_package` gains the three new
+export pins.
+
+Corrected existing nodes (requirement corrections, not implementation-
+fitting):
+
+* `tests/research/test_semantic_authority_v2.py::TestContextProvenance::
+test_customer_retrieval_cannot_grant_auto_authority` — old expectation:
+  U1 + MATCH/HIGH + STRONG title-grounded profile + CUSTOMER_CTX ->
+  NEEDS_REVIEW + CEILING_IDENTIFIER_RELATIONSHIP_NOT_ESTABLISHED
+  (customer retrieval cannot grant U1 auto authority — via FU1's
+  blanket U1 gate). Corrected expectation: customer retrieval confers
+  zero relationship authority (NOT_ESTABLISHED on U1, U2-SKU_NOT_TARGET, U3, U5-NM-1, U5-NM-2) and grounds no product evidence (WEAK
+  without title/facts), and the zero-authority contract is pinned where
+  it is binding — every REVIEWED_RELATION_AUTHORITY_REQUIRED state +
+  CUSTOMER_CTX + STRONG -> NEEDS_REVIEW + the gate rule (the NM-2-specific rule for U5-NM-2). Why the old requirement was over-broad:
+  FU1's blanket U1/U2/U3/U5 gate is exactly the contract FU2 corrects —
+  U1 no longer requires reviewed relationship authority, so "customer
+  retrieval cannot grant U1 auto authority" was the wrong form of the
+  customer-retrieval safety contract. Safety preserved: customer
+  retrieval never establishes a relationship, never grounds product
+  evidence, and never clears a requirement where one exists (now
+  pinned on all four requirement-bearing states).
+* `tests/research/test_semantic_authority_v2.py::TestContextProvenance::
+test_manufacturer_product_context_alone_cannot_reach_auto_tier` — old
+  expectation: U1 + PRODUCT_CTX + STRONG reviewed-grounded profile ->
+  NEEDS_REVIEW (product grounding alone cannot reach the auto tier —
+  via FU1's blanket U1 gate). Corrected expectation: the real contract
+  (reviewed product grounding strengthens dimension A but does NOT
+  establish dimension B, so it cannot clear a reviewed-relationship
+  requirement) pinned on U2-SKU_NOT_TARGET, U3, U5-NM-1, U5-NM-2:
+  STRONG reviewed-grounded profile + PRODUCT_CTX -> NEEDS_REVIEW +
+  NOT_ESTABLISHED + the gate rule (NM-2-specific rule for U5-NM-2). Why
+  over-broad: same blanket U1 gate. Safety preserved: product grounding
+  != relationship authority is pinned exactly where the requirement
+  exists.
+* `tests/research/test_semantic_authority_v2.py::TestRelationshipAuthorityStates::test_question_bearing_states_without_relation_authority_are_capped`
+  — old expectation: {U1, U2 (RETAIL-SKU-1 =
+  SKU_NOT_TARGET), U3, U5-NM-1} all capped (NEEDS_REVIEW + gate rule)
+  without provenance and all reaching AI_ASSISTED with RELATION_CTX +
+  STRONG. Corrected expectation: capped set = {U2-SKU_NOT_TARGET, U3,
+  U5-NM-1} with the identical assertions; U1 (NOT_REQUIRED) and U2 +
+  SKU_EQUALS_TARGET (NOT_APPLICABLE) removed from the cap set by the
+  FU2 state-specific requirement — U1's new no-gate behavior is pinned
+  by dedicated nodes. Why over-broad: the old node included U1 in the
+  blanket gate. Safety preserved: no authority expansion for the
+  requirement-bearing states (capped without provenance; cleared only
+  by reviewed relationship authority).
+
+Validation (this session, candidate pass — final approval remains with
+ChatGPT after independent GitHub review):
+
+* Collection baseline at `f54489d`: **5989**; final: **6003** (+14 new
+  nodes; collection did not decrease).
+* Focused S2-A: `tests/research/test_semantic_authority_v2.py` -> **147
+  passed, 0 failed**; `tests/research/test_semantic_authority_v2_boundaries.py`
+  -> **10 passed, 0 failed** (157 combined).
+* Focused directly-affected batch (`tests/semantic/`, 2A comparator +
+  normalization, 3C matching + boundaries + real fixtures, 4A
+  aggregation suites + reviewed aggregation, human-review eligibility
+  contract, research identity boundaries, execution semantic
+  integration): **987 passed, 1 failed** — the single failure is
+  allowlist node 9 (`test_research_identity_boundaries`), the recorded
+  `subprocess.Popen -> _winapi.DuplicateHandle -> OSError: [WinError
+  6]` signature before any project code runs; re-passed on isolated
+  retry (1/1).
+* `tests/research/` directory: 2456 collected -> **2451 passed, 5
+  failed**; the 5 failures are EXACTLY allowlist nodes 6–10
+  (`test_enterprise_ssd_boundaries` x2, `test_listing_normalization_
+  boundaries`, `test_research_identity_boundaries`, `test_specification_
+  boundaries`), each with the recorded WinError-6 signature; each
+  re-passed on isolated retry (5/5).
+* Full suite (run 1): **5995 passed, 39 subtests passed, 8 failed, 0
+  errors, 0 skipped, 0 xfailed, 0 deselected**. The 8 failures are
+  EXACT members of the documented fixed eleven-node Windows/Python-3.14
+  subprocess-boundary flake allowlist (nodes 1, 3, 4, 5, 6, 7, 8, 11:
+  `test_domain_boundaries`, `test_provider_boundaries` x3,
+  `test_enterprise_ssd_boundaries` x2, `test_listing_normalization_
+  boundaries`, `test_research_run_boundaries`), each with the recorded
+  WinError-6 signature at `subprocess.py:1431`; each re-passed on
+  isolated retry (8/8). NO node outside the allowlist failed; the
+  allowlist was NOT expanded.
+* Full suite (definitive run 2): **6003 passed, 39 subtests passed, 0
+  failed, 0 errors, 0 skipped, 0 xfailed, 0 deselected** — a clean
+  run; the flake class did not manifest.
+* `python manage.py check`: System check identified no issues (0
+  silenced). `python manage.py makemigrations --check --dry-run`: No
+  changes detected.
+* `git diff --check`: clean. No test deleted/renamed; no production
+  file changed other than `research/semantic_authority_v2.py` +
+  `research/__init__.py`; no migrations; no wiring (the no-wiring tests
+  pass unchanged).
+
+No deployment performed in this commit; production does not move until
+independently reviewed approval, and S2-A-FU2 explicitly MUST NOT
+deploy.
+
 **PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-S2-A-FU1 (Semantic Authority
 Contract V2 — corrective follow-up: orthogonal evidence gates + frozen
-mappings) — IMPLEMENTED / PENDING FINAL REVIEW**
+mappings) — IMPLEMENTED / AMENDED BY S2-A-FU2 (PENDING FINAL REVIEW)**
+
+CORRECTED BY S2-A-FU2 (section above; canonical spec PLAN §26.23, AD-
+067, amending AD-066 in part): FU1's general state-specific gate —
+reaching AI_ASSISTED_COMPARABLE required the identifier-relationship
+question to be ESTABLISHED for U1/U2/U3/U5 — was itself over-broad.
+The relationship requirement is now the frozen state/sub-state-specific
+`SUBSTATE_RELATIONSHIP_REQUIREMENTS` table (NOT_APPLICABLE / NOT_
+REQUIRED / REVIEWED_RELATION_AUTHORITY_REQUIRED per permitted (sub-
+state, primary signal) combination): U1_TITLE_MPN and U2 +
+SKU_EQUALS_TARGET do NOT require MANUFACTURER_RELATION_AUTHORITY; U2 +
+SKU_NOT_TARGET, U3, U5 + NM-1, and U5 + NM-2 do; U4 behavior is
+unchanged (NOT_APPLICABLE). The orthogonal dimension derivations (A and
+B), the NM-2 ceiling, customer-retrieval zero authority, and all FU1
+immutable-table protections are unchanged.
 
 Bounded CONTRACT-ONLY corrective follow-up on the pending S2-A
 candidate (canonical spec: PLAN §26.22; decision record: AD-066; S2-A
@@ -412,7 +647,13 @@ ContextQuality/derive_context_quality; (b) the frozen contract tables
 recorded below were mutable dicts; S2-A-FU1 made them runtime-immutable
 tuples of immutable entries with pure lookup functions. All other S2-A
 content (states, near-miss, taxonomy, tiers, UI vocabulary, summary
-wording, no-wiring proof) stands as recorded below.
+wording, no-wiring proof) stands as recorded below. CORRECTED BY S2-A-
+FU2: FU1's general gate (ESTABLISHED required for U1/U2/U3/U5) was
+itself over-broad — the relationship requirement is now the frozen
+state/sub-state-specific `SUBSTATE_RELATIONSHIP_REQUIREMENTS` table
+(U1 and U2 + SKU_EQUALS_TARGET require no reviewed relationship
+authority; U2 + SKU_NOT_TARGET, U3, U5 + NM-1, and U5 + NM-2 do; U4
+unchanged; PLAN §26.23, AD-067).
 
 Bounded CONTRACT-ONLY phase on the authoritative starting SHA
 `1a3c4a91bfbc6acda32025fa5145805f572185ff` (baseline collection 5838).

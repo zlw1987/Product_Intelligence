@@ -278,6 +278,60 @@ def test_v2_contract_tables_are_immutable_data() -> None:
         with pytest.raises(TypeError):
             private[0] = private[0]
 
+    # -- SUBSTATE_RELATIONSHIP_REQUIREMENTS: frozen entry tuple (S2-A-FU2) --
+    requirements = v2.SUBSTATE_RELATIONSHIP_REQUIREMENTS
+    assert isinstance(requirements, tuple)
+    assert len(requirements) == 14
+    substate_families = (
+        v2.VerifiedSubstateV2,
+        v2.UncertainSubstateV2,
+        v2.ConflictSubstateV2,
+        v2.UnevaluableSubstateV2,
+    )
+    for entry in requirements:
+        assert isinstance(entry, tuple) and len(entry) == 3
+        entry_substate, entry_signal, entry_requirement = entry
+        assert type(entry_substate) in substate_families
+        assert isinstance(entry_signal, v2.IdentityRelationshipSignal)
+        assert isinstance(entry_requirement, v2.RelationshipRequirement)
+    with pytest.raises(TypeError):
+        requirements[0] = requirements[0]  # tuple: no item assignment
+    with pytest.raises(AttributeError):
+        requirements.append(requirements[0])  # no list mutation surface
+    with pytest.raises(AttributeError):
+        requirements.clear()  # no dict mutation surface
+    # Completeness: exactly the permitted (sub-state, primary signal)
+    # combinations of the frozen derivation (the import-time self-check
+    # pins the same contract mechanically).
+    permitted = {
+        (member, signal)
+        for value, signals in v2._PRIMARY_SIGNALS_BY_SUBSTATE
+        for family in substate_families
+        for member in family
+        if member.value == value
+        for signal in signals
+    }
+    assert {
+        (entry[0], entry[1]) for entry in requirements
+    } == permitted
+    # The pure lookup reproduces every entry and fails closed outside the
+    # table (unknown combinations never gain authority).
+    for entry_substate, entry_signal, entry_requirement in requirements:
+        assert (
+            v2.substate_relationship_requirement(entry_substate, entry_signal)
+            is entry_requirement
+        )
+    with pytest.raises(ValueError):
+        v2.substate_relationship_requirement(
+            v2.UncertainSubstateV2.U1_TITLE_MPN,
+            v2.IdentityRelationshipSignal.EXACT,
+        )
+    with pytest.raises(TypeError):
+        v2.substate_relationship_requirement(
+            "U1_TITLE_MPN",  # type: ignore[arg-type]
+            v2.IdentityRelationshipSignal.TITLE_MPN_TOKEN,
+        )
+
     # -- severity / count / vocabulary frozensets -----------------------
     for table in (
         v2.ALWAYS_HARD_CONFLICT_CLASSES,
@@ -343,6 +397,7 @@ def test_v2_is_exported_by_the_research_package() -> None:
         "ContextCapability",
         "ProductEvidenceQuality",
         "RelationshipAuthority",
+        "RelationshipRequirement",
         "ProductEvidenceProfileV2",
         "ProductEvidenceFactV2",
         "ProductEvidenceDimension",
@@ -359,6 +414,8 @@ def test_v2_is_exported_by_the_research_package() -> None:
         "AUTHORITY_TIER_BADGES",
         "STRONG_PRODUCT_EVIDENCE_MIN_MATCHED_FACTS",
         "STRONG_PRODUCT_EVIDENCE_MIN_MATCHED_DIMENSIONS",
+        "SUBSTATE_RELATIONSHIP_REQUIREMENTS",
+        "substate_relationship_requirement",
         "derive_tier_summary",
         "TierSummaryV2",
     }

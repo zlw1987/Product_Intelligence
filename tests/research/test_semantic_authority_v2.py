@@ -1,7 +1,7 @@
 """Tests for the Semantic Authority Contract V2 (S2-A, contract only, as
-corrected by S2-A-FU1).
+corrected by S2-A-FU1 and S2-A-FU2).
 
-Covers the frozen S2-A/S2-A-FU1 contract in
+Covers the frozen S2-A/S2-A-FU1/S2-A-FU2 contract in
 ``product_intelligence.research.semantic_authority_v2``:
 
 * A. identity V2 mapping over the frozen 3C assessment
@@ -16,6 +16,12 @@ Covers the frozen S2-A/S2-A-FU1 contract in
    authority (dimension B); U4 auto-authority without
    MANUFACTURER_RELATION_AUTHORITY; NM-2 ceiling with strong product
    evidence
+* F3. state/sub-state-specific relationship requirement (S2-A-FU2):
+   the frozen SUBSTATE_RELATIONSHIP_REQUIREMENTS table (NOT_APPLICABLE /
+   NOT_REQUIRED / REVIEWED_RELATION_AUTHORITY_REQUIRED); U1 and U2 +
+   SKU_EQUALS_TARGET reach the automatic tier WITHOUT
+   MANUFACTURER_RELATION_AUTHORITY; U2 + SKU_NOT_TARGET, U3, U5/NM-1,
+   and U5/NM-2 require it; U4 unchanged
 * G. no behavior wiring: the frozen V1 production semantic predicate /
    runtime / 3C outputs remain unchanged
 
@@ -64,8 +70,10 @@ from product_intelligence.research.semantic_authority_v2 import (
     ProductEvidenceProfileV2,
     ProductEvidenceQuality,
     RelationshipAuthority,
+    RelationshipRequirement,
     REVIEWABLE_CONFLICT_CLASSES,
     SEMANTIC_OUTCOME_TIER_MATRIX,
+    SUBSTATE_RELATIONSHIP_REQUIREMENTS,
     UI_ATTENTION_ORDER,
     STRONG_PRODUCT_EVIDENCE_MIN_MATCHED_DIMENSIONS,
     STRONG_PRODUCT_EVIDENCE_MIN_MATCHED_FACTS,
@@ -102,6 +110,7 @@ from product_intelligence.research.semantic_authority_v2 import (
     is_v2_semantic_entry_point,
     near_miss_shape,
     semantic_outcome_tier,
+    substate_relationship_requirement,
 )
 
 REQUEST_MPN = "ABC-123"
@@ -831,39 +840,110 @@ class TestContextProvenance:
 
     def test_customer_retrieval_cannot_grant_auto_authority(self) -> None:
         """Customer retrieval confers ZERO relationship authority and no
-        product grounding: even STRONG title-grounded product evidence
-        cannot reach automatic comparable authority for a question-bearing
-        state (U1) when only customer retrieval is present."""
-        u1 = _v2(title="Has ABC-123 in the title")
-        decision = derive_authority_tier(
-            u1, _match(V2Confidence.HIGH), CUSTOMER_CTX, _strong_profile()
-        )
-        assert decision.product_evidence_quality is ProductEvidenceQuality.STRONG
-        assert decision.relationship_authority is RelationshipAuthority.NOT_ESTABLISHED
-        assert decision.tier is AuthorityTier.NEEDS_REVIEW
-        assert decision.tier is not AuthorityTier.AI_ASSISTED_COMPARABLE
+        product grounding (S2-A-FU2 corrected form).
+
+        FU1 pinned this on U1 through the blanket U1/U2/U3/U5
+        relationship gate. S2-A-FU2 made the requirement state/
+        sub-state-specific and U1_TITLE_MPN no longer requires reviewed
+        relationship authority, so the zero-authority contract is pinned
+        where it is binding: on the states whose frozen requirement is
+        REVIEWED_RELATION_AUTHORITY_REQUIRED (U2 + SKU_NOT_TARGET, U3,
+        U5 + NM-1, U5 + NM-2). Customer retrieval cannot clear those
+        requirements, establishes no relationship (NOT_ESTABLISHED), and
+        grounds no product evidence (WEAK without a title/facts).
+        """
+        # Customer retrieval establishes no relationship anywhere.
+        for name, v2 in (
+            ("u1", _v2(title="Has ABC-123 in the title")),
+            ("u2_sku_not_target", _v2(sku="RETAIL-SKU-1")),
+            ("u3", _v2(mpn="ABC")),
+            ("u5_nm1", _v2(mpn="ABC-12")),
+            ("u5_nm2", _v2(mpn="ABC-124")),
+        ):
+            assert (
+                derive_relationship_authority(v2, CUSTOMER_CTX)
+                is RelationshipAuthority.NOT_ESTABLISHED
+            ), name
+        # Customer retrieval grounds no product evidence.
         assert (
-            AuthorityRuleV2.CEILING_IDENTIFIER_RELATIONSHIP_NOT_ESTABLISHED
-            in decision.fired_rules
+            derive_product_evidence_quality(_no_title_no_facts_profile(), CUSTOMER_CTX)
+            is ProductEvidenceQuality.WEAK
         )
+        # The binding form: a requirement-bearing state with STRONG
+        # title-grounded product evidence and only customer retrieval
+        # present cannot reach the automatic tier. (For U5 + NM-2 the
+        # frozen NM-2-specific ceiling rule is the explicit audit form of
+        # the same requirement; the general gate is subsumed by it.)
+        for name, v2 in (
+            ("u2_sku_not_target", _v2(sku="RETAIL-SKU-1")),
+            ("u3", _v2(mpn="ABC")),
+            ("u5_nm1", _v2(mpn="ABC-12")),
+            ("u5_nm2", _v2(mpn="ABC-124")),
+        ):
+            decision = derive_authority_tier(
+                v2, _match(V2Confidence.HIGH), CUSTOMER_CTX, _strong_profile()
+            )
+            assert decision.product_evidence_quality is ProductEvidenceQuality.STRONG, name
+            assert decision.relationship_authority is RelationshipAuthority.NOT_ESTABLISHED, name
+            assert decision.tier is AuthorityTier.NEEDS_REVIEW, name
+            assert decision.tier is not AuthorityTier.AI_ASSISTED_COMPARABLE, name
+            if name == "u5_nm2":
+                assert (
+                    AuthorityRuleV2
+                    .CEILING_NEAR_MISS_SUBSTITUTION_WITHOUT_RELATION_AUTHORITY
+                    in decision.fired_rules
+                ), name
+            else:
+                assert (
+                    AuthorityRuleV2
+                    .CEILING_IDENTIFIER_RELATIONSHIP_NOT_ESTABLISHED
+                    in decision.fired_rules
+                ), name
 
     def test_manufacturer_product_context_alone_cannot_reach_auto_tier(
         self,
     ) -> None:
-        # S2-A-FU1: even at STRONG product evidence (grounded in the
-        # reviewed product context), product grounding alone cannot reach
-        # the automatic tier — the identifier-relationship question is
-        # unanswered.
-        u1 = _v2(title="Has ABC-123 in the title")
-        decision = derive_authority_tier(
-            u1,
-            _match(V2Confidence.HIGH),
-            PRODUCT_CTX,
-            _strong_profile(REVIEWED_SOURCES),
-        )
-        assert decision.product_evidence_quality is ProductEvidenceQuality.STRONG
-        assert decision.relationship_authority is RelationshipAuthority.NOT_ESTABLISHED
-        assert decision.tier is AuthorityTier.NEEDS_REVIEW
+        # S2-A-FU2 corrected form: reviewed product grounding
+        # (MANUFACTURER_PRODUCT_CONTEXT) strengthens PRODUCT evidence
+        # (dimension A) but does NOT establish the identifier relationship
+        # (dimension B). Where the frozen state-specific requirement is
+        # REVIEWED_RELATION_AUTHORITY_REQUIRED, STRONG product evidence
+        # grounded in product context alone cannot reach the automatic
+        # tier — the relationship requirement stands unanswered.
+        # (FU1 pinned this on U1 through the blanket gate; S2-A-FU2 moved
+        # the pin to the requirement-bearing states.)
+        for name, v2 in (
+            ("u2_sku_not_target", _v2(sku="RETAIL-SKU-1")),
+            ("u3", _v2(mpn="ABC")),
+            ("u5_nm1", _v2(mpn="ABC-12")),
+            ("u5_nm2", _v2(mpn="ABC-124")),
+        ):
+            decision = derive_authority_tier(
+                v2,
+                _match(V2Confidence.HIGH),
+                PRODUCT_CTX,
+                _strong_profile(REVIEWED_SOURCES),
+            )
+            assert decision.product_evidence_quality is ProductEvidenceQuality.STRONG, name
+            assert (
+                decision.relationship_authority
+                is RelationshipAuthority.NOT_ESTABLISHED
+            ), name
+            assert decision.tier is AuthorityTier.NEEDS_REVIEW, name
+            if name == "u5_nm2":
+                # The frozen NM-2-specific ceiling is the explicit audit
+                # form of the NM-2 requirement (subsumes the general gate).
+                assert (
+                    AuthorityRuleV2
+                    .CEILING_NEAR_MISS_SUBSTITUTION_WITHOUT_RELATION_AUTHORITY
+                    in decision.fired_rules
+                ), name
+            else:
+                assert (
+                    AuthorityRuleV2
+                    .CEILING_IDENTIFIER_RELATIONSHIP_NOT_ESTABLISHED
+                    in decision.fired_rules
+                ), name
 
     def test_relation_authority_can_satisfy_the_matrix_gate(self) -> None:
         # S2-A-FU1: both orthogonal prerequisites must be met: STRONG
@@ -1806,14 +1886,22 @@ class TestRelationshipAuthorityStates:
         )
 
     def test_question_bearing_states_without_relation_authority_are_capped(self) -> None:
-        """U1/U2/U3 (and U5 NM-1) + MATCH + HIGH + STRONG product
-        evidence still require the identifier-relationship question to be
-        ESTABLISHED for automatic authority — preserving the pre-FU1
-        effective requirement (no authority expansion for these
-        states)."""
+        """S2-A-FU2 corrected form: the states whose frozen
+        state/sub-state-specific requirement is
+        REVIEWED_RELATION_AUTHORITY_REQUIRED — U2 + SKU_NOT_TARGET, U3,
+        and U5 + NM-1 — still cap MATCH + HIGH + STRONG product evidence
+        at NEEDS_REVIEW without reviewed relationship authority, and reach
+        the automatic tier with it (no authority expansion for these
+        states).
+
+        FU1 pinned U1 and U2 here through the blanket U1/U2/U3/U5 gate;
+        S2-A-FU2 removed U1 (requirement NOT_REQUIRED: the semantic
+        evaluation resolves the title-MPN question) and U2 +
+        SKU_EQUALS_TARGET (NOT_APPLICABLE: the frozen comparator
+        establishes the relationship) from that cap set.
+        """
         cases = {
-            "u1": _v2(title="Has ABC-123 in the title"),
-            "u2": _v2(sku="RETAIL-SKU-1"),
+            "u2_sku_not_target": _v2(sku="RETAIL-SKU-1"),
             "u3": _v2(mpn="ABC"),
             "u5_nm1": _v2(mpn="ABC-12"),
         }
@@ -1833,6 +1921,471 @@ class TestRelationshipAuthorityStates:
                 _strong_profile(REVIEWED_SOURCES),
             )
             assert passed.tier is AuthorityTier.AI_ASSISTED_COMPARABLE, name
+
+
+# ===========================================================================
+# F3. State/sub-state-specific relationship requirement (S2-A-FU2)
+# ===========================================================================
+
+
+class TestStateSpecificRelationshipRequirement:
+    """S2-A-FU2: the reviewed-relationship requirement is frozen STATE/
+    SUB-STATE-SPECIFIC contract data — one entry per permitted (sub-state,
+    primary signal) combination, completeness-checked, fail-closed. Not a
+    global U1-U5 rule."""
+
+    def test_requirement_table_is_frozen_and_complete(self) -> None:
+        import product_intelligence.research.semantic_authority_v2 as v2
+
+        table = SUBSTATE_RELATIONSHIP_REQUIREMENTS
+        assert isinstance(table, tuple)
+        assert len(table) == 14
+        seen: set[tuple[object, IdentityRelationshipSignal]] = set()
+        for entry in table:
+            assert isinstance(entry, tuple) and len(entry) == 3
+            entry_substate, entry_signal, entry_requirement = entry
+            assert type(entry_substate) in (
+                VerifiedSubstateV2,
+                UncertainSubstateV2,
+                ConflictSubstateV2,
+                UnevaluableSubstateV2,
+            )
+            assert isinstance(entry_signal, IdentityRelationshipSignal)
+            assert isinstance(entry_requirement, RelationshipRequirement)
+            key = (entry_substate, entry_signal)
+            assert key not in seen, f"duplicate requirement entry {key}"
+            seen.add(key)
+            # The pure lookup reproduces every entry.
+            assert (
+                substate_relationship_requirement(entry_substate, entry_signal)
+                is entry_requirement
+            )
+        # Completeness: exactly the (sub-state, primary signal)
+        # combinations the frozen derivation permits — nothing more,
+        # nothing less.
+        permitted = {
+            (member, signal)
+            for value, signals in v2._PRIMARY_SIGNALS_BY_SUBSTATE
+            for family in (
+                VerifiedSubstateV2,
+                UncertainSubstateV2,
+                ConflictSubstateV2,
+                UnevaluableSubstateV2,
+            )
+            for member in family
+            if member.value == value
+            for signal in signals
+        }
+        assert seen == permitted
+
+    def test_u1_requirement_is_not_required(self) -> None:
+        u1 = _v2(title="Has ABC-123 in the title")
+        assert u1.substate is UncertainSubstateV2.U1_TITLE_MPN
+        assert (
+            substate_relationship_requirement(
+                u1.substate, u1.primary_relationship_signal
+            )
+            is RelationshipRequirement.NOT_REQUIRED
+        )
+
+    def test_u2_sku_equals_target_requirement_is_not_applicable(self) -> None:
+        u2 = _v2(sku="ABC-123")
+        assert u2.primary_relationship_signal is (
+            IdentityRelationshipSignal.SKU_EQUALS_TARGET
+        )
+        assert (
+            substate_relationship_requirement(
+                u2.substate, u2.primary_relationship_signal
+            )
+            is RelationshipRequirement.NOT_APPLICABLE
+        )
+
+    def test_u2_sku_not_target_u3_nm1_nm2_require_reviewed_relation_authority(
+        self,
+    ) -> None:
+        cases = {
+            "u2_sku_not_target": _v2(sku="RETAIL-SKU-1"),
+            "u3": _v2(mpn="ABC"),
+            "u5_nm1": _v2(mpn="ABC-12"),
+            "u5_nm2": _v2(mpn="ABC-124"),
+        }
+        for name, v2 in cases.items():
+            assert (
+                substate_relationship_requirement(
+                    v2.substate, v2.primary_relationship_signal
+                )
+                is RelationshipRequirement.REVIEWED_RELATION_AUTHORITY_REQUIRED
+            ), name
+
+    def test_u4_verified_conflict_unevaluable_requirement_is_not_applicable(
+        self,
+    ) -> None:
+        cases = {
+            "u4_no_relation": _v2(title="Usable title without any MPN"),
+            "u4_empty_mpn": _v2(
+                mpn="mpn:", title="Usable title with empty MPN field"
+            ),
+            "v_exact": _v2(mpn="ABC-123"),
+            "v_normalized": _v2(mpn="abc 123"),
+            "c1": _v2(mpn="XYZ-999"),
+            "e1": _v2(req_mpn="", description="description only"),
+            "e2": _v2(title=None),
+            "e2_empty_mpn": _v2(mpn="mpn:", title=None),
+        }
+        for name, v2 in cases.items():
+            assert (
+                substate_relationship_requirement(
+                    v2.substate, v2.primary_relationship_signal
+                )
+                is RelationshipRequirement.NOT_APPLICABLE
+            ), name
+
+    def test_requirement_lookup_fails_closed_for_unknown_combinations(self) -> None:
+        # Unknown (sub-state, primary signal) combinations: ValueError.
+        with pytest.raises(ValueError):
+            substate_relationship_requirement(
+                UncertainSubstateV2.U1_TITLE_MPN,
+                IdentityRelationshipSignal.EXACT,
+            )
+        with pytest.raises(ValueError):
+            substate_relationship_requirement(
+                UncertainSubstateV2.U5_NEAR_MISS_MPN,
+                IdentityRelationshipSignal.NO_RELATION,
+            )
+        with pytest.raises(ValueError):
+            substate_relationship_requirement(
+                UncertainSubstateV2.U4_NO_MPN,
+                IdentityRelationshipSignal.TITLE_MPN_TOKEN,
+            )
+        # Non-V2 sub-state / non-signal input: TypeError.
+        with pytest.raises(TypeError):
+            substate_relationship_requirement(
+                "U1_TITLE_MPN",  # type: ignore[arg-type]
+                IdentityRelationshipSignal.TITLE_MPN_TOKEN,
+            )
+        with pytest.raises(TypeError):
+            substate_relationship_requirement(
+                UncertainSubstateV2.U1_TITLE_MPN,
+                "TITLE_MPN_TOKEN",  # type: ignore[arg-type]
+            )
+
+
+class TestU1AutoAuthorityWithoutRelationRequirement:
+    """S2-A-FU2 required behaviors 1-2: U1_TITLE_MPN + the exact requested
+    MPN in the title + MATCH + HIGH + STRONG bounded product evidence +
+    clean conflicts reaches AI_ASSISTED_COMPARABLE WITHOUT
+    MANUFACTURER_RELATION_AUTHORITY (the semantic evaluation resolves
+    whether the MPN denotes the product); the structured conflict taxonomy
+    remains the safety input — no recall expansion bypasses it."""
+
+    def _u1(self, title: str = "Has ABC-123 in the title") -> (
+        IdentityStateAssessmentV2
+    ):
+        v2 = _v2(title=title)
+        assert v2.substate is UncertainSubstateV2.U1_TITLE_MPN
+        return v2
+
+    def test_u1_match_high_strong_clean_reaches_ai_assisted_without_relation_authority(self) -> None:
+        """1. U1 + exact target MPN in title + MATCH/HIGH + STRONG
+        product evidence + no conflicts => AI_ASSISTED_COMPARABLE without
+        MANUFACTURER_RELATION_AUTHORITY — with NO provenance at all, with
+        customer retrieval only, and with product grounding only."""
+        u1 = self._u1()
+        assert (
+            substate_relationship_requirement(
+                u1.substate, u1.primary_relationship_signal
+            )
+            is RelationshipRequirement.NOT_REQUIRED
+        )
+        for ctx in (NO_CTX, CUSTOMER_CTX, PRODUCT_CTX):
+            decision = derive_authority_tier(
+                u1, _match(V2Confidence.HIGH), ctx, _strong_profile()
+            )
+            assert decision.tier is AuthorityTier.AI_ASSISTED_COMPARABLE, ctx
+            assert (
+                decision.product_evidence_quality
+                is ProductEvidenceQuality.STRONG
+            ), ctx
+            assert (
+                decision.relationship_authority
+                is RelationshipAuthority.NOT_ESTABLISHED
+            ), ctx
+            assert (
+                AuthorityRuleV2.CEILING_IDENTIFIER_RELATIONSHIP_NOT_ESTABLISHED
+                not in decision.fired_rules
+            ), ctx
+            assert (
+                AuthorityRuleV2.SEMANTIC_OUTCOME_MATRIX
+                in decision.fired_rules
+            ), ctx
+
+    def test_u1_compatibility_accessory_conflicts_remain_safety_inputs(self) -> None:
+        """2. U1 compatibility/accessory conflicts remain HARD/NEEDS_REVIEW
+        according to the structured conflict taxonomy: the U1 recall
+        expansion does not bypass safety."""
+        # Bounded compatibility wording in the title + the exact requested
+        # MPN: U1 with the COMPATIBILITY_WORDING overlay.
+        u1 = self._u1(title="Compatible with ABC-123 module")
+        assert u1.substate is UncertainSubstateV2.U1_TITLE_MPN
+        assert u1.has_signal(IdentityRelationshipSignal.COMPATIBILITY_WORDING)
+        # Accessory / product-role conflicts are ALWAYS_HARD: supersession
+        # stands even though U1 no longer requires relationship authority.
+        for conflict in (
+            ConflictClass.ACCESSORY_RELATION,
+            ConflictClass.PRODUCT_ROLE,
+        ):
+            decision = derive_authority_tier(
+                u1,
+                _match(V2Confidence.HIGH, frozenset({conflict})),
+                NO_CTX,
+                _strong_profile(),
+            )
+            assert decision.tier is AuthorityTier.HARD_CONFLICT, conflict
+            assert (
+                AuthorityRuleV2.HARD_CONFLICT_SUPERSEDES
+                in decision.fired_rules
+            ), conflict
+            assert decision.tier is not AuthorityTier.AI_ASSISTED_COMPARABLE, conflict
+        # A reviewable material conflict caps at NEEDS_REVIEW.
+        reviewable = derive_authority_tier(
+            u1,
+            _match(
+                V2Confidence.HIGH,
+                frozenset({ConflictClass.OTHER_MATERIAL_CONFLICT}),
+            ),
+            NO_CTX,
+            _strong_profile(),
+        )
+        assert reviewable.tier is AuthorityTier.NEEDS_REVIEW
+        assert (
+            AuthorityRuleV2.CEILING_REVIEWABLE_CONFLICT
+            in reviewable.fired_rules
+        )
+
+    def test_u1_recall_expansion_does_not_weaken_other_states(self) -> None:
+        # The identical (NO_CTX, MATCH/HIGH, STRONG, clean) inputs that
+        # now reach AI_ASSISTED for U1 are still capped for the
+        # requirement-bearing states: the gate is state-specific, not
+        # globally removed.
+        u1 = self._u1()
+        u2 = _v2(sku="RETAIL-SKU-1")
+        u3 = _v2(mpn="ABC")
+        u5_nm1 = _v2(mpn="ABC-12")
+        for name, v2, want in (
+            ("u1", u1, AuthorityTier.AI_ASSISTED_COMPARABLE),
+            ("u2_sku_not_target", u2, AuthorityTier.NEEDS_REVIEW),
+            ("u3", u3, AuthorityTier.NEEDS_REVIEW),
+            ("u5_nm1", u5_nm1, AuthorityTier.NEEDS_REVIEW),
+        ):
+            decision = derive_authority_tier(
+                v2, _match(V2Confidence.HIGH), NO_CTX, _strong_profile()
+            )
+            assert decision.tier is want, name
+            if want is AuthorityTier.NEEDS_REVIEW:
+                assert (
+                    AuthorityRuleV2
+                    .CEILING_IDENTIFIER_RELATIONSHIP_NOT_ESTABLISHED
+                    in decision.fired_rules
+                ), name
+
+
+class TestU2U3U5StateSpecificPolicies:
+    """S2-A-FU2 required behaviors 3-5 and 7: U2 (both primary signals),
+    U3, and U5/NM-1 each follow their own explicit bounded state-specific
+    policy."""
+
+    def test_u2_sku_equals_target_match_high_strong_clean_reaches_ai_assisted(self) -> None:
+        """3. U2 + SKU_EQUALS_TARGET + MATCH/HIGH + STRONG product
+        evidence + clean conflicts => AI_ASSISTED_COMPARABLE without
+        MANUFACTURER_RELATION_AUTHORITY (the relationship is
+        deterministically established by the frozen comparator; nothing is
+        required)."""
+        v2 = _v2(sku="ABC-123")
+        assert v2.substate is UncertainSubstateV2.U2_SKU_ONLY
+        assert v2.primary_relationship_signal is (
+            IdentityRelationshipSignal.SKU_EQUALS_TARGET
+        )
+        decision = derive_authority_tier(
+            v2, _match(V2Confidence.HIGH), NO_CTX, _strong_profile()
+        )
+        assert decision.tier is AuthorityTier.AI_ASSISTED_COMPARABLE
+        assert decision.product_evidence_quality is ProductEvidenceQuality.STRONG
+        assert (
+            decision.relationship_authority
+            is RelationshipAuthority.NOT_ESTABLISHED
+        )
+        assert (
+            AuthorityRuleV2.CEILING_IDENTIFIER_RELATIONSHIP_NOT_ESTABLISHED
+            not in decision.fired_rules
+        )
+
+    def test_u2_sku_not_target_follows_the_conservative_requirement(self) -> None:
+        """4. U2 + SKU_NOT_TARGET follows the explicitly chosen
+        conservative policy: REVIEWED_RELATION_AUTHORITY_REQUIRED — capped
+        at NEEDS_REVIEW without reviewed relationship authority (including
+        customer retrieval, which never satisfies it); the requirement is
+        met with MANUFACTURER_RELATION_AUTHORITY."""
+        v2 = _v2(sku="RETAIL-SKU-1")
+        assert v2.primary_relationship_signal is (
+            IdentityRelationshipSignal.SKU_NOT_TARGET
+        )
+        capped = derive_authority_tier(
+            v2, _match(V2Confidence.HIGH), NO_CTX, _strong_profile()
+        )
+        assert capped.tier is AuthorityTier.NEEDS_REVIEW
+        assert (
+            capped.relationship_authority
+            is RelationshipAuthority.NOT_ESTABLISHED
+        )
+        assert (
+            AuthorityRuleV2.CEILING_IDENTIFIER_RELATIONSHIP_NOT_ESTABLISHED
+            in capped.fired_rules
+        )
+        customer = derive_authority_tier(
+            v2, _match(V2Confidence.HIGH), CUSTOMER_CTX, _strong_profile()
+        )
+        assert customer.tier is AuthorityTier.NEEDS_REVIEW
+        assert (
+            AuthorityRuleV2.CEILING_IDENTIFIER_RELATIONSHIP_NOT_ESTABLISHED
+            in customer.fired_rules
+        )
+        passed = derive_authority_tier(
+            v2,
+            _match(V2Confidence.HIGH),
+            RELATION_CTX,
+            _strong_profile(REVIEWED_SOURCES),
+        )
+        assert passed.tier is AuthorityTier.AI_ASSISTED_COMPARABLE
+        assert (
+            AuthorityRuleV2.CEILING_IDENTIFIER_RELATIONSHIP_NOT_ESTABLISHED
+            not in passed.fired_rules
+        )
+
+    def test_u3_partial_boundary_follows_the_explicit_requirement(self) -> None:
+        """5. U3_PARTIAL_BOUNDARY follows its explicit state-specific
+        policy: the conservative REVIEWED_RELATION_AUTHORITY_REQUIRED
+        (partial boundary evidence is weaker than U1's exact-title-MPN) —
+        capped at NEEDS_REVIEW without reviewed relationship authority;
+        met with it. The U3 choice is bounded: U1 with the identical
+        inputs is not capped."""
+        v2 = _v2(mpn="ABC")
+        assert v2.substate is UncertainSubstateV2.U3_PARTIAL_BOUNDARY
+        capped = derive_authority_tier(
+            v2, _match(V2Confidence.HIGH), NO_CTX, _strong_profile()
+        )
+        assert capped.tier is AuthorityTier.NEEDS_REVIEW
+        assert (
+            AuthorityRuleV2.CEILING_IDENTIFIER_RELATIONSHIP_NOT_ESTABLISHED
+            in capped.fired_rules
+        )
+        passed = derive_authority_tier(
+            v2,
+            _match(V2Confidence.HIGH),
+            RELATION_CTX,
+            _strong_profile(REVIEWED_SOURCES),
+        )
+        assert passed.tier is AuthorityTier.AI_ASSISTED_COMPARABLE
+        # Boundedness: the identical inputs on U1 are not capped (the U3
+        # policy must not silently determine U1 behavior).
+        u1 = _v2(title="Has ABC-123 in the title")
+        u1_decision = derive_authority_tier(
+            u1, _match(V2Confidence.HIGH), NO_CTX, _strong_profile()
+        )
+        assert u1_decision.tier is AuthorityTier.AI_ASSISTED_COMPARABLE
+
+    def test_u5_nm1_follows_its_own_explicit_bounded_policy(self) -> None:
+        """7. U5/NM-1 follows its OWN explicit bounded policy
+        (REVIEWED_RELATION_AUTHORITY_REQUIRED — strict prefix/truncation is
+        uncertainty only, never identity proof) — not a global U1-U5 rule
+        and not the NM-2 ceiling: the NM-2 substitution rule does not
+        fire for NM-1, and U1 with identical inputs is uncapped."""
+        v2 = _v2(mpn="ABC-12")
+        assert v2.substate is UncertainSubstateV2.U5_NEAR_MISS_MPN
+        assert v2.primary_relationship_signal is (
+            IdentityRelationshipSignal.NEAR_MISS_TRUNCATION
+        )
+        capped = derive_authority_tier(
+            v2, _match(V2Confidence.HIGH), NO_CTX, _strong_profile()
+        )
+        assert capped.tier is AuthorityTier.NEEDS_REVIEW
+        assert (
+            AuthorityRuleV2.CEILING_IDENTIFIER_RELATIONSHIP_NOT_ESTABLISHED
+            in capped.fired_rules
+        )
+        # The NM-2 substitution ceiling is explicitly NOT the rule that
+        # caps NM-1.
+        assert (
+            AuthorityRuleV2
+            .CEILING_NEAR_MISS_SUBSTITUTION_WITHOUT_RELATION_AUTHORITY
+            not in capped.fired_rules
+        )
+        customer = derive_authority_tier(
+            v2, _match(V2Confidence.HIGH), CUSTOMER_CTX, _strong_profile()
+        )
+        assert customer.tier is AuthorityTier.NEEDS_REVIEW
+        passed = derive_authority_tier(
+            v2,
+            _match(V2Confidence.HIGH),
+            RELATION_CTX,
+            _strong_profile(REVIEWED_SOURCES),
+        )
+        assert passed.tier is AuthorityTier.AI_ASSISTED_COMPARABLE
+        assert (
+            AuthorityRuleV2.CEILING_IDENTIFIER_RELATIONSHIP_NOT_ESTABLISHED
+            not in passed.fired_rules
+        )
+
+    def test_u5_nm2_requirement_is_the_frozen_ceiling(self) -> None:
+        """8-10 (table form): U5/NM-2's explicit bounded policy is the
+        frozen ceiling (amendment 1) expressed as
+        REVIEWED_RELATION_AUTHORITY_REQUIRED — without reviewed
+        relationship authority the NM-2-specific audit rule fires (the
+        explicit frozen form of the requirement: it subsumes the general
+        gate, which is conditioned on the tier still being
+        AI_ASSISTED); with MANUFACTURER_RELATION_AUTHORITY neither does.
+        CUSTOMER_RETRIEVAL_RELATION never clears it."""
+        v2 = _v2(mpn="ABC-124")
+        assert v2.near_miss_substitution_active
+        decision = derive_authority_tier(
+            v2, _match(V2Confidence.HIGH), NO_CTX, _strong_profile()
+        )
+        assert decision.tier is AuthorityTier.NEEDS_REVIEW
+        assert decision.product_evidence_quality is ProductEvidenceQuality.STRONG
+        assert (
+            AuthorityRuleV2
+            .CEILING_NEAR_MISS_SUBSTITUTION_WITHOUT_RELATION_AUTHORITY
+            in decision.fired_rules
+        )
+        assert (
+            AuthorityRuleV2.CEILING_IDENTIFIER_RELATIONSHIP_NOT_ESTABLISHED
+            not in decision.fired_rules
+        )
+        # Customer retrieval never clears the NM-2 requirement.
+        customer = derive_authority_tier(
+            v2, _match(V2Confidence.HIGH), CUSTOMER_CTX, _strong_profile()
+        )
+        assert customer.tier is AuthorityTier.NEEDS_REVIEW
+        assert (
+            AuthorityRuleV2
+            .CEILING_NEAR_MISS_SUBSTITUTION_WITHOUT_RELATION_AUTHORITY
+            in customer.fired_rules
+        )
+        cleared = derive_authority_tier(
+            v2,
+            _match(V2Confidence.HIGH),
+            RELATION_CTX,
+            _strong_profile(REVIEWED_SOURCES),
+        )
+        assert cleared.tier is AuthorityTier.AI_ASSISTED_COMPARABLE
+        assert (
+            AuthorityRuleV2
+            .CEILING_NEAR_MISS_SUBSTITUTION_WITHOUT_RELATION_AUTHORITY
+            not in cleared.fired_rules
+        )
+        assert (
+            AuthorityRuleV2.CEILING_IDENTIFIER_RELATIONSHIP_NOT_ESTABLISHED
+            not in cleared.fired_rules
+        )
 
 
 class TestProductEvidenceBar:

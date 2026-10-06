@@ -1,4 +1,5 @@
-"""Semantic Authority Contract V2 — frozen vocabulary and derivation (S2-A).
+"""Semantic Authority Contract V2 — frozen vocabulary and derivation (S2-A,
+as corrected by S2-A-FU1 and S2-A-FU2).
 
 PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-S2-A is a **bounded contract-only phase**:
 it establishes the V2 deterministic state overlay vocabulary, the bounded
@@ -52,6 +53,54 @@ candidate — which by definition has no candidate identifier for a
    dataclasses, frozensets, str) with a pure lookup function, self-checked
    for completeness at import. No mutable global state of any kind exists in
    this module.
+
+PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-S2-A-FU2 (this module as further
+corrected) fixed a third independent-review blocker in the S2-A-FU1
+contract: the identifier-relationship gate was over-broad. FU1 required
+``RelationshipAuthority.ESTABLISHED`` for EVERY U1/U2/U3/U5 candidate
+before ``AI_ASSISTED_COMPARABLE`` was allowed. The relationship
+requirement itself must be STATE-SPECIFIC bounded contract data — not an
+ad hoc gate and not a global U1-U5 rule. It is now the frozen
+``SUBSTATE_RELATIONSHIP_REQUIREMENTS`` table: one
+``RelationshipRequirement`` per permitted (sub-state, primary
+identifier-relationship signal) combination, import-self-checked for
+completeness, with a pure fail-closed lookup
+(``substate_relationship_requirement``):
+
+* U1_TITLE_MPN -> NOT_REQUIRED. The state exists precisely because
+deterministic 3C refuses to treat title text as manufacturer identity
+authority; the semantic evaluation determines whether the MPN denotes the
+product or is merely compatibility/reference/SEO text. MATCH + HIGH +
+STRONG bounded product evidence + no HARD/REVIEWABLE conflict reaches the
+automatic tier WITHOUT MANUFACTURER_RELATION_AUTHORITY.
+COMPATIBILITY_WORDING / accessory / product-role conflicts remain safety
+inputs through the structured conflict taxonomy.
+* U2_SKU_ONLY -> primary-signal-specific: SKU_EQUALS_TARGET ->
+NOT_APPLICABLE (the published SKU is frozen-2A identical to the target: the
+relationship is deterministically established, so there is nothing for a
+reviewed source to establish); SKU_NOT_TARGET ->
+REVIEWED_RELATION_AUTHORITY_REQUIRED (the conservative explicit policy: the
+published SKU is not the target).
+* U3_PARTIAL_BOUNDARY -> REVIEWED_RELATION_AUTHORITY_REQUIRED (the
+conservative explicit policy: partial boundary evidence is weaker than
+U1's exact-title-MPN).
+* U4_NO_MPN -> NOT_APPLICABLE (FU1 behavior unchanged: no candidate
+identifier exists).
+* U5_NEAR_MISS_MPN -> primary-signal-specific: NEAR_MISS_TRUNCATION (NM-1)
+-> REVIEWED_RELATION_AUTHORITY_REQUIRED (explicit bounded NM-1 policy:
+strict prefix/truncation is uncertainty only, never identity proof);
+NEAR_MISS_SUBSTITUTION (NM-2) -> REVIEWED_RELATION_AUTHORITY_REQUIRED (the
+frozen NM-2 ceiling, Product-lead amendment 1, keeps its own audit rule).
+* Verified / C1 / E1 / E2 -> NOT_APPLICABLE (no AI-authority path
+consults the requirement).
+
+The automatic tier is capped at NEEDS_REVIEW (fired rule
+CEILING_IDENTIFIER_RELATIONSHIP_NOT_ESTABLISHED) when — and only when —
+the candidate's table entry requires REVIEWED_RELATION_AUTHORITY and
+dimension B is not ESTABLISHED. CUSTOMER_RETRIEVAL_RELATION confers zero
+relationship authority and never satisfies the requirement. Dimensions A
+and B themselves (``derive_product_evidence_quality`` /
+``derive_relationship_authority``) are unchanged from FU1.
 
 It wires nothing into production:
 
@@ -146,6 +195,13 @@ S2-A-FU1 corrections (frozen here)
   (U4) or ESTABLISHED (U1/U2/U3/U5) — the general form of the NM-2
   ceiling, which remains its own frozen audit rule for U5 +
   NEAR_MISS_SUBSTITUTION.
+  CORRECTED BY S2-A-FU2: the blanket ESTABLISHED requirement for
+  U1/U2/U3/U5 was over-broad. The relationship requirement is now the
+  frozen state/sub-state-specific ``SUBSTATE_RELATIONSHIP_REQUIREMENTS``
+  table: U1_TITLE_MPN and U2 + SKU_EQUALS_TARGET do NOT require reviewed
+  relationship authority; U2 + SKU_NOT_TARGET, U3, U5 + NM-1, and U5 +
+  NM-2 do; U4 behavior is unchanged. The NM-2 ceiling remains its own
+  frozen audit rule.
 * Every frozen contract mapping in this module is a runtime-immutable
   tuple of immutable entries plus a pure lookup function (no mutable
   global state, no ``dict`` anywhere in the module's globals).
@@ -214,11 +270,13 @@ __all__ = [
     "ProductEvidenceQuality",
     "REVIEWABLE_CONFLICT_CLASSES",
     "RelationshipAuthority",
+    "RelationshipRequirement",
     "SEMANTIC_OUTCOME_TIER_MATRIX",
     "SemanticEvaluationStateV2",
     "SemanticEvaluationV2",
     "STRONG_PRODUCT_EVIDENCE_MIN_MATCHED_DIMENSIONS",
     "STRONG_PRODUCT_EVIDENCE_MIN_MATCHED_FACTS",
+    "SUBSTATE_RELATIONSHIP_REQUIREMENTS",
     "TierSummaryV2",
     "UNAVAILABLE_IS_NEVER_NO_MATCH",
     "UncertainSubstateV2",
@@ -245,6 +303,7 @@ __all__ = [
     "is_v2_semantic_entry_point",
     "near_miss_shape",
     "semantic_outcome_tier",
+    "substate_relationship_requirement",
     "CONTEXT_PROVENANCE_CAPABILITIES",
     "COMPATIBILITY_WORDING_VOCABULARY",
 ]
@@ -292,22 +351,45 @@ class UncertainSubstateV2(str, Enum):
 
     U1_TITLE_MPN = "U1_TITLE_MPN"
     """The requested MPN appears in the listing title text (recorded only;
-    never automatic identity)."""
+    never automatic identity).
+
+    S2-A-FU2: relationship requirement NOT_REQUIRED — the semantic
+    evaluation resolves whether the title MPN denotes the product or is
+    merely compatibility/reference/SEO text; the automatic tier never
+    requires reviewed relationship authority (conflicts remain safety
+    inputs through the taxonomy)."""
 
     U2_SKU_ONLY = "U2_SKU_ONLY"
-    """The listing published a SKU field and no explicit MPN field."""
+    """The listing published a SKU field and no explicit MPN field.
+
+    S2-A-FU2: relationship requirement is primary-signal-specific —
+    SKU_EQUALS_TARGET: NOT_APPLICABLE (frozen-2A identical to the target);
+    SKU_NOT_TARGET: REVIEWED_RELATION_AUTHORITY_REQUIRED (conservative
+    explicit policy)."""
 
     U3_PARTIAL_BOUNDARY = "U3_PARTIAL_BOUNDARY"
-    """Frozen 3C classified a PARTIAL boundary overlap (3C PARTIAL_MPN_ONLY)."""
+    """Frozen 3C classified a PARTIAL boundary overlap (3C PARTIAL_MPN_ONLY).
+
+    S2-A-FU2: relationship requirement
+    REVIEWED_RELATION_AUTHORITY_REQUIRED (conservative explicit policy:
+    partial boundary evidence is weaker than U1's exact-title-MPN)."""
 
     U4_NO_MPN = "U4_NO_MPN"
     """No usable manufacturer MPN evidence, but usable product title
     evidence. Intentional recall feature for future semantic evaluation;
-    eligibility does not mean authority."""
+    eligibility does not mean authority.
+
+    S2-A-FU2: relationship requirement NOT_APPLICABLE (FU1 behavior
+    unchanged: no candidate identifier exists)."""
 
     U5_NEAR_MISS_MPN = "U5_NEAR_MISS_MPN"
     """Explicit MPN mismatch in a bounded near-miss shape (NM-1 or NM-2).
-    Near-miss membership is NEVER identity authority."""
+    Near-miss membership is NEVER identity authority.
+
+    S2-A-FU2: relationship requirement is near-miss-shape-specific — NM-1
+    (NEAR_MISS_TRUNCATION) and NM-2 (NEAR_MISS_SUBSTITUTION) are each
+    REVIEWED_RELATION_AUTHORITY_REQUIRED (explicit bounded U5 policies;
+    NM-2 keeps its frozen ceiling audit rule)."""
 
 
 class ConflictSubstateV2(str, Enum):
@@ -1221,6 +1303,14 @@ def derive_relationship_authority(
     * C1 -> NOT_ESTABLISHED: the question exists and the explicit
       mismatch is deterministic (AI-ineligible state regardless).
     * E1 / E2 -> NOT_APPLICABLE: no target MPN / no candidate evidence.
+
+    Note: this derivation records the FACTUAL answer for audit (dimension
+    B). Whether the automatic tier DEPENDS on it is a separate, state/
+    sub-state-specific policy: the frozen
+    ``SUBSTATE_RELATIONSHIP_REQUIREMENTS`` table (S2-A-FU2) — U1_TITLE_MPN
+    and U2 + SKU_EQUALS_TARGET carry no reviewed-relationship requirement
+    even though dimension B reads NOT_ESTABLISHED without reviewed
+    provenance.
     """
     if not isinstance(assessment_v2, IdentityStateAssessmentV2):
         raise TypeError(
@@ -1241,6 +1331,227 @@ def derive_relationship_authority(
     if assessment_v2.state is IdentityStateV2.DETERMINISTIC_CONFLICT:
         return RelationshipAuthority.NOT_ESTABLISHED
     return RelationshipAuthority.NOT_APPLICABLE
+
+
+# ---------------------------------------------------------------------------
+# State/sub-state-specific relationship requirement (S2-A-FU2)
+#
+# S2-A-FU1 gated the automatic tier on RelationshipAuthority being
+# ESTABLISHED for EVERY U1/U2/U3/U5 candidate. That was over-broad: the
+# relationship requirement itself must be state-specific bounded contract
+# data (the purpose of semantic AI is to resolve deterministic
+# uncertainty; absence of manufacturer relationship proof must not force
+# every uncertain identifier-shaped listing into human review). The frozen
+# table below assigns exactly one RelationshipRequirement per permitted
+# (sub-state, primary signal) combination; only
+# REVIEWED_RELATION_AUTHORITY_REQUIRED entries cap the automatic tier.
+# ---------------------------------------------------------------------------
+
+
+class RelationshipRequirement(str, Enum):
+    """The state/sub-state-specific reviewed-relationship requirement for
+    reaching ``AI_ASSISTED_COMPARABLE`` (S2-A-FU2).
+
+    This is POLICY, not a derived fact: it decides whether the automatic
+    tier depends on dimension B (``RelationshipAuthority``) being
+    ESTABLISHED. It is frozen data (``SUBSTATE_RELATIONSHIP_REQUIREMENTS``),
+    completeness-checked at import, fail-closed in the lookup, and
+    consumable by a future V3 harness without copying.
+    """
+
+    NOT_APPLICABLE = "NOT_APPLICABLE"
+    """No reviewed-relationship requirement gates the automatic tier for
+    this entry. Either the state admits no AI authority at all (verified,
+    C1, E1, E2 — the requirement is never consulted), no
+    identifier-relationship question exists for the candidate (U4_NO_MPN:
+    there is no candidate identifier for a relationship to establish), or
+    the relationship is already established by the frozen deterministic
+    comparator (U2 + SKU_EQUALS_TARGET: the published SKU is frozen-2A
+    identical to the target, so there is nothing for a reviewed source to
+    establish). Dimension B may still read NOT_ESTABLISHED where no
+    reviewed provenance is present; nothing is REQUIRED.
+
+    S2-A-FU2: U4_NO_MPN keeps its FU1 behavior (NOT_APPLICABLE).
+    """
+
+    NOT_REQUIRED = "NOT_REQUIRED"
+    """An identifier-relationship question exists, but reaching
+    AI_ASSISTED_COMPARABLE does NOT require reviewed relationship
+    authority. The bounded state-specific policy delegates the question
+    to the semantic evaluation itself, gated by the product-evidence bar
+    (dimension A) and the structured conflict taxonomy: U1_TITLE_MPN
+    exists precisely because deterministic 3C refuses to treat title text
+    as manufacturer identity authority — the semantic evaluation
+    determines whether the MPN denotes the product or is merely
+    compatibility/reference/SEO text. COMPATIBILITY_WORDING and
+    accessory / product-role conflicts remain safety inputs through the
+    taxonomy (ALWAYS_HARD supersession; reviewable ceiling).
+    """
+
+    REVIEWED_RELATION_AUTHORITY_REQUIRED = "REVIEWED_RELATION_AUTHORITY_REQUIRED"
+    """Reaching AI_ASSISTED_COMPARABLE requires
+    ``RelationshipAuthority.ESTABLISHED`` — reviewed authoritative
+    relationship provenance (``MANUFACTURER_RELATION_AUTHORITY`` or a
+    future reviewed relationship-authority class).
+    ``CUSTOMER_RETRIEVAL_RELATION`` confers zero relationship authority
+    and never satisfies this requirement. The bounded forms: U2 +
+    SKU_NOT_TARGET (the published SKU is not the target — more
+    conservative than the exact-title-MPN case), U3_PARTIAL_BOUNDARY
+    (partial boundary evidence is weaker than U1's exact-title-MPN),
+    U5 + NEAR_MISS_TRUNCATION (NM-1 is uncertainty only, never identity
+    proof), and U5 + NEAR_MISS_SUBSTITUTION (the frozen NM-2 ceiling,
+    Product-lead amendment 1, which also keeps its own audit rule).
+    """
+
+
+#: Frozen state/sub-state-specific relationship requirement table
+#: (S2-A-FU2): runtime-immutable tuple of (sub-state, primary signal,
+#: requirement) entries with a pure lookup function. The table covers
+#: EXACTLY the (sub-state, primary signal) combinations the frozen
+#: derivation permits (import-self-checked against
+#: ``_PRIMARY_SIGNALS_BY_SUBSTATE``); unknown combinations fail closed in
+#: the lookup. Each entry is an explicit bounded policy — no global
+#: U1-U5 rule.
+SUBSTATE_RELATIONSHIP_REQUIREMENTS: Final[
+    tuple[
+        tuple[
+            (
+                VerifiedSubstateV2
+                | UncertainSubstateV2
+                | ConflictSubstateV2
+                | UnevaluableSubstateV2
+            ),
+            IdentityRelationshipSignal,
+            RelationshipRequirement,
+        ],
+        ...
+    ]
+] = (
+    (
+        VerifiedSubstateV2.V_EXACT,
+        IdentityRelationshipSignal.EXACT,
+        RelationshipRequirement.NOT_APPLICABLE,
+    ),
+    (
+        VerifiedSubstateV2.V_NORMALIZED_EXACT,
+        IdentityRelationshipSignal.NORMALIZED_EXACT,
+        RelationshipRequirement.NOT_APPLICABLE,
+    ),
+    (
+        UncertainSubstateV2.U1_TITLE_MPN,
+        IdentityRelationshipSignal.TITLE_MPN_TOKEN,
+        RelationshipRequirement.NOT_REQUIRED,
+    ),
+    (
+        UncertainSubstateV2.U2_SKU_ONLY,
+        IdentityRelationshipSignal.SKU_EQUALS_TARGET,
+        RelationshipRequirement.NOT_APPLICABLE,
+    ),
+    (
+        UncertainSubstateV2.U2_SKU_ONLY,
+        IdentityRelationshipSignal.SKU_NOT_TARGET,
+        RelationshipRequirement.REVIEWED_RELATION_AUTHORITY_REQUIRED,
+    ),
+    (
+        UncertainSubstateV2.U3_PARTIAL_BOUNDARY,
+        IdentityRelationshipSignal.PARTIAL_BOUNDARY,
+        RelationshipRequirement.REVIEWED_RELATION_AUTHORITY_REQUIRED,
+    ),
+    (
+        UncertainSubstateV2.U4_NO_MPN,
+        IdentityRelationshipSignal.NO_RELATION,
+        RelationshipRequirement.NOT_APPLICABLE,
+    ),
+    (
+        UncertainSubstateV2.U4_NO_MPN,
+        IdentityRelationshipSignal.EMPTY_MPN_FIELD,
+        RelationshipRequirement.NOT_APPLICABLE,
+    ),
+    (
+        UncertainSubstateV2.U5_NEAR_MISS_MPN,
+        IdentityRelationshipSignal.NEAR_MISS_TRUNCATION,
+        RelationshipRequirement.REVIEWED_RELATION_AUTHORITY_REQUIRED,
+    ),
+    (
+        UncertainSubstateV2.U5_NEAR_MISS_MPN,
+        IdentityRelationshipSignal.NEAR_MISS_SUBSTITUTION,
+        RelationshipRequirement.REVIEWED_RELATION_AUTHORITY_REQUIRED,
+    ),
+    (
+        ConflictSubstateV2.C1_INCOMPATIBLE_EXPLICIT_MPN,
+        IdentityRelationshipSignal.NO_RELATION,
+        RelationshipRequirement.NOT_APPLICABLE,
+    ),
+    (
+        UnevaluableSubstateV2.E1_NO_TARGET_MPN,
+        IdentityRelationshipSignal.NO_RELATION,
+        RelationshipRequirement.NOT_APPLICABLE,
+    ),
+    (
+        UnevaluableSubstateV2.E2_NO_CANDIDATE_EVIDENCE,
+        IdentityRelationshipSignal.NO_RELATION,
+        RelationshipRequirement.NOT_APPLICABLE,
+    ),
+    (
+        UnevaluableSubstateV2.E2_NO_CANDIDATE_EVIDENCE,
+        IdentityRelationshipSignal.EMPTY_MPN_FIELD,
+        RelationshipRequirement.NOT_APPLICABLE,
+    ),
+)
+
+
+def substate_relationship_requirement(
+    substate: (
+        VerifiedSubstateV2
+        | UncertainSubstateV2
+        | ConflictSubstateV2
+        | UnevaluableSubstateV2
+    ),
+    primary_signal: IdentityRelationshipSignal,
+) -> RelationshipRequirement:
+    """Pure lookup of the frozen state/sub-state-specific relationship
+    requirement for one (sub-state, primary signal) combination
+    (S2-A-FU2).
+
+    This is the bounded contract data the automatic tier consults:
+    ``derive_authority_tier`` caps a would-be
+    ``AI_ASSISTED_COMPARABLE`` at ``NEEDS_REVIEW`` (fired rule
+    ``CEILING_IDENTIFIER_RELATIONSHIP_NOT_ESTABLISHED``) when — and only
+    when — the requirement is
+    ``REVIEWED_RELATION_AUTHORITY_REQUIRED`` and dimension B is not
+    ESTABLISHED. A future V3 harness can consume the frozen table / this
+    lookup directly.
+
+    Fails closed: TypeError on a non-V2 sub-state or non-signal input;
+    ValueError on a combination the frozen table does not define (an
+    unknown combination never gains authority).
+    """
+    substate_type = type(substate)
+    if substate_type not in (
+        VerifiedSubstateV2,
+        UncertainSubstateV2,
+        ConflictSubstateV2,
+        UnevaluableSubstateV2,
+    ):
+        raise TypeError(
+            "substate must be a V2 sub-state enum member, "
+            f"got {substate_type.__name__}"
+        )
+    if not isinstance(primary_signal, IdentityRelationshipSignal):
+        raise TypeError(
+            "primary_signal must be IdentityRelationshipSignal, "
+            f"got {type(primary_signal).__name__}"
+        )
+    for entry_substate, entry_signal, requirement in (
+        SUBSTATE_RELATIONSHIP_REQUIREMENTS
+    ):
+        if entry_substate is substate and entry_signal is primary_signal:
+            return requirement
+    raise ValueError(
+        f"(sub-state {substate.value}, primary signal "
+        f"{primary_signal.value}) has no frozen relationship requirement "
+        "in the V2 contract; unknown combinations fail closed (S2-A-FU2)"
+    )
 
 
 class ProductEvidenceQuality(str, Enum):
@@ -1949,12 +2260,14 @@ class AuthorityRuleV2(str, Enum):
     CEILING_IDENTIFIER_RELATIONSHIP_NOT_ESTABLISHED = (
         "CEILING_IDENTIFIER_RELATIONSHIP_NOT_ESTABLISHED"
     )
-    """The state-specific identifier-relationship requirement (S2-A-FU1):
-    the candidate poses an identifier-relationship question (U1/U2/U3/U5)
-    that no reviewed authoritative relationship provenance answers, so the
-    automatic tier was capped at NEEDS_REVIEW. Never applies to U4
-    (NOT_APPLICABLE: there is no candidate identifier for a relationship
-    to establish)."""
+    """The state/sub-state-specific relationship requirement (S2-A-FU2)
+    is REVIEWED_RELATION_AUTHORITY_REQUIRED (U2 + SKU_NOT_TARGET,
+    U3_PARTIAL_BOUNDARY, U5 + NEAR_MISS_TRUNCATION, U5 +
+    NEAR_MISS_SUBSTITUTION) and no reviewed authoritative relationship
+    provenance answers it, so the automatic tier was capped at
+    NEEDS_REVIEW. Never applies where the frozen requirement table says
+    NOT_REQUIRED (U1_TITLE_MPN) or NOT_APPLICABLE (U2 + SKU_EQUALS_TARGET,
+    U4_NO_MPN; verified / C1 / E1 / E2 admit no AI-authority path)."""
 
     HARD_CONFLICT_SUPERSEDES = "HARD_CONFLICT_SUPERSEDES"
     """An ALWAYS_HARD conflict superseded everything else, including any
@@ -2114,8 +2427,9 @@ def derive_authority_tier(
         HARD_CONFLICT > HUMAN_CONFIRMED > AI authority
 
     and, inside the AI path, the NEEDS_REVIEW ceilings (reviewable
-    conflict; NM-2 without relationship authority; identifier-relationship
-    question unanswered) restrict but never lift.
+    conflict; NM-2 without relationship authority; state/sub-state-
+    specific relationship requirement unanswered — S2-A-FU2) restrict
+    but never lift.
 
     * ``DETERMINISTIC_VERIFIED`` -> MACHINE_VERIFIED, no AI needed: any
       supplied semantic outcome is ignored (ineligible state).
@@ -2128,11 +2442,18 @@ def derive_authority_tier(
       UNAVAILABLE (never NO_MATCH); a decision -> the 27-entry matrix
       (decision x confidence x product evidence quality), then the
       ceilings, then hard-conflict supersession, then the human overlay.
-      Reaching AI_ASSISTED_COMPARABLE additionally requires the
-      state-specific identifier-relationship question to be NOT_APPLICABLE
-      (U4: it does not exist — there is no candidate identifier for a
-      relationship to establish) or ESTABLISHED (U1/U2/U3/U5: answered by
-      reviewed relationship provenance).
+      Reaching AI_ASSISTED_COMPARABLE is additionally governed by the
+      frozen state/sub-state-specific relationship requirement table
+      (``SUBSTATE_RELATIONSHIP_REQUIREMENTS``, S2-A-FU2): the tier is
+      capped at NEEDS_REVIEW (fired rule
+      CEILING_IDENTIFIER_RELATIONSHIP_NOT_ESTABLISHED) when — and only
+      when — the candidate's entry requires
+      REVIEWED_RELATION_AUTHORITY (U2 + SKU_NOT_TARGET, U3_PARTIAL_
+      BOUNDARY, U5 + NEAR_MISS_TRUNCATION, U5 + NEAR_MISS_SUBSTITUTION)
+      and dimension B is not ESTABLISHED. U1_TITLE_MPN (NOT_REQUIRED)
+      and U2 + SKU_EQUALS_TARGET (NOT_APPLICABLE: the published SKU is
+      frozen-2A identical to the target) carry no reviewed-relationship
+      requirement; U4_NO_MPN is NOT_APPLICABLE (FU1 behavior unchanged).
 
     ``product_evidence`` defaults to the conservative state-derived
     profile (the U4 usable-title fact, else no title; no matched facts),
@@ -2241,17 +2562,26 @@ def derive_authority_tier(
                     AuthorityRuleV2
                     .CEILING_NEAR_MISS_SUBSTITUTION_WITHOUT_RELATION_AUTHORITY
                 )
+            # State/sub-state-specific relationship requirement
+            # (S2-A-FU2): the frozen table decides whether the automatic
+            # tier depends on dimension B being ESTABLISHED. Only
+            # REVIEWED_RELATION_AUTHORITY_REQUIRED entries (U2 +
+            # SKU_NOT_TARGET, U3_PARTIAL_BOUNDARY, U5 + NM-1, U5 + NM-2)
+            # cap a would-be AI_ASSISTED_COMPARABLE. U1_TITLE_MPN (NOT_
+            # REQUIRED) and U2 + SKU_EQUALS_TARGET / U4_NO_MPN (NOT_
+            # APPLICABLE) never fire this gate; CUSTOMER_RETRIEVAL_
+            # RELATION confers zero relationship authority and cannot
+            # clear it.
             if (
                 tier is AuthorityTier.AI_ASSISTED_COMPARABLE
+                and substate_relationship_requirement(
+                    assessment_v2.substate,
+                    assessment_v2.primary_relationship_signal,
+                )
+                is RelationshipRequirement.REVIEWED_RELATION_AUTHORITY_REQUIRED
                 and relationship_authority
-                is RelationshipAuthority.NOT_ESTABLISHED
+                is not RelationshipAuthority.ESTABLISHED
             ):
-                # State-specific identifier-relationship requirement
-                # (S2-A-FU1): the candidate poses an identifier-
-                # relationship question (U1/U2/U3/U5, including NM-1) that
-                # no reviewed authoritative relationship provenance
-                # answers. For U4 the question does not exist
-                # (NOT_APPLICABLE) and this gate never fires.
                 tier = AuthorityTier.NEEDS_REVIEW
                 rules.add(
                     AuthorityRuleV2
@@ -2389,7 +2719,8 @@ PRICING_ELIGIBLE_TIERS: Final[frozenset[AuthorityTier]] = frozenset(
 # at import (pure data check, no mutable state): market evidence is
 # exactly the pricing-eligible tiers plus NEEDS_REVIEW, NEEDS_REVIEW is
 # never pricing-eligible, the attention order / badges / policies /
-# capabilities / matrix tables are complete over their vocabularies, and
+# capabilities / matrix / relationship-requirement tables are complete
+# over their vocabularies, and
 # (S2-A-FU1) the module's global namespace carries NO mutable containers
 # at all. If a future edit breaks any of these contracts, the module
 # refuses to import.
@@ -2464,6 +2795,35 @@ if {
     raise RuntimeError(
         "SEMANTIC_OUTCOME_TIER_MATRIX must define exactly the (decision, "
         "confidence, product evidence quality) grid"
+    )
+if len(SUBSTATE_RELATIONSHIP_REQUIREMENTS) != len(
+    {
+        (entry_substate, entry_signal)
+        for entry_substate, entry_signal, _requirement
+        in SUBSTATE_RELATIONSHIP_REQUIREMENTS
+    }
+) or {
+    (entry_substate, entry_signal)
+    for entry_substate, entry_signal, _requirement
+    in SUBSTATE_RELATIONSHIP_REQUIREMENTS
+} != {
+    (member, signal)
+    for value, signals in _PRIMARY_SIGNALS_BY_SUBSTATE
+    for family in (
+        VerifiedSubstateV2,
+        UncertainSubstateV2,
+        ConflictSubstateV2,
+        UnevaluableSubstateV2,
+    )
+    for member in family
+    if member.value == value
+    for signal in signals
+}:
+    raise RuntimeError(
+        "SUBSTATE_RELATIONSHIP_REQUIREMENTS must define exactly one "
+        "relationship requirement per (sub-state, primary signal) "
+        "combination the frozen V2 derivation permits (S2-A-FU2 "
+        "completeness check)"
     )
 for _global_name, _global_value in list(globals().items()):
     if _global_name.startswith("__"):
