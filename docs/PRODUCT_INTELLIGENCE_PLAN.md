@@ -4347,6 +4347,7 @@ This canonical plan does not duplicate that operational snapshot.
 | AD-062 | PROD-FIX1-FU2 final review-blocker closure (canonical spec §26.12): the PUBLIC (denied-branch) historical compact quote replay now OWNS its price/currency/condition evidence authority exactly like the authorized replay. `replay_public_compact_quote_projection` no longer accepts ANY caller-supplied `PriceAggregationResult` (the `price_result` parameter is removed; the only parameter is `run`). It verifies the run is a real ResearchRun, loads `PriceIntelligenceSnapshot.objects.get(run=run)`, decodes it through the canonical price-result codec, verifies `decoded.request == run.to_research_request()`, and uses THAT decoded persisted result for the frozen public bucket projection, the shared human-confirmed binding derivation, and the human-confirmed price/currency/condition evidence. A same-request cross-run result — identical source URL / product title / MPN field / SKU / evidence source, different persisted price — can no longer substitute for the persisted snapshot, so a CONFIRMED candidate's identity authority can never be exercised over another run's price evidence (historical report immutability; run-scoped evidence authority; confirmation establishes identity authority only over the persisted evidence belonging to that same run). Fail-closed: missing snapshot (DoesNotExist, the existing persisted-artifact behavior), malformed payload / unsupported schema version (PriceResultCodecError), request-provenance-corrupt snapshot (CompactQuoteProjectionError). The denied branch remains vendor-free: NO ResearchSupplementSnapshot read, NO commercial supplement codec import, NO Vendor/Search/Page/ECB- live/Semantic/network work; persisted ResearchFxSnapshot remains allowed; zero live I/O. The authorized replay (`replay_compact_quote_projection`), Machine Price, and Human Review state semantics are UNCHANGED. | Final independent review of FU1 blocked on the public replay trusting caller-supplied price evidence: request equality alone does not prove the evidence is THIS run's persisted snapshot, and the shared binding primitive legitimately matches across same-request runs with identical identity fields. The correction is the minimal bounded change: the denied replay loads its own authority source, removing the caller-owned input rather than comparing against it. | IMPLEMENTED / PENDING FINAL REVIEW (PILOT-RELEASE-2-PROD-FIX1-FU2) |
 | AD-063 | B1 production semantic PRIMARY route promotion (canonical spec §26.17): the code-pinned production semantic route moves from `amax/nemotron-3-super` to `amax/qwen3.8-27b` as PRIMARY; the FALLBACK stays byte-for-byte `vllm-262k/Qwen3.6-27B-262K`. The only production change is `PRIMARY_MODEL` in `product_intelligence/semantic/runtime.py` (plus its pinned-route docstring block). Everything else is frozen: fallback on execution failure only (explicit allowlist; a valid primary decision is FINAL; semantic disagreement never triggers fallback); temperature 0.0 exact float / max_tokens 32768 / request-timeout behavior; prompt v1.1, parser, response schema, enums, validation, reason codes; deterministic identity matching, semantic eligibility, `_map_semantic_decision`, AI_ASSISTED_MATCH (MATCH only) authority and its 4A exclusion, HARD_CONFLICT, Working Quote, Reviewed Price, human confirmation, commercial/vendor authority, execution evidence; the frozen A1 promotion-regression facility and its evaluation-only model catalog; the qualification corpus. Nemotron remains a qualified/reference model but is NOT the production fallback (Nemotron and Qwen 3.8 share provider `amax`; the fallback exists for provider-level execution redundancy). | Reviewer decision based on frozen, independently reviewed evidence: the 64-case FULL qualification of `amax/qwen3.8-27b` (100% valid, 96.88% accuracy, 100% MATCH precision, 85.71% MATCH recall, 0 false MATCH, safety cost 2, all hard gates PASS — matching the historical qualified Nemotron headline metrics and wrong-case IDs), the A1 production-shaped live promotion regression (22 processed / 16 semantic-called cases, both models passing all six objective promotion gates), and human review closing the two surfaced disagreements (SPR-0009: no authority expansion; SPR-0020: candidate SKU provides exact target identity, supporting the AI_ASSISTED_MATCH authority). No caller-configurable routing, no model override surface, no third provider. | IMPLEMENTED / PENDING FINAL REVIEW (SEMANTIC-QWEN38-PRODUCTION-PROMOTION-B1) |
 | AD-064 | 8A-FX-A1 canonical ECB observation cache (canonical spec §26.18; design lineage 8A-PRE audit + 8A-FX-DESIGN + 8A-FX-DESIGN-FU1, all reviewed): the first safe caching slice — cross-run reuse of the canonical production ECB daily FX observation set. (1) ELIGIBILITY: cache active ONLY on the canonical default path, declared at the canonical-default construction site (`fx_cache_eligible = fx_provider is None`, before `EcbFxProvider()` construction); ANY explicitly injected provider (fake, EcbFxProvider instance, subclass, wrapper, any FxProvider-compatible object) unconditionally bypasses the cache (zero store reads/writes) and executes the existing live acquisition contract byte-for-byte; no isinstance/issubclass/provider-class-identity eligibility logic exists (mechanically guarded). (2) USD-ONLY: currency discovery precedes any cache work; USD-only runs perform zero provider calls AND zero cache/store work. (3) FEED IDENTITY: one stable canonical identifier `FX_FEED_ID_ECB_DAILY = "ecb:eurofxref-daily"` in providers/fx.py, bound to the eurofxref-daily.xml endpoint + provider_id "ECB" + base_currency "EUR" (mirror-locked); not a class name; not user-configurable. (4) STORE: new `runs.FxObservationStore` (migration 0011) — cross-run ACQUISITION CONTENT (not run evidence; no ResearchRun relation; no cascade; not ResearchFxSnapshot/PriceIntelligenceSnapshot/ExecutionEvidenceRecord/ResearchSupplementSnapshot/Django CACHES): feed_id, provider_id, base_currency, observation_date, content_sha256, full-document payload through the reused fail-closed FX codec V1, original_retrieved_at (IMMUTABLE provider instant), last_proven_at (timezone-aware proof instant, never truncated to a date), created_at; UniqueConstraint (feed_id, observation_date, content_sha256); latest-selection index. (5) CONTENT IDENTITY: pure research contract `research/fx_cache_contract.py` (stdlib only, no Django/provider/I/O): canonical SHA-256 over byte-stable JSON of the FULL PARSED rate observation (provider + base + observation_date + rates sorted by code, exact str(Decimal) text; raw XML never hashed/persisted; no dict-order/locale/float dependence); same observation_date + changed rates (correction) => distinct digest => distinct row (superseded revision retained as VALID_HISTORICAL, never overwritten). (6) PROJECTION: `project_required_rates` — full set -> required currencies, document order preserved, mirrors the provider's own filter (mirror-locked) so LIVE and CACHE_HIT run payloads are byte-identical for the same document; required_currencies is a projection input, never cache identity. (7) FRESHNESS: pure predicate `no_publication_possible_between(T, N, zone)` over ACTUAL aware instants (naive => TypeError; T > N => ValueError; zone = Europe/Brussels via zoneinfo; DST-aware; system-local timezone never consulted): reuse possible only while EVERY Europe/Brussels calendar day overlapping the CLOSED interval [T, N] is Saturday/Sunday (weekend stretch [Sat 00:00, Mon 00:00 CET/CEST)); working days: NO reuse ever (a working-day proof covers no N >= T); TARGET closing days treated conservatively as working days (no calendar data, no invented holidays); no numeric TTL; explicit conservative policy, NOT a claim of physical ECB incapability. (8) LIVE PATH: one full-set fetch (requested_currencies=None) -> feed-binding validation (contract defect propagates) -> digest -> persist/reconcile in the store's OWN transaction (before the run's atomic final publication) -> last_proven_at set only on successful live observation -> project -> existing per-run FX codec V1 -> run's ResearchFxSnapshot acquisition="LIVE"; original provider retrieved_at preserved. (9) CACHE_HIT PATH: latest stored observation -> fail-closed decode + integrity validation (digest binding, feed invariants, cross-field consistency, impossible stored timestamps) -> freshness predicate on the row's ACTUAL last_proven_at -> if reusable: ZERO ECB calls, original retrieved_at preserved, projection from the full cached set, run's own snapshot acquisition="CACHE_HIT"; never masquerades as LIVE. (10) FAILURES: malformed/unsupported/corrupt EXISTING cache payload is NOT a cache miss — it PROPAGATES (fail closed; never caught into a silent live fallback; row never deleted); only "no row" is an ordinary miss; live FxProviderError remains NONFATAL (no snapshot, store untouched); uniqueness race reconciled ONLY for the specifically understood race (competing row for the exact content identity; exact semantic/content identity validated; convergent conditional last_proven_at re-proof; otherwise fail closed); unrelated IntegrityError/other storage errors propagate; cache persistence failure after live success propagates; no distributed locking, no select_for_update. (11) PROVENANCE: additive `ResearchFxSnapshot.acquisition` (LIVE/CACHE_HIT, default LIVE; migration preserves all existing rows as LIVE); REPLAY is a read behavior (compact_quote_replay reads the run's own snapshot with zero live provider calls and zero cache acquisition), never a stored value, never mutates the persisted value. (12) PUBLICATION ATOMICITY: the per-run ResearchFxSnapshot remains part of the run's atomic final publication; the store row has different ownership/lifetime (a successfully persisted store row survives a later failed run publication and must not imply the run completed; it carries no run authority). (13) PRESENTATION: one additive bounded report line (ECB reference date + original provider retrieval instant + LIVE/CACHE_HIT label) on both replay branches; no DB IDs, raw cache keys, exception text, provider raw body, or implementation details exposed; GET remains zero-live and never reads the store. (14) AUTHORITY INVARIANTS UNCHANGED (re-proven): frozen 4A public market authority (Machine Price snapshot bytes identical across LIVE/CACHE_HIT/FX-absent), Machine Price, Reviewed Price, deterministic/semantic identity, AI_ASSISTED_MATCH authority, vendor supplemental authority, human-confirmed authority, HARD_CONFLICT, semantic production route (PRIMARY amax/qwen3.8-27b; FALLBACK vllm-262k/Qwen3.6-27B-262K; Nemotron qualified/reference only), fallback semantics, review semantics; FX remains DISPLAY-SUPPLEMENTAL only (USD equivalent identical LIVE vs CACHE_HIT for the same document). Explicitly NOT cached: public pages, search/Serper, vendor observations, semantic responses, identity decisions, Machine/Reviewed Price, human-review state, comparable research, rendered reports, negative/failure results. No `force_fresh` primitive ships in A1 (a later 8A decision); no retention/cleanup policy (store naturally bounded at ~1 row per working day + corrections). | The 8A-PRE audit established the ECB FX observation layer as the safest first cache candidate (display-supplemental authority, content identity = observation date, non-sensitive, single call site, full provenance already persisted); the 8A-FX-DESIGN + FU1 lineage resolved the exact miss/hit boundary (pre-fetch feed-identity lookup vs post-fetch content identity), the unsound same-UTC-day proof window (replaced by the proof-instant + Europe/Brussels weekend-closure predicate), and the isinstance feed gate (replaced by canonical-default eligibility declaration). A1 implements that frozen design as the bounded first slice: acquisition-only substitution with fail-closed cache integrity, conservative weekend-only reuse, and zero authority change. | IMPLEMENTED / PENDING FINAL REVIEW (PRODUCT-INTEL.8A-FX-A1) |
+| AD-065 | SEMANTIC-AUTHORITY-V2-S2-A contract freeze (canonical spec §26.21): the approved Semantic Authority V2 design is frozen IN CODE as a pure contract, with NOTHING wired into production. (1) MODULE: new `research/semantic_authority_v2.py` (stdlib + frozen research/domain imports only; no Django, no I/O, no network, no LLM, no mutable global state; exported through `research/__init__.py`; no other research module, execution, semantic, runs, web, or providers module references it — mechanically guarded). (2) STATES: the V2 deterministic overlay over the frozen `ListingIdentityAssessment` — DETERMINISTIC_VERIFIED (V_EXACT, V_NORMALIZED_EXACT), DETERMINISTIC_UNCERTAIN (U1_TITLE_MPN, U2_SKU_ONLY, U3_PARTIAL_BOUNDARY, U4_NO_MPN, U5_NEAR_MISS_MPN), DETERMINISTIC_CONFLICT (C1_INCOMPATIBLE_EXPLICIT_MPN), DETERMINISTIC_UNEVALUABLE (E1_NO_TARGET_MPN, E2_NO_CANDIDATE_EVIDENCE — the E2 addition is permitted by the "at minimum" contract) — derived by the pure `derive_identity_state_v2`; out-of-contract assessment combinations fail closed. (3) NEAR-MISS: bounded signals EXACT / NORMALIZED_EXACT / TITLE_MPN_TOKEN / SKU_EQUALS_TARGET / SKU_NOT_TARGET / PARTIAL_BOUNDARY / NEAR_MISS_TRUNCATION / NEAR_MISS_SUBSTITUTION / COMPATIBILITY_WORDING (4-token overlay vocabulary, title-only, word-boundary) / EMPTY_MPN_FIELD / NO_RELATION. NM-1 = strict prefix/truncation on the EXISTING frozen normalized MPN keys (either direction); NM-2 = same-length exactly-one-character substitution; Levenshtein, arbitrary substring matching, containment authority, suffix stripping, manufacturer-specific acceptance, and normalization changes are explicitly OUT. Membership is never identity authority; outside NM-1/NM-2, explicit MPN_MISMATCH stays deterministic conflict. (4) AMENDMENT 1 — NM-2 CEILING: NM-2 without reviewed authoritative relationship context (a provenance carrying ESTABLISH_IDENTIFIER_RELATIONSHIP) caps the maximum future AUTOMATIC tier at NEEDS_REVIEW, frozen as explicit matrix data (NEAR_MISS_SUBSTITUTION_WITHOUT_RELATION_AUTHORITY + the ceiling rule), never a prompt convention; generic safety rule, not a manufacturer special case; AI may still return MATCH/HIGH and a human may confirm later — it cannot auto-price. (5) AMENDMENT 2 — CONTEXT PROVENANCE: three DISTINCT bounded classes with disjoint capability sets — MANUFACTURER_PRODUCT_CONTEXT (GROUND_PRODUCT_FACTS only; does NOT establish the identifier relationship), MANUFACTURER_RELATION_AUTHORITY (GROUND_PRODUCT_FACTS + ESTABLISH_IDENTIFIER_RELATIONSHIP; the class that may raise relationship authority / STRONG), CUSTOMER_RETRIEVAL_RELATION (RETRIEVAL_RECALL_ONLY; never identity, never Machine Verified, never NM-2 auto-comparable, never STRONG, never overrides conflict, never enters 4A, never described as manufacturer equivalence). Context quality STRONG/LIMITED/WEAK is computed only from provenance classes — never from model confidence or AI matched_attributes (RELATION -> STRONG; else PRODUCT -> LIMITED; else WEAK). (6) CONFLICT TAXONOMY: 14-value ConflictClass with exact frozen severity sets — ALWAYS_HARD (MPN_IDENTITY, PRODUCT_FAMILY, GENERATION, CAPACITY, INTERFACE, FORM_FACTOR, PRODUCT_ROLE, ACCESSORY_RELATION, PACKAGING_QUANTITY, BUNDLE), REVIEWABLE (REVISION_OR_SUFFIX, BRAND, OTHER_MATERIAL_CONFLICT — BRAND is reviewable, not hard), PRICE_DIMENSION_ONLY (CONDITION — a price dimension, never identity); disjoint, exhaustive, import-self-checked; tray-vs-retail wording alone is not hard, single-vs-multipack is hard, drive-tray accessory is hard. (7) AUTHORITY MATRIX AS DATA: bounded tiers MACHINE_VERIFIED / AI_ASSISTED_COMPARABLE / NEEDS_REVIEW / HUMAN_CONFIRMED / HUMAN_REJECTED / HARD_CONFLICT / EXCLUDED_LOW_CONFIDENCE / SEMANTIC_UNAVAILABLE; DETERMINISTIC_STATE_POLICIES (VERIFIED -> MACHINE_VERIFIED no AI; CONFLICT -> HARD_CONFLICT AI-ineligible human-cannot-confirm; UNEVALUABLE -> EXCLUDED_LOW_CONFIDENCE no AI authority; UNCERTAIN -> NEEDS_REVIEW, the only semantic entry point); SEMANTIC_OUTCOME_TIER_MATRIX with all 27 (decision x confidence x context quality) combinations defined — MATCH+HIGH requires STRONG for AI_ASSISTED_COMPARABLE, MATCH+MEDIUM and MATCH+HIGH+incomplete-context and MATCH+HIGH+reviewable-conflict -> NEEDS_REVIEW, MATCH+LOW / NO_MATCH / UNCERTAIN+non-actionable / UNCERTAIN+LOW -> EXCLUDED_LOW_CONFIDENCE, UNCERTAIN+actionable -> NEEDS_REVIEW; restrict-only ceilings; ALWAYS_HARD supersession; runtime failure -> SEMANTIC_UNAVAILABLE and is NEVER interpreted as NO_MATCH; precedence HARD_CONFLICT > HUMAN_CONFIRMED > AI authority; ineligible states ignore supplied semantic/human inputs (fail closed). (8) U4 RECALL: no-MPN usable-title (and empty-MPN usable-title) listings are DETERMINISTIC_UNCERTAIN / U4_NO_MPN and future semantic entry points — an intentional recall feature, NOT re-conservatized; eligibility is not authority (weak outcomes stay excluded through the frozen gates); the CURRENT V1 runtime gate is unchanged and does not call the AI on U4. (9) UI VOCABULARY (no UI built): frozen badges (Machine Verified; AI-Assisted Comparable — not machine verified; Needs Review — not verified; Human Confirmed; Human Rejected; Hard Conflict — excluded; Low Confidence; AI Evidence Unavailable); attention order NEEDS_REVIEW, AI_ASSISTED_COMPARABLE, HUMAN_CONFIRMED, MACHINE_VERIFIED, HUMAN_REJECTED, HARD_CONFLICT, EXCLUDED_LOW_CONFIDENCE, SEMANTIC_UNAVAILABLE (attention, not authority). (10) AMENDMENT 3 — SUMMARY WORDING: "Comparable evidence: N listings" is forbidden when the count contains NEEDS_REVIEW (frozen FORBIDDEN_MARKET_EVIDENCE_HEADLINE); the future headline is "Market evidence found: N listings" (NEEDS_REVIEW MAY count) with a separate "Pricing-eligible comparable listings: N" line (NEEDS_REVIEW MUST NOT count; no price statistic may include Needs Review before confirmation); the legacy "N comparable NEW listings (machine-verified)" line may remain; counting is a pure function over frozen tier sets (import-self-checked). (11) FROZEN V1 PROOF: the 2A comparator, 3C assessment/decisions/rejection reasons, PriceIntelligenceSnapshot V1, 4A aggregation, Reviewed Price, prompt v1.1, parser, production route (amax/qwen3.8-27b PRIMARY, vllm-262k/Qwen3.6-27B-262K FALLBACK, temperature 0.0, max_tokens 32768), FU3B eligibility, human-review eligibility, replay, and vendor authority are all unchanged (byte-level no-wiring scans + behavior pins + the preserved frozen regression suite). | The Product Lead approved the V2 deterministic state overlay design with three amendments (NM-2 auto-authority ceiling; distinct context provenance classes; "Market evidence found" summary wording). S2-A freezes that approved design as independently testable, completeness-checkable pure contract data so that later phases (V2 wiring, V3 qualification, future semantic entry) build against frozen vocabulary instead of prose — and so the three amendments cannot drift into prompt conventions. Contract-only on purpose: a phase that both defines and wires the V2 authority would change production behavior, which the frozen V1 invariants (deterministic identity, AI_ASSISTED_MATCH exclusion from 4A, human-review run scoping, HARD_CONFLICT precedence) forbid until the V2 workflow has its own reviewed phase. | IMPLEMENTED / PENDING FINAL REVIEW (PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-S2-A) |
 
 ## 26. Customer Quote Research Expansion — 4D Phase Architecture
 
@@ -6625,3 +6626,211 @@ correction; no retry/fallback on HTTP 400; no result-count negotiation;
 no change to any identity, pricing, vendor, semantic, human-review,
 comparable, FX, cache, or replay authority; no model or migration
 change.
+
+### 26.21 SEMANTIC-AUTHORITY-V2-S2-A: Semantic Authority Contract V2
+(contract freeze — IMPLEMENTED / PENDING FINAL REVIEW)
+
+Bounded CONTRACT-ONLY phase on the authoritative starting SHA
+`1a3c4a91bfbc6acda32025fa5145805f572185ff` (baseline collection 5838).
+S2-A establishes the approved Semantic Authority V2 design in code as a
+frozen pure contract. It wires nothing: production behavior after S2-A is
+identical to the starting SHA. V2 is NOT wired into execution, semantic,
+runs, web, or providers; V3 qualification has NOT happened; AI authority
+has NOT expanded; no deployment may occur from this phase.
+
+**1. Scope and non-scope.** S2-A defines, in the new pure module
+`product_intelligence/research/semantic_authority_v2.py` (stdlib + frozen
+research/domain imports only; no Django, no I/O, no network, no LLM, no
+mutable global state) and exports it through `research/__init__.py`:
+
+* the V2 top-level states and bounded sub-states;
+* the bounded near-miss relationship signals (NM-1 / NM-2 only);
+* the pure deterministic derivation `derive_identity_state_v2` over the
+  frozen `ListingIdentityAssessment`;
+* the structured conflict taxonomy with exact severity sets;
+* the distinct context provenance classes and capability table;
+* the authority-tier vocabulary and the authority matrix as pure data;
+* the future UI display vocabulary (badges, attention order, summary
+  wording) as frozen contract data.
+
+MUST NOT (re-proven by no-wiring tests): wire V2 into production
+execution; change current semantic eligibility (the frozen FU3B
+predicate remains the only live gate); change current runtime/prompt
+(prompt v1.1, parser, route, temperature, max_tokens); create DB
+migrations; change AI calls; change 4A; change Reviewed Price; change UI
+behavior; change replay behavior; change production authority; change
+vendor authority; deploy anything. The frozen 2A comparator, 3C
+assessment, decisions, rejection reasons, PriceIntelligenceSnapshot V1,
+4A aggregation, and the current semantic V1 contract are unchanged.
+
+**2. V2 states.** The V2 deterministic state overlay is derived over the
+frozen `ListingIdentityAssessment`:
+
+| V2 state | Sub-states (bounded) |
+| --- | --- |
+| `DETERMINISTIC_VERIFIED` | `V_EXACT`, `V_NORMALIZED_EXACT` |
+| `DETERMINISTIC_UNCERTAIN` | `U1_TITLE_MPN`, `U2_SKU_ONLY`, `U3_PARTIAL_BOUNDARY`, `U4_NO_MPN`, `U5_NEAR_MISS_MPN` |
+| `DETERMINISTIC_CONFLICT` | `C1_INCOMPATIBLE_EXPLICIT_MPN` |
+| `DETERMINISTIC_UNEVALUABLE` | `E1_NO_TARGET_MPN`, `E2_NO_CANDIDATE_EVIDENCE` |
+
+Mapping rules (frozen 3C -> V2): UNDECIDED + NO_REQUESTED_MPN -> E1;
+ACCEPTED + EXACT -> V_EXACT; ACCEPTED + NORMALIZED_EXACT ->
+V_NORMALIZED_EXACT; REJECTED + NO_EXPLICIT_MPN_EVIDENCE + TITLE_TEXT ->
+U1; + SKU_FIELD -> U2 (SKU_EQUALS_TARGET when the frozen 2A comparator
+establishes identity with the SKU, else SKU_NOT_TARGET); + NONE or an
+explicit MPN field with no part-number content -> U4 when the listing
+carries a usable product title (the frozen V1 usability gate: non-empty
+title), else E2; REJECTED + PARTIAL_MPN_ONLY -> U3; REJECTED +
+MPN_MISMATCH + explicit MPN source -> U5 for bounded near-miss shapes
+(NM-1 / NM-2) else C1. Any assessment combination outside the frozen 3C
+contract fails closed (`ValueError`). `E2_NO_CANDIDATE_EVIDENCE` is an
+S2-A addition (the contract requires the enumerated sub-states "at
+minimum").
+
+**3. Near-miss relationship signals.** Bounded signals: EXACT,
+NORMALIZED_EXACT, TITLE_MPN_TOKEN, SKU_EQUALS_TARGET, SKU_NOT_TARGET,
+PARTIAL_BOUNDARY, NEAR_MISS_TRUNCATION, NEAR_MISS_SUBSTITUTION,
+COMPATIBILITY_WORDING (overlay only, from the frozen 4-token vocabulary
+{compatible, replacement, interchangeable, drop-in}, word-boundary
+matched against the listing title), EMPTY_MPN_FIELD, NO_RELATION.
+Near-miss membership is NEVER identity authority. NM-1 = strict
+prefix/truncation relationship using the EXISTING frozen normalized MPN
+keys (either direction). NM-2 = same length, exactly one-character
+substitution. NOT implemented: Levenshtein fuzzy matching, arbitrary
+substring matching, generic containment authority, suffix stripping,
+manufacturer-specific acceptance, normalization changes. Anything outside
+the bounded NM-1/NM-2 shapes remains deterministic conflict where the
+frozen assessment is explicit MPN_MISMATCH.
+
+**4. Product-lead amendment 1 — NM-2 authority ceiling.** NM-2 MAY be
+classified U5_NEAR_MISS_MPN and MAY be evaluated by future semantic AI,
+but NM-2 WITHOUT reviewed authoritative relationship context (a
+provenance carrying `ESTABLISH_IDENTIFIER_RELATIONSHIP` — today
+`MANUFACTURER_RELATION_AUTHORITY`, or another future explicitly reviewed
+authoritative relationship source) has maximum future AUTOMATIC tier =
+`NEEDS_REVIEW`. The ceiling is explicit matrix data
+(`NEAR_MISS_SUBSTITUTION_WITHOUT_RELATION_AUTHORITY`), not a prompt
+convention. Purpose: recall via AI/human inspection without letting a
+one-character revision/model difference silently enter automatic
+pricing. This is a generic safety rule, not a manufacturer special case.
+AI may still return MATCH/HIGH; a human may confirm later; it simply
+cannot auto-price as AI-assisted comparable.
+
+**5. Product-lead amendment 2 — context provenance classes.** Three
+DISTINCT bounded classes (not one ambiguous boolean), with disjoint
+capability sets:
+
+* `MANUFACTURER_PRODUCT_CONTEXT` — reviewed manufacturer source
+  establishing base product facts (base MPN/category/family). Capability:
+  GROUND_PRODUCT_FACTS only. Does NOT establish the identifier
+  relationship.
+* `MANUFACTURER_RELATION_AUTHORITY` — reviewed manufacturer or
+  equivalent approved authoritative source explicitly establishing the
+  relevant relationship/equivalence between identifiers. Capabilities:
+  GROUND_PRODUCT_FACTS + ESTABLISH_IDENTIFIER_RELATIONSHIP. The only
+  class that can raise relationship authority / authoritative STRONG
+  context quality for matrix purposes.
+* `CUSTOMER_RETRIEVAL_RELATION` — customer/project-defined relationship
+  existing solely for retrieval recall. Capability: RETRIEVAL_RECALL_ONLY.
+  MUST NEVER, by itself: establish identity; produce Machine Verified;
+  raise NM-2 to automatic AI comparable; raise U5 context quality to
+  authoritative STRONG; override conflict; enter 4A; be described to the
+  model as manufacturer-established equivalence.
+
+Context quality (STRONG / LIMITED / WEAK) is computed ONLY from
+provenance classes — never from model confidence or AI
+`matched_attributes`: RELATION capability present -> STRONG; else GROUND
+capability present -> LIMITED; else WEAK (customer retrieval alone is
+WEAK).
+
+**6. Conflict taxonomy.** Bounded `ConflictClass` (14 values: MPN_IDENTITY,
+REVISION_OR_SUFFIX, BRAND, PRODUCT_FAMILY, GENERATION, CAPACITY,
+INTERFACE, FORM_FACTOR, PRODUCT_ROLE, ACCESSORY_RELATION,
+PACKAGING_QUANTITY, BUNDLE, CONDITION, OTHER_MATERIAL_CONFLICT) with
+exact frozen severity sets:
+
+* ALWAYS_HARD: MPN_IDENTITY, PRODUCT_FAMILY, GENERATION, CAPACITY,
+  INTERFACE, FORM_FACTOR, PRODUCT_ROLE, ACCESSORY_RELATION,
+  PACKAGING_QUANTITY, BUNDLE.
+* REVIEWABLE: REVISION_OR_SUFFIX, BRAND, OTHER_MATERIAL_CONFLICT.
+* PRICE_DIMENSION_ONLY: CONDITION.
+
+BRAND is REVIEWABLE, not hard. CONDITION is a price/condition dimension,
+never an identity conflict. Tray-vs-retail wording alone is not hard;
+single-vs-multipack is hard (PACKAGING_QUANTITY); drive-tray accessory vs
+drive is hard (PRODUCT_ROLE / ACCESSORY_RELATION). The sets are disjoint
+and cover the whole vocabulary (mechanically self-checked at import).
+
+**7. Authority tiers and matrix.** Bounded derived workflow vocabulary:
+MACHINE_VERIFIED, AI_ASSISTED_COMPARABLE, NEEDS_REVIEW, HUMAN_CONFIRMED,
+HUMAN_REJECTED, HARD_CONFLICT, EXCLUDED_LOW_CONFIDENCE,
+SEMANTIC_UNAVAILABLE. The matrix is pure contract data:
+
+* `DETERMINISTIC_STATE_POLICIES` — per-state: deterministic tier
+  (VERIFIED -> MACHINE_VERIFIED; CONFLICT -> HARD_CONFLICT; UNEVALUABLE ->
+  EXCLUDED_LOW_CONFIDENCE; UNCERTAIN -> NEEDS_REVIEW), semantic
+  eligibility, AI-authority permission, human-confirmation permission
+  (UNCERTAIN is the only state with all three True).
+* `SEMANTIC_OUTCOME_TIER_MATRIX` — all 27 (decision x confidence x
+  context-quality) combinations defined as data: MATCH + HIGH requires
+  STRONG context to reach AI_ASSISTED_COMPARABLE (LIMITED/WEAK ->
+  NEEDS_REVIEW); MATCH + MEDIUM -> NEEDS_REVIEW; MATCH + LOW -> EXCLUDED;
+  NO_MATCH (any confidence) -> EXCLUDED; UNCERTAIN + actionable context
+  (LIMITED/STRONG) -> NEEDS_REVIEW, without it -> EXCLUDED; UNCERTAIN +
+  LOW -> EXCLUDED.
+* Ceilings (restrict only, never lift): reviewable conflict on a MATCH ->
+  NEEDS_REVIEW; NM-2 without relationship authority (amendment 1) ->
+  NEEDS_REVIEW.
+* Supersession: any ALWAYS_HARD conflict -> HARD_CONFLICT.
+* Runtime failure -> SEMANTIC_UNAVAILABLE, never interpreted as NO_MATCH.
+* Precedence: HARD_CONFLICT > HUMAN_CONFIRMED > AI authority. A semantic
+  outcome supplied for a non-eligible state is ignored (fail closed); a
+  human outcome on a state that admits no overlay does not change the
+  deterministic tier.
+
+**8. U4 description-match contract.** U4_NO_MPN is an intentional recall
+feature and must NOT be re-conservatized: a public listing with no usable
+manufacturer MPN evidence but usable product title evidence is
+DETERMINISTIC_UNCERTAIN / U4_NO_MPN and a future semantic AI entry point.
+S2-A defines the state/policy only — no calls are wired. Weak/generic
+descriptions stay distinguishable through the future context-quality and
+confidence gates; eligibility does not mean authority.
+
+**9. UI vocabulary contract (no UI implemented).** Frozen future display
+terminology: mandatory badges — "Machine Verified", "AI-Assisted
+Comparable — not machine verified", "Needs Review — not verified",
+"Human Confirmed", "Human Rejected", "Hard Conflict — excluded", "Low
+Confidence", "AI Evidence Unavailable". Attention order (ATTENTION, not
+authority): 1. NEEDS REVIEW; 2. AI-ASSISTED COMPARABLE; 3. RESOLVED
+(HUMAN CONFIRMED, MACHINE VERIFIED); 4. HUMAN REJECTED / HARD / LOW /
+UNAVAILABLE.
+
+**10. Product-lead amendment 3 — summary wording.** The misleading
+headline "Comparable evidence: N listings" is FORBIDDEN when the count
+contains NEEDS_REVIEW items (frozen as
+`FORBIDDEN_MARKET_EVIDENCE_HEADLINE`). The future wording is "Market
+evidence found: N listings" with tier breakdown, where NEEDS_REVIEW MAY
+count under market evidence, plus a separate "Pricing-eligible comparable
+listings: N" line, where NEEDS_REVIEW MUST NOT count; no price statistic
+may include Needs Review before confirmation. The legacy machine line
+"N comparable NEW listings (machine-verified)" may remain. Counting is a
+pure function over the frozen tier sets (MARKET_EVIDENCE_TIERS =
+pricing-eligible tiers + NEEDS_REVIEW; PRICING_ELIGIBLE_TIERS =
+MACHINE_VERIFIED + AI_ASSISTED_COMPARABLE + HUMAN_CONFIRMED),
+self-checked at import.
+
+**11. Files.** Production: `research/semantic_authority_v2.py` (new pure
+contract module) and `research/__init__.py` (public export + phase status
+note only; no behavior change). Tests:
+`tests/research/test_semantic_authority_v2.py` (mapping, near-miss,
+provenance, taxonomy, matrix completeness/precedence, U4 invariant, UI
+vocabulary, no-wiring) and
+`tests/research/test_semantic_authority_v2_boundaries.py` (import purity,
+no I/O/arithmetic, immutable contract data, export surface). Docs: this
+section, STATUS, and AD-065.
+
+**12. Explicit non-fixes / non-goals.** No V2 wiring; no V1 behavior
+change; no prompt, parser, route, or transport change; no model or
+migration; no UI; no deployment; no vendor authority change. V3
+qualification (whatever that process becomes) is a separate future phase
+and has NOT happened.

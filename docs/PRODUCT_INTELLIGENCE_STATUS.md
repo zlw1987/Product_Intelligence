@@ -2,6 +2,186 @@
 
 ## Current state
 
+**PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-S2-A (Semantic Authority Contract
+V2 — contract freeze) — IMPLEMENTED / PENDING FINAL REVIEW**
+
+Bounded CONTRACT-ONLY phase on the authoritative starting SHA
+`1a3c4a91bfbc6acda32025fa5145805f572185ff` (baseline collection 5838).
+Canonical spec: PLAN §26.21; decision record: AD-065. The Product Lead
+approved the V2 deterministic state overlay design with three amendments,
+all frozen here. S2-A establishes the approved design IN CODE as a pure
+contract and wires NOTHING: after S2-A, production behavior is identical
+to the starting SHA. V2 is not wired into execution, semantic, runs, web,
+or providers. V3 qualification has NOT happened. AI authority has NOT
+expanded. No deployment may occur from this phase.
+
+Delivered (the only production changes are one new pure module and its
+public export):
+
+* **New pure module** `product_intelligence/research/semantic_authority_v2.py`
+  (stdlib + frozen research/domain imports only; no Django, no I/O, no
+  network, no LLM, no mutable global state; import-self-checked contract
+  tables):
+  - V2 states and bounded sub-states: DETERMINISTIC_VERIFIED (V_EXACT,
+    V_NORMALIZED_EXACT), DETERMINISTIC_UNCERTAIN (U1_TITLE_MPN,
+    U2_SKU_ONLY, U3_PARTIAL_BOUNDARY, U4_NO_MPN, U5_NEAR_MISS_MPN),
+    DETERMINISTIC_CONFLICT (C1_INCOMPATIBLE_EXPLICIT_MPN),
+    DETERMINISTIC_UNEVALUABLE (E1_NO_TARGET_MPN, E2_NO_CANDIDATE_
+    EVIDENCE — the E2 addition is permitted by the "at minimum" contract
+    and covers no-MPN + no-usable-title listings).
+  - `derive_identity_state_v2(assessment)` — the pure derivation over the
+    FROZEN `ListingIdentityAssessment` (3C). It re-runs only the frozen 2A
+    comparator on the same two strings 3C compared (the same call the
+    assessment's own constructor invariants make) to recover the frozen
+    normalized keys; out-of-contract combinations fail closed.
+  - Bounded relationship signals: EXACT, NORMALIZED_EXACT,
+    TITLE_MPN_TOKEN, SKU_EQUALS_TARGET, SKU_NOT_TARGET, PARTIAL_BOUNDARY,
+    NEAR_MISS_TRUNCATION, NEAR_MISS_SUBSTITUTION, COMPATIBILITY_WORDING
+    (overlay only; frozen 4-token vocabulary {compatible, replacement,
+    interchangeable, drop-in}; word-boundary matched against the listing
+    title), EMPTY_MPN_FIELD, NO_RELATION.
+  - NM-1 = strict prefix/truncation on the EXISTING frozen normalized MPN
+    keys (either direction). NM-2 = same length, exactly one-character
+    substitution. NOT implemented: Levenshtein fuzzy matching, arbitrary
+    substring matching, generic containment authority, suffix stripping,
+    manufacturer-specific acceptance, normalization changes. Near-miss
+    membership is NEVER identity authority; outside NM-1/NM-2 an explicit
+    MPN_MISMATCH remains deterministic conflict.
+  - Structured conflict taxonomy: 14-value `ConflictClass` with exact
+    frozen severity sets — ALWAYS_HARD (MPN_IDENTITY, PRODUCT_FAMILY,
+    GENERATION, CAPACITY, INTERFACE, FORM_FACTOR, PRODUCT_ROLE,
+    ACCESSORY_RELATION, PACKAGING_QUANTITY, BUNDLE), REVIEWABLE
+    (REVISION_OR_SUFFIX, BRAND, OTHER_MATERIAL_CONFLICT — BRAND is
+    reviewable, NOT hard), PRICE_DIMENSION_ONLY (CONDITION — a price
+    dimension, never an identity conflict); disjoint and exhaustive
+    (import-self-checked). Tray-vs-retail wording alone is not hard;
+    single-vs-multipack is hard (PACKAGING_QUANTITY); drive-tray accessory
+    vs drive is hard (PRODUCT_ROLE / ACCESSORY_RELATION).
+  - Authority tier vocabulary: MACHINE_VERIFIED, AI_ASSISTED_COMPARABLE,
+    NEEDS_REVIEW, HUMAN_CONFIRMED, HUMAN_REJECTED, HARD_CONFLICT,
+    EXCLUDED_LOW_CONFIDENCE, SEMANTIC_UNAVAILABLE — NOT wired into any
+    runtime. The matrix is pure contract data (no nested procedural
+    burying): `DETERMINISTIC_STATE_POLICIES` (VERIFIED -> MACHINE_
+    VERIFIED, no AI; CONFLICT -> HARD_CONFLICT, AI not eligible, human
+    cannot confirm; UNEVALUABLE -> EXCLUDED_LOW_CONFIDENCE, no AI
+    authority; UNCERTAIN -> NEEDS_REVIEW, the only future semantic entry
+    point) and `SEMANTIC_OUTCOME_TIER_MATRIX` with ALL 27 (decision x
+    confidence x context-quality) combinations defined: MATCH+HIGH
+    requires STRONG context for AI_ASSISTED_COMPARABLE; MATCH+MEDIUM,
+    MATCH+HIGH+incomplete context, and MATCH+HIGH+reviewable conflict ->
+    NEEDS_REVIEW; MATCH+LOW / NO_MATCH / UNCERTAIN+non-actionable /
+    UNCERTAIN+LOW -> EXCLUDED_LOW_CONFIDENCE; UNCERTAIN+actionable
+    context -> NEEDS_REVIEW; runtime failure -> SEMANTIC_UNAVAILABLE,
+    NEVER interpreted as NO_MATCH. Ceilings restrict only (never lift).
+    Precedence: HARD_CONFLICT > HUMAN_CONFIRMED > AI authority. Semantic
+    or human inputs supplied for non-eligible states are ignored (fail
+    closed).
+  - Future UI display vocabulary (no UI implemented): the 8 mandatory
+    badge concepts; frozen attention order (NEEDS_REVIEW, AI_ASSISTED_
+    COMPARABLE, HUMAN_CONFIRMED, MACHINE_VERIFIED, HUMAN_REJECTED,
+    HARD_CONFLICT, EXCLUDED_LOW_CONFIDENCE, SEMANTIC_UNAVAILABLE —
+    ATTENTION, not authority); summary wording contract (below).
+* **Public export** — `product_intelligence/research/__init__.py` gains
+  the V2 contract exports (imports + `__all__` + a phase status note);
+  no other line of the package changed behavior.
+
+The three Product-lead amendments (frozen in data + tests):
+
+1. **NM-2 auto-authority ceiling.** NM-2 (U5_NEAR_MISS_MPN +
+   NEAR_MISS_SUBSTITUTION) MAY be classified uncertain and MAY eventually
+   be evaluated by semantic AI, but WITHOUT reviewed authoritative
+   relationship context its maximum future AUTOMATIC tier is
+   NEEDS_REVIEW — even for MATCH + HIGH. Frozen as explicit matrix data
+   (`NEAR_MISS_SUBSTITUTION_WITHOUT_RELATION_AUTHORITY` + the ceiling
+   rule + audit rule), not a prompt convention. Generic safety rule, not
+   a manufacturer special case. AI may still return MATCH/HIGH, the
+   future UI may show it prominently, and a human may confirm it later —
+   it simply cannot auto-price as AI-assisted comparable.
+2. **Distinct context provenance classes.** `MANUFACTURER_PRODUCT_CONTEXT`
+   (reviewed manufacturer product facts — base MPN/category/family; does
+   NOT establish the identifier relationship), `MANUFACTURER_RELATION_
+   AUTHORITY` (reviewed manufacturer / approved authoritative source
+   explicitly establishing the relevant identifier relationship; the class
+   that may raise relationship authority / STRONG context quality for
+   matrix purposes), and `CUSTOMER_RETRIEVAL_RELATION` (project-defined
+   retrieval recall aid) are distinct bounded classes with disjoint
+   capability sets. Customer retrieval MUST NEVER, by itself: establish
+   identity, produce Machine Verified, raise NM-2 to automatic comparable,
+   raise context to authoritative STRONG, override conflict, enter 4A, or
+   be described to the model as manufacturer-established equivalence
+   (all structurally proved by tests). Context quality (STRONG / LIMITED /
+   WEAK) is computed only from provenance classes — never from model
+   confidence or AI matched_attributes.
+3. **Summary wording.** The misleading headline "Comparable evidence: N
+   listings" is forbidden when the count contains NEEDS_REVIEW items
+   (frozen `FORBIDDEN_MARKET_EVIDENCE_HEADLINE`). The future wording is
+   "Market evidence found: N listings" with tier breakdown (NEEDS_REVIEW
+   MAY count under market evidence) plus a separate "Pricing-eligible
+   comparable listings: N" line (NEEDS_REVIEW MUST NOT count; no price
+   statistic may include Needs Review before confirmation). The legacy
+   machine line "N comparable NEW listings (machine-verified)" may remain.
+
+U4 description-match (NOT re-conservatized): a public listing with no
+usable manufacturer MPN evidence but usable product title evidence is
+DETERMINISTIC_UNCERTAIN / U4_NO_MPN and a future semantic AI entry point
+(an intentional recall feature). S2-A defines the state/policy only — no
+calls are wired. The CURRENT V1 runtime gate is unchanged and does not
+call the AI on U4 (proved by test). Weak/generic descriptions stay
+distinguishable through the future context-quality/confidence gates;
+eligibility does not mean authority.
+
+Test preservation: no test deleted, renamed, skipped, xfailed,
+deselected, ignored, or weakened. New nodes: 117 in
+`tests/research/test_semantic_authority_v2.py` (A identity mapping; B
+near-miss NM-1/NM-2 + ceiling; C context provenance; D conflict
+taxonomy; E matrix completeness/precedence/fail-closed; F U4 recall
+invariant; G no-wiring / frozen-V1 proof) + 9 in
+`tests/research/test_semantic_authority_v2_boundaries.py` (import purity,
+no I/O/arithmetic, immutable contract data, export surface,
+vendor/caller-token absence) + 8 auto-expanded nodes in existing
+parametrized boundary scans (research-core per-file scans, domain
+caller-token scan, research Decimal scan, runs boundary scan, execution
+comparable-research scan) = 134. All frozen suites (2A comparator, 3C
+matching, 4A aggregation, semantic runtime/boundary, execution
+integration, B2/B3, replay zero-live, vendor authority, FX, Micron
+alias, V1 eligibility) remain collected and green.
+
+Validation (this session, candidate pass — final approval remains with
+ChatGPT after independent GitHub review):
+
+* Collection baseline at `1a3c4a9`: **5838**; final: **5972** (+134;
+  collection did not decrease).
+* Focused new S2-A: 126 passed, 0 failed.
+* Focused directly-affected batch (part-number comparator, 3C matching +
+  boundaries + real fixtures, human-review eligibility contract, research
+  identity boundaries, `tests/semantic/`, execution semantic
+  integration): 766 passed, 1 failed — the single failure is
+  `tests/research/test_research_identity_boundaries.py::test_importing_
+  the_research_core_pulls_in_no_third_party_dependency`, a member of the
+  documented fixed eleven-node Windows/Python-3.14 subprocess-boundary
+  flake allowlist (failure occurs at `subprocess.Popen ->
+  _winapi.DuplicateHandle` before any project code runs); re-passed on
+  isolated retry.
+* Full suite: 5972 collected, 5962 passed, 39 subtests passed, 10 failed,
+  0 errors, 0 skipped, 0 xfailed, 0 deselected. The 10 failures are an
+  EXACT subset of the documented fixed eleven-node Windows/Python-3.14
+  subprocess-boundary flake allowlist (allowlist nodes 1–8 and 10; node 9
+  did not fail in this run): every one is a boundary/import guard that
+  spawns a clean subprocess and failed with the recorded
+  `OSError: [WinError 6] The handle is invalid` (or
+  `[WinError 50]`) signature at `subprocess.Popen ->
+  _winapi.DuplicateHandle`; each re-passed on isolated retry (10/10 in
+  one retry batch). NO node outside the allowlist failed.
+* `python manage.py check`: System check identified no issues (0
+  silenced). `python manage.py makemigrations --check --dry-run`: No
+  changes detected.
+* `git diff --check`: clean. No deleted/renamed test files (the phase is
+  additive: 3 new files + 2 modified docs + the research package
+  `__init__.py`).
+
+No deployment performed in this commit; production does not move until
+independently reviewed approval, and S2-A explicitly MUST NOT deploy.
+
 **PRODUCT-INTEL.PUBLIC-RESEARCH-RECALL-FU2 (Serper wire-contract
 compatibility correction) — IMPLEMENTED / PENDING FINAL REVIEW**
 
