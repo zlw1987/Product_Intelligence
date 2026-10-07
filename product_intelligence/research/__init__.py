@@ -134,6 +134,33 @@ authority inputs + the re-derivation agreement proof, refusing explicitly
 any contract binding it does not know). S2-B is persistence/codec only:
 nothing in production execution writes or reads the artifact yet (live
 wiring is S2-C), no authority changes, no deployment.
+
+PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-S2-B-FU1 decoupled the durable
+persistence ENVELOPE from the semantic contract it contains: the
+``semantic_decision_record`` module is now the version-independent envelope
+foundation (canonical encoding discipline, strict decode helpers, the
+universal persistence binding, the bounded error vocabulary, and the
+``SemanticDecisionContractAdapter`` extension point); the ``semantic_
+decision_codec`` module is the universal envelope codec (the envelope
+schema version gate, the universal framing — declared envelope version,
+binding, contract dispatch key — the no-float discipline, and the adapter
+REGISTRY with fail-closed dispatch on the recorded (envelope schema
+version, semantic contract version) pair); the ``semantic_decision_replay``
+module is the universal zero-live replay dispatch (gate on the exact
+recorded contract binding, then explicit version-specific adapter
+dispatch). ALL Semantic V1 assumptions — the V1 contract identity (V1 /
+prompt 1.1 / input+output schema v1 / authority contract S2-A-FU2), the
+V1 pinned route, the V1 section shapes, the V1 record
+(``SemanticDecisionRecordV1``), the V1 replay, and the V1 run-binding
+check — now live in the first registered adapter, ``semantic_decision_
+v1``. The persistence envelope (the runs row + migration, the service,
+the codec framing, the replay dispatch) owns no assumption that any
+particular semantic contract, prompt, or provider/model route is the only
+possible one; interpretation of a recorded artifact still requires a
+registered, explicitly supported version-specific adapter, and unknown or
+future semantic contracts fail closed. The envelope's version axes are
+independent: payload/envelope schema version != semantic contract version
+!= prompt version != input/output schema versions != runtime route.
 """
 
 from product_intelligence.research.aggregation import (
@@ -308,10 +335,16 @@ from product_intelligence.research.semantic_authority_v2 import (
     substate_relationship_requirement,
 )
 from product_intelligence.research.semantic_decision_record import (
+    CanonicalDigestError,
+    SemanticDecisionCodecError,
+    SemanticDecisionContractAdapter,
+    SemanticDecisionReplayError,
+    canonical_sha256,
+)
+from product_intelligence.research.semantic_decision_v1 import (
     AttemptOutcome,
     AttemptRole,
     AUTHORITY_CONTRACT_VERSION,
-    CanonicalDigestError,
     FALLBACK_MODEL_V1,
     FALLBACK_PROVIDER_V1,
     PRIMARY_MODEL_V1,
@@ -320,28 +353,33 @@ from product_intelligence.research.semantic_decision_record import (
     SEMANTIC_CONTRACT_VERSION,
     SEMANTIC_INPUT_SCHEMA_VERSION,
     SEMANTIC_OUTPUT_SCHEMA_VERSION,
+    SEMANTIC_V1_ADAPTER,
     SemanticDecisionAttempt,
-    SemanticDecisionRecord,
+    SemanticDecisionReplay,
+    SemanticDecisionRecordV1,
     SemanticFallbackReason,
     SemanticFailureClass,
     SemanticPromptInput,
-    canonical_sha256,
+    SemanticV1ContractAdapter,
+    V1_CONTRACT_BINDING,
     record_input_digest,
     record_output_digest,
+    reconstruct_identity_context,
+    reconstruct_semantic_evaluation,
+    replay_v1_record,
 )
 from product_intelligence.research.semantic_decision_codec import (
     SEMANTIC_DECISION_SCHEMA_VERSION,
-    SemanticDecisionCodecError,
+    adapter_for_record,
     canonical_payload_digest,
     decode_semantic_decision_record,
     encode_semantic_decision_record,
+    registered_envelope_schema_versions,
+    registered_semantic_contract_adapter,
+    supported_contract_bindings,
 )
 from product_intelligence.research.semantic_decision_replay import (
     SUPPORTED_CONTRACT_BINDINGS,
-    SemanticDecisionReplay,
-    SemanticDecisionReplayError,
-    reconstruct_identity_context,
-    reconstruct_semantic_evaluation,
     replay_semantic_decision,
 )
 
@@ -424,7 +462,11 @@ __all__ = [
     "near_miss_shape",
     "semantic_outcome_tier",
     "substate_relationship_requirement",
-    # S2-B: persisted semantic-decision artifact + strict codec + pure replay
+    # S2-B: persisted semantic-decision artifact + strict codec + pure
+    # replay. S2-B-FU1: the universal envelope (foundation / codec /
+    # replay dispatch / adapter registry) is contract-agnostic; the
+    # Semantic V1 contract adapter is the first registered version-
+    # specific interpretation layer.
     "AttemptOutcome",
     "AttemptRole",
     "AUTHORITY_CONTRACT_VERSION",
@@ -438,15 +480,20 @@ __all__ = [
     "SEMANTIC_DECISION_SCHEMA_VERSION",
     "SEMANTIC_INPUT_SCHEMA_VERSION",
     "SEMANTIC_OUTPUT_SCHEMA_VERSION",
+    "SEMANTIC_V1_ADAPTER",
     "SUPPORTED_CONTRACT_BINDINGS",
     "SemanticDecisionAttempt",
     "SemanticDecisionCodecError",
-    "SemanticDecisionRecord",
+    "SemanticDecisionContractAdapter",
+    "SemanticDecisionRecordV1",
     "SemanticDecisionReplay",
     "SemanticDecisionReplayError",
     "SemanticFallbackReason",
     "SemanticFailureClass",
     "SemanticPromptInput",
+    "SemanticV1ContractAdapter",
+    "V1_CONTRACT_BINDING",
+    "adapter_for_record",
     "canonical_payload_digest",
     "canonical_sha256",
     "decode_semantic_decision_record",
@@ -455,7 +502,11 @@ __all__ = [
     "reconstruct_semantic_evaluation",
     "record_input_digest",
     "record_output_digest",
+    "registered_envelope_schema_versions",
+    "registered_semantic_contract_adapter",
     "replay_semantic_decision",
+    "replay_v1_record",
+    "supported_contract_bindings",
     "AuthorityAttemptResult",
     "AuthorityAuditOutcomeKind",
     "CandidateDisposition",

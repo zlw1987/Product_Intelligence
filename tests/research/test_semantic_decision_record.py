@@ -1,14 +1,24 @@
-"""Tests for the persisted semantic-decision artifact (S2-B).
+"""Tests for the persisted semantic-decision artifact (S2-B / S2-B-FU1).
 
-Covers the pure ``SemanticDecisionRecord`` contract in
-``product_intelligence.research.semantic_decision_record``:
+Covers the pure ``SemanticDecisionRecordV1`` contract — the FIRST
+registered semantic contract adapter's typed record (semantic contract
+V1, prompt 1.1, input/output schema v1, authority contract
+S2-A-FU2, the V1 pinned route) in
+``product_intelligence.research.semantic_decision_v1``:
 
 * construction of records for ALL semantic outcomes (MATCH / NO_MATCH /
   UNCERTAIN, runtime failure with and without fallback, fallback-used
   success, not-evaluated);
-* fail-closed construction (state/evaluation coherence, route pinning,
-  attempt shape, timestamps, binding, contract versions, digests);
+* fail-closed construction (state/evaluation coherence, V1 route
+  pinning, attempt shape, timestamps, universal binding, V1 contract
+  versions, digests);
 * canonical digests (self-verification; float refusal).
+
+S2-B-FU1: the record is the V1 adapter's version-owned artifact, NOT the
+universal persistence envelope — the universal envelope (binding +
+contract dispatch key + adapter registry) is proven in
+``test_semantic_decision_codec.py`` and
+``test_semantic_decision_boundaries.py``.
 
 The mirror-vocabulary drift pins and the import-boundary guards live in
 ``test_semantic_decision_boundaries.py``; codec strictness in
@@ -44,7 +54,7 @@ from product_intelligence.research import (
     RelationshipRequirement,
     SEMANTIC_CONTRACT_VERSION,
     SemanticDecisionAttempt,
-    SemanticDecisionRecord,
+    SemanticDecisionRecordV1,
     SemanticEvaluationStateV2,
     SemanticEvaluationV2,
     SemanticFallbackReason,
@@ -210,8 +220,8 @@ def _build(
     actual_model=None,
     started=STARTED,
     finished=FINISHED,
-) -> SemanticDecisionRecord:
-    """Build a record with honestly derived audit snapshots."""
+) -> SemanticDecisionRecordV1:
+    """Build a V1 record with honestly derived audit snapshots."""
     context = v2 if v2 is not None else _u1()
     profile = profile if profile is not None else _strong_profile()
     provenances = (
@@ -233,7 +243,7 @@ def _build(
     tier_decision = derive_authority_tier(
         context, evaluation, provenances, profile
     )
-    return SemanticDecisionRecord.build(
+    return SemanticDecisionRecordV1.build(
         run_id=RUN_ID,
         assessment_index=0,
         source_url=SOURCE_URL,
@@ -286,7 +296,7 @@ def _build(
     )
 
 
-def _match_record(**kwargs) -> SemanticDecisionRecord:
+def _match_record(**kwargs) -> SemanticDecisionRecordV1:
     kwargs.setdefault("decision", V2SemanticDecision.MATCH)
     kwargs.setdefault("confidence", V2Confidence.HIGH)
     return _build(**kwargs)
@@ -703,7 +713,11 @@ class TestFailClosedConstruction:
             dataclasses.replace(base, assessment_index=True)
 
     def test_contract_binding_rejects_other_prompt_version(self) -> None:
-        from product_intelligence.research.semantic_decision_record import (
+        # The V1 adapter pins the V1 contract identity: a V1 record with
+        # any other prompt version fails closed in the V1 record
+        # constructor (the pin lives in the V1 adapter, not in the
+        # universal envelope).
+        from product_intelligence.research.semantic_decision_v1 import (
             AUTHORITY_CONTRACT_VERSION,
             PROMPT_VERSION_V1,
             SEMANTIC_CONTRACT_VERSION,
@@ -715,7 +729,7 @@ class TestFailClosedConstruction:
         kwargs = base.__dict__.copy()
         kwargs["prompt_version"] = "1.0"
         with pytest.raises(ValueError, match="prompt_version"):
-            SemanticDecisionRecord(**kwargs)
+            SemanticDecisionRecordV1(**kwargs)
 
     def test_contract_binding_rejects_future_authority_contract(self) -> None:
         base = _match_record()
@@ -724,7 +738,102 @@ class TestFailClosedConstruction:
         with pytest.raises(
             ValueError, match="authority_contract_version"
         ):
-            SemanticDecisionRecord(**kwargs)
+            SemanticDecisionRecordV1(**kwargs)
+
+    def test_contract_binding_rejects_other_semantic_contract(self) -> None:
+        # The V1 record is the V1 adapter's artifact: it cannot be bound
+        # to a different semantic contract (the universal envelope, by
+        # contrast, durably identifies such a contract and fails closed
+        # at the explicit adapter dispatch — see the codec tests).
+        base = _match_record()
+        kwargs = base.__dict__.copy()
+        kwargs["semantic_contract_version"] = "V2"
+        with pytest.raises(
+            ValueError, match="semantic_contract_version"
+        ):
+            SemanticDecisionRecordV1(**kwargs)
+
+
+# ===========================================================================
+# B2. S2-B-FU1: the V1 record is the V1 adapter's artifact, not the
+#     universal envelope
+# ===========================================================================
+
+
+class TestV1RecordIsVersionSpecific:
+    def test_v1_record_is_the_registered_v1_adapter_record(self) -> None:
+        from product_intelligence.research import (
+            SEMANTIC_V1_ADAPTER,
+            adapter_for_record,
+            registered_semantic_contract_adapter,
+        )
+
+        record = _match_record()
+        assert SEMANTIC_V1_ADAPTER.record_type is SemanticDecisionRecordV1
+        # The registry dispatches this record's type to the V1 adapter.
+        assert adapter_for_record(record) is SEMANTIC_V1_ADAPTER
+        # The universal dispatch key is the recorded semantic contract.
+        assert (
+            registered_semantic_contract_adapter(1, "V1")
+            is SEMANTIC_V1_ADAPTER
+        )
+        # No adapter is registered for an unknown/future semantic contract
+        # (the extension point is explicit, not open).
+        assert registered_semantic_contract_adapter(1, "V2") is None
+        assert registered_semantic_contract_adapter(1, "V9") is None
+        assert registered_semantic_contract_adapter(2, "V1") is None
+
+    def test_v1_record_carries_the_universal_envelope_binding(self) -> None:
+        # The binding section is the universal envelope addressing (run
+        # UUID, assessment index, source URL) — the same fields the runs
+        # row carries — independent of the V1 contract identity.
+        from product_intelligence.research.semantic_decision_record import (
+            _binding_section,
+        )
+
+        record = _match_record()
+        assert record.binding_section() == _binding_section(
+            record.run_id, record.assessment_index, record.source_url
+        )
+        assert record.binding_section() == {
+            "run_id": record.run_id,
+            "assessment_index": record.assessment_index,
+            "source_url": record.source_url,
+        }
+
+    def test_v1_contract_identity_is_adapter_owned(self) -> None:
+        from product_intelligence.research.semantic_decision_v1 import (
+            AUTHORITY_CONTRACT_VERSION,
+            PROMPT_VERSION_V1,
+            SEMANTIC_CONTRACT_VERSION,
+            SEMANTIC_INPUT_SCHEMA_VERSION,
+            SEMANTIC_OUTPUT_SCHEMA_VERSION,
+            V1_CONTRACT_BINDING,
+        )
+
+        record = _match_record()
+        assert (
+            record.semantic_contract_version,
+            record.prompt_version,
+            record.input_schema_version,
+            record.output_schema_version,
+            record.authority_contract_version,
+        ) == V1_CONTRACT_BINDING
+        assert V1_CONTRACT_BINDING == (
+            SEMANTIC_CONTRACT_VERSION,
+            PROMPT_VERSION_V1,
+            SEMANTIC_INPUT_SCHEMA_VERSION,
+            SEMANTIC_OUTPUT_SCHEMA_VERSION,
+            AUTHORITY_CONTRACT_VERSION,
+        )
+        assert V1_CONTRACT_BINDING == ("V1", "1.1", 1, 1,
+                                       "SEMANTIC_AUTHORITY_V2_S2A_FU2")
+
+    def test_unregistered_artifact_type_has_no_adapter(self) -> None:
+        from product_intelligence.research import adapter_for_record
+
+        assert adapter_for_record(object()) is None
+        assert adapter_for_record("a string") is None
 
 
 # ===========================================================================

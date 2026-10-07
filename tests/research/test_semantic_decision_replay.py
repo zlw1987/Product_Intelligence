@@ -1,6 +1,11 @@
-"""Tests for the pure zero-live replay / reconstruction path (S2-B).
+"""Tests for the pure zero-live replay / reconstruction path (S2-B /
+S2-B-FU1).
 
-Covers ``product_intelligence.research.semantic_decision_replay``:
+Covers ``product_intelligence.research.semantic_decision_replay`` — the
+UNIVERSAL zero-live replay dispatch (the exact-recorded-binding gate, then
+explicit version-specific adapter dispatch; the V1 adapter's
+reconstruction + re-derivation agreement proof under
+``product_intelligence.research.semantic_decision_v1``):
 
 * exact reconstruction of the historical semantic evaluation for ALL
   outcomes (MATCH / NO_MATCH / UNCERTAIN / runtime failure / not
@@ -279,18 +284,21 @@ class TestAuthorityInputReconstruction:
 class TestDerivedAgreementProof:
     def _rebuild_with(self, record, **changes):
         """Recompute the section digests around altered fields (via the
-        module's own section encoders) so ONLY the derived-agreement check
-        — not the digest self-verification — can fire at replay."""
-        from product_intelligence.research import SemanticDecisionRecord
+        V1 adapter module's own section encoders) so ONLY the
+        derived-agreement check — not the digest self-verification — can
+        fire at replay."""
+        from product_intelligence.research import SemanticDecisionRecordV1
         from product_intelligence.research.semantic_decision_record import (
             _binding_section,
+            canonical_sha256,
+        )
+        from product_intelligence.research.semantic_decision_v1 import (
             _contract_section,
             _context_section,
             _derived_section,
             _evaluation_section,
             _execution_section,
             _product_evidence_section,
-            canonical_sha256,
         )
 
         kwargs = record.__dict__.copy()
@@ -351,7 +359,7 @@ class TestDerivedAgreementProof:
         )
         kwargs["input_digest"] = input_digest
         kwargs["output_digest"] = output_digest
-        return SemanticDecisionRecord(**kwargs)
+        return SemanticDecisionRecordV1(**kwargs)
 
     def test_tampered_tier_fails_replay(self) -> None:
         record = _match_record()
@@ -415,7 +423,7 @@ class TestDerivedAgreementProof:
         # snapshots are stored values), but the bound contract fails closed
         # on re-derivation — replay must refuse the artifact.
         from product_intelligence.research import (
-            SemanticDecisionRecord as _Record,
+            SemanticDecisionRecordV1 as _Record,
         )
 
         profile = ProductEvidenceProfileV2(
@@ -564,8 +572,11 @@ class TestContractBindingGate:
                 replay_semantic_decision(record)
 
     def test_future_bound_payload_fails_at_decode(self) -> None:
-        # A payload bound to a future authority contract is outside schema
-        # v1: it cannot even construct a record (let alone replay).
+        # A payload bound to a future authority contract is outside the
+        # V1 adapter's exact contract binding: it cannot even construct a
+        # V1 record (let alone replay) — the universal dispatch still
+        # routes it to the V1 adapter (the recorded semantic contract is
+        # V1), and the V1 adapter refuses the non-V1 binding, fail closed.
         from product_intelligence.research import (
             SEMANTIC_DECISION_SCHEMA_VERSION,
             decode_semantic_decision_record,
@@ -584,6 +595,69 @@ class TestContractBindingGate:
             decode_semantic_decision_record(
                 payload, schema_version=SEMANTIC_DECISION_SCHEMA_VERSION
             )
+
+
+# ===========================================================================
+# E4b. S2-B-FU1: replay dispatches through explicit version-specific support
+# ===========================================================================
+
+
+class TestReplayDispatch:
+    def test_replay_dispatches_through_the_registered_v1_adapter(
+        self, monkeypatch
+    ) -> None:
+        # The universal replay gate passes for a supported binding and then
+        # routes to the EXPLICITLY registered V1 adapter (no implicit
+        # current-contract assumption, no hardcoded V1 logic in the
+        # universal dispatch).
+        import product_intelligence.research.semantic_decision_v1 as v1_mod
+
+        record = _match_record()
+        calls = []
+        original = v1_mod._replay_v1_record
+
+        def spy(rec):
+            calls.append(rec)
+            return original(rec)
+
+        monkeypatch.setattr(v1_mod, "_replay_v1_record", spy)
+        replay = replay_semantic_decision(record)
+        assert calls == [record]
+        assert replay.record is record
+        assert replay.contract_binding == (
+            "V1", "1.1", 1, 1, "SEMANTIC_AUTHORITY_V2_S2A_FU2"
+        )
+
+    def test_dispatch_error_names_the_recorded_binding_not_current_constants(
+        self,
+    ) -> None:
+        # An unsupported binding is refused with the RECORD's recorded
+        # identity in the error (never the current module constants).
+        class UnknownRecord:
+            semantic_contract_version = "V7"
+            prompt_version = "7.0"
+            input_schema_version = 3
+            output_schema_version = 3
+            authority_contract_version = "SEMANTIC_AUTHORITY_V9"
+
+        with pytest.raises(
+            SemanticDecisionReplayError, match="semantic contract 'V7'"
+        ):
+            replay_semantic_decision(UnknownRecord())
+        with pytest.raises(
+            SemanticDecisionReplayError, match="authority contract 'SEMANTIC_AUTHORITY_V9'"
+        ):
+            replay_semantic_decision(UnknownRecord())
+
+    def test_supported_bindings_are_the_registry_union(self) -> None:
+        # The universal gate's binding table is exactly the union of the
+        # registered adapters' supported bindings (no drift between the
+        # codec registry and the replay gate; currently the single V1
+        # binding).
+        from product_intelligence.research import supported_contract_bindings
+
+        assert SUPPORTED_CONTRACT_BINDINGS == supported_contract_bindings()
+        assert len(SUPPORTED_CONTRACT_BINDINGS) == 1
 
 
 # ===========================================================================

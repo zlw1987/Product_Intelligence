@@ -2,8 +2,220 @@
 
 ## Current state
 
+**PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-S2-B-FU1 (Semantic Authority V2 —
+Decouple the Persistence Envelope from Semantic V1) — IMPLEMENTED /
+PENDING FINAL REVIEW**
+
+Bounded ARCHITECTURE CORRECTION on the pending S2-B candidate, on the
+authoritative starting SHA `95d9fd903cf941996d63dcd9b7f48265daf7c2a4`
+(S2-B, PENDING FINAL REVIEW; baseline collection 6227). Canonical spec:
+PLAN §26.25; decision record: AD-069 (amending AD-068 in part). S2-B is
+NOT approved: independent review found one architecture blocker — the
+durable record/codec/replay infrastructure was hard-bound to the OLD
+semantic V1 contract (semantic contract "V1", prompt "1.1", the exact
+V1 prompt-input/output shape, and the exact current primary/fallback
+provider/model route), which would have forced S2-C's final V2 semantic
+contract either into the obsolete V1 persistence contract or into a new
+persistence schema before schema v1 was ever used live. FU1 makes the
+durable persistence ENVELOPE versionable independently from the semantic
+contract it contains. No Semantic V2 contract is invented; no live
+execution is wired; no V2 authority is enabled; no migration change; no
+deployment. After FU1, production behavior is identical to the starting
+SHA.
+
+**The correction (exact architecture).** The version axes are now
+independent: persistence envelope version != semantic contract version
+!= prompt version != semantic input schema version != semantic output
+schema version != runtime route version.
+
+* **Universal envelope foundation** — `research/semantic_decision_
+  record.py` rewritten: canonical encoding discipline (sorted keys,
+  compact, ASCII, no floats), the strict decode helpers (exact key sets,
+  strict enums, explicit nullability, sorted-unique set encodings, float
+  refusal), the universal persistence binding (run UUID canonical,
+  assessment_index non-negative int, source_url non-empty) with its
+  section encoding/validation, the bounded error vocabulary
+  (SemanticDecisionCodecError / SemanticDecisionReplayError), and the
+  `SemanticDecisionContractAdapter` extension point (frozen dataclass:
+  envelope_schema_version, semantic_contract_version, supported_
+  bindings, record_type, + encode/decode/replay/run_binding_violation).
+  It owns no semantic contract value.
+* **Universal envelope codec** — `research/semantic_decision_codec.py`
+  rewritten: `SEMANTIC_DECISION_SCHEMA_VERSION` (1) is now explicitly
+  the PAYLOAD FORMAT (envelope) version — the row's `schema_version`
+  column — independent of the recorded semantic contract version; the
+  explicit adapter REGISTRY (a frozen tuple, currently exactly the
+  Semantic V1 adapter) is the version-adapter extension point. Decode:
+  row version registered -> payload is a mapping with no floats -> the
+  payload's declared envelope version agrees with the row's -> the
+  universal binding is exact and valid -> the `contract` section names
+  a semantic contract version (the dispatch key) -> dispatch on the
+  RECORDED (envelope schema version, semantic contract version) pair to
+  the registered adapter — no adapter: explicit fail-closed refusal
+  ("no registered contract adapter interprets this payload"), never
+  best-effort decoded, never reinterpreted under a different contract.
+  Encode: dispatch on the record's registered adapter type + universal
+  framing self-check. `canonical_payload_digest` unchanged. The three
+  universal research modules name no V1 route token and no quoted V1
+  contract/prompt literal (mechanically guarded by test).
+* **Universal replay dispatch** — `research/semantic_decision_replay.py`
+  rewritten: `SUPPORTED_CONTRACT_BINDINGS` is exactly the union of the
+  registered adapters' supported bindings (no gate/registry drift —
+  currently the single V1 tuple); `replay_semantic_decision` reads the
+  RECORD's recorded contract identity (never current module constants),
+  refuses unsupported bindings explicitly ("refuses to reinterpret"),
+  then selects the exact registered adapter and delegates the version-
+  owned replay to it.
+* **Semantic V1 adapter (first registered)** — NEW `research/
+  semantic_decision_v1.py` owns, and ONLY it owns: the V1 contract
+  identity (semantic contract V1, prompt 1.1, input/output schema v1,
+  authority contract SEMANTIC_AUTHORITY_V2_S2A_FU2 = `V1_CONTRACT_
+  BINDING`); the V1 pinned route (amax/qwen3.8-27b primary, vllm-262k/
+  Qwen3.6-27B-262K fallback — a V1 contract rule, NOT an envelope
+  invariant; drift-pinned to the frozen FU3A route); the V1 runtime-
+  provenance mirrors (drift-pinned); the V1 prompt-input shape
+  (SemanticPromptInput); the V1 typed record `SemanticDecisionRecordV1`
+  (RENAMED from SemanticDecisionRecord, so the V1 payload is no longer
+  conflated with the universal schema — the V1 exact-binding check, the
+  V1 route pin, the S2-A context validation, the evaluation/execution
+  coherence rules, and the self-verifying section digests all remain,
+  now as V1-adapter rules); the strict V1 payload codec; the V1 pure
+  zero-live replay (reconstruction + S2-A re-derivation + the derived-
+  agreement proof); the V1 run-binding check (recorded prompt-input
+  target MPN/description == the run's canonical request); and the
+  registered instance `SEMANTIC_V1_ADAPTER` (envelope schema 1, semantic
+  contract V1, supported bindings = (V1_CONTRACT_BINDING,), record type
+  = SemanticDecisionRecordV1). The V1 payload's PERSISTED BYTES are
+  byte-identical to the S2-B schema-v1 payload (same sections, same
+  canonical encoding, same digests): no data migration, no re-encoding
+  of existing artifacts.
+* **Universal service** — `execution/semantic_decision_persistence.py`
+  is contract-agnostic: persist dispatches the artifact through the
+  registry (unregistered artifact type -> TypeError; the service names
+  no V1 literal); load = digest verification + universal decode;
+  replay = digest + universal decode + the universal binding
+  verification (run exists, index in range, recorded source URL matches
+  the run's persisted assessment at that index) + the ADAPTER-SPECIFIC
+  recorded request-identity check (`adapter.run_binding_violation`) +
+  the universal replay dispatch. The service owns no authority
+  derivation logic (mechanically guarded) and no contract-specific
+  assumption.
+* **Model / migration UNCHANGED** — `runs.SemanticDecisionRecord` fields,
+  help text, constraints, index, ordering, and migration 0012 (single
+  additive CreateModel) are untouched — no replacement migration (the
+  existing DB row was already a generic opaque payload box); only the
+  model docstring is corrected.
+
+**The important distinction (anti-reinterpretation preserved).** The
+fix is NOT "allow arbitrary version strings while decoding everything as
+V1": the STORAGE/TRANSPORT layer durably identifies/versions an artifact
+without assuming any particular semantic contract (a row whose payload
+names an unregistered contract with a CONSISTENT digest anchor stores
+fine — proven by test); the INTERPRETATION/REPLAY layer requires a
+registered, explicitly supported version-specific adapter, and unknown
+or future semantic contracts fail closed at BOTH the codec dispatch and
+the replay gate — never best-effort decoded, never silently re-
+interpreted under the current contract.
+
+**Immutability wording (audit correction).** The documentation that
+claimed `editable=False` "enforces" immutability is corrected (model
+docstring + service docstring): `editable=False` is NOT database
+immutability enforcement — it only keeps fields out of Django auto-
+generated forms. The ledger's immutability is the APPLICATION contract:
+the single service-owned append-only write path that never overwrites,
+the (run, assessment_index) uniqueness constraint, and the whole-
+artifact digest anchor verified on every read; out-of-band mutation
+(QuerySet.update() / raw SQL) bypasses the service and is detected
+where the digest anchor differs — every read of the mutated row then
+fails closed. No DB triggers added.
+
+**Backward compatibility / no-wiring / authority.** Historical V1
+artifacts decode/replay byte-exactly as before (the V1 payload format is
+unchanged); legacy absence remains distinct (load returns None — never
+NO_MATCH / NOT_EVALUATED / AI failure, never fabricated); the current V1
+live execution path still creates and reads ZERO ledger records
+(no-wiring tests unchanged); the S2-A frozen authority contract is
+unmodified (the V1 adapter consumes it through the research package's
+public export surface; the S2-A no-wiring lexical guards pass);
+human-review behavior is unchanged; zero live AI/network work is
+enforced by the unchanged sentinels. S2-C (final V2 input/output
+contract + live wiring) is NOT started and will register its own V2
+adapter through the same explicit extension point — the envelope, the
+row, the migration, and the service do not change for that reason.
+
+Test preservation: no test deleted, renamed, skipped, xfailed,
+deselected, ignored, or weakened merely to obtain green. Existing nodes
+whose pins encoded the now-rejected coupling (artifact schema v1 ==
+semantic V1 forever, at the universal layer) were corrected ONLY in that
+expectation while preserving the safety property (interpretation
+requires an explicitly supported exact semantic contract): the record
+class references move to `SemanticDecisionRecordV1` (mechanical rename
+following the concept rename); the encode non-record TypeError pin moves
+from "expected SemanticDecisionRecord" to "expected a registered
+semantic-decision record artifact" (the dispatch is now on the registry);
+the V1 contract/prompt/authority-binding rejection nodes now test the V1
+adapter's pin (same rejections, same safety); the private section-
+encoder imports move to the V1 module; the boundaries MODULES guard set
+gains the fourth research module (the same eight guards apply —
+strengthened); the package export pin updates to the new surface. New
+nodes: 35 (5 record + 8 codec + 3 replay + 11 boundaries [3 new
+decoupling guards + 8 auto-expanded parameterized nodes] + 4 runs + 4
+persistence). In addition, the fourth research file auto-enters the
+existing parametrized directory scans (domain caller-token, provider,
+runs-persistence, web research, and the four research-core per-file
+scans in `test_research_identity_boundaries.py`): +8 expanded nodes; no
+test file decreased.
+
+Validation (this session, candidate pass — final approval remains with
+independent review):
+
+* Collection baseline at `95d9fd9`: **6227**; final: **6270** (+43 = 35
+  new nodes + 8 auto-expanded directory-scan nodes; no file decreased).
+* Focused S2-B + FU1 batch (the six S2-B test files): **231 passed,
+  0 failed** (196 S2-B nodes + 35 new).
+* `tests/research/` + `tests/runs/`: **2960 passed, 6 failed** — the
+  6 failures are EXACT members of the documented fixed eleven-node
+  Windows/Python-3.14 subprocess-boundary flake allowlist (clean-
+  interpreter import guards), each with the recorded `subprocess.Popen
+  -> _winapi.DuplicateHandle -> OSError: [WinError 6] The handle is
+  invalid` signature at `subprocess.py:1431` before any project code
+  runs (load-sensitive; a different exact subset failed on the repeat
+  batch); each re-passed on isolated retry (6/6 — one required a
+  second isolated attempt, the documented high-load behavior). 36
+  subtests passed.
+* `tests/execution/` + `tests/semantic/`: **1125 passed, 0 failed**.
+* Full suite: see final report (every non-allowlist node passing;
+  allowlist members re-passing on isolated retry; the allowlist NOT
+  expanded).
+* `python manage.py check`: System check identified no issues (0
+  silenced). `python manage.py makemigrations --check --dry-run`: No
+  changes detected (the model docstring change is not serialized; fields
+  and help text untouched). `python manage.py migrate --plan`: includes
+  `runs.0012_semantic_decision_record` (Create model SemanticDecision
+  Record) as the final entry — unchanged.
+* `git diff --check`: clean.
+
+No deployment performed in this commit; production does not move until
+independently reviewed approval, and S2-B-FU1 explicitly MUST NOT
+deploy.
+
 **PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-S2-B (Semantic Authority V2 —
-Persistence / Codec phase) — IMPLEMENTED / PENDING FINAL REVIEW**
+Persistence / Codec phase) — IMPLEMENTED / AMENDED IN PART BY S2-B-FU1
+(PENDING FINAL REVIEW)**
+
+CORRECTED IN PART BY S2-B-FU1 (section above; canonical spec PLAN
+§26.25, AD-069, amending AD-068 in part): the durable persistence
+ENVELOPE was hard-bound to the semantic V1 contract (the record
+constructor, codec, and replay gate all required semantic contract V1 /
+prompt 1.1 / input+output schema v1 / authority contract S2-A-FU2 / the
+V1 pinned route). FU1 moved every V1 assumption into the first
+registered version-specific adapter (`research/semantic_decision_v1.py`,
+record renamed `SemanticDecisionRecordV1`); the envelope (foundation,
+codec framing + registry dispatch, replay dispatch, service, row,
+migration) is now contract-agnostic and durably identifies any
+registered semantic contract — unknown/future contracts still fail
+closed at the explicit adapter dispatch. All other S2-B content stands
+as recorded below.
 
 Bounded PERSISTENCE/CODEC phase on the authoritative starting SHA
 `9206126d4fb13300028256964c98f477c5d17969` (S2-A-FU2, now APPROVED /

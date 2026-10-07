@@ -1,12 +1,23 @@
-"""Tests for the strict versioned semantic-decision codec (S2-B).
+"""Tests for the strict versioned semantic-decision envelope codec
+(S2-B / S2-B-FU1).
 
-Covers ``product_intelligence.research.semantic_decision_codec``:
+Covers ``product_intelligence.research.semantic_decision_codec`` — the
+UNIVERSAL envelope codec (contract-agnostic framing + fail-closed
+dispatch to the registered version-specific adapters; currently exactly
+the Semantic V1 adapter):
 
 * deterministic canonical encoding (no floats, no lossy serialization);
-* exact round-trip decode for ALL outcomes;
-* fail-closed strictness: extra fields, missing fields, unknown schema
-  version, unknown enums, wrong types, unsorted/duplicated set encodings,
-  malformed payloads;
+* exact round-trip decode for ALL outcomes (through the universal entry
+  and the V1 adapter);
+* fail-closed strictness: extra fields, missing fields, unknown envelope
+  schema version, unknown enums, wrong types, unsorted/duplicated set
+  encodings, malformed payloads;
+* S2-B-FU1: the envelope version axis is independent of the semantic
+  contract version axis — unknown/future semantic contracts are durably
+  identified and fail closed at the explicit adapter dispatch (never
+  best-effort decoded, never reinterpreted), and the universal framing
+  (declared envelope version, binding, dispatch key) is validated without
+  any V1 assumption;
 * tamper detection: digests that do not agree with their sections are
   rejected at decode (wrapped in the bounded codec error).
 """
@@ -496,6 +507,160 @@ def _recompute_output(payload: dict) -> str:
 
 
 # ===========================================================================
+# S2-B-FU1: envelope version independent of semantic contract version
+# ===========================================================================
+
+
+class TestEnvelopeIndependence:
+    def test_envelope_schema_version_and_semantic_contract_are_distinct_axes(
+        self,
+    ) -> None:
+        # The row/payload envelope schema version (int, the persisted JSON
+        # format) and the recorded semantic contract version (str, the
+        # dispatch key) are different version axes carried by the same
+        # payload — one is not a proxy for the other.
+        payload = _payload_of(_match_record())
+        assert isinstance(payload["schema_version"], int)
+        assert payload["schema_version"] == SEMANTIC_DECISION_SCHEMA_VERSION
+        assert isinstance(
+            payload["contract"]["semantic_contract_version"], str
+        )
+        # Both axes fail closed on their OWN unsupported values, with
+        # distinct errors.
+        with pytest.raises(
+            SemanticDecisionCodecError, match="unsupported schema_version"
+        ):
+            _decode(payload, version=2)  # envelope axis
+        future = json.loads(json.dumps(payload))
+        future["contract"]["semantic_contract_version"] = "V2"
+        with pytest.raises(
+            SemanticDecisionCodecError, match="unsupported semantic contract version"
+        ):
+            _decode(future)  # semantic-contract axis
+
+    def test_unknown_semantic_contract_fails_closed_at_dispatch(self) -> None:
+        # A V1-identical payload whose contract section names a semantic
+        # contract this code has no registered adapter for is durably
+        # IDENTIFIED (the envelope framing validates) but REFUSED at the
+        # explicit adapter dispatch — never best-effort decoded as V1,
+        # never reinterpreted.
+        for key in ("V2", "V9", "SEMANTIC_FUTURE"):
+            payload = _payload_of(_match_record())
+            payload["contract"]["semantic_contract_version"] = key
+            with pytest.raises(
+                SemanticDecisionCodecError, match="no registered"
+            ):
+                _decode(payload)
+
+    def test_unknown_semantic_contract_error_is_not_a_v1_shape_error(self) -> None:
+        # The refusal fires on the dispatch key BEFORE any V1-specific
+        # shape/contract-value validation: even a payload whose body is
+        # deliberately NOT V1-shaped fails with the registered-adapter
+        # error (the universal layer does not assume V1 shapes).
+        payload = {
+            "schema_version": SEMANTIC_DECISION_SCHEMA_VERSION,
+            "binding": {
+                "run_id": RUN_ID,
+                "assessment_index": 0,
+                "source_url": SOURCE_URL,
+            },
+            "contract": {"semantic_contract_version": "V2"},
+            "body": "whatever the future contract owns",
+        }
+        with pytest.raises(
+            SemanticDecisionCodecError,
+            match="unsupported semantic contract version 'V2'",
+        ):
+            _decode(payload)
+
+    def test_unregistered_envelope_schema_version_fails_closed(self) -> None:
+        # The envelope format version is gated on its own axis: a future
+        # payload format with no registered adapter fails closed even for
+        # a perfectly known semantic contract.
+        payload = _payload_of(_match_record())
+        with pytest.raises(
+            SemanticDecisionCodecError, match="unsupported schema_version"
+        ):
+            _decode(payload, version=2)
+        with pytest.raises(
+            SemanticDecisionCodecError, match="no adapter is registered"
+        ):
+            _decode(payload, version=2)
+
+    def test_row_and_payload_envelope_versions_must_agree(self) -> None:
+        # The payload's declared envelope version and the row's envelope
+        # version are the universal framing: a disagreement is an
+        # envelope-level failure, independent of the semantic contract.
+        payload = _payload_of(_match_record())
+        payload["schema_version"] = 2
+        with pytest.raises(
+            SemanticDecisionCodecError, match="does not match the row"
+        ):
+            _decode(payload, version=1)
+
+    def test_universal_binding_validated_without_any_v1_assumption(self) -> None:
+        # A payload naming an UNKNOWN semantic contract still gets its
+        # universal binding validated by the envelope (before dispatch):
+        # the binding error, not a V1-shape error, must fire for a broken
+        # binding — proving the binding is envelope-owned, not V1-owned.
+        payload = _payload_of(_match_record())
+        payload["contract"]["semantic_contract_version"] = "V9"
+        payload["binding"]["run_id"] = "not-a-uuid"
+        with pytest.raises(
+            SemanticDecisionCodecError, match="universal binding section"
+        ):
+            _decode(payload)
+
+    def test_registry_lookup_is_explicit_and_fail_closed(self) -> None:
+        from product_intelligence.research import (
+            SEMANTIC_V1_ADAPTER,
+            registered_envelope_schema_versions,
+            registered_semantic_contract_adapter,
+            supported_contract_bindings,
+        )
+
+        # The one registered adapter: envelope v1 x semantic contract V1.
+        assert (
+            registered_semantic_contract_adapter(1, "V1")
+            is SEMANTIC_V1_ADAPTER
+        )
+        assert registered_semantic_contract_adapter(1, "V2") is None
+        assert registered_semantic_contract_adapter(2, "V1") is None
+        assert registered_envelope_schema_versions() == (1,)
+        # The supported bindings are exactly the registered adapters'
+        # bindings — the explicit extension point, no implicit versions.
+        assert supported_contract_bindings() == (
+            ("V1", "1.1", 1, 1, "SEMANTIC_AUTHORITY_V2_S2A_FU2"),
+        )
+        # Wrong argument types are a caller defect (fail closed).
+        with pytest.raises(TypeError):
+            registered_semantic_contract_adapter("1", "V1")
+        with pytest.raises(TypeError):
+            registered_semantic_contract_adapter(1, 2)
+
+    def test_encode_dispatches_by_registered_adapter_and_frames_universally(
+        self,
+    ) -> None:
+        from product_intelligence.research import (
+            SEMANTIC_V1_ADAPTER,
+            adapter_for_record,
+        )
+
+        record = _match_record()
+        assert adapter_for_record(record) is SEMANTIC_V1_ADAPTER
+        payload = _payload_of(record)
+        # The framed envelope carries the universal sections plus the
+        # adapter's version-owned sections.
+        assert payload["schema_version"] == SEMANTIC_V1_ADAPTER.envelope_schema_version
+        assert payload["contract"]["semantic_contract_version"] == (
+            SEMANTIC_V1_ADAPTER.semantic_contract_version
+        )
+        assert payload["binding"] == record.binding_section()
+        # And it round-trips through the universal entry.
+        assert _decode(payload) == record
+
+
+# ===========================================================================
 # Tamper detection at decode
 # ===========================================================================
 
@@ -536,5 +701,12 @@ class TestDecodeTamper:
             _decode(payload)
 
     def test_encode_rejects_non_record(self) -> None:
-        with pytest.raises(TypeError, match="expected SemanticDecisionRecord"):
+        # S2-B-FU1: the universal encode dispatches on the registered
+        # adapter registry — an unregistered artifact type is a caller
+        # defect and fails closed (the contract correction of the old
+        # "must be the V1 record" pin: persistence is contract-agnostic,
+        # interpretation is explicitly registered).
+        with pytest.raises(
+            TypeError, match="expected a registered semantic-decision"
+        ):
             encode_semantic_decision_record(object())  # type: ignore[arg-type]

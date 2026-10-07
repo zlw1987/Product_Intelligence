@@ -846,21 +846,37 @@ class SemanticDecisionRecord(models.Model):
     """One persisted semantic decision / provenance record for one
     assessed candidate of one ResearchRun.
 
-    PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-S2-B.
+    PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-S2-B (amended by S2-B-FU1).
 
     The record is **storage, not interpretation**. It holds an opaque
-    versioned JSON payload (the ``SemanticDecisionRecord`` artifact of the
-    research layer, encoded by ``research/semantic_decision_codec.py``) plus
-    a separate canonical digest of that payload. All semantic authority
-    fields — the deterministic V2 context, the product-evidence profile,
-    the recorded prompt input, the recorded semantic output (MATCH /
-    NO_MATCH / UNCERTAIN / runtime failure / not evaluated), the bounded
-    runtime provenance, and the derived audit snapshots — live INSIDE the
-    payload, whose schema is owned by the codec, not by this model. There
-    are deliberately no ad hoc semantic columns: the artifact is a versioned
-    contract, and scattering its fields across columns would turn every
-    contract version into a migration and give this layer interpretation
-    rights it does not have.
+    versioned JSON payload — the semantic-decision ENVELOPE — plus a
+    separate canonical digest of that payload. The envelope explicitly
+    identifies its semantic contract version (the payload's ``contract``
+    section) and carries the version-owned artifact of that contract
+    (currently the Semantic V1 record ``SemanticDecisionRecordV1`` of
+    ``research/semantic_decision_v1.py``, registered as the first version-
+    specific contract adapter) together with the universal binding and the
+    integrity sections. The payload's version axes are INDEPENDENT: the
+    ``schema_version`` column (the envelope format version, gated by
+    ``research/semantic_decision_codec.py``) is NOT the semantic contract
+    version recorded inside the payload, and neither is any prompt version
+    nor any provider/model route pin. All semantic authority fields — the
+    deterministic V2 context, the product-evidence profile, the recorded
+    prompt input, the recorded semantic output (MATCH / NO_MATCH /
+    UNCERTAIN / runtime failure / not evaluated), the bounded runtime
+    provenance, and the derived audit snapshots — live INSIDE the payload,
+    whose version-owned schema is owned by the registered contract adapter
+    (via the codec), not by this model. There are deliberately no ad hoc
+    semantic columns: the artifact is a versioned contract, and scattering
+    its fields across columns would turn every contract version into a
+    migration and give this layer interpretation rights it does not have.
+    A future semantic contract (e.g. the final S2-C contract) reuses this
+    row by registering a new contract adapter; no model change, no new
+    migration, no data rewrite is required by the mere existence of a new
+    semantic contract version. Unknown or future semantic contracts stored
+    here are durably identifiable but fail closed on interpretation (no
+    registered adapter — never best-effort decoded, never reinterpreted
+    under a different contract).
 
     This is the semantic EXECUTION / PROVENANCE LEDGER. It is NOT the human-
     review workflow: ``AiAssistedReviewCandidate`` remains the review
@@ -887,15 +903,24 @@ class SemanticDecisionRecord(models.Model):
     (``PriceIntelligenceSnapshot``), exactly as the review candidate binds.
 
     ``schema_version``
-        The codec version that produced ``payload``. The only supported
-        version is 1 (``SEMANTIC_DECISION_SCHEMA_VERSION``). An unsupported
-        version causes decode to fail closed rather than attempt
-        best-effort migration.
+        The payload ENVELOPE format version that produced ``payload``
+        (``SEMANTIC_DECISION_SCHEMA_VERSION`` in
+        ``research/semantic_decision_codec.py``; the only registered value
+        is 1). This is the version of the persisted JSON envelope format —
+        INDEPENDENT of the semantic contract version recorded inside the
+        payload's ``contract`` section (an unregistered envelope version
+        causes the codec to fail closed rather than attempt best-effort
+        migration; an unregistered semantic contract version likewise
+        fails closed at the codec's explicit adapter dispatch).
 
     ``payload``
-        An opaque ``JSONField`` holding the codec-encoded
-        ``SemanticDecisionRecord`` artifact. The schema is owned by the
-        codec, not the model.
+        An opaque ``JSONField`` holding the framed envelope payload: the
+        declared envelope version, the universal binding, the contract
+        identity (the recorded semantic contract version and its
+        version-specific fields), the version-owned artifact sections of
+        that contract, and the integrity sections. The version-owned
+        schema is owned by the registered contract adapter (via the
+        universal envelope codec), not the model.
 
     ``payload_digest``
         The canonical SHA-256 digest of ``payload``
@@ -903,13 +928,20 @@ class SemanticDecisionRecord(models.Model):
         at write time and stored in a SEPARATE column: the whole-artifact
         tamper anchor. A tampered payload (even with its internal section
         digests recomputed) is detected on every read because the column
-        cannot be regenerated from inside the payload. Immutability is
-        enforced the same way as for every artifact column here:
-        ``editable=False`` plus a single service-owned write path
-        (``execution/semantic_decision_persistence.py``); ``QuerySet.
-        update()`` / raw SQL bypasses the service and is caught by the
-        digest on read (fail closed), which is the integrity backstop this
-        column exists to provide.
+        cannot be regenerated from inside the payload.
+
+        Note on immutability: ``editable=False`` on the artifact columns is
+        NOT database immutability enforcement — it only keeps the fields
+        out of Django auto-generated forms; the database will happily apply
+        an out-of-band ``QuerySet.update()`` or raw SQL. The ledger's
+        immutability is the APPLICATION contract: the single service-owned
+        append-only write path (``execution/semantic_decision_
+        persistence.py``) that never overwrites, the (run,
+        assessment_index) uniqueness constraint, and this digest anchor
+        verified on every read. Out-of-band mutation that bypasses the
+        service is detected where the digest anchor differs, and every
+        read of the mutated row then fails closed (the row is never
+        "repaired" by the application).
 
     ``created_at``
         When the record row was persisted. NOT the evaluation instants

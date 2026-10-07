@@ -1,24 +1,45 @@
-"""Architecture guards for the S2-B persisted semantic-decision artifact.
+"""Architecture guards for the S2-B persisted semantic-decision envelope
+(S2-B / S2-B-FU1).
 
-``product_intelligence/research/semantic_decision_record.py``,
-``semantic_decision_codec.py`` and ``semantic_decision_replay.py`` are pure
-research-layer contract / serialisation / reconstruction modules. These
-guards enforce, mechanically:
+S2-B-FU1 split the durable persistence ENVELOPE (contract-agnostic) from
+the Semantic V1 contract adapter (version-specific). The guarded modules:
+
+* ``semantic_decision_record.py`` — the universal envelope foundation
+  (canonical encoding discipline, strict decode helpers, the universal
+  persistence binding, bounded errors, the adapter extension point);
+* ``semantic_decision_codec.py`` — the universal envelope codec (the
+  envelope schema-version gate, the universal framing, the no-float
+  discipline, the explicit adapter registry + fail-closed dispatch);
+* ``semantic_decision_replay.py`` — the universal zero-live replay
+  dispatch (exact-recorded-binding gate + explicit adapter selection);
+* ``semantic_decision_v1.py`` — the FIRST registered version-specific
+  adapter (the V1 contract identity, the V1 pinned route, the V1 section
+  shapes, the V1 record, the V1 codec, the V1 replay, the V1
+  run-binding check).
+
+These guards enforce, mechanically:
 
 * they import only stdlib and ``product_intelligence``;
 * they import no persistence (django / runs), no providers, no web, no
   execution, no benchmark (evaluation), and NO production semantic runtime
-  surface (semantic.* — the mirror vocabularies exist precisely so the
-  pure research layer never imports the runtime);
+  surface (semantic.* — the V1 adapter's mirror vocabularies exist
+  precisely so the pure research layer never imports the runtime);
 * they perform no network / file I/O and read no clock (timestamps are
   validated as strings, never produced);
-* the mirrored runtime-provenance vocabularies are drift-pinned to the
-  frozen FU3A runtime (exact value sets, in order);
-* the mirrored route constants are drift-pinned to the frozen FU3A route;
+* the V1 adapter's mirrored runtime-provenance vocabularies are drift-
+  pinned to the frozen FU3A runtime (exact value sets, in order);
+* the V1 adapter's mirrored route constants are drift-pinned to the
+  frozen FU3A route;
 * they carry no mutable global state;
 * they name no external vendor or calling-system token;
-* they do not reference the S2-A contract module by name (they consume the
-  frozen V2 contract through the research package's public export surface).
+* they do not reference the S2-A contract module by name (they consume
+  the frozen V2 contract through the research package's public export
+  surface);
+* S2-B-FU1: the three UNIVERSAL modules own no Semantic V1 assumption
+  (no V1 provider/model route tokens, no quoted V1 contract/prompt
+  literals) — the V1 pins live ONLY in the V1 adapter module; the codec
+  registry is the explicit version-adapter extension point (fail closed
+  for every unregistered semantic contract).
 """
 
 from __future__ import annotations
@@ -42,6 +63,23 @@ MODULES = (
     RESEARCH_ROOT / "semantic_decision_record.py",
     RESEARCH_ROOT / "semantic_decision_codec.py",
     RESEARCH_ROOT / "semantic_decision_replay.py",
+    RESEARCH_ROOT / "semantic_decision_v1.py",
+)
+
+#: The three contract-AGNOSTIC universal modules (the envelope foundation,
+#: the universal codec, the universal replay dispatch). They must not own
+#: any Semantic V1 assumption (S2-B-FU1).
+UNIVERSAL_MODULES = MODULES[:3]
+
+#: The V1 adapter module — the one place the V1 route/contract pins live.
+V1_MODULE = RESEARCH_ROOT / "semantic_decision_v1.py"
+
+#: The frozen FU3A V1 route tokens (provider/model pair, today's V1 route).
+V1_ROUTE_TOKENS = (
+    "amax",
+    "qwen3.8-27b",
+    "vllm-262k",
+    "Qwen3.6-27B-262K",
 )
 
 
@@ -284,23 +322,138 @@ def test_replay_module_is_exported_by_the_research_package() -> None:
     import product_intelligence.research as research
 
     expected = {
-        "SemanticDecisionRecord",
-        "SemanticDecisionAttempt",
-        "SemanticPromptInput",
-        "AttemptRole",
-        "AttemptOutcome",
-        "SemanticFailureClass",
-        "SemanticFallbackReason",
-        "SEMANTIC_DECISION_SCHEMA_VERSION",
-        "encode_semantic_decision_record",
-        "decode_semantic_decision_record",
+        # Universal envelope (S2-B-FU1): foundation / codec / dispatch /
+        # registry.
+        "SemanticDecisionContractAdapter",
         "SemanticDecisionCodecError",
-        "canonical_payload_digest",
-        "replay_semantic_decision",
-        "SemanticDecisionReplay",
         "SemanticDecisionReplayError",
+        "SEMANTIC_DECISION_SCHEMA_VERSION",
         "SUPPORTED_CONTRACT_BINDINGS",
-        "reconstruct_semantic_evaluation",
+        "adapter_for_record",
+        "canonical_payload_digest",
+        "canonical_sha256",
+        "decode_semantic_decision_record",
+        "encode_semantic_decision_record",
+        "registered_envelope_schema_versions",
+        "registered_semantic_contract_adapter",
+        "replay_semantic_decision",
+        "supported_contract_bindings",
+        # The registered Semantic V1 contract adapter (first version-
+        # specific interpretation layer).
+        "AttemptOutcome",
+        "AttemptRole",
+        "AUTHORITY_CONTRACT_VERSION",
+        "FALLBACK_MODEL_V1",
+        "FALLBACK_PROVIDER_V1",
+        "PRIMARY_MODEL_V1",
+        "PRIMARY_PROVIDER_V1",
+        "PROMPT_VERSION_V1",
+        "SEMANTIC_CONTRACT_VERSION",
+        "SEMANTIC_INPUT_SCHEMA_VERSION",
+        "SEMANTIC_OUTPUT_SCHEMA_VERSION",
+        "SEMANTIC_V1_ADAPTER",
+        "SemanticDecisionAttempt",
+        "SemanticDecisionReplay",
+        "SemanticDecisionRecordV1",
+        "SemanticFallbackReason",
+        "SemanticFailureClass",
+        "SemanticPromptInput",
+        "SemanticV1ContractAdapter",
+        "V1_CONTRACT_BINDING",
         "reconstruct_identity_context",
+        "reconstruct_semantic_evaluation",
+        "record_input_digest",
+        "record_output_digest",
+        "replay_v1_record",
     }
     assert expected <= set(research.__all__)
+
+
+def test_universal_modules_own_no_v1_assumption() -> None:
+    """S2-B-FU1 proof: the universal storage/transport layer (envelope
+    foundation, universal codec, universal replay dispatch) owns NO
+    Semantic V1 assumption — no V1 provider/model route tokens and no
+    quoted V1 contract/prompt literals. The V1 pins live only in the V1
+    adapter module."""
+    for path in UNIVERSAL_MODULES:
+        source = path.read_text(encoding="utf-8")
+        for token in V1_ROUTE_TOKENS:
+            assert token not in source, (
+                f"{path.name} owns the V1 route token {token!r}; the "
+                "universal envelope must not assume today's V1 provider/"
+                "model route (it belongs to the V1 adapter)"
+            )
+        # Quoted literals only: prose may say "V1"; the universal code
+        # must not REQUIRE the literal value in a string constant.
+        assert '"V1"' not in source, (
+            f"{path.name} hardcodes the quoted V1 semantic-contract "
+            "literal; the envelope identifies contracts via the recorded "
+            "dispatch key, it does not assume one"
+        )
+        assert '"1.1"' not in source, (
+            f"{path.name} hardcodes the quoted V1 prompt version; the "
+            "prompt version is a V1-adapter pin, not an envelope rule"
+        )
+
+
+def test_v1_adapter_module_owns_the_v1_route_pin() -> None:
+    """S2-B-FU1 proof (ownership side): the exact route validation lives
+    in the V1 adapter module, which pins the frozen FU3A route."""
+    source = V1_MODULE.read_text(encoding="utf-8")
+    for token in V1_ROUTE_TOKENS:
+        assert token in source, (
+            f"the V1 adapter module lost its route pin {token!r}"
+        )
+    from product_intelligence.research import (
+        FALLBACK_MODEL_V1,
+        FALLBACK_PROVIDER_V1,
+        PRIMARY_MODEL_V1,
+        PRIMARY_PROVIDER_V1,
+    )
+
+    assert (PRIMARY_PROVIDER_V1, PRIMARY_MODEL_V1) == ("amax", "qwen3.8-27b")
+    assert (
+        FALLBACK_PROVIDER_V1,
+        FALLBACK_MODEL_V1,
+    ) == ("vllm-262k", "Qwen3.6-27B-262K")
+
+
+def test_registry_is_the_explicit_version_adapter_extension_point() -> None:
+    """S2-B-FU1 proof: interpretation requires a REGISTERED, explicitly
+    supported version-specific adapter — the registry is a frozen tuple
+    of adapters (no mutable global state), currently exactly the V1
+    adapter, and fail-closed for every unregistered (envelope version,
+    semantic contract) pair."""
+    import product_intelligence.research.semantic_decision_codec as codec
+
+    registry = codec._REGISTERED_SEMANTIC_CONTRACT_ADAPTERS
+    assert isinstance(registry, tuple)
+    assert len(registry) == 1
+    from product_intelligence.research import SEMANTIC_V1_ADAPTER
+
+    assert registry[0] is SEMANTIC_V1_ADAPTER
+    # The V1 adapter speaks exactly one envelope version and one semantic
+    # contract, with exactly one supported binding.
+    assert SEMANTIC_V1_ADAPTER.envelope_schema_version == 1
+    assert SEMANTIC_V1_ADAPTER.semantic_contract_version == "V1"
+    assert SEMANTIC_V1_ADAPTER.supported_bindings == (
+        ("V1", "1.1", 1, 1, "SEMANTIC_AUTHORITY_V2_S2A_FU2"),
+    )
+    # The codec's envelope version constant and the V1 adapter's envelope
+    # version cannot drift apart.
+    from product_intelligence.research import (
+        SEMANTIC_DECISION_SCHEMA_VERSION,
+        registered_semantic_contract_adapter,
+    )
+
+    assert SEMANTIC_V1_ADAPTER.envelope_schema_version == (
+        SEMANTIC_DECISION_SCHEMA_VERSION
+    )
+    assert (
+        registered_semantic_contract_adapter(1, "V1") is SEMANTIC_V1_ADAPTER
+    )
+    # Fail closed: unknown / future semantic contracts and unknown / future
+    # envelope versions have no registered adapter.
+    for pair in ((1, "V2"), (1, "V9"), (1, "SEMANTIC_FUTURE"), (2, "V1"),
+                 (2, "V2"), (0, "V1")):
+        assert registered_semantic_contract_adapter(*pair) is None, pair

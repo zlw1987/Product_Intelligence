@@ -1,4 +1,4 @@
-"""Semantic decision persistence service (S2-B).
+"""Semantic decision persistence service (S2-B / S2-B-FU1).
 
 The API that future S2-C live execution will call to persist — and to
 replay — the semantic-decision artifact. In S2-B this service EXISTS but
@@ -9,24 +9,36 @@ input/output contract, so S2-B does not persist a temporary contract that
 would immediately become obsolete.
 
 Layering: this is an execution-layer service — it composes research
-(artifact + codec + pure replay: interpretation) with runs (the model:
-storage). The runs layer stores, it does not interpret; this service is the
-single owner of the ledger's write path and of the read + replay paths
-with their integrity verification:
+(envelope codec + universal replay dispatch: interpretation) with runs
+(the model: storage). The runs layer stores, it does not interpret; this
+service is the single owner of the ledger's write path and of the read +
+replay paths with their integrity verification.
 
-* ``persist_semantic_decision`` — encode the artifact, compute the
-  canonical payload digest, create the row (transactional). NEVER
-  overwrites an existing (run, assessment_index) record: the ledger is
-  append-only and immutable.
+S2-B-FU1 made the service contract-agnostic: it owns no semantic-
+contract-specific assumption (no provider/model route, no prompt version,
+no section shape). Persisting dispatches the artifact to its REGISTERED
+contract adapter (currently exactly the Semantic V1 adapter); loading
+decodes through the universal envelope (digest verification + strict
+dispatch — unknown or future semantic contracts fail closed); replay
+verifies the universal binding against the run's persisted evidence, runs
+the adapter-specific recorded-request-identity check through the
+registered adapter, and then dispatches the pure zero-live replay by the
+recorded contract/version.
+
+* ``persist_semantic_decision`` — encode the artifact through its
+  registered adapter, compute the canonical payload digest, create the row
+  (transactional). NEVER overwrites an existing (run, assessment_index)
+  record: the ledger is append-only at the application level.
 * ``load_semantic_decision`` — row -> digest verification -> strict
-  decode. Absence is ``None``: a run without a record has "legacy
-  semantic provenance unavailable under V2" — NOT NO_MATCH, NOT
-  NOT_EVALUATED, NOT an AI failure. Nothing is fabricated.
-* ``replay_semantic_decision_record`` — load + binding verification
-  against the run's persisted evidence (the canonical request identity
-  and the snapshot's assessment binding at the recorded index) + the pure
-  zero-live replay (contract-binding gate, reconstruction, re-derivation
-  agreement proof).
+  universal decode (adapter dispatch). Absence is ``None``: a run without
+  a record has "legacy semantic provenance unavailable under V2" — NOT
+  NO_MATCH, NOT NOT_EVALUATED, NOT an AI failure. Nothing is fabricated.
+* ``replay_semantic_decision_record`` — load + universal binding
+  verification against the run's persisted evidence (the canonical request
+  identity through the registered adapter, and the snapshot's assessment
+  binding at the recorded index) + the universal zero-live replay
+  dispatch (explicit version-specific support; unknown / future versions
+  refused — never silently reinterpreted).
 """
 
 from __future__ import annotations
@@ -41,12 +53,10 @@ from product_intelligence.research.price_result_codec import (
 )
 from product_intelligence.research.semantic_decision_codec import (
     SEMANTIC_DECISION_SCHEMA_VERSION,
+    adapter_for_record,
     canonical_payload_digest,
     decode_semantic_decision_record,
     encode_semantic_decision_record,
-)
-from product_intelligence.research.semantic_decision_record import (
-    SemanticDecisionRecord,
 )
 from product_intelligence.research.semantic_decision_replay import (
     SemanticDecisionReplay,
@@ -175,31 +185,45 @@ def _verify_row_digest(row: SemanticDecisionRecordRow) -> None:
 
 def persist_semantic_decision(
     run: ResearchRun,
-    artifact: SemanticDecisionRecord,
+    artifact: object,
 ) -> SemanticDecisionRecordRow:
     """Persist one semantic decision artifact for ``run``.
 
-    The service is the only write path. The artifact must bind to ``run``
-    (its ``run_id`` is the run's canonical UUID string). The row stores the
-    codec-encoded payload plus the separate canonical digest; both columns
-    are ``editable=False`` and the ledger is immutable — a second persist
-    for the same (run, assessment_index) fails closed rather than
-    overwriting.
+    The service is the only write path. The artifact must be the typed
+    record of a REGISTERED semantic contract adapter (currently exactly
+    the Semantic V1 adapter's ``SemanticDecisionRecordV1``) and must bind
+    to ``run`` (its ``run_id`` is the run's canonical UUID string). The
+    row stores the codec-encoded payload plus the separate canonical
+    digest; the row's ``schema_version`` column carries the payload
+    ENVELOPE version (independent of the semantic contract version
+    recorded inside the payload). A second persist for the same
+    (run, assessment_index) fails closed rather than overwriting.
+
+    Immutability note: the row's artifact columns are ``editable=False``;
+    that flag is NOT database immutability enforcement (it keeps the
+    fields out of Django auto-generated forms). The ledger's immutability
+    is the application contract: this single service-owned append-only
+    write path, the (run, assessment_index) uniqueness constraint, and the
+    whole-artifact digest verified on every read — out-of-band mutation
+    (``QuerySet.update()`` / raw SQL) bypasses the service and is detected
+    on read where the digest anchor differs (fail closed).
 
     Note: the full evidence binding (snapshot assessment at the recorded
-    index) is verified on the READ path (``replay_semantic_decision_record``);
-    the write path stays order-independent so S2-C can persist inside its
-    atomic publication block.
+    index) is verified on the READ path (``replay_semantic_decision_
+    record``); the write path stays order-independent so S2-C can persist
+    inside its atomic publication block.
     """
     if not isinstance(run, ResearchRun):
         raise TypeError(
             "run must be a ResearchRun, got "
             f"{type(run).__name__}"
         )
-    if not isinstance(artifact, SemanticDecisionRecord):
+    adapter = adapter_for_record(artifact)
+    if adapter is None:
         raise TypeError(
-            "artifact must be a research-layer SemanticDecisionRecord, "
-            f"got {type(artifact).__name__}"
+            "artifact must be a registered semantic-decision record "
+            "artifact (see the codec's adapter registry), got "
+            f"{type(artifact).__name__}"
         )
     if str(run.id) != artifact.run_id:
         raise SemanticDecisionPersistenceError(
@@ -237,7 +261,7 @@ def persist_semantic_decision(
 def load_semantic_decision(
     run_id: object,
     assessment_index: object,
-) -> SemanticDecisionRecord | None:
+) -> object | None:
     """Load the persisted artifact for one (run, assessment_index).
 
     Returns ``None`` when no record exists: for runs created before S2-B
@@ -245,10 +269,16 @@ def load_semantic_decision(
     unavailable under V2" — NOT NO_MATCH, NOT NOT_EVALUATED, and NOT an AI
     failure. Callers must preserve that distinction.
 
+    Otherwise returns the registered adapter's validated typed record for
+    the payload's RECORDED semantic contract version (currently: the
+    Semantic V1 adapter's ``SemanticDecisionRecordV1``).
+
     Raises ``SemanticDecisionPayloadTamperedError`` when the payload does
-    not match the row's digest, and ``SemanticDecisionCodecError`` when the
-    payload is malformed, of an unsupported schema version, or violates
-    the v1 artifact contract.
+    not match the row's digest, and ``SemanticDecisionCodecError`` when
+    the payload is malformed, of an unsupported envelope schema version,
+    names a semantic contract version with no registered adapter (unknown
+    or future contracts fail closed — never best-effort decoded), or
+    violates the recorded contract's artifact rules.
     """
     run_uuid = _canonical_run_id(run_id)
     index = _validate_assessment_index(assessment_index)
@@ -280,16 +310,23 @@ def replay_semantic_decision_record(
        ``SemanticDecisionRecordNotFoundError`` — unlike ``load``, which
        returns None for the ordinary legacy-absence condition).
     2. The row's whole-artifact digest verifies (tamper anchor).
-    3. The payload decodes strictly under the row's schema version.
-    4. The record's binding verifies against the run's persisted evidence:
-       the recorded request identity equals the run's canonical request,
-       and the recorded source URL binds to the run's snapshot assessment
-       at the recorded index (a same-request cross-run or out-of-range
-       artifact cannot replay over this run's evidence).
-    5. The pure replay runs: contract-binding gate (unknown / future
-       versions refused explicitly — never silently reinterpreted),
-       reconstruction of the historical evaluation and the S2-A authority
-       inputs, and the derived-agreement proof.
+    3. The payload decodes strictly through the universal envelope (the
+       row's envelope schema version gates the payload format; the
+       payload's recorded semantic contract version dispatches to its
+       registered adapter — unknown / future semantic contracts fail
+       closed rather than being best-effort decoded).
+    4. The record's universal binding verifies against the run's persisted
+       evidence: the recorded source URL binds to the run's snapshot
+       assessment at the recorded index, and the adapter-specific recorded
+       request identity (for the V1 adapter: the prompt-input target
+       MPN / description) equals the run's canonical request (a
+       same-request cross-run or out-of-range artifact cannot replay over
+       this run's evidence).
+    5. The universal zero-live replay dispatch runs: the exact recorded
+       contract binding must be one this code supports explicitly
+       (unknown / future versions refused — never silently
+       reinterpreted), and the registered adapter performs the
+       version-specific reconstruction and re-derivation agreement proof.
     """
     run_uuid = _canonical_run_id(run_id)
     index = _validate_assessment_index(assessment_index)
@@ -315,14 +352,21 @@ def replay_semantic_decision_record(
         ) from None
 
     request = run.to_research_request()
-    if (
-        record.target_mpn != request.manufacturer_part_number
-        or record.target_description != request.description
-    ):
-        raise SemanticDecisionBindingError(
-            "the record's request identity does not match the run's "
-            "canonical request; the artifact does not bind to this run"
+    adapter = adapter_for_record(record)
+    if adapter is None:
+        # Unreachable: the record decoded through the registry. Fail
+        # closed if the registry and the dispatch ever drift apart.
+        raise SemanticDecisionPersistenceError(
+            "the decoded record has no registered contract adapter; the "
+            "binding verification cannot be dispatched"
         )
+    violation = adapter.run_binding_violation(
+        record,
+        request_mpn=request.manufacturer_part_number,
+        request_description=request.description,
+    )
+    if violation is not None:
+        raise SemanticDecisionBindingError(violation)
 
     try:
         snapshot = run.price_intelligence_snapshot

@@ -1,6 +1,8 @@
-"""SemanticDecisionRecord model + migration tests (S2-B).
+"""SemanticDecisionRecord model + migration tests (S2-B / S2-B-FU1).
 
-Covers the additive persistence structure:
+Covers the additive persistence structure — the universal semantic-
+decision ENVELOPE row (contract-agnostic: it durably identifies any
+registered semantic contract without assuming a particular one):
 
 * the model's exact field inventory, primary key, constraints, index,
   ordering, and immutability flags (storage, not interpretation: no ad hoc
@@ -9,11 +11,17 @@ Covers the additive persistence structure:
   of any existing structure);
 * absence semantics for legacy runs (no record is fabricated);
 * cascade behavior;
+* S2-B-FU1: the immutability wording is corrected — ``editable=False``
+  is documented as NOT database immutability enforcement (the application
+  contract is the service-owned append-only write path + uniqueness +
+  digest anchor), and the row's ``schema_version`` is documented as the
+  envelope format version, independent of the recorded semantic contract
+  version;
 * the AiAssistedReviewCandidate model is unchanged (human-review
   preservation at the model level).
 
 Service-level semantics (persist / load / replay, digest tamper anchor,
-binding verification) are covered in
+binding verification, universal/V1 decoupling) are covered in
 ``tests/execution/test_semantic_decision_persistence.py``.
 """
 
@@ -219,6 +227,49 @@ class TestLegacyAndCascade:
         row_id = row.id
         run.delete()
         assert SemanticDecisionRecord.objects.filter(id=row_id).count() == 0
+
+
+class TestEnvelopeDecouplingWording:
+    """S2-B-FU1: the model documentation states the corrected immutability
+    contract and the independent version axes."""
+
+    @classmethod
+    def setup_class(cls) -> None:
+        cls.doc = SemanticDecisionRecord.__doc__ or ""
+
+    def test_editable_false_is_not_documented_as_db_enforcement(self) -> None:
+        """The audit correction: ``editable=False`` "enforcing"
+        immutability is wrong — it is only a forms-mapping hint. The docs
+        must say so, and must name the application contract instead."""
+        assert "NOT database immutability enforcement" in self.doc
+        assert "application contract" in self.doc.lower() or (
+            "APPLICATION contract" in self.doc
+        )
+        # The stale claim is gone.
+        assert "Immutability is\n        enforced" not in self.doc.replace("\r", "")
+        assert "Immutability is enforced" not in self.doc
+
+    def test_application_contract_is_the_write_path_uniqueness_digest(self) -> None:
+        # The corrected wording names the three application-level pillars.
+        assert "append-only write path" in self.doc
+        assert "uniqueness constraint" in self.doc
+        assert "digest anchor" in self.doc
+        # Out-of-band mutation is detected / fails closed, not prevented
+        # by the database.
+        assert "Out-of-band mutation" in self.doc
+        assert "fails closed" in self.doc
+
+    def test_row_schema_version_is_the_envelope_axis_not_the_semantic_contract(
+        self,
+    ) -> None:
+        # The docs make the independent version axes explicit.
+        assert "ENVELOPE format version" in self.doc
+        assert "INDEPENDENT of the semantic contract version" in self.doc
+
+    def test_future_contract_reuses_the_row_without_migration(self) -> None:
+        # A future semantic contract registers a new adapter; the row (and
+        # the migration) do not change for that reason.
+        assert "no model change, no new" in self.doc
 
 
 class TestMigration:

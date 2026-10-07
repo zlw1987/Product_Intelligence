@@ -1,6 +1,9 @@
-"""Tests for the S2-B semantic decision persistence service.
+"""Tests for the S2-B semantic decision persistence service
+(S2-B / S2-B-FU1).
 
-Covers ``product_intelligence.execution.semantic_decision_persistence``:
+Covers ``product_intelligence.execution.semantic_decision_persistence`` —
+the universal (contract-agnostic) persistence service that dispatches
+through the registered semantic contract adapters:
 
 * persistence of ALL outcomes (MATCH / NO_MATCH / UNCERTAIN / runtime
   failure with fallback / runtime failure without fallback / not
@@ -8,10 +11,15 @@ Covers ``product_intelligence.execution.semantic_decision_persistence``:
 * the whole-artifact tamper anchor (the row's separate digest column)
   catches DB-level payload mutation;
 * replay through the service with full binding verification against the
-  run's persisted evidence (request identity + snapshot assessment
-  binding);
+  run's persisted evidence (universal binding + the adapter-specific
+  recorded request identity + snapshot assessment binding);
 * absence semantics (legacy runs: load returns None — nothing is
   fabricated);
+* S2-B-FU1: the service owns no semantic-contract assumption — the row's
+  envelope version axis is independent of the recorded semantic contract
+  axis, storage durably identifies unknown contracts while interpretation
+  fails closed at the explicit adapter dispatch, and the service module
+  names no V1 route/contract literals;
 * ZERO live AI / provider / network work across persist + load + replay;
 * S2-B no-wiring: the CURRENT V1 semantic execution path creates and
   reads ZERO records; the service owns no authority derivation logic.
@@ -40,7 +48,7 @@ from product_intelligence.research import (
     ProductEvidenceProfileV2,
     CandidateProductEvidenceSource,
     RelationshipRequirement,
-    SemanticDecisionRecord,
+    SemanticDecisionRecordV1,
     SemanticEvaluationStateV2,
     SemanticFallbackReason,
     SemanticFailureClass,
@@ -205,7 +213,7 @@ def _build_artifact(
     source_url: str = SOURCE_URL,
     target_mpn: str | None = None,
     target_description: str | None = None,
-) -> SemanticDecisionRecord:
+) -> SemanticDecisionRecordV1:
     context = derive_identity_state_v2(assessment)
     profile = profile if profile is not None else _strong_profile()
     provenances = frozenset() if provenances is None else provenances
@@ -223,7 +231,7 @@ def _build_artifact(
     tier_decision = derive_authority_tier(
         context, evaluation, provenances, profile
     )
-    return SemanticDecisionRecord.build(
+    return SemanticDecisionRecordV1.build(
         run_id=str(run.id),
         assessment_index=0,
         source_url=source_url,
@@ -526,13 +534,15 @@ class TestServiceReplay:
         from product_intelligence.research import (
             record_output_digest,
         )
-        from product_intelligence.research import SemanticDecisionRecord as _R
+        from product_intelligence.research import SemanticDecisionRecordV1 as _R
         from product_intelligence.research.semantic_decision_record import (
             _binding_section,
+            canonical_sha256,
+        )
+        from product_intelligence.research.semantic_decision_v1 import (
             _contract_section,
             _context_section,
             _product_evidence_section,
-            canonical_sha256,
         )
 
         kwargs = artifact.__dict__.copy()
@@ -700,6 +710,128 @@ class TestZeroLiveWork:
             for s in reversed(sentinels):
                 s.stop()
         assert replay.authority_decision.tier is AuthorityTier.AI_ASSISTED_COMPARABLE
+
+
+# ===========================================================================
+# S2-B-FU1: the universal service owns no semantic-contract assumption
+# ===========================================================================
+
+
+class TestUniversalServiceDecoupling:
+    def test_service_module_owns_no_v1_route_or_contract_literals(self) -> None:
+        """S2-B-FU1 proof: the universal persistence service names no V1
+        provider/model route token and no quoted V1 contract/prompt
+        literal — it dispatches through the registered adapter registry."""
+        import product_intelligence.execution.semantic_decision_persistence as svc
+        from pathlib import Path
+
+        source = Path(svc.__file__).read_text(encoding="utf-8")
+        for token in ("amax", "qwen3.8-27b", "vllm-262k", "Qwen3.6-27B-262K"):
+            assert token not in source, f"service owns the V1 route token {token!r}"
+        assert '"V1"' not in source, "service hardcodes the V1 contract literal"
+        assert '"1.1"' not in source, "service hardcodes the V1 prompt literal"
+        # And it actually dispatches through the registry (not a
+        # hardcoded V1 isinstance).
+        import ast
+
+        tree = ast.parse(source)
+        imported_names = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom):
+                imported_names.update(alias.name for alias in node.names)
+        assert "adapter_for_record" in imported_names, (
+            "the service must dispatch through the registered adapter "
+            "registry (explicit version-specific support)"
+        )
+
+    def test_row_envelope_version_is_independent_of_recorded_semantic_contract(
+        self,
+    ) -> None:
+        """S2-B-FU1 proof: the row's ``schema_version`` (the envelope
+        format version) and the payload's recorded semantic contract
+        version are distinct axes of the same row."""
+        from product_intelligence.research import (
+            SEMANTIC_DECISION_SCHEMA_VERSION,
+            encode_semantic_decision_record,
+        )
+
+        run, assessment = _make_run_and_snapshot()
+        artifact = _build_artifact(
+            run, assessment,
+            decision=V2SemanticDecision.MATCH, confidence=V2Confidence.HIGH,
+        )
+        row = persist_semantic_decision(run, artifact)
+        # Envelope axis: the row/payload format version (int).
+        assert row.schema_version == SEMANTIC_DECISION_SCHEMA_VERSION
+        assert row.payload["schema_version"] == SEMANTIC_DECISION_SCHEMA_VERSION
+        # Semantic-contract axis: the recorded contract identity (str).
+        assert row.payload["contract"]["semantic_contract_version"] == "V1"
+        # The two axes are independent values/kinds: neither encodes the
+        # other, and the envelope version does not move when the semantic
+        # contract version moves (and vice versa).
+        assert isinstance(row.schema_version, int)
+        assert isinstance(row.payload["contract"]["semantic_contract_version"], str)
+
+    def test_storage_carries_unknown_semantic_contract_but_interpretation_fails_closed(
+        self,
+    ) -> None:
+        """S2-B-FU1 proof (the key distinction): the universal STORAGE
+        layer can durably identify a semantic contract this code cannot
+        interpret — a row whose payload names an unregistered semantic
+        contract with a CONSISTENT digest anchor stores fine — but
+        INTERPRETATION (load/replay) fails closed at the explicit adapter
+        dispatch. Never best-effort decoded, never reinterpreted."""
+        from product_intelligence.research import (
+            SemanticDecisionCodecError,
+            canonical_payload_digest,
+            encode_semantic_decision_record,
+        )
+
+        run, assessment = _make_run_and_snapshot()
+        artifact = _build_artifact(
+            run, assessment,
+            decision=V2SemanticDecision.MATCH, confidence=V2Confidence.HIGH,
+        )
+        row = persist_semantic_decision(run, artifact)
+        # Build a payload that identifes a future semantic contract
+        # (the body stays V1-shaped on purpose — the point is that the
+        # storage layer does not need to know, and the interpretation
+        # layer must refuse BEFORE any V1-shape assumption matters).
+        payload = encode_semantic_decision_record(artifact)
+        payload["contract"]["semantic_contract_version"] = "V2"
+        # Keep the whole-artifact digest anchor consistent (a legitimate
+        # future writer would store its own digest).
+        new_digest = canonical_payload_digest(payload)
+        SemanticDecisionRecordRow.objects.filter(pk=row.pk).update(
+            payload=payload, payload_digest=new_digest
+        )
+        row.refresh_from_db()
+        # Storage: the row durably identifies the unknown contract.
+        assert row.payload["contract"]["semantic_contract_version"] == "V2"
+        # Interpretation: fails closed with the registered-adapter error,
+        # not a tamper error (the digest anchor is consistent) and not a
+        # V1-shape error (dispatch precedes adapter decoding).
+        with pytest.raises(SemanticDecisionCodecError, match="no registered"):
+            load_semantic_decision(run.id, 0)
+        with pytest.raises(SemanticDecisionCodecError, match="no registered"):
+            replay_semantic_decision_record(run.id, 0)
+
+    def test_unsupported_row_envelope_version_fails_closed(self) -> None:
+        run, assessment = _make_run_and_snapshot()
+        artifact = _build_artifact(
+            run, assessment,
+            decision=V2SemanticDecision.MATCH, confidence=V2Confidence.HIGH,
+        )
+        row = persist_semantic_decision(run, artifact)
+        # A future ENVELOPE format (the row's axis, independent of the
+        # semantic contract axis) has no registered adapter.
+        SemanticDecisionRecordRow.objects.filter(pk=row.pk).update(
+            schema_version=2
+        )
+        with pytest.raises(
+            SemanticDecisionCodecError, match="unsupported schema_version"
+        ):
+            load_semantic_decision(run.id, 0)
 
 
 # ===========================================================================
