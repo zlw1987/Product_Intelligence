@@ -19,8 +19,10 @@ semantic-decision envelope. It owns:
   version (the dispatch key);
 * the no-float discipline for every persisted payload;
 * the adapter REGISTRY — the explicit version-adapter extension point:
-  ``_REGISTERED_SEMANTIC_CONTRACT_ADAPTERS`` currently names exactly one
-  adapter (the Semantic V1 adapter, ``research/semantic_decision_v1.py``).
+  ``_REGISTERED_SEMANTIC_CONTRACT_ADAPTERS`` currently names exactly two
+  adapters (the Semantic V1 adapter, ``research/semantic_decision_v1.py``,
+  and the final Semantic V2 adapter, ``research/semantic_decision_v2.py``
+  — registered in S2-C through this same explicit extension point).
   Decoding dispatches on the RECORDED (envelope schema version, semantic
   contract version) pair to the registered adapter; unknown or future
   semantic contracts fail closed with an explicit "no registered adapter"
@@ -83,6 +85,9 @@ from product_intelligence.research.semantic_decision_record import (
 from product_intelligence.research.semantic_decision_v1 import (
     SEMANTIC_V1_ADAPTER,
 )
+from product_intelligence.research.semantic_decision_v2 import (
+    SEMANTIC_V2_ADAPTER,
+)
 
 __all__ = [
     "SEMANTIC_DECISION_SCHEMA_VERSION",
@@ -120,15 +125,21 @@ other axis.
 
 
 #: The registered version-specific semantic contract adapters, in
-#: registration order. Currently exactly one: the Semantic V1 adapter
-#: (envelope schema version 1, semantic contract V1). Registering a future
-#: semantic contract is a matter of adding its adapter here — the envelope,
-#: the row, the migration, and the service do not change. Frozen tuple of
-#: frozen adapter instances: no mutable global state.
+#: registration order. Currently exactly two: the Semantic V1 adapter
+#: (envelope schema version 1, semantic contract V1 — the frozen FU3A
+#: production semantic contract) and the final Semantic V2 adapter
+#: (envelope schema version 1, semantic contract V2 — the S2-C final V2
+#: contract, registered through the same explicit extension point: the
+#: envelope, the row, the migration, and the service did not change).
+#: Registering a future semantic contract is a matter of adding its
+#: adapter here — the envelope, the row, the migration, and the service
+#: do not change. Frozen tuple of frozen adapter instances: no mutable
+#: global state.
 _REGISTERED_SEMANTIC_CONTRACT_ADAPTERS: Final[
     tuple[SemanticDecisionContractAdapter, ...]
 ] = (
     SEMANTIC_V1_ADAPTER,
+    SEMANTIC_V2_ADAPTER,
 )
 
 

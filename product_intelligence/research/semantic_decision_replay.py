@@ -67,11 +67,12 @@ __all__ = [
 
 #: The exact (semantic contract, prompt, input schema, output schema,
 #: authority contract) bindings this code can safely replay: the union of
-#: the registered adapters' supported bindings. Currently one entry — the
-#: frozen V1 semantic contract (prompt v1.1) under the S2-A authority
-#: contract as frozen through S2-A-FU2, via the Semantic V1 adapter. A
-#: future binding is a future registered adapter — never an implicit
-#: reinterpretation.
+#: the registered adapters' supported bindings. Currently two entries —
+#: the frozen V1 semantic contract (prompt v1.1) via the Semantic V1
+#: adapter, and the final V2 semantic contract (prompt 2.0) via the
+#: Semantic V2 adapter; both under the S2-A authority contract as frozen
+#: through S2-A-FU2. A future binding is a future registered adapter —
+#: never an implicit reinterpretation.
 SUPPORTED_CONTRACT_BINDINGS: Final[
     tuple[tuple[str, str, int, int, str], ...]
 ] = supported_contract_bindings()

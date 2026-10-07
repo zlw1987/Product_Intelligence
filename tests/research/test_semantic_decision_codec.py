@@ -526,13 +526,15 @@ class TestEnvelopeIndependence:
             payload["contract"]["semantic_contract_version"], str
         )
         # Both axes fail closed on their OWN unsupported values, with
-        # distinct errors.
+        # distinct errors. (S2-C: "V2" is now a REGISTERED semantic
+        # contract, so the unregistered-contract axis is proven with an
+        # actually unknown key — same property, exact expectation.)
         with pytest.raises(
             SemanticDecisionCodecError, match="unsupported schema_version"
         ):
             _decode(payload, version=2)  # envelope axis
         future = json.loads(json.dumps(payload))
-        future["contract"]["semantic_contract_version"] = "V2"
+        future["contract"]["semantic_contract_version"] = "V9"
         with pytest.raises(
             SemanticDecisionCodecError, match="unsupported semantic contract version"
         ):
@@ -543,8 +545,10 @@ class TestEnvelopeIndependence:
         # contract this code has no registered adapter for is durably
         # IDENTIFIED (the envelope framing validates) but REFUSED at the
         # explicit adapter dispatch — never best-effort decoded as V1,
-        # never reinterpreted.
-        for key in ("V2", "V9", "SEMANTIC_FUTURE"):
+        # never reinterpreted. (S2-C: "V2" is now REGISTERED — the
+        # final V2 contract — so the unknown-contract property is proven
+        # with actually unregistered keys.)
+        for key in ("V9", "SEMANTIC_FUTURE"):
             payload = _payload_of(_match_record())
             payload["contract"]["semantic_contract_version"] = key
             with pytest.raises(
@@ -557,6 +561,8 @@ class TestEnvelopeIndependence:
         # shape/contract-value validation: even a payload whose body is
         # deliberately NOT V1-shaped fails with the registered-adapter
         # error (the universal layer does not assume V1 shapes).
+        # (S2-C: proven with an actually unregistered key — "V2" is now
+        # the registered final V2 contract.)
         payload = {
             "schema_version": SEMANTIC_DECISION_SCHEMA_VERSION,
             "binding": {
@@ -564,12 +570,12 @@ class TestEnvelopeIndependence:
                 "assessment_index": 0,
                 "source_url": SOURCE_URL,
             },
-            "contract": {"semantic_contract_version": "V2"},
+            "contract": {"semantic_contract_version": "V9"},
             "body": "whatever the future contract owns",
         }
         with pytest.raises(
             SemanticDecisionCodecError,
-            match="unsupported semantic contract version 'V2'",
+            match="unsupported semantic contract version 'V9'",
         ):
             _decode(payload)
 
@@ -614,23 +620,31 @@ class TestEnvelopeIndependence:
     def test_registry_lookup_is_explicit_and_fail_closed(self) -> None:
         from product_intelligence.research import (
             SEMANTIC_V1_ADAPTER,
+            SEMANTIC_V2_ADAPTER,
             registered_envelope_schema_versions,
             registered_semantic_contract_adapter,
             supported_contract_bindings,
         )
 
-        # The one registered adapter: envelope v1 x semantic contract V1.
+        # The two registered adapters (S2-C): envelope v1 x semantic
+        # contract V1 and envelope v1 x semantic contract V2 — both on
+        # the same universal envelope format.
         assert (
             registered_semantic_contract_adapter(1, "V1")
             is SEMANTIC_V1_ADAPTER
         )
-        assert registered_semantic_contract_adapter(1, "V2") is None
+        assert (
+            registered_semantic_contract_adapter(1, "V2")
+            is SEMANTIC_V2_ADAPTER
+        )
         assert registered_semantic_contract_adapter(2, "V1") is None
+        assert registered_semantic_contract_adapter(2, "V2") is None
         assert registered_envelope_schema_versions() == (1,)
         # The supported bindings are exactly the registered adapters'
         # bindings — the explicit extension point, no implicit versions.
         assert supported_contract_bindings() == (
             ("V1", "1.1", 1, 1, "SEMANTIC_AUTHORITY_V2_S2A_FU2"),
+            ("V2", "2.0", 1, 1, "SEMANTIC_AUTHORITY_V2_S2A_FU2"),
         )
         # Wrong argument types are a caller defect (fail closed).
         with pytest.raises(TypeError):

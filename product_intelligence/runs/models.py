@@ -854,8 +854,10 @@ class SemanticDecisionRecord(models.Model):
     identifies its semantic contract version (the payload's ``contract``
     section) and carries the version-owned artifact of that contract
     (currently the Semantic V1 record ``SemanticDecisionRecordV1`` of
-    ``research/semantic_decision_v1.py``, registered as the first version-
-    specific contract adapter) together with the universal binding and the
+    ``research/semantic_decision_v1.py`` — registered as the first
+    version-specific contract adapter — and the Semantic V2 record
+    ``SemanticDecisionRecordV2`` of ``research/semantic_decision_v2.py``,
+    registered as the second in S2-C) together with the universal binding and the
     integrity sections. The payload's version axes are INDEPENDENT: the
     ``schema_version`` column (the envelope format version, gated by
     ``research/semantic_decision_codec.py``) is NOT the semantic contract

@@ -793,12 +793,15 @@ class TestUniversalServiceDecoupling:
             decision=V2SemanticDecision.MATCH, confidence=V2Confidence.HIGH,
         )
         row = persist_semantic_decision(run, artifact)
-        # Build a payload that identifes a future semantic contract
+        # Build a payload that identifies a FUTURE semantic contract
         # (the body stays V1-shaped on purpose — the point is that the
         # storage layer does not need to know, and the interpretation
         # layer must refuse BEFORE any V1-shape assumption matters).
+        # S2-C: "V2" is now a REGISTERED final contract, so the
+        # unknown-contract property is proven with an actually
+        # unregistered key — same storage/interpretation distinction.
         payload = encode_semantic_decision_record(artifact)
-        payload["contract"]["semantic_contract_version"] = "V2"
+        payload["contract"]["semantic_contract_version"] = "V9"
         # Keep the whole-artifact digest anchor consistent (a legitimate
         # future writer would store its own digest).
         new_digest = canonical_payload_digest(payload)
@@ -807,7 +810,7 @@ class TestUniversalServiceDecoupling:
         )
         row.refresh_from_db()
         # Storage: the row durably identifies the unknown contract.
-        assert row.payload["contract"]["semantic_contract_version"] == "V2"
+        assert row.payload["contract"]["semantic_contract_version"] == "V9"
         # Interpretation: fails closed with the registered-adapter error,
         # not a tamper error (the digest anchor is consistent) and not a
         # V1-shape error (dispatch precedes adapter decoding).
@@ -815,6 +818,136 @@ class TestUniversalServiceDecoupling:
             load_semantic_decision(run.id, 0)
         with pytest.raises(SemanticDecisionCodecError, match="no registered"):
             replay_semantic_decision_record(run.id, 0)
+
+    def test_cross_contract_reinterpretation_is_refused(
+        self,
+    ) -> None:
+        """S2-C: a V1-SHAPED body stored under the registered V2 contract
+        name is durably identifiable (storage does not need to know the
+        body) but interpretation fails closed at the V2 adapter's strict
+        decode — never best-effort decoded as V1, never reinterpreted
+        under a different contract (and vice versa: a V2-shaped body
+        under the V1 name is refused by the V1 adapter)."""
+        from product_intelligence.research import (
+            SemanticDecisionRecordV2,
+            canonical_payload_digest,
+            encode_semantic_decision_record,
+            encode_v2_payload,
+        )
+        from product_intelligence.research.semantic_v2 import (
+            SemanticAttributeDimensionV2,
+            SemanticReasonCodeV2,
+            build_semantic_match_case_v2,
+            build_v2_product_evidence_profile,
+        )
+
+        run, assessment = _make_run_and_snapshot()
+        context = derive_identity_state_v2(assessment)
+        profile = build_v2_product_evidence_profile(
+            observation=assessment.normalized_listing.observation,
+            context_provenances=frozenset(),
+            matched_facts=frozenset(),
+        )
+        case = build_semantic_match_case_v2(
+            case_id="candidate-test-0",
+            request=REQUEST,
+            assessment=assessment,
+            context=context,
+            product_evidence=profile,
+            context_provenances=frozenset(),
+        )
+        from product_intelligence.research import (
+            AttemptOutcome,
+            AttemptRole,
+            SemanticDecisionAttempt,
+        )
+        record_v2 = SemanticDecisionRecordV2.build(
+            run_id=str(run.id),
+            assessment_index=0,
+            source_url=SOURCE_URL,
+            case=case,
+            evaluation_state=SemanticEvaluationStateV2.EVALUATED,
+            decision=V2SemanticDecision.UNCERTAIN,
+            confidence=V2Confidence.MEDIUM,
+            reason_code=SemanticReasonCodeV2.UNCERTAIN_IDENTIFIER_RELATION,
+            conflict_classes=frozenset(),
+            matched_attributes=(),
+            conflicting_attributes=(),
+            missing_critical_attributes=(
+                SemanticAttributeDimensionV2.REVISION_OR_SUFFIX,
+            ),
+            attempts=(
+                SemanticDecisionAttempt(
+                    AttemptRole.PRIMARY,
+                    1,
+                    "amax",
+                    "qwen3.8-27b",
+                    AttemptOutcome.OK,
+                ),
+            ),
+            fallback_used=False,
+            fallback_reason=None,
+            error_type=None,
+            actual_provider="amax",
+            actual_model="qwen3.8-27b",
+            evaluation_started_at="2026-02-10T12:00:00Z",
+            evaluation_finished_at="2026-02-10T12:00:03Z",
+            product_evidence_quality=derive_product_evidence_quality(
+                profile, frozenset()
+            ),
+            relationship_authority=derive_relationship_authority(
+                context, frozenset()
+            ),
+            authority_tier=derive_authority_tier(
+                context,
+                SemanticEvaluationV2.evaluated(
+                    V2SemanticDecision.UNCERTAIN,
+                    V2Confidence.MEDIUM,
+                    frozenset(),
+                ),
+                frozenset(),
+                profile,
+            ).tier,
+            fired_rules=derive_authority_tier(
+                context,
+                SemanticEvaluationV2.evaluated(
+                    V2SemanticDecision.UNCERTAIN,
+                    V2Confidence.MEDIUM,
+                    frozenset(),
+                ),
+                frozenset(),
+                profile,
+            ).fired_rules,
+        )
+        payload_v2 = encode_v2_payload(record_v2)
+        digest_v2 = canonical_payload_digest(payload_v2)
+        row = SemanticDecisionRecordRow.objects.create(
+            run=run,
+            assessment_index=0,
+            schema_version=1,
+            payload=payload_v2,
+            payload_digest=digest_v2,
+        )
+        # The V2 record loads and replays under its own registered
+        # contract (control).
+        loaded = load_semantic_decision(run.id, 0)
+        assert isinstance(loaded, SemanticDecisionRecordV2)
+
+        # Now store a V1-SHAPED body under the V2 contract name: storage
+        # is fine, interpretation must fail closed (V2 shape error —
+        # NOT a V1 decode, NOT a tamper error).
+        artifact = _build_artifact(
+            run, assessment,
+            decision=V2SemanticDecision.MATCH, confidence=V2Confidence.HIGH,
+        )
+        payload_v1_as_v2 = encode_semantic_decision_record(artifact)
+        payload_v1_as_v2["contract"]["semantic_contract_version"] = "V2"
+        SemanticDecisionRecordRow.objects.filter(pk=row.pk).update(
+            payload=payload_v1_as_v2,
+            payload_digest=canonical_payload_digest(payload_v1_as_v2),
+        )
+        with pytest.raises(SemanticDecisionCodecError):
+            load_semantic_decision(run.id, 0)
 
     def test_unsupported_row_envelope_version_fails_closed(self) -> None:
         run, assessment = _make_run_and_snapshot()
@@ -937,14 +1070,27 @@ class TestNoLiveWiring:
     def test_only_the_service_module_references_the_ledger_in_execution(
         self,
     ) -> None:
-        """Source-level no-wiring: no execution module other than the S2-B
-        service references the semantic-decision persistence surface."""
+        """Source-level wiring discipline (S2-B no-wiring, S2-C updated
+        scope): no execution module other than the S2-B service and the
+        S2-C V2 execution wiring references the semantic-decision
+        persistence surface or the ledger row model. The S2-B no-wiring
+        property for the V1 path remains: the V1 integration module
+        itself still references nothing ledger-shaped (its behavior is
+        proven by the two adjacent nodes). The node name keeps the S2-B
+        provenance; the exact-reference allowlist is what is enforced."""
         import product_intelligence.execution
         from pathlib import Path
 
         root = Path(product_intelligence.execution.__file__).parent
+        # The exact allowlist: the universal service (the single owner of
+        # the ledger write path) and the S2-C V2 live execution wiring
+        # (the only module that persists V2 records from the live path).
+        ALLOWED = {
+            "semantic_decision_persistence.py",
+            "semantic_decision_v2_execution.py",
+        }
         for path in sorted(root.rglob("*.py")):
-            if path.name == "semantic_decision_persistence.py":
+            if path.name in ALLOWED:
                 continue
             source = path.read_text(encoding="utf-8")
             assert "semantic_decision_persistence" not in source, path.name

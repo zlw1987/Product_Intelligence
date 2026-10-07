@@ -26,6 +26,22 @@ Dependency direction::
 No production semantic source imports ``product_intelligence.evaluation`` at
 all. This runtime is the ONLY way production calls a semantic model. Callers
 never touch transport details directly.
+
+PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-S2-C added the FINAL Semantic V2
+contract surface alongside the frozen V1 contract (V1 is unchanged):
+
+* ``semantic.contract_v2`` — the final Prompt V2 (``2.0``): the frozen
+  system prompt (commercial semantic equivalence task; the explicit
+  NOT-asked-to rules; the identifier / provenance / sales-unit / conflict-
+  class rules), the deterministic user-prompt renderer over the exact
+  ``SemanticMatchCaseV2`` input, and ``build_semantic_prompt_v2``;
+* ``semantic.runtime_v2`` — the V2 runtime on the V2 pinned route (the
+  currently frozen qualified route identities, carried as V2 contract
+  data): primary once, fallback on EXECUTION FAILURE only, model identity
+  verification, strict structured V2 output parsing, bounded provenance,
+  and the explicit ``V2_AUTHORITY_QUALIFIED = False`` qualification-
+  boundary marker (the V2 route is NOT qualified for the new contract;
+  Qualification V3 comes after S2-C).
 """
 
 from product_intelligence.semantic.contract import (
@@ -38,6 +54,13 @@ from product_intelligence.semantic.contract import (
     build_prompt,
     parse_raw_output,
     validate_response,
+)
+from product_intelligence.semantic.contract_v2 import (
+    SEMANTIC_PROMPT_VERSION_V2,
+    SYSTEM_PROMPT_V2,
+    SemanticPromptV2,
+    build_semantic_prompt_v2,
+    render_v2_user_prompt,
 )
 from product_intelligence.semantic.runtime import (
     FALLBACK_MODEL,
@@ -59,6 +82,21 @@ from product_intelligence.semantic.runtime import (
     get_default_runtime,
     reset_default_runtime,
     validate_runtime_config,
+)
+from product_intelligence.semantic.runtime_v2 import (
+    FALLBACK_MODEL_V2,
+    FALLBACK_PROVIDER_V2,
+    PRIMARY_MODEL_V2,
+    PRIMARY_PROVIDER_V2,
+    SEMANTIC_MAX_TOKENS_V2,
+    SEMANTIC_TEMPERATURE_V2,
+    V2_AUTHORITY_QUALIFIED,
+    SemanticRuntimeConfigV2,
+    SemanticRuntimeResultV2,
+    SemanticRuntimeV2,
+    get_default_runtime_v2,
+    reset_default_runtime_v2,
+    validate_runtime_config_v2,
 )
 
 __all__ = [
@@ -93,4 +131,25 @@ __all__ = [
     "validate_runtime_config",
     "get_default_runtime",
     "reset_default_runtime",
+    # Final Semantic V2 contract (S2-C): Prompt V2 + V2 runtime on the V2
+    # pinned route (currently frozen qualified route identities; NOT
+    # qualified for the new contract — V2_AUTHORITY_QUALIFIED is False).
+    "SEMANTIC_PROMPT_VERSION_V2",
+    "SYSTEM_PROMPT_V2",
+    "SemanticPromptV2",
+    "build_semantic_prompt_v2",
+    "render_v2_user_prompt",
+    "PRIMARY_PROVIDER_V2",
+    "PRIMARY_MODEL_V2",
+    "FALLBACK_PROVIDER_V2",
+    "FALLBACK_MODEL_V2",
+    "SEMANTIC_TEMPERATURE_V2",
+    "SEMANTIC_MAX_TOKENS_V2",
+    "V2_AUTHORITY_QUALIFIED",
+    "SemanticRuntimeV2",
+    "SemanticRuntimeConfigV2",
+    "SemanticRuntimeResultV2",
+    "validate_runtime_config_v2",
+    "get_default_runtime_v2",
+    "reset_default_runtime_v2",
 ]

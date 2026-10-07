@@ -509,8 +509,14 @@ class TestDerivedAgreementProof:
 
 class TestContractBindingGate:
     def test_supported_bindings_are_exactly_the_frozen_v1_tuple(self) -> None:
+        # S2-C: the universal gate's safe-replay envelope is now exactly
+        # the two registered final contracts — the frozen V1 semantic
+        # contract and the final V2 semantic contract — in registration
+        # order. Both derive under the S2-A authority contract as frozen
+        # through S2-A-FU2; any other binding is still refused.
         assert SUPPORTED_CONTRACT_BINDINGS == (
             ("V1", "1.1", 1, 1, "SEMANTIC_AUTHORITY_V2_S2A_FU2"),
+            ("V2", "2.0", 1, 1, "SEMANTIC_AUTHORITY_V2_S2A_FU2"),
         )
 
     def test_gate_fires_for_unknown_binding(self, monkeypatch) -> None:
@@ -652,12 +658,12 @@ class TestReplayDispatch:
     def test_supported_bindings_are_the_registry_union(self) -> None:
         # The universal gate's binding table is exactly the union of the
         # registered adapters' supported bindings (no drift between the
-        # codec registry and the replay gate; currently the single V1
-        # binding).
+        # codec registry and the replay gate; S2-C: the V1 + V2
+        # bindings, in registration order).
         from product_intelligence.research import supported_contract_bindings
 
         assert SUPPORTED_CONTRACT_BINDINGS == supported_contract_bindings()
-        assert len(SUPPORTED_CONTRACT_BINDINGS) == 1
+        assert len(SUPPORTED_CONTRACT_BINDINGS) == 2
 
 
 # ===========================================================================

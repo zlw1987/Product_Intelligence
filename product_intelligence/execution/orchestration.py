@@ -44,6 +44,11 @@ from product_intelligence.execution.semantic_integration import (
     AiAssistedMatchResult,
     evaluate_semantic_matches,
 )
+from product_intelligence.execution.semantic_decision_v2_execution import (
+    build_semantic_decision_records_v2,
+    evaluate_semantic_matches_v2,
+    persist_semantic_decision_records_v2,
+)
 from product_intelligence.execution.deduplication import CandidateDeduplicator
 from product_intelligence.execution.evidence_writer import ExecutionEvidenceWriter
 from product_intelligence.execution import matching as _matching
@@ -62,6 +67,7 @@ from product_intelligence.providers.page import PageFetcher, PageFetchRequest, U
 from product_intelligence.providers.search import SearchProvider
 from product_intelligence.research.aggregation import PriceAggregationResult, aggregate_listing_prices
 from product_intelligence.research.identity import compare_part_numbers
+from product_intelligence.research import ContextProvenance
 from product_intelligence.research.micron_alias_codec import encode_micron_alias_snapshot
 from product_intelligence.research.micron_packaging_alias import (
     MicronAliasEligibilityResult,
@@ -125,11 +131,22 @@ class ExecutionResult:
     verification_status: object | None
     price_buckets: int
     ai_assisted_matches: tuple["AiAssistedMatchResult", ...] = ()
+    # S2-C: the built SemanticDecisionRecordV2 artifacts (one per V2-
+    # eligible candidate) held until the atomic final publication, which
+    # persists them to the semantic-decision ledger. Zero authority: they
+    # are never fed to 4A, to review candidates, or to any price output.
+    v2_semantic_records: tuple = ()
 
     @property
     def ai_assisted_match_count(self) -> int:
         """Number of AI-assisted matches (derived, never stored independently)."""
         return len(self.ai_assisted_matches)
+
+    @property
+    def v2_semantic_record_count(self) -> int:
+        """Number of V2 semantic-decision records built for this run
+        (derived; the persisted ledger count is the authority)."""
+        return len(self.v2_semantic_records)
 
 
 class ExecutionError(Exception):
@@ -438,6 +455,54 @@ def _execute_claimed_run(
         )
         raise ExecutionError(f"Aggregation failed: {exc}") from exc
 
+    # ---------------------------------------------------------------
+    # Step 4b: S2-C — FINAL Semantic V2 execution (evidence/provenance
+    # ONLY; zero new production authority).
+    #
+    # Every V2-eligible candidate (the frozen S2-A
+    # DETERMINISTIC_UNCERTAIN states: U1 / U2 / U3 / U4 / U5) receives
+    # exactly one
+    # V2 semantic evaluation on the V2 pinned route (the currently
+    # frozen qualified route identities; fallback on execution failure
+    # only) and one SemanticDecisionRecordV2 is built for its outcome
+    # (ALL outcomes: MATCH / NO_MATCH / UNCERTAIN / RUNTIME_FAILURE).
+    #
+    # Authority firewall (binding until Qualification V3):
+    # * V2 outcomes are NOT in semantic_input (the V1 path and its
+    #   review-candidate creation are untouched) and NOT in
+    #   total_assessments (4A aggregation input is unchanged);
+    # * the records persist in the atomic publication block ONLY —
+    #   they never alter Machine Price, Reviewed Price, the price
+    #   summary, or any UI authority presentation;
+    # * no V2 human-review candidate is created (persist V2 result
+    #   only; V2 review/UI wiring is a later, post-qualification
+    #   phase).
+    #
+    # Context provenance: the 4D-D alias-expanded paid search is the
+    # only wired customer-retrieval-relation source — its search-batch
+    # candidates carry CUSTOMER_RETRIEVAL_RELATION (retrieval hint
+    # only, zero identity authority). The 4D-D firewall above
+    # partitions the V1 authority path; V2 is persist-only, so the
+    # motivating alias-retrieved near misses REACH the V2 semantic
+    # layer (that is the point of the V2 entry point).
+    v2_provenances_by_assessment: dict = {}
+    if alias_expanded:
+        _customer_retrieval = frozenset(
+            {ContextProvenance.CUSTOMER_RETRIEVAL_RELATION}
+        )
+        for _assessment in search_batch_assessments:
+            v2_provenances_by_assessment[_assessment] = _customer_retrieval
+    v2_outcomes = evaluate_semantic_matches_v2(
+        request,
+        total_assessments,
+        context_provenances_by_assessment=v2_provenances_by_assessment,
+    )
+    v2_records = build_semantic_decision_records_v2(
+        claimed_run,
+        aggregation_result.assessments,
+        v2_outcomes,
+    )
+
     # Compute statistics
     accepted_count = sum(
         1 for a in total_assessments if a.decision.name == "ACCEPTED"
@@ -455,6 +520,7 @@ def _execute_claimed_run(
         verification_status=verification_status,
         price_buckets=price_buckets,
         ai_assisted_matches=ai_assisted_results,
+        v2_semantic_records=v2_records,
     )
 
 
@@ -634,6 +700,13 @@ def execute_research_run(
                 ai_assisted_matches=exec_result.ai_assisted_matches,
             )
 
+            # S2-C: persist ALL V2 semantic outcomes to the semantic-
+            # decision ledger (append-only; evidence/provenance only —
+            # the records alter no price, no tier, and no review state).
+            persist_semantic_decision_records_v2(
+                claimed_run, exec_result.v2_semantic_records,
+            )
+
             # 4D-B: Persist supplemental snapshot if vendor lookup was attempted
             if supplement_payload is not None:
                 ResearchSupplementSnapshot.objects.create(
@@ -672,6 +745,7 @@ def execute_research_run(
             verification_status=exec_result.verification_status,
             price_buckets=exec_result.price_buckets,
             ai_assisted_matches=exec_result.ai_assisted_matches,
+            v2_semantic_records=exec_result.v2_semantic_records,
         )
 
     except ExecutionError:

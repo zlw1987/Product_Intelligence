@@ -778,10 +778,13 @@ class TestV1RecordIsVersionSpecific:
             is SEMANTIC_V1_ADAPTER
         )
         # No adapter is registered for an unknown/future semantic contract
-        # (the extension point is explicit, not open).
-        assert registered_semantic_contract_adapter(1, "V2") is None
+        # (the extension point is explicit, not open). S2-C: "V2" is now
+        # the registered FINAL V2 contract (the second adapter); the
+        # unknown-contract property is proven with actually unregistered
+        # pairs.
         assert registered_semantic_contract_adapter(1, "V9") is None
         assert registered_semantic_contract_adapter(2, "V1") is None
+        assert registered_semantic_contract_adapter(2, "V2") is None
 
     def test_v1_record_carries_the_universal_envelope_binding(self) -> None:
         # The binding section is the universal envelope addressing (run

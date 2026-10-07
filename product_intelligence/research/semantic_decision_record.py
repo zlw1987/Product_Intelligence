@@ -34,8 +34,9 @@ The envelope's version axes are INDEPENDENT of one another:
 
 The opaque payload explicitly identifies its semantic contract version in
 its ``contract`` section; the universal codec dispatches interpretation to a
-REGISTERED version-specific contract adapter (currently exactly one: the
-Semantic V1 adapter, ``research/semantic_decision_v1.py``). A future
+REGISTERED version-specific contract adapter (currently exactly two: the
+Semantic V1 adapter, ``research/semantic_decision_v1.py``, and the final
+Semantic V2 adapter, ``research/semantic_decision_v2.py``). A future
 semantic contract registers a future adapter; this module, the codec, the
 replay dispatch, the runs model, and the migration own NO assumption that
 any particular semantic contract version, prompt version, or provider/model

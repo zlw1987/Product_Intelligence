@@ -2,6 +2,258 @@
 
 ## Current state
 
+**PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-S2-C (Semantic Authority V2 —
+Final Semantic V2 Contract + Eligibility + Execution Wiring) —
+IMPLEMENTED / PENDING FINAL REVIEW**
+
+Bounded FINAL-CONTRACT + WIRING phase on the authoritative starting SHA
+`c6caa23c024e48962191a0c856230b684fb21c3c` (S2-B-FU1, PENDING FINAL
+REVIEW; baseline collection 6270). Canonical spec: PLAN §26.26; decision
+record: AD-070. S2-C adds the FIRST FINAL Semantic V2 contract adapter
+and wires V2 semantic execution into the comparable-research execution
+flow for V2-eligible candidates. S2-C does NOT declare the V2 route
+QUALIFIED for the new contract (explicit marker `V2_AUTHORITY_QUALIFIED
+= False`; Qualification V3 comes after S2-C review/freeze) and gives V2
+outputs ZERO production authority: no Machine Price, no canonical 4A
+bucket, no Reviewed Price, no headline market statistics, no AI-
+Assisted Comparable pricing output, no UI authority presentation, no
+vendor authority, and no V2 human-review candidate. No migration (the
+V2 record reuses the universal envelope row via the registered second
+adapter); no deployment. After S2-C, the V1 live path is unchanged
+(its predicate, prompt, parser, route, and runtime are untouched) and
+V2 outcomes are evidence/provenance awaiting model qualification.
+
+**The final V2 contract (frozen in code).**
+
+* **Input V2** — NEW `research/semantic_v2.py`: `SemanticMatchCaseV2`,
+  a versioned immutable value object (23 required fields, no silent
+  defaults; absent candidate facts are explicit None) with five clearly
+  separated sections — TARGET (case id, requested MPN, requested
+  description); CANDIDATE LISTING (source URL, title, published MPN
+  field, published SKU, brand/condition when separately observed, the
+  reserved structured-listing-evidence section, the commercial
+  price/package context labeled NEVER identity evidence, the frozen 3C
+  evidence source); DETERMINISTIC IDENTITY CONTEXT (IdentityStateV2,
+  substate, primary signal, all bounded signals, frozen normalized
+  keys, the frozen relationship-requirement snapshot — contract-
+  derived, not caller input); CONTEXT PROVENANCE (the bounded
+  ContextProvenance classes as present — the three classes remain
+  distinct; CUSTOMER_RETRIEVAL_RELATION is retrieval-only, zero
+  identity authority); PRODUCT EVIDENCE (the authority-side
+  ProductEvidenceProfileV2 — deterministic/reviewed only). Construction
+  fails closed on a non-UNCERTAIN state, a context that disagrees with
+  the frozen re-derivation of the assessment, a requirement that
+  disagrees with the frozen table, or an unsupported profile.
+* **Eligibility V2** — `is_v2_semantic_eligible(assessment)`: the frozen
+  S2-A derived state only — DETERMINISTIC_UNCERTAIN -> eligible (U1 /
+  U2 both signals / U3 / U4 / U5 both bounded near-miss shapes);
+  VERIFIED / CONFLICT / UNEVALUABLE -> never eligible. No manufacturer
+  special case; no Levenshtein; no arbitrary substring matching; the
+  frozen V1 predicate is unchanged and remains the only V1 gate. The
+  motivating Micron-style explicit near miss (requested …YYR vs
+  candidate …YY: 3C MPN_MISMATCH, S2-A U5/NEAR_MISS_TRUNCATION) reaches
+  the V2 semantic entry point.
+* **Safe product-evidence builder** —
+  `build_v2_product_evidence_profile(observation, context_provenances,
+  matched_facts)`: STRONG is reachable only from bounded facts grounded
+  in LISTING_PRODUCT_TITLE / REVIEWED_PRODUCT_CONTEXT (the frozen
+  source vocabulary has no model-claim member and the builder
+  signature accepts no model output — the V2 model's matched_attributes
+  can never become authority facts; proven by test: a V2 MATCH/HIGH
+  with rich claimed attributes leaves the derived quality LIMITED). Fail
+  closed on ungrounded/unsupported facts. DOCUMENTED LIMITATION: the
+  current main-flow deterministic extraction proves no exact bounded
+  identity-dimension equality for listing candidates, so the live path
+  passes matched_facts=frozenset() — candidates remain at most LIMITED
+  / WEAK under the frozen S2-A bar (NEEDS_REVIEW until future evidence
+  infrastructure); nothing is fabricated; the S2-A evidence bar is not
+  weakened.
+* **Output V2** — strict structured response: decision (MATCH /
+  NO_MATCH / UNCERTAIN), confidence (HIGH/MEDIUM/LOW), a bounded 17-
+  member generic reason-code vocabulary (no manufacturer-specific
+  codes), bounded structured matched/conflicting attributes (12
+  observation dimensions incl. PACKAGING_QUANTITY / BUNDLE /
+  ACCESSORY_RELATION / BRAND / REVISION_OR_SUFFIX / CONDITION), bounded
+  missing-critical dimensions, and a structured ConflictClass set
+  validated against the frozen S2-A vocabulary. Frozen
+  REASON_CODE_RULES keep reason/conflict coherence (NO_MATCH_CAPACITY
+  requires ConflictClass.CAPACITY; NO_MATCH_MULTIPLE_CONFLICTS requires
+  ≥2 ALWAYS_HARD; MATCH/UNCERTAIN never carry an ALWAYS_HARD class;
+  NO_MATCH is always conflict-grounded). Unknown enums, missing
+  fields, extra fields (no chain-of-thought surface), malformed lists,
+  and incoherent combinations all fail closed. CONDITION stays
+  PRICE_DIMENSION_ONLY; BRAND stays REVIEWABLE; PACKAGING_QUANTITY stays
+  ALWAYS_HARD (physical-product equivalence ≠ sales-unit equivalence).
+* **Prompt V2** — NEW `semantic/contract_v2.py`: `SEMANTIC_PROMPT_
+  VERSION_V2 = "2.0"`, used unchanged by Qualification V3 unless an
+  actual defect is found first. The frozen system prompt states the
+  commercial-semantic-equivalence task; the explicit NOT-asked-to rules
+  (no price estimation, no Machine Verified decisions, no overriding
+  deterministic HARD_CONFLICT, no inferring manufacturer authority, no
+  turning customer aliases into manufacturer equivalence, no market-
+  aggregation decisions); the identifier rules (exact MPN strong but
+  not only; missing candidate MPN not automatically NO_MATCH; title MPN
+  may be compatibility/reference wording; careful SKU interpretation;
+  near-miss not automatically equivalent); the provenance rules
+  (customer retrieval = retrieval hint only; labeled manufacturer
+  relation authority = stronger evidence; product context = grounding
+  only); the sales-unit rules (different pack quantity/bundle is not
+  pricing-comparable as the same sales unit; accessory/tray/caddy/
+  enclosure is a material conflict); and "insufficient evidence ->
+  UNCERTAIN, never a guess; a false MATCH is materially worse than
+  UNCERTAIN". The user prompt deterministically renders the recorded
+  V2 input's five sections (the historical prompt is reconstructable
+  from the persisted input alone).
+* **Runtime V2** — NEW `semantic/runtime_v2.py`: the V2 pinned route
+  (amax/qwen3.8-27b PRIMARY, vllm-262k/Qwen3.6-27B-262K FALLBACK — the
+  currently frozen qualified route identities, carried as V2 CONTRACT
+  data, NOT the universal envelope; drift-pinned to the frozen FU3A
+  route), temperature 0.0 / max_tokens 32768, fallback on EXECUTION
+  FAILURE ONLY (a valid primary response at any confidence is final —
+  no voting/consensus/disagreement/low-confidence/NO_MATCH fallback),
+  model identity verification, bounded per-attempt provenance +
+  evaluation instants, strict V2 output at the boundary (malformed ->
+  MALFORMED_JSON; unknown/incoherent -> SCHEMA_INVALID), and the
+  explicit `V2_AUTHORITY_QUALIFIED = False` marker. The V1 runtime is
+  untouched.
+
+**V2 persistence adapter (second registered) + execution wiring.**
+
+* NEW `research/semantic_decision_v2.py` registered at the S2-B
+  extension point: `SemanticDecisionRecordV2` (exact binding ("V2",
+  "2.0", 1, 1, "SEMANTIC_AUTHORITY_V2_S2A_FU2"), the exact recorded V2
+  input as the case section, the strict structured output, the V2
+  route-pinned attempts, the derived audit snapshots incl. product
+  evidence quality, self-verifying digests), the strict V2 payload
+  codec (envelope schema 1 reused — no model change, no migration), the
+  V2 zero-live replay (reconstruction + S2-A re-derivation + derived-
+  agreement proof; exact-binding gate; a future V2-lineage binding is
+  refused explicitly), the V2 run-binding check (recorded case target
+  MPN/description == the run's canonical request), and
+  `SEMANTIC_V2_ADAPTER`. Cross-adapter reinterpretation fails closed in
+  both directions. The version-neutral transport-provenance value
+  objects are reused from the first registered adapter module; the V2
+  route pin and family rules are V2-adapter-owned. The universal
+  envelope, the row, migration 0012, and the service are UNCHANGED (the
+  codec registry gains the second entry; SUPPORTED_CONTRACT_BINDINGS is
+  now the V1+V2 union, computed from the registry).
+* NEW `execution/semantic_decision_v2_execution.py` + orchestration:
+  after the unchanged V1 semantic integration and 4A aggregation,
+  every V2-eligible candidate receives exactly one V2 evaluation on the
+  V2 pinned route; ALL outcomes (MATCH / NO_MATCH / UNCERTAIN /
+  RUNTIME_FAILURE / fallback success / fallback failure) persist as
+  `SemanticDecisionRecordV2` in the atomic final publication block
+  through the unchanged S2-B service. The 4D-D alias-expanded paid-
+  search batch carries CUSTOMER_RETRIEVAL_RELATION provenance in the
+  recorded V2 input (the 4D-D firewall restricts the V1 authority path
+  only — V2 is persist-only, so the motivating alias-retrieved near
+  misses reach the V2 semantic layer). V1 coexists unchanged: V1-
+  eligible candidates run BOTH the unchanged V1 evaluation (V1 MATCH
+  still creates its prompt-1.1 review candidate) and the new V2
+  evaluation; the explicit V1->V2 switch decision belongs to
+  Qualification V3. No V2 ExecutionDetailCode vocabulary, no V2
+  execution-evidence rows (the ledger is the S2-B audit surface), no V2
+  human-review candidate.
+
+**Authority firewall (binding until Qualification V3).** No production
+code path treats a V2 MATCH/HIGH as pricing-authoritative: V2 outcomes
+are not in the 4A input, not in the review-candidate input, not in the
+snapshot payload, and not in any public summary; the aggregation layer
+owns no semantic output interpretation; the persistence layer owns no
+authority logic; the V2 execution module imports no aggregation / review
+/ price codec surface (mechanically guarded); `V2_AUTHORITY_QUALIFIED
+is False` (drift-pinned in the adapter). The motivating-case test proves
+a full run with a V2 MATCH/HIGH near-miss (retrieved through the
+ESTABLISHED 4D-D alias relation, recorded as CUSTOMER_RETRIEVAL_
+RELATION with derived relationship authority NOT_ESTABLISHED and tier
+NEEDS_REVIEW) leaves Machine Price, Reviewed Price, the price summary,
+and the review queue exactly the deterministic-only values.
+
+Test preservation: no test deleted, renamed, skipped, xfailed,
+deselected, ignored, or weakened merely to obtain green. Eleven existing
+nodes whose pins encoded the S2-B-endpoint registry state ("exactly one
+registered adapter" / "V2 is an unknown contract") were corrected ONLY
+in that expectation while preserving the safety property (explicit,
+fail-closed version-adapter dispatch): `test_supported_bindings_are_
+exactly_the_frozen_v1_tuple` (now exactly the V1+V2 bindings, in
+registration order), `test_supported_bindings_are_the_registry_union`
+(len 2), `test_envelope_schema_version_and_semantic_contract_are_
+distinct_axes` / `test_unknown_semantic_contract_fails_closed_at_
+dispatch` / `test_unknown_semantic_contract_error_is_not_a_v1_shape_
+error` (the unknown-contract axis is proven with actually unregistered
+keys — "V2" is now registered), `test_registry_lookup_is_explicit_and_
+fail_closed` (1xV2 registered; 2xV1/V2 and 1xV9 unregistered),
+`test_v1_record_is_the_registered_v1_adapter_record` (unregistered
+pairs 1xV9 / 2xV1 / 2xV2), `test_registry_is_the_explicit_version_
+adapter_extension_point` (registry len 2; both adapters' envelope
+version == SEMANTIC_DECISION_SCHEMA_VERSION; fail-closed pairs minus
+1xV2), `test_storage_carries_unknown_semantic_contract_but_
+interpretation_fails_closed` (storage/interpretation property proven
+with "V9"), and `test_only_the_service_module_references_the_ledger_in_
+execution` (the exact ledger-reference allowlist gains the S2-C V2
+wiring module; the V1 path's zero-touch property is proven by the
+adjacent unchanged nodes). Why each is a requirement correction: S2-C
+mandates registering the V2 adapter at the S2-B extension point — the
+"currently one adapter" / "V2 unknown" pins encoded the pre-S2-C state,
+and every corrected node preserves (and where possible strengthens) the
+underlying safety property (interpretation requires an explicitly
+registered, exactly-bound adapter; unknown contracts fail closed; the
+ledger-reference surface stays a narrow explicit allowlist). The
+S2-B boundary MODULES guard set gains the fifth research module (the
+same eight guards apply — strengthened) and the package-export pin
+gains the V2 surface (strengthened); a new adjacent node proves cross-
+CONTRACT reinterpretation (a V1-shaped body under the registered V2
+name) is refused at the V2 adapter. New nodes: 233 across seven new
+files (contract 60, prompt 33, runtime 29, adapter 50, boundaries 32,
+execution 20, motivating case 9) + 16 auto-expanded directory scans for
+the two new research modules + 8 auto-expanded S2-B boundary guards + 1
+new cross-contract persistence node. No test file decreased.
+
+Validation (this session, candidate pass — final approval remains with
+independent review):
+
+* Collection baseline at `c6caa23`: **6270**; final: **6528** (+258 =
+  233 new-file nodes + 16 auto-expanded directory scans [domain +2,
+  providers +2, runs +2, web +2, research-core per-file +8] + 8 auto-
+  expanded S2-B boundary MODULES guards + 1 new cross-contract node; no
+  file decreased).
+* Focused new S2-C: contract **60 passed**, prompt **33 passed**,
+  runtime **29 passed**, adapter **50 passed**, boundaries **32 passed**,
+  execution wiring **20 passed**, motivating case **9 passed** (233
+  combined, 0 failed).
+* Focused S2-A: `tests/research/test_semantic_authority_v2.py` +
+  boundaries -> **157 passed, 0 failed** (unchanged).
+* Focused S2-B/FU1 (the six S2-B test files after the documented
+  in-place corrections) -> **216 passed, 0 failed**.
+* Semantic runtime / semantic integration / persistence / replay /
+  human-review / 2A / 3C / 4A focused suites: green (see full suite).
+* Full suite: **6528 passed, 0 failed**, 39 subtests passed, 0 errors,
+  0 skipped, 0 xfailed, 0 deselected (the documented fixed eleven-node
+  Windows/Python-3.14 subprocess-boundary flake class did not manifest
+  in this run; during earlier focused batches, allowlist members
+  `test_research_run_boundaries::test_the_domain_still_imports_without_
+  django_present`, `test_enterprise_ssd_boundaries` x2,
+  `test_listing_normalization_boundaries::test_importing_the_research_
+  core_still_pulls_in_no_third_party_dependency`,
+  `test_research_identity_boundaries::test_importing_the_research_core_
+  pulls_in_no_third_party_dependency`, and
+  `test_specification_boundaries::test_importing_specifications_pulls_in_
+  no_third_party_dependency` failed once each with the recorded
+  `subprocess.run(capture_output=True) -> Popen -> _get_handles ->
+  _make_inheritable -> OSError: [WinError 6]` signature before any
+  project code runs (load-sensitive); every one re-passed on isolated
+  retry; the allowlist was NOT expanded and no node outside it failed).
+* `python manage.py check`: System check identified no issues (0
+  silenced). `python manage.py makemigrations --check --dry-run`: No
+  changes detected (the runs model change is docstring-only — fields
+  and help text untouched). `python manage.py migrate --plan`: includes
+  `runs.0012_semantic_decision_record` (Create model SemanticDecision
+  Record) as the final entry — unchanged.
+* `git diff --check`: clean.
+
+No deployment performed in this commit; production does not move until
+independently reviewed approval, and S2-C explicitly MUST NOT deploy.
+
 **PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-S2-B-FU1 (Semantic Authority V2 —
 Decouple the Persistence Envelope from Semantic V1) — IMPLEMENTED /
 PENDING FINAL REVIEW**

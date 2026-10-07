@@ -161,6 +161,28 @@ registered, explicitly supported version-specific adapter, and unknown or
 future semantic contracts fail closed. The envelope's version axes are
 independent: payload/envelope schema version != semantic contract version
 != prompt version != input/output schema versions != runtime route.
+
+PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-S2-C freezes the FINAL Semantic V2
+runtime contract in code and wires V2 semantic execution (evidence /
+provenance ONLY — zero new production authority). The final V2 input
+contract (``SemanticMatchCaseV2`` — target / candidate listing /
+deterministic identity context / context provenance / authority-side
+product evidence), the explicit V2 eligibility predicate (frozen S2-A
+DETERMINISTIC_UNCERTAIN only: U1 / U2 / U3 / U4 / U5, including the
+bounded near-miss states), the safe product-evidence builder (the
+model's matched_attributes can never become authority facts; STRONG is
+reachable only from facts grounded in LISTING_PRODUCT_TITLE or
+REVIEWED_PRODUCT_CONTEXT), and the final strict structured V2 output
+contract (bounded reason codes, bounded structured attributes,
+structured ConflictClass set, fail-closed coherence) live in
+``semantic_v2``. The V2 persistence adapter (``semantic_decision_v2`` —
+``SemanticDecisionRecordV2``, the V2 contract identity, the V2 pinned
+route, the V2 zero-live replay) is the SECOND registered adapter at the
+same explicit extension point; the envelope, the row, the migration, and
+the service are unchanged. The V2 route is NOT qualified for the new
+contract (``V2_AUTHORITY_QUALIFIED`` = False): Qualification V3 comes
+after S2-C, and no production authority code path treats a V2 output as
+pricing-authoritative.
 """
 
 from product_intelligence.research.aggregation import (
@@ -334,6 +356,22 @@ from product_intelligence.research.semantic_authority_v2 import (
     semantic_outcome_tier,
     substate_relationship_requirement,
 )
+from product_intelligence.research.semantic_v2 import (
+    REASON_CODE_RULES,
+    SemanticAttributeDimensionV2,
+    SemanticAttributeV2,
+    SemanticMatchCaseV2,
+    SemanticMatchResponseV2,
+    SemanticReasonCodeRuleV2,
+    SemanticReasonCodeV2,
+    SemanticV2ParseError,
+    build_semantic_match_case_v2,
+    build_v2_product_evidence_profile,
+    is_v2_semantic_eligible,
+    parse_semantic_response_v2,
+    semantic_reason_code_rule,
+    validate_semantic_response_v2,
+)
 from product_intelligence.research.semantic_decision_record import (
     CanonicalDigestError,
     SemanticDecisionCodecError,
@@ -367,6 +405,29 @@ from product_intelligence.research.semantic_decision_v1 import (
     reconstruct_identity_context,
     reconstruct_semantic_evaluation,
     replay_v1_record,
+)
+from product_intelligence.research.semantic_decision_v2 import (
+    AUTHORITY_CONTRACT_VERSION_V2,
+    FALLBACK_MODEL_V2,
+    FALLBACK_PROVIDER_V2,
+    PRIMARY_MODEL_V2,
+    PRIMARY_PROVIDER_V2,
+    PROMPT_VERSION_V2,
+    SEMANTIC_CONTRACT_VERSION_V2,
+    SEMANTIC_INPUT_SCHEMA_VERSION_V2,
+    SEMANTIC_OUTPUT_SCHEMA_VERSION_V2,
+    SEMANTIC_V2_ADAPTER,
+    V2_AUTHORITY_QUALIFIED,
+    SemanticDecisionReplayV2,
+    SemanticDecisionRecordV2,
+    SemanticV2ContractAdapter,
+    V2_CONTRACT_BINDING,
+    encode_v2_payload,
+    record_input_digest_v2,
+    record_output_digest_v2,
+    reconstruct_identity_context_v2,
+    reconstruct_semantic_evaluation_v2,
+    replay_v2_record,
 )
 from product_intelligence.research.semantic_decision_codec import (
     SEMANTIC_DECISION_SCHEMA_VERSION,
@@ -507,6 +568,44 @@ __all__ = [
     "replay_semantic_decision",
     "replay_v1_record",
     "supported_contract_bindings",
+    # S2-C: the FINAL Semantic V2 contract (input / output / eligibility /
+    # safe evidence builder) and the second registered persistence
+    # adapter (SemanticDecisionRecordV2 + V2 replay).
+    "REASON_CODE_RULES",
+    "SemanticAttributeDimensionV2",
+    "SemanticAttributeV2",
+    "SemanticMatchCaseV2",
+    "SemanticMatchResponseV2",
+    "SemanticReasonCodeRuleV2",
+    "SemanticReasonCodeV2",
+    "SemanticV2ParseError",
+    "build_semantic_match_case_v2",
+    "build_v2_product_evidence_profile",
+    "is_v2_semantic_eligible",
+    "parse_semantic_response_v2",
+    "semantic_reason_code_rule",
+    "validate_semantic_response_v2",
+    "AUTHORITY_CONTRACT_VERSION_V2",
+    "FALLBACK_MODEL_V2",
+    "FALLBACK_PROVIDER_V2",
+    "PRIMARY_MODEL_V2",
+    "PRIMARY_PROVIDER_V2",
+    "PROMPT_VERSION_V2",
+    "SEMANTIC_CONTRACT_VERSION_V2",
+    "SEMANTIC_INPUT_SCHEMA_VERSION_V2",
+    "SEMANTIC_OUTPUT_SCHEMA_VERSION_V2",
+    "SEMANTIC_V2_ADAPTER",
+    "V2_AUTHORITY_QUALIFIED",
+    "SemanticDecisionReplayV2",
+    "SemanticDecisionRecordV2",
+    "SemanticV2ContractAdapter",
+    "V2_CONTRACT_BINDING",
+    "encode_v2_payload",
+    "record_input_digest_v2",
+    "record_output_digest_v2",
+    "reconstruct_identity_context_v2",
+    "reconstruct_semantic_evaluation_v2",
+    "replay_v2_record",
     "AuthorityAttemptResult",
     "AuthorityAuditOutcomeKind",
     "CandidateDisposition",

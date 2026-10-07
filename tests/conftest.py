@@ -48,3 +48,43 @@ def django_test_database() -> Iterator[None]:
     finally:
         creation.destroy_test_db(old_config, verbosity=0)
         teardown_test_environment()
+
+
+@pytest.fixture(autouse=True)
+def bounded_v2_semantic_runtime_default(monkeypatch) -> Iterator[None]:
+    """S2-C: the live V2 semantic execution path never reaches a real
+    provider in tests.
+
+    Full-orchestration tests (execution / web / runs) that exercise
+    ``execute_research_run`` with V2-eligible candidates now also run the
+    S2-C V2 semantic path. The default V2 runtime is therefore resolved
+    to a bounded fake-transport runtime for every test: both the primary
+    and the fallback attempts fail with a deterministic
+    CONNECTION_ERROR (zero network), so V2 candidates ledger a bounded
+    RUNTIME_FAILURE record instead of a live model call. Tests that need
+    specific V2 outcomes inject their own ``SemanticRuntimeV2`` (with
+    ``FakeSemanticModelTransport``) explicitly; the V1 default-runtime
+    patching in the FU3B tests is untouched.
+    """
+    from product_intelligence.execution import (
+        semantic_decision_v2_execution as v2exec,
+    )
+    from product_intelligence.semantic.runtime_v2 import SemanticRuntimeV2
+    from product_intelligence.semantic.transport import (
+        FakeSemanticModelTransport,
+    )
+
+    def _bounded_fake_v2_runtime() -> SemanticRuntimeV2:
+        return SemanticRuntimeV2(
+            primary_transport=FakeSemanticModelTransport(
+                failures={"UNKNOWN"},
+            ),
+            fallback_transport=FakeSemanticModelTransport(
+                failures={"UNKNOWN"},
+            ),
+        )
+
+    monkeypatch.setattr(
+        v2exec, "get_default_runtime_v2", _bounded_fake_v2_runtime
+    )
+    yield

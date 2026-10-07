@@ -64,6 +64,7 @@ MODULES = (
     RESEARCH_ROOT / "semantic_decision_codec.py",
     RESEARCH_ROOT / "semantic_decision_replay.py",
     RESEARCH_ROOT / "semantic_decision_v1.py",
+    RESEARCH_ROOT / "semantic_decision_v2.py",
 )
 
 #: The three contract-AGNOSTIC universal modules (the envelope foundation,
@@ -365,6 +366,45 @@ def test_replay_module_is_exported_by_the_research_package() -> None:
         "record_input_digest",
         "record_output_digest",
         "replay_v1_record",
+        # The registered final Semantic V2 contract adapter (S2-C; second
+        # version-specific interpretation layer).
+        "AUTHORITY_CONTRACT_VERSION_V2",
+        "FALLBACK_MODEL_V2",
+        "FALLBACK_PROVIDER_V2",
+        "PRIMARY_MODEL_V2",
+        "PRIMARY_PROVIDER_V2",
+        "PROMPT_VERSION_V2",
+        "SEMANTIC_CONTRACT_VERSION_V2",
+        "SEMANTIC_INPUT_SCHEMA_VERSION_V2",
+        "SEMANTIC_OUTPUT_SCHEMA_VERSION_V2",
+        "SEMANTIC_V2_ADAPTER",
+        "V2_AUTHORITY_QUALIFIED",
+        "V2_CONTRACT_BINDING",
+        "SemanticDecisionReplayV2",
+        "SemanticDecisionRecordV2",
+        "SemanticV2ContractAdapter",
+        "encode_v2_payload",
+        "record_input_digest_v2",
+        "record_output_digest_v2",
+        "reconstruct_identity_context_v2",
+        "reconstruct_semantic_evaluation_v2",
+        "replay_v2_record",
+        # The final Semantic V2 contract (input / output / eligibility /
+        # safe evidence builder; S2-C).
+        "REASON_CODE_RULES",
+        "SemanticAttributeDimensionV2",
+        "SemanticAttributeV2",
+        "SemanticMatchCaseV2",
+        "SemanticMatchResponseV2",
+        "SemanticReasonCodeRuleV2",
+        "SemanticReasonCodeV2",
+        "SemanticV2ParseError",
+        "build_semantic_match_case_v2",
+        "build_v2_product_evidence_profile",
+        "is_v2_semantic_eligible",
+        "parse_semantic_response_v2",
+        "semantic_reason_code_rule",
+        "validate_semantic_response_v2",
     }
     assert expected <= set(research.__all__)
 
@@ -419,19 +459,24 @@ def test_v1_adapter_module_owns_the_v1_route_pin() -> None:
 
 
 def test_registry_is_the_explicit_version_adapter_extension_point() -> None:
-    """S2-B-FU1 proof: interpretation requires a REGISTERED, explicitly
-    supported version-specific adapter — the registry is a frozen tuple
-    of adapters (no mutable global state), currently exactly the V1
-    adapter, and fail-closed for every unregistered (envelope version,
-    semantic contract) pair."""
+    """S2-B-FU1 proof (S2-C updated): interpretation requires a REGISTERED,
+    explicitly supported version-specific adapter — the registry is a
+    frozen tuple of adapters (no mutable global state), currently exactly
+    the V1 adapter and the final V2 adapter (registered in S2-C through
+    the same explicit extension point), and fail-closed for every
+    unregistered (envelope version, semantic contract) pair."""
     import product_intelligence.research.semantic_decision_codec as codec
 
     registry = codec._REGISTERED_SEMANTIC_CONTRACT_ADAPTERS
     assert isinstance(registry, tuple)
-    assert len(registry) == 1
-    from product_intelligence.research import SEMANTIC_V1_ADAPTER
+    assert len(registry) == 2
+    from product_intelligence.research import (
+        SEMANTIC_V1_ADAPTER,
+        SEMANTIC_V2_ADAPTER,
+    )
 
     assert registry[0] is SEMANTIC_V1_ADAPTER
+    assert registry[1] is SEMANTIC_V2_ADAPTER
     # The V1 adapter speaks exactly one envelope version and one semantic
     # contract, with exactly one supported binding.
     assert SEMANTIC_V1_ADAPTER.envelope_schema_version == 1
@@ -439,8 +484,15 @@ def test_registry_is_the_explicit_version_adapter_extension_point() -> None:
     assert SEMANTIC_V1_ADAPTER.supported_bindings == (
         ("V1", "1.1", 1, 1, "SEMANTIC_AUTHORITY_V2_S2A_FU2"),
     )
-    # The codec's envelope version constant and the V1 adapter's envelope
-    # version cannot drift apart.
+    # The V2 adapter speaks the SAME universal envelope version (the
+    # format axis is independent) with the final V2 contract binding.
+    assert SEMANTIC_V2_ADAPTER.envelope_schema_version == 1
+    assert SEMANTIC_V2_ADAPTER.semantic_contract_version == "V2"
+    assert SEMANTIC_V2_ADAPTER.supported_bindings == (
+        ("V2", "2.0", 1, 1, "SEMANTIC_AUTHORITY_V2_S2A_FU2"),
+    )
+    # The codec's envelope version constant and both adapters' envelope
+    # versions cannot drift apart.
     from product_intelligence.research import (
         SEMANTIC_DECISION_SCHEMA_VERSION,
         registered_semantic_contract_adapter,
@@ -449,11 +501,17 @@ def test_registry_is_the_explicit_version_adapter_extension_point() -> None:
     assert SEMANTIC_V1_ADAPTER.envelope_schema_version == (
         SEMANTIC_DECISION_SCHEMA_VERSION
     )
+    assert SEMANTIC_V2_ADAPTER.envelope_schema_version == (
+        SEMANTIC_DECISION_SCHEMA_VERSION
+    )
     assert (
         registered_semantic_contract_adapter(1, "V1") is SEMANTIC_V1_ADAPTER
     )
+    assert (
+        registered_semantic_contract_adapter(1, "V2") is SEMANTIC_V2_ADAPTER
+    )
     # Fail closed: unknown / future semantic contracts and unknown / future
     # envelope versions have no registered adapter.
-    for pair in ((1, "V2"), (1, "V9"), (1, "SEMANTIC_FUTURE"), (2, "V1"),
-                 (2, "V2"), (0, "V1")):
+    for pair in ((1, "V3"), (1, "V9"), (1, "SEMANTIC_FUTURE"), (2, "V1"),
+                 (2, "V2"), (0, "V1"), (0, "V2")):
         assert registered_semantic_contract_adapter(*pair) is None, pair
