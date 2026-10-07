@@ -838,6 +838,193 @@ class AiAssistedReviewCandidate(models.Model):
 
 
 # ---------------------------------------------------------------------------
+# SemanticDecisionRecord — S2-B persisted semantic-decision artifact
+# ---------------------------------------------------------------------------
+
+
+class SemanticDecisionRecord(models.Model):
+    """One persisted semantic decision / provenance record for one
+    assessed candidate of one ResearchRun.
+
+    PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-S2-B.
+
+    The record is **storage, not interpretation**. It holds an opaque
+    versioned JSON payload (the ``SemanticDecisionRecord`` artifact of the
+    research layer, encoded by ``research/semantic_decision_codec.py``) plus
+    a separate canonical digest of that payload. All semantic authority
+    fields — the deterministic V2 context, the product-evidence profile,
+    the recorded prompt input, the recorded semantic output (MATCH /
+    NO_MATCH / UNCERTAIN / runtime failure / not evaluated), the bounded
+    runtime provenance, and the derived audit snapshots — live INSIDE the
+    payload, whose schema is owned by the codec, not by this model. There
+    are deliberately no ad hoc semantic columns: the artifact is a versioned
+    contract, and scattering its fields across columns would turn every
+    contract version into a migration and give this layer interpretation
+    rights it does not have.
+
+    This is the semantic EXECUTION / PROVENANCE LEDGER. It is NOT the human-
+    review workflow: ``AiAssistedReviewCandidate`` remains the review
+    artifact (MATCH outcomes only, mutable review state, forged-confirmation
+    protections, HARD_CONFLICT supersession, Reviewed Price behavior). The
+    two share the narrow explicit (run, assessment_index) stable binding —
+    the same binding the review candidate uses — and reference neither
+    other's rows. Every semantic outcome is ledgered here (NO_MATCH /
+    UNCERTAIN / runtime failure have no review candidate and are not
+    reviewable); a review state never mutates a ledger record.
+
+    Absence semantics (backward compatibility): a run created before S2-B
+    (or any run whose semantic evaluation predates the live wiring of S2-C)
+    simply has NO record. Absence means "legacy semantic provenance
+    unavailable under V2" — it is NOT NO_MATCH, NOT NOT_EVALUATED, and NOT
+    an AI failure. No record is ever fabricated for a legacy run.
+
+    Identity
+    --------
+
+    The primary key is a random (version 4) UUID. One record per
+    (run, assessment_index) — the stable binding to the position of the
+    assessed candidate in the run's ordered assessment tuple
+    (``PriceIntelligenceSnapshot``), exactly as the review candidate binds.
+
+    ``schema_version``
+        The codec version that produced ``payload``. The only supported
+        version is 1 (``SEMANTIC_DECISION_SCHEMA_VERSION``). An unsupported
+        version causes decode to fail closed rather than attempt
+        best-effort migration.
+
+    ``payload``
+        An opaque ``JSONField`` holding the codec-encoded
+        ``SemanticDecisionRecord`` artifact. The schema is owned by the
+        codec, not the model.
+
+    ``payload_digest``
+        The canonical SHA-256 digest of ``payload``
+        (``canonical_payload_digest``), computed by the persistence service
+        at write time and stored in a SEPARATE column: the whole-artifact
+        tamper anchor. A tampered payload (even with its internal section
+        digests recomputed) is detected on every read because the column
+        cannot be regenerated from inside the payload. Immutability is
+        enforced the same way as for every artifact column here:
+        ``editable=False`` plus a single service-owned write path
+        (``execution/semantic_decision_persistence.py``); ``QuerySet.
+        update()`` / raw SQL bypasses the service and is caught by the
+        digest on read (fail closed), which is the integrity backstop this
+        column exists to provide.
+
+    ``created_at``
+        When the record row was persisted. NOT the evaluation instants
+        (those are inside the payload, at the evaluation time).
+
+    What this model deliberately does NOT carry
+    -------------------------------------------
+
+    * Semantic authority columns (decision, confidence, tier, provider,
+      model, prompt version, ...): all of it is versioned payload schema.
+    * Review state: human review is the ``AiAssistedReviewCandidate``
+      workflow, a separate row with separate mutability rules.
+    * Any reference to a review candidate: the shared (run,
+      assessment_index) binding is the relationship; adding an FK would
+      couple the immutable ledger to a mutable workflow row.
+
+    Cascade behavior: deleting the ResearchRun cascades to its records.
+    """
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+        help_text="Opaque durable record identity (application-generated UUID4).",
+    )
+
+    run = models.ForeignKey(
+        ResearchRun,
+        on_delete=models.CASCADE,
+        related_name="semantic_decision_records",
+        help_text=(
+            "The research run this semantic decision record belongs to. "
+            "One record per (run, assessment_index)."
+        ),
+    )
+
+    assessment_index = models.PositiveSmallIntegerField(
+        editable=False,
+        help_text=(
+            "Stable binding: the position of the assessed candidate in the "
+            "ordered assessments tuple of this run's "
+            "PriceIntelligenceSnapshot (the same binding semantics as "
+            "AiAssistedReviewCandidate.assessment_index)."
+        ),
+    )
+
+    schema_version = models.PositiveSmallIntegerField(
+        editable=False,
+        help_text=(
+            "Codec version that produced the payload. The only supported "
+            "value is 1 (research.semantic_decision_codec). An unsupported "
+            "version fails closed on decode."
+        ),
+    )
+
+    payload = models.JSONField(
+        editable=False,
+        help_text=(
+            "Opaque versioned codec-encoded SemanticDecisionRecord artifact "
+            "(research/semantic_decision_codec.py). Storage, not "
+            "interpretation: the schema is owned by the codec."
+        ),
+    )
+
+    payload_digest = models.CharField(
+        max_length=64,
+        editable=False,
+        help_text=(
+            "Canonical SHA-256 digest of the payload, computed at write "
+            "time by the persistence service and stored separately as the "
+            "whole-artifact tamper anchor. Verified on every read; a "
+            "mismatch fails closed."
+        ),
+    )
+
+    created_at = models.DateTimeField(
+        default=timezone.now,
+        editable=False,
+        help_text=(
+            "When this record row was persisted (not the evaluation "
+            "instants, which are inside the payload)."
+        ),
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["run", "assessment_index"],
+                name="semantic_decision_record_unique_per_run_assessment",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(schema_version__gte=1),
+                name="semantic_decision_record_schema_version_gte_1",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(payload_digest__regex=r"^[0-9a-f]{64}$"),
+                name="semantic_decision_record_payload_digest_sha256_hex",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["run", "assessment_index"],
+                name="sdr_run_assessment_idx",
+            ),
+        ]
+        ordering = ["run", "assessment_index"]
+
+    def __str__(self) -> str:
+        return (
+            f"SemanticDecisionRecord {self.id} "
+            f"[{self.run_id} idx={self.assessment_index} v{self.schema_version}]"
+        )
+
+
+# ---------------------------------------------------------------------------
 # ComparableResearchState — 7C-A lifecycle vocabulary
 # ---------------------------------------------------------------------------
 

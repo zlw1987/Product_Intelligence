@@ -100,6 +100,7 @@ class TestComparableResearchExecutionFields(TestCase):
             "research_supplement_snapshot",  # 4D-B: supplement snapshot
             "research_fx_snapshot",  # 4D-C-A: FX snapshot
             "research_micron_alias_snapshot",  # 4D-D: alias authority snapshot
+            "semantic_decision_records",  # S2-B: semantic decision ledger
         }
         actual = {f.name for f in ResearchRun._meta.get_fields()}
         assert actual == expected

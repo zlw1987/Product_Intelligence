@@ -57,6 +57,7 @@ EXPECTED_FIELDS = {
     "research_supplement_snapshot",  # 4D-B: reverse OneToOne from supplement snapshot
     "research_fx_snapshot",  # 4D-C-A: reverse OneToOne from FX snapshot
     "research_micron_alias_snapshot",  # 4D-D: reverse OneToOne from alias snapshot
+    "semantic_decision_records",  # S2-B: reverse FK to semantic decision records
 }
 
 # The exact fields on ResearchMicronAliasSnapshot (4D-D).
@@ -338,6 +339,7 @@ def test_the_evaluation_corpus_is_not_persisted() -> None:
         "runs.ResearchFxSnapshot",  # 4D-C-A
         "runs.ResearchMicronAliasSnapshot",  # 4D-D
         "runs.FxObservationStore",  # 8A-FX-A1
+        "runs.SemanticDecisionRecord",  # S2-B
     }
     assert model_labels == expected
 

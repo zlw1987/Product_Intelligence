@@ -116,6 +116,24 @@ target) do NOT require ``MANUFACTURER_RELATION_AUTHORITY``; U2 +
 SKU_NOT_TARGET, U3, U5 + NM-1, and U5 + NM-2 (the frozen NM-2 ceiling)
 do. U4 behavior is unchanged; the relationship-authority derivation itself
 (dimension B) is unchanged from FU1.
+
+PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-S2-B added the persisted semantic-
+decision artifact and its strict versioned codec + pure replay: the
+``semantic_decision_record`` module (the immutable ``SemanticDecisionRecord``
+artifact covering ALL semantic outcomes — MATCH / NO_MATCH / UNCERTAIN /
+runtime failure / not evaluated — with the exact contract-version binding,
+the deterministic V2 context, the bounded product-evidence profile, the
+recorded prompt input, the recorded semantic output, the bounded runtime
+provenance with mirrored route/attempt vocabularies, derived audit
+snapshots, and self-verifying canonical digests), the
+``semantic_decision_codec`` module (strict schema-v1 encode/decode:
+exact field set, strict enums, fail-closed on unknown schema/enum, no
+floats, canonical payload digest), and the ``semantic_decision_replay``
+module (pure zero-live reconstruction: the historical evaluation + the S2-A
+authority inputs + the re-derivation agreement proof, refusing explicitly
+any contract binding it does not know). S2-B is persistence/codec only:
+nothing in production execution writes or reads the artifact yet (live
+wiring is S2-C), no authority changes, no deployment.
 """
 
 from product_intelligence.research.aggregation import (
@@ -289,6 +307,43 @@ from product_intelligence.research.semantic_authority_v2 import (
     semantic_outcome_tier,
     substate_relationship_requirement,
 )
+from product_intelligence.research.semantic_decision_record import (
+    AttemptOutcome,
+    AttemptRole,
+    AUTHORITY_CONTRACT_VERSION,
+    CanonicalDigestError,
+    FALLBACK_MODEL_V1,
+    FALLBACK_PROVIDER_V1,
+    PRIMARY_MODEL_V1,
+    PRIMARY_PROVIDER_V1,
+    PROMPT_VERSION_V1,
+    SEMANTIC_CONTRACT_VERSION,
+    SEMANTIC_INPUT_SCHEMA_VERSION,
+    SEMANTIC_OUTPUT_SCHEMA_VERSION,
+    SemanticDecisionAttempt,
+    SemanticDecisionRecord,
+    SemanticFallbackReason,
+    SemanticFailureClass,
+    SemanticPromptInput,
+    canonical_sha256,
+    record_input_digest,
+    record_output_digest,
+)
+from product_intelligence.research.semantic_decision_codec import (
+    SEMANTIC_DECISION_SCHEMA_VERSION,
+    SemanticDecisionCodecError,
+    canonical_payload_digest,
+    decode_semantic_decision_record,
+    encode_semantic_decision_record,
+)
+from product_intelligence.research.semantic_decision_replay import (
+    SUPPORTED_CONTRACT_BINDINGS,
+    SemanticDecisionReplay,
+    SemanticDecisionReplayError,
+    reconstruct_identity_context,
+    reconstruct_semantic_evaluation,
+    replay_semantic_decision,
+)
 
 __all__ = [
     "ALWAYS_HARD_CONFLICT_CLASSES",
@@ -369,6 +424,38 @@ __all__ = [
     "near_miss_shape",
     "semantic_outcome_tier",
     "substate_relationship_requirement",
+    # S2-B: persisted semantic-decision artifact + strict codec + pure replay
+    "AttemptOutcome",
+    "AttemptRole",
+    "AUTHORITY_CONTRACT_VERSION",
+    "CanonicalDigestError",
+    "FALLBACK_MODEL_V1",
+    "FALLBACK_PROVIDER_V1",
+    "PRIMARY_MODEL_V1",
+    "PRIMARY_PROVIDER_V1",
+    "PROMPT_VERSION_V1",
+    "SEMANTIC_CONTRACT_VERSION",
+    "SEMANTIC_DECISION_SCHEMA_VERSION",
+    "SEMANTIC_INPUT_SCHEMA_VERSION",
+    "SEMANTIC_OUTPUT_SCHEMA_VERSION",
+    "SUPPORTED_CONTRACT_BINDINGS",
+    "SemanticDecisionAttempt",
+    "SemanticDecisionCodecError",
+    "SemanticDecisionRecord",
+    "SemanticDecisionReplay",
+    "SemanticDecisionReplayError",
+    "SemanticFallbackReason",
+    "SemanticFailureClass",
+    "SemanticPromptInput",
+    "canonical_payload_digest",
+    "canonical_sha256",
+    "decode_semantic_decision_record",
+    "encode_semantic_decision_record",
+    "reconstruct_identity_context",
+    "reconstruct_semantic_evaluation",
+    "record_input_digest",
+    "record_output_digest",
+    "replay_semantic_decision",
     "AuthorityAttemptResult",
     "AuthorityAuditOutcomeKind",
     "CandidateDisposition",

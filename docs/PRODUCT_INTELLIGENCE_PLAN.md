@@ -4350,6 +4350,7 @@ This canonical plan does not duplicate that operational snapshot.
 | AD-065 | SEMANTIC-AUTHORITY-V2-S2-A contract freeze (canonical spec §26.21): the approved Semantic Authority V2 design is frozen IN CODE as a pure contract, with NOTHING wired into production. (1) MODULE: new `research/semantic_authority_v2.py` (stdlib + frozen research/domain imports only; no Django, no I/O, no network, no LLM, no mutable global state; exported through `research/__init__.py`; no other research module, execution, semantic, runs, web, or providers module references it — mechanically guarded). (2) STATES: the V2 deterministic overlay over the frozen `ListingIdentityAssessment` — DETERMINISTIC_VERIFIED (V_EXACT, V_NORMALIZED_EXACT), DETERMINISTIC_UNCERTAIN (U1_TITLE_MPN, U2_SKU_ONLY, U3_PARTIAL_BOUNDARY, U4_NO_MPN, U5_NEAR_MISS_MPN), DETERMINISTIC_CONFLICT (C1_INCOMPATIBLE_EXPLICIT_MPN), DETERMINISTIC_UNEVALUABLE (E1_NO_TARGET_MPN, E2_NO_CANDIDATE_EVIDENCE — the E2 addition is permitted by the "at minimum" contract) — derived by the pure `derive_identity_state_v2`; out-of-contract assessment combinations fail closed. (3) NEAR-MISS: bounded signals EXACT / NORMALIZED_EXACT / TITLE_MPN_TOKEN / SKU_EQUALS_TARGET / SKU_NOT_TARGET / PARTIAL_BOUNDARY / NEAR_MISS_TRUNCATION / NEAR_MISS_SUBSTITUTION / COMPATIBILITY_WORDING (4-token overlay vocabulary, title-only, word-boundary) / EMPTY_MPN_FIELD / NO_RELATION. NM-1 = strict prefix/truncation on the EXISTING frozen normalized MPN keys (either direction); NM-2 = same-length exactly-one-character substitution; Levenshtein, arbitrary substring matching, containment authority, suffix stripping, manufacturer-specific acceptance, and normalization changes are explicitly OUT. Membership is never identity authority; outside NM-1/NM-2, explicit MPN_MISMATCH stays deterministic conflict. (4) AMENDMENT 1 — NM-2 CEILING: NM-2 without reviewed authoritative relationship context (a provenance carrying ESTABLISH_IDENTIFIER_RELATIONSHIP) caps the maximum future AUTOMATIC tier at NEEDS_REVIEW, frozen as explicit matrix data (NEAR_MISS_SUBSTITUTION_WITHOUT_RELATION_AUTHORITY + the ceiling rule), never a prompt convention; generic safety rule, not a manufacturer special case; AI may still return MATCH/HIGH and a human may confirm later — it cannot auto-price. (5) AMENDMENT 2 — CONTEXT PROVENANCE: three DISTINCT bounded classes with disjoint capability sets — MANUFACTURER_PRODUCT_CONTEXT (GROUND_PRODUCT_FACTS only; does NOT establish the identifier relationship), MANUFACTURER_RELATION_AUTHORITY (GROUND_PRODUCT_FACTS + ESTABLISH_IDENTIFIER_RELATIONSHIP; the class that may raise relationship authority / STRONG), CUSTOMER_RETRIEVAL_RELATION (RETRIEVAL_RECALL_ONLY; never identity, never Machine Verified, never NM-2 auto-comparable, never STRONG, never overrides conflict, never enters 4A, never described as manufacturer equivalence). Context quality STRONG/LIMITED/WEAK is computed only from provenance classes — never from model confidence or AI matched_attributes (RELATION -> STRONG; else PRODUCT -> LIMITED; else WEAK). (6) CONFLICT TAXONOMY: 14-value ConflictClass with exact frozen severity sets — ALWAYS_HARD (MPN_IDENTITY, PRODUCT_FAMILY, GENERATION, CAPACITY, INTERFACE, FORM_FACTOR, PRODUCT_ROLE, ACCESSORY_RELATION, PACKAGING_QUANTITY, BUNDLE), REVIEWABLE (REVISION_OR_SUFFIX, BRAND, OTHER_MATERIAL_CONFLICT — BRAND is reviewable, not hard), PRICE_DIMENSION_ONLY (CONDITION — a price dimension, never identity); disjoint, exhaustive, import-self-checked; tray-vs-retail wording alone is not hard, single-vs-multipack is hard, drive-tray accessory is hard. (7) AUTHORITY MATRIX AS DATA: bounded tiers MACHINE_VERIFIED / AI_ASSISTED_COMPARABLE / NEEDS_REVIEW / HUMAN_CONFIRMED / HUMAN_REJECTED / HARD_CONFLICT / EXCLUDED_LOW_CONFIDENCE / SEMANTIC_UNAVAILABLE; DETERMINISTIC_STATE_POLICIES (VERIFIED -> MACHINE_VERIFIED no AI; CONFLICT -> HARD_CONFLICT AI-ineligible human-cannot-confirm; UNEVALUABLE -> EXCLUDED_LOW_CONFIDENCE no AI authority; UNCERTAIN -> NEEDS_REVIEW, the only semantic entry point); SEMANTIC_OUTCOME_TIER_MATRIX with all 27 (decision x confidence x context quality) combinations defined — MATCH+HIGH requires STRONG for AI_ASSISTED_COMPARABLE, MATCH+MEDIUM and MATCH+HIGH+incomplete-context and MATCH+HIGH+reviewable-conflict -> NEEDS_REVIEW, MATCH+LOW / NO_MATCH / UNCERTAIN+non-actionable / UNCERTAIN+LOW -> EXCLUDED_LOW_CONFIDENCE, UNCERTAIN+actionable -> NEEDS_REVIEW; restrict-only ceilings; ALWAYS_HARD supersession; runtime failure -> SEMANTIC_UNAVAILABLE and is NEVER interpreted as NO_MATCH; precedence HARD_CONFLICT > HUMAN_CONFIRMED > AI authority; ineligible states ignore supplied semantic/human inputs (fail closed). (8) U4 RECALL: no-MPN usable-title (and empty-MPN usable-title) listings are DETERMINISTIC_UNCERTAIN / U4_NO_MPN and future semantic entry points — an intentional recall feature, NOT re-conservatized; eligibility is not authority (weak outcomes stay excluded through the frozen gates); the CURRENT V1 runtime gate is unchanged and does not call the AI on U4. (9) UI VOCABULARY (no UI built): frozen badges (Machine Verified; AI-Assisted Comparable — not machine verified; Needs Review — not verified; Human Confirmed; Human Rejected; Hard Conflict — excluded; Low Confidence; AI Evidence Unavailable); attention order NEEDS_REVIEW, AI_ASSISTED_COMPARABLE, HUMAN_CONFIRMED, MACHINE_VERIFIED, HUMAN_REJECTED, HARD_CONFLICT, EXCLUDED_LOW_CONFIDENCE, SEMANTIC_UNAVAILABLE (attention, not authority). (10) AMENDMENT 3 — SUMMARY WORDING: "Comparable evidence: N listings" is forbidden when the count contains NEEDS_REVIEW (frozen FORBIDDEN_MARKET_EVIDENCE_HEADLINE); the future headline is "Market evidence found: N listings" (NEEDS_REVIEW MAY count) with a separate "Pricing-eligible comparable listings: N" line (NEEDS_REVIEW MUST NOT count; no price statistic may include Needs Review before confirmation); the legacy "N comparable NEW listings (machine-verified)" line may remain; counting is a pure function over frozen tier sets (import-self-checked). (11) FROZEN V1 PROOF: the 2A comparator, 3C assessment/decisions/rejection reasons, PriceIntelligenceSnapshot V1, 4A aggregation, Reviewed Price, prompt v1.1, parser, production route (amax/qwen3.8-27b PRIMARY, vllm-262k/Qwen3.6-27B-262K FALLBACK, temperature 0.0, max_tokens 32768), FU3B eligibility, human-review eligibility, replay, and vendor authority are all unchanged (byte-level no-wiring scans + behavior pins + the preserved frozen regression suite). **Amended by AD-066 (S2-A-FU1):** item (5)'s global context-quality rule (RELATION -> STRONG; else PRODUCT -> LIMITED; else WEAK) and item (7)'s context-quality matrix key were the identified U4 re-conservatization defect — replaced by two orthogonal authority prerequisites (bounded product evidence quality + state-specific identifier relationship authority, with U4 NOT_APPLICABLE so MANUFACTURER_RELATION_AUTHORITY is never required for U4); ContextQuality / derive_context_quality are removed. All frozen contract tables are now runtime-immutable tuples of immutable entries with pure lookup functions (Blocker 2). See AD-066 and §26.22. | The Product Lead approved the V2 deterministic state overlay design with three amendments (NM-2 auto-authority ceiling; distinct context provenance classes; "Market evidence found" summary wording). S2-A freezes that approved design as independently testable, completeness-checkable pure contract data so that later phases (V2 wiring, V3 qualification, future semantic entry) build against frozen vocabulary instead of prose — and so the three amendments cannot drift into prompt conventions. Contract-only on purpose: a phase that both defines and wires the V2 authority would change production behavior, which the frozen V1 invariants (deterministic identity, AI_ASSISTED_MATCH exclusion from 4A, human-review run scoping, HARD_CONFLICT precedence) forbid until the V2 workflow has its own reviewed phase. | IMPLEMENTED / PENDING FINAL REVIEW (PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-S2-A); AMENDED IN PART BY AD-066 (PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-S2-A-FU1) |
 | AD-066 | SEMANTIC-AUTHORITY-V2-S2-A-FU1 review-blocker corrections (canonical spec §26.22): the pending S2-A contract (AD-065) is corrected in code on the authoritative starting SHA `46869f9a3ee6fad638b87b71cd14ed848224c057` (baseline collection 5972). CONTRACT ONLY — nothing is wired, no migrations, no V1 behavior change, no deployment. **Amended in part by AD-067 (S2-A-FU2):** the FU1 general state-specific gate (reaching AI_ASSISTED_COMPARABLE required RelationshipAuthority ESTABLISHED for U1/U2/U3/U5) was itself over-broad — the relationship requirement is now the frozen state/sub-state-specific SUBSTATE_RELATIONSHIP_REQUIREMENTS table (U1_TITLE_MPN NOT_REQUIRED; U2 + SKU_EQUALS_TARGET NOT_APPLICABLE; U2 + SKU_NOT_TARGET / U3 / U5 + NM-1 / U5 + NM-2 REVIEWED_RELATION_AUTHORITY_REQUIRED; U4 unchanged NOT_APPLICABLE). The orthogonal dimension derivations (A: product evidence quality; B: relationship authority), the NM-2 ceiling, customer-retrieval zero authority, and the immutable-table protections stand as recorded. (1) BLOCKER 1 — U4 WAS RE-CONSERVATIZED: S2-A made `ContextQuality.STRONG` globally equivalent to the presence of `MANUFACTURER_RELATION_AUTHORITY`, and the matrix's only `AI_ASSISTED_COMPARABLE` row (MATCH+HIGH+STRONG) locked U4_NO_MPN out of auto-authority — a no-MPN candidate has no identifier relationship for any source to establish. The authority prerequisites are now TWO ORTHOGONAL, STATE-SPECIFIC dimensions, each derived independently: A. PRODUCT EVIDENCE QUALITY (`ProductEvidenceQuality` STRONG/LIMITED/WEAK) — computed ONLY from the bounded `ProductEvidenceProfileV2` (usable product title + bounded matched-attribute facts; each fact = `ProductEvidenceDimension` x grounded candidate-side source, source vocabulary exactly {LISTING_PRODUCT_TITLE, REVIEWED_PRODUCT_CONTEXT} — no model-claim source exists, so the model cannot self-promote by asserting matched attributes) and reviewed product-grounding provenance classes; the frozen STRONG bar is bounded and testable: usable title AND >= `STRONG_PRODUCT_EVIDENCE_MIN_MATCHED_FACTS` (2) matched facts spanning >= `STRONG_PRODUCT_EVIDENCE_MIN_MATCHED_DIMENSIONS` (2) distinct hard product dimensions (the six-dimension `ProductEvidenceDimension` vocabulary mirroring the same-named ALWAYS_HARD conflict classes); a title alone is NOT strong; CUSTOMER_RETRIEVAL_RELATION grounds nothing; MANUFACTURER_PRODUCT_CONTEXT strengthens product grounding only; unsupported or state-contradicting profiles fail closed (ValueError). B. IDENTIFIER RELATIONSHIP AUTHORITY (`RelationshipAuthority` ESTABLISHED/NOT_ESTABLISHED/NOT_APPLICABLE) — via `derive_relationship_authority`: U4_NO_MPN is NOT_APPLICABLE (the question does not exist; relation provenance cannot change it), U1/U2/U3/U5 are ESTABLISHED only with reviewed relation provenance (customer retrieval confers ZERO), verified states are ESTABLISHED by the frozen deterministic comparator, C1 is NOT_ESTABLISHED, E1/E2 are NOT_APPLICABLE. The 27-row matrix is re-keyed on (decision x confidence x PRODUCT evidence quality) with the SAME tier values; reaching AI_ASSISTED_COMPARABLE additionally requires the state-specific relationship question to be NOT_APPLICABLE (U4) or ESTABLISHED (U1/U2/U3/U5) — the new general state-specific gate (fired rule CEILING_IDENTIFIER_RELATIONSHIP_NOT_ESTABLISHED) preserves S2-A's effective requirement for U1/U2/U3 and U5-NM-1 (no authority expansion there). REQUIRED BEHAVIOR NOW CONTRACTED: U4 + MATCH + HIGH + strong approved product evidence + no HARD conflict + no REVIEWABLE conflict => AI_ASSISTED_COMPARABLE is PERMITTED without MANUFACTURER_RELATION_AUTHORITY. The NM-2 CEILING REMAINS FROZEN (amendment 1): U5 + NEAR_MISS_SUBSTITUTION without reviewed authoritative relationship authority caps the maximum automatic tier at NEEDS_REVIEW — even for MATCH + HIGH + STRONG product evidence; CUSTOMER_RETRIEVAL_RELATION cannot satisfy that gate. `ContextQuality` / `derive_context_quality` are removed; `derive_authority_tier` gains a bounded `product_evidence` profile parameter (default = conservative state-derived profile that can never reach STRONG by itself). (2) BLOCKER 2 — FROZEN CONTRACT TABLES WERE MUTABLE DICTS: `Final[dict[...]]` is not runtime immutability. Every frozen contract mapping (`SEMANTIC_OUTCOME_TIER_MATRIX` 27 entries, `DETERMINISTIC_STATE_POLICIES` 4, `CONTEXT_PROVENANCE_CAPABILITIES` 3, `AUTHORITY_TIER_BADGES` 8, and the private `_PRIMARY_SIGNALS_BY_SUBSTATE` / `_STATE_OF_SUBSTATE` derivation tables) is now a runtime-immutable tuple of immutable entries (tuples / enums / frozen dataclasses / frozensets / str) with a pure lookup function (`semantic_outcome_tier`, `deterministic_state_policy`, `context_provenance_capabilities`, `authority_tier_badge`) — deterministically iterable, equality-testable, completeness-checkable (import self-checks), consumable without copying into a mutable authority table. The severity frozensets and the attention-order tuple remain immutable. The module's global namespace is import-self-checked to contain NO dict/list/set at all, and the boundary test `test_v2_contract_tables_are_immutable_data` now actually proves immutability with real mutation attempts (TypeError / AttributeError / FrozenInstanceError) covering every frozen authority/context/display mapping. | Independent review of pending S2-A identified two blockers: (a) the approved product goal of U4 (no-MPN description-match recall) was contradicted in the frozen contract — identifier-relationship authority had been globalized as the definition of "strong evidence", re-conservatizing exactly the state the approved design intended to open to qualified AI under strong description/product evidence; (b) an authority/safety contract that later runtime code will consume must not be stored as mutable dicts while claiming immutability. Both corrections stay inside the approved V2 design: (a) splits the single coupled context-quality dimension into the two orthogonal state-specific prerequisites the amendments were written for (the NM-2 ceiling, customer-retrieval zero authority, hard/reviewable conflict rules, and all 27 matrix tier values are unchanged); (b) is a representation correction with no semantic change. The evidence bar is deliberately bounded and testable so V3 can qualify against it, and the source vocabulary has no model-claim member so the model can never self-qualify. | IMPLEMENTED / PENDING FINAL REVIEW (PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-S2-A-FU1); AMENDED IN PART BY AD-067 (PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-S2-A-FU2) |
 | AD-067 | SEMANTIC-AUTHORITY-V2-S2-A-FU2 review-blocker correction (canonical spec §26.23): the pending S2-A-FU1 contract (AD-066) is corrected in code on the authoritative starting SHA `f54489dbd4ea8375ba6924e21f3bce161caac9e1` (baseline collection 5989). CONTRACT ONLY — nothing is wired, no migrations, no V1 behavior change, no deployment. BLOCKER — the relationship gate was global, not state-specific: FU1 required RelationshipAuthority.ESTABLISHED for EVERY U1/U2/U3/U5 candidate before AI_ASSISTED_COMPARABLE was allowed. The relationship requirement must itself be STATE-SPECIFIC bounded contract data (the purpose of semantic AI is to resolve deterministic uncertainty; absence of manufacturer relationship proof must not force every uncertain identifier-shaped listing into human review). DELIVERED: (1) RelationshipRequirement (NOT_APPLICABLE / NOT_REQUIRED / REVIEWED_RELATION_AUTHORITY_REQUIRED); (2) SUBSTATE_RELATIONSHIP_REQUIREMENTS — runtime-immutable tuple of 14 (sub-state, primary signal, requirement) entries covering exactly the combinations the frozen derivation permits (import-self-checked against _PRIMARY_SIGNALS_BY_SUBSTATE; pure fail-closed lookup substate_relationship_requirement — unknown combinations never gain authority): V_EXACT / V_NORMALIZED_EXACT / U4 (NO_RELATION, EMPTY_MPN_FIELD) / C1 / E1 / E2 (NO_RELATION, EMPTY_MPN_FIELD) / U2 + SKU_EQUALS_TARGET -> NOT_APPLICABLE; U1_TITLE_MPN -> NOT_REQUIRED; U2 + SKU_NOT_TARGET / U3_PARTIAL_BOUNDARY / U5 + NEAR_MISS_TRUNCATION / U5 + NEAR_MISS_SUBSTITUTION -> REVIEWED_RELATION_AUTHORITY_REQUIRED; (3) derive_authority_tier gate re-keyed on the table — the automatic tier is capped at NEEDS_REVIEW (fired rule CEILING_IDENTIFIER_RELATIONSHIP_NOT_ESTABLISHED, name unchanged) when and only when the entry requires REVIEWED_RELATION_AUTHORITY and dimension B is not ESTABLISHED; for U5 + NM-2 the frozen NM-2-specific ceiling rule caps first (explicit audit form; subsumes the general gate). REQUIRED BEHAVIOR NOW CONTRACTED: U1 + exact title MPN + MATCH/HIGH + STRONG bounded product evidence + no HARD/REVIEWABLE conflict => AI_ASSISTED_COMPARABLE WITHOUT MANUFACTURER_RELATION_AUTHORITY (COMPATIBILITY_WORDING / accessory / product-role conflicts remain safety inputs through the taxonomy — no recall expansion bypasses safety); U2 + SKU_EQUALS_TARGET + MATCH/HIGH + STRONG + clean => AI_ASSISTED without the requirement; U2 + SKU_NOT_TARGET and U3 follow explicit conservative policies (capped at NEEDS_REVIEW without reviewed relationship authority, including customer retrieval); U5/NM-1 follows its own explicit bounded policy (the NM-2-specific rule does not fire for NM-1); U4 FU1 behavior unchanged (NOT_APPLICABLE, auto-tier capable); U5/NM-2 ceiling, customer-retrieval zero authority, HARD_CONFLICT taxonomy, BRAND=REVIEWABLE, CONDITION=PRICE_DIMENSION_ONLY, U4 recall, and precedence HARD_CONFLICT > HUMAN_CONFIRMED > AI unchanged. Dimensions A/B derivations unchanged from FU1; all FU1 immutable-table protections retained + the new table added to the immutability proof. Three FU1 test nodes that encoded the blanket gate were corrected in place (exact old/new expectations in STATUS); 14 new test nodes; no test deleted/renamed/skipped/xfail/deselected/ignored/weakened; collection 5989 -> 6003 (no decrease). | Independent review of pending S2-A-FU1 identified that the U4 correction had been implemented by carving U4 out of a BLANKET U1/U2/U3/U5 relationship gate, when the approved contract requires the relationship requirement to be state-specific: U1_TITLE_MPN exists precisely because deterministic 3C refuses to treat title text as manufacturer identity authority — the semantic evaluation is the designated resolver of the title-MPN question, and MATCH + HIGH + STRONG bounded product evidence + clean conflicts must be capable of AI_ASSISTED_COMPARABLE without MANUFACTURER_RELATION_AUTHORITY; U2 + SKU_EQUALS_TARGET carries a frozen-2A-established relationship; U2 + SKU_NOT_TARGET / U3 / U5 (both shapes) keep explicit conservative REVIEWED_RELATION_AUTHORITY_REQUIRED policies so no authority expands where the identifier is genuinely not the target. The correction is bounded contract data (one entry per permitted (sub-state, primary signal) combination, completeness-checked, fail-closed, V3-consumable) — not another ad hoc gate — and it preserves every FU1 safety contract (NM-2 ceiling, customer retrieval zero authority, conflict taxonomy, precedence, immutable tables, U4 behavior). | IMPLEMENTED / PENDING FINAL REVIEW (PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-S2-A-FU2) |
+| AD-068 | SEMANTIC-AUTHORITY-V2-S2-B persistence / codec phase (canonical spec §26.24): on the authoritative starting SHA `9206126d4fb13300028256964c98f477c5d17969` (baseline collection 6003), the complete Semantic Authority V2 evaluation/provenance artifact is persisted as a first-class versioned record covering ALL semantic outcomes (MATCH / NO_MATCH / UNCERTAIN / RUNTIME_FAILURE / NOT_EVALUATED, with or without fallback). BOUNDED PERSISTENCE/CODEC ONLY: no V2 semantic eligibility is enabled in production, no live semantic execution is modified, no AI is called for U4/U5, no authority changes, no UI, no deployment. DELIVERED: (1) PURE ARTIFACT — new `research/semantic_decision_record.py` (stdlib + research package exports only; no Django, no I/O, no clock, no float): the immutable `SemanticDecisionRecord` value object with binding (run UUID, assessment_index, source_url), the exact contract-version binding (semantic contract V1, prompt v1.1, input/output schema v1, authority contract `SEMANTIC_AUTHORITY_V2_S2A_FU2`), the deterministic V2 context (state/sub-state/relationship signals/normalized keys + the derived relationship-requirement snapshot), the bounded `ProductEvidenceProfileV2` (encoded versioned; derived quality snapshot), the context provenances as present at evaluation time, the exact recorded prompt input, the recorded semantic output (evaluation state, decision, confidence, structured `ConflictClass` set, bounded reason code, recorded attribute lists — the V1 output contract admits no prose), the bounded runtime provenance (pinned primary/fallback attempts with role/number/provider/model/outcome, fallback reason, bounded failure class, actual provider/model, ISO-8601 UTC evaluation instants), the derived audit snapshots (relationship authority, authority tier, fired rules under the exact bound contract), and self-verifying canonical SHA-256 input/output section digests (floats refused at canonical encoding). Only DETERMINISTIC_UNCERTAIN contexts are ledgered (entry-point-only; anything else fails closed). The runtime-provenance vocabularies are MIRRORS of the frozen FU3A runtime (AttemptOutcome/SemanticFailureClass/SemanticFallbackReason + route constants), drift-pinned by tests — the pure research layer imports no semantic runtime surface (the established V2SemanticDecision-mirrors-SemanticDecision precedent). (2) STRICT VERSIONED CODEC — new `research/semantic_decision_codec.py`: schema v1; exact field set at every level (missing AND extra keys rejected); strict enums (unknown values rejected); no float authority data (floats anywhere in a payload rejected); no lossy serialization (sets encoded sorted-unique; order-significant lists kept); no silent defaulting (nullable = present key with null); decode wraps every constructor/validation failure in the bounded `SemanticDecisionCodecError`; `canonical_payload_digest` = SHA-256 of the canonical (sorted-keys, compact, ASCII) payload encoding. (3) PURE REPLAY — new `research/semantic_decision_replay.py`: zero-live reconstruction from the artifact: the contract-binding gate knows EXACTLY one safe envelope `SUPPORTED_CONTRACT_BINDINGS = (("V1", "1.1", 1, 1, "SEMANTIC_AUTHORITY_V2_S2A_FU2"),)` and REFUSES explicitly any other (unknown or future) binding — an old persisted decision is never silently reinterpreted under a newer contract, and the historical binding is never substituted by current module constants; it reconstructs the historical `SemanticEvaluationV2`, the `IdentityStateAssessmentV2`, the product-evidence profile, and the context provenances; it re-derives under the frozen S2-A module (relationship requirement, product evidence quality, relationship authority, `derive_authority_tier` with no human overlay) and PROVES the stored derived audit snapshots agree exactly (tamper/version-drift => `SemanticDecisionReplayError`). (4) PERSISTENCE — additive `runs.SemanticDecisionRecord` model (migration 0012, single CreateModel, no backfill, no rewrite of any existing structure): UUID pk, run FK (CASCADE, related_name `semantic_decision_records`), assessment_index, schema_version, opaque `payload` JSONField, and a SEPARATE `payload_digest` column — the whole-artifact tamper anchor computed at write time by the service and verified on every read (a QuerySet.update()/raw-SQL bypass is caught on read; fail closed). Storage, not interpretation: no ad hoc semantic columns; the schema is owned by the codec. One record per (run, assessment_index) (unique constraint). Immutability: artifact columns editable=False + a single service-owned write path that never overwrites (`SemanticDecisionAlreadyRecordedError`). NEW service `execution/semantic_decision_persistence.py` (the API future S2-C will call): `persist_semantic_decision` (encode + digest + transactional create; run_id binding check), `load_semantic_decision` (digest verification + strict decode; ABSENCE returns None — legacy semantic provenance unavailable under V2, never NO_MATCH / NOT_EVALUATED / AI failure, never fabricated), `replay_semantic_decision_record` (load + full binding verification against the run's persisted evidence — canonical request identity + snapshot assessment source-URL at the recorded index — + the pure replay). The service owns no authority derivation logic (it composes the research-layer replay; mechanically guarded). (5) SEPARATION PRESERVED — `AiAssistedReviewCandidate` remains the human-review workflow artifact (MATCH outcomes only, mutable review state, forged-confirmation protections, HARD_CONFLICT supersession, Reviewed Price behavior); the two share the narrow explicit (run, assessment_index) stable binding and reference neither other's rows. S2-B does NOT wire live semantic execution: the current V1 path creates and reads ZERO records (proved by a fake-transport execution test + source scans); live wiring is S2-C together with the final V2 input/output contract, so S2-B does not persist a temporary contract. (6) TESTS — new nodes across `tests/research/test_semantic_decision_record.py`, `test_semantic_decision_codec.py`, `test_semantic_decision_replay.py`, `test_semantic_decision_boundaries.py`, `tests/runs/test_semantic_decision_record.py`, `tests/execution/test_semantic_decision_persistence.py` (all outcomes persist/round-trip/replay; provenance exactness; structured safety round-trips; codec strictness incl. extra/missing/unknown-schema/unknown-enum/malformed/tamper; zero-live sentinels; contract-version refusal; human-review preservation; architecture boundaries). Six existing model-registry / ResearchRun field pins extended in place to include the new additive model (the mandated "made twice" model-addition decision): `tests/research/test_research_identity_boundaries.py`, `tests/runs/test_research_run_boundaries.py` (model set + EXPECTED_FIELDS), `tests/web/test_web_boundaries.py`, `tests/providers/test_provider_boundaries.py`, `tests/runs/test_comparable_research_execution.py`. No test deleted/renamed/skipped/xfail/deselected/ignored/weakened; the known Windows/Python-3.14 subprocess flake allowlist NOT expanded. | The S2-A audit found full semantic provenance exists mainly for MATCH / AiAssistedReviewCandidate paths; NO_MATCH / UNCERTAIN / runtime failures preserve no structured decision history for future V2 authority/replay. A first-class persisted semantic-decision artifact (rather than overloading AiAssistedReviewCandidate, which carries human-review responsibilities and must not become an ambiguous all-outcome container) provides the zero-live historical replay foundation: the artifact binds to the exact semantic/authority contract versions under which it was produced, stores source inputs plus a small set of derived audit snapshots whose agreement replay must prove, and fails closed on unknown versions, tamper, and corruption. The separate payload-digest column is the whole-artifact tamper anchor that in-payload section digests alone cannot provide. Persistence/codec now, live wiring in S2-C, avoids persisting a temporary contract that the final V2 input/output contract would immediately obsolete. | IMPLEMENTED / PENDING FINAL REVIEW (PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-S2-B) |
 
 ## 26. Customer Quote Research Expansion — 4D Phase Architecture
 
@@ -7081,3 +7082,220 @@ behavior change; no prompt, parser, route, or transport change; no
 model or migration; no UI; no deployment; no vendor authority change;
 no expansion of the known Windows subprocess allowlist. V3
 qualification is a separate future phase and has NOT happened.
+
+### 26.24 SEMANTIC-AUTHORITY-V2-S2-B: Persistence / Codec Phase
+(IMPLEMENTED / PENDING FINAL REVIEW — decision record: AD-068)
+
+Bounded PERSISTENCE/CODEC phase on the authoritative starting SHA
+`9206126d4fb13300028256964c98f477c5d17969` (S2-A-FU2, APPROVED / FROZEN;
+baseline collection 6003). S2-B persists the complete Semantic Authority
+V2 evaluation/provenance artifact needed for future execution and zero-
+live historical replay. It is about RECORDING semantics, not granting
+new production authority: after S2-B, production behavior is identical to
+the starting SHA. S2-C (live execution wiring under the final V2
+input/output contract) is NOT started.
+
+**1. Scope (frozen).** S2-B delivers: the persisted artifact contract, the
+strict versioned codec, the pure replay/reconstruction path, the additive
+runs model + migration, and the execution-layer persistence service that
+future S2-C will call. S2-B does NOT: enable V2 semantic eligibility in
+production, change the live semantic prompt or AI route, call AI for
+U4/U5, enable AI_ASSISTED_COMPARABLE pricing, change Machine Price /
+frozen 4A / Reviewed Price, change UI ordering/presentation, change
+vendor authority, or deploy. Current V1 production behavior is unchanged
+(no-wiring proved by test).
+
+**2. Architecture decision.** `SemanticDecisionRecord` is a first-class
+persisted semantic-decision artifact — the semantic EXECUTION/PROVENANCE
+LEDGER (one record per assessed entry-point candidate; ALL outcomes:
+MATCH / NO_MATCH / UNCERTAIN / RUNTIME_FAILURE / NOT_EVALUATED, with or
+without fallback). `AiAssistedReviewCandidate` remains the human-review
+WORKFLOW artifact (MATCH outcomes only; mutable review state; forged-
+confirmation protections; HARD_CONFLICT supersession; Reviewed Price
+behavior). It is NOT overloaded into the universal ledger. The two share
+the narrow explicit (run, assessment_index) stable binding and reference
+neither other's rows.
+
+Storage design (the established versioned-JSON-box pattern of
+PriceIntelligenceSnapshot / ResearchSupplementSnapshot / ResearchFxSnapshot
+/ ResearchMicronAliasSnapshot): the runs model carries id (UUID4), run
+(FK CASCADE, related_name `semantic_decision_records`), assessment_index,
+schema_version (codec version; only 1 supported), `payload` (opaque
+codec-encoded artifact JSON — all semantic authority fields live inside;
+the schema is owned by the codec, not the model), `payload_digest`
+(canonical SHA-256 of the payload, stored in a SEPARATE column computed at
+write time — the whole-artifact tamper anchor: a payload altered outside
+the service, even with in-payload section digests recomputed, is detected
+on every read), and created_at (persistence time, distinct from the
+evaluation instants inside the payload). No ad hoc semantic columns:
+scattering the versioned artifact's 20+ fields across columns would turn
+every contract version into a migration and give the runs layer
+interpretation rights it does not have (runs stores, it does not
+interpret). No indexed-query requirement exists yet (lookups are by
+(run, assessment_index), covered by the unique constraint); S2-B adds no
+UI.
+
+Layering: the artifact + codec + replay are PURE research-layer modules
+(Django-free; no network/file I/O; no clock; no float; no semantic-runtime
+imports — its runtime-provenance vocabularies are mirrors of the frozen
+FU3A runtime, drift-pinned by tests, following the
+V2SemanticDecision-mirrors-SemanticDecision precedent; they consume the
+frozen S2-A contract through the research package's public export
+surface, keeping the S2-A no-wiring lexical guards intact). The
+persistence SERVICE is an execution-layer module
+(`execution/semantic_decision_persistence.py` — the runs layer cannot
+import research under the frozen boundary) that composes the research
+codec + replay with the runs model; it owns the only write path and the
+read/replay paths with integrity verification, and it owns no authority
+derivation logic (guarded).
+
+**3. The persisted artifact (schema v1) — minimum complete.**
+
+* **Identity / binding** — run UUID (canonical string),
+  assessment_index (stable position in the run's ordered assessment
+  tuple), source_url (the listing's stable identity).
+* **Contract binding** — semantic contract version `V1` (the frozen FU3A
+  production semantic contract), prompt version `1.1`, input schema
+  version 1, output schema version 1, authority contract version
+  `SEMANTIC_AUTHORITY_V2_S2A_FU2` (the S2-A contract as frozen through
+  S2-A-FU2). The artifact binds to the exact versions under which it was
+  produced; anything else fails closed at construction/decode.
+* **Deterministic V2 context** — IdentityStateV2, V2 sub-state,
+  relationship signals (primary + bounded overlay; the context is
+  constructor-validated as a legitimate S2-A context), normalized
+  requested/candidate keys, and the derived relationship-requirement
+  snapshot (stored; replay proves it).
+* **Product evidence** — `ProductEvidenceProfileV2` (usable-title fact +
+  bounded matched facts, each = dimension x grounded candidate-side
+  sources) in versioned encoded form; the derived
+  `ProductEvidenceQuality` snapshot (stored; replay proves it); the
+  context provenances (MANUFACTURER_PRODUCT_CONTEXT /
+  MANUFACTURER_RELATION_AUTHORITY / CUSTOMER_RETRIEVAL_RELATION) as
+  actually present at evaluation time.
+* **Recorded prompt input** — the exact V1 case fields (case_id, target
+  MPN/description, candidate title/MPN field/SKU/specs, evidence source):
+  from them the historical prompt is deterministically reconstructable
+  without any live call.
+* **Recorded semantic output** — evaluation state
+  (NOT_EVALUATED / EVALUATED / RUNTIME_FAILURE), decision
+  (MATCH / NO_MATCH / UNCERTAIN), confidence (HIGH / MEDIUM / LOW),
+  structured conflict classes (the V2 `ConflictClass` set), the bounded
+  reason code, and the recorded attribute lists. The V1 output contract
+  admits no explanatory prose; none is stored. A RUNTIME_FAILURE never
+  carries a decision (it is never interpreted as NO_MATCH).
+* **Runtime provenance** — attempts in call order (role PRIMARY/
+  FALLBACK, attempt number, provider, model, bounded outcome — the V1
+  pinned route is enforced), fallback_used, fallback reason, bounded
+  final failure class (family-consistent with attempt count), actual
+  provider/model (the OK attempt's; None on any failure), and the
+  ISO-8601 UTC evaluation instants (absent, never defaulted, for
+  NOT_EVALUATED). No latency, no raw body, no exception text.
+* **Derived audit snapshots** — relationship authority, authority tier,
+  fired rules under the exact bound contract version.
+* **Integrity** — self-verifying canonical SHA-256 digests: input digest
+  over binding + contract + context + product evidence + prompt input;
+  output digest over evaluation + execution + derived. The record
+  constructor refuses a record whose stored digests do not agree with
+  its own sections.
+
+Persisted vs strictly re-derived: the artifact stores the source inputs
+plus the small derived set above (tamper/audit purpose); everything else
+(the state policy, the matrix base tier, the primary signal, the prompt
+rendering) is strictly re-derived and never stored. Where both source
+inputs and derived results are stored, the replay path MUST prove they
+agree (step 5).
+
+**4. The strict versioned codec.** Schema v1. Exact field set at every
+level (missing AND extra keys rejected). Strict enums (unknown values
+rejected; set encodings must be sorted and unique). No float authority
+data (a float anywhere in a payload is rejected). No lossy serialization.
+No silent defaulting of missing safety fields (nullable means present
+key with null; an absent key is an error). Decode wraps every
+constructor/validation failure (including the record's digest
+self-verification) in the bounded `SemanticDecisionCodecError`.
+Unsupported schema versions fail closed — no best-effort migration, no
+permissive unknown-field acceptance.
+
+**5. The replay contract (pure, zero-live).** `replay_semantic_decision`
+reconstructs, from the persisted artifact alone, with ZERO live AI calls
+and ZERO provider/network calls: (a) the contract-binding gate — the
+known safe-replay envelope is exactly
+`("V1", "1.1", 1, 1, "SEMANTIC_AUTHORITY_V2_S2A_FU2")`; any other
+binding (unknown OR future) is refused explicitly, so an old persisted
+decision is never silently reinterpreted under a newer contract and the
+historical binding is never substituted by current module constants;
+(b) the historical `SemanticEvaluationV2` (the exact evaluation used at
+the time, incl. RUNTIME_FAILURE as SEMANTIC_UNAVAILABLE-shaped, never
+NO_MATCH, and NOT_EVALUATED as the deterministic-policy state, never an
+AI failure); (c) the S2-A authority inputs (`IdentityStateAssessmentV2`,
+product-evidence profile, context provenances, recorded prompt input);
+(d) the re-derivation under the frozen S2-A module (relationship
+requirement, product evidence quality, relationship authority,
+`derive_authority_tier` with no human overlay — the overlay is a later
+workflow concern); and (e) the derived-agreement proof: every stored
+derived audit snapshot must EXACTLY agree with the re-derivation —
+disagreement (or a derivation that fails closed on the recorded inputs)
+is a `SemanticDecisionReplayError`. The service-level replay adds full
+binding verification against the run's persisted evidence: the recorded
+request identity must equal the run's canonical request, and the recorded
+source URL must bind to the run's snapshot assessment at the recorded
+index (a same-request cross-run or out-of-range artifact cannot replay
+over this run's evidence).
+
+**6. Backward compatibility.** Existing historical runs created before
+V2/S2-B remain readable exactly as before. No SemanticDecisionRecord is
+ever fabricated for a legacy run: absence of a V2 semantic artifact means
+"legacy semantic provenance unavailable under V2" — NOT NO_MATCH, NOT
+NOT_EVALUATED, NOT an AI failure. `load_semantic_decision` returns None
+for absence; an explicit replay request for an absent record fails
+closed. Historical V1 behavior is exactly what it was (the frozen V1
+regression suites pass unchanged).
+
+**7. Migration safety.** One additive migration (0012): a single
+CreateModel for `runs.SemanticDecisionRecord`. No backfill, no data
+rewrite, no PriceIntelligenceSnapshot mutation, no existing review-state
+change. `python manage.py makemigrations --check`: "No changes
+detected"; `python manage.py migrate --plan`: includes 0012 (Create
+model SemanticDecisionRecord). No deployment/migration of production.
+
+**8. Human-review preservation.** `AiAssistedReviewCandidate` and its
+service are unchanged (model field inventory re-pinned by test): the
+UNREVIEWED/CONFIRMED/REJECTED state machine, binding validation, forged-
+confirmation protections, HARD_CONFLICT supersession, stale confirmed
+hard-conflict exclusion, Remove/Restore, and Reviewed Price behavior all
+pass unchanged. A persisted ledger record creates no review candidate;
+a review candidate's state machine is untouched by the ledger.
+
+**9. S2-A contract preservation.** The frozen S2-A module and its export
+surface are unmodified. The record module consumes the V2 vocabulary
+through the research package's public exports (the S2-A no-wiring lexical
+guards are intact and pass unmodified). The recorded derived snapshots
+are produced under `SEMANTIC_AUTHORITY_V2_S2A_FU2` — U1 NOT_REQUIRED, U2
+SKU_EQUALS_TARGET NOT_APPLICABLE, U2 SKU_NOT_TARGET / U3 / U5-NM-1 /
+U5-NM-2 REVIEWED_RELATION_AUTHORITY_REQUIRED, U4 NOT_APPLICABLE, NM-2
+independent ceiling, customer retrieval zero authority, HARD_CONFLICT
+precedence, the ProductEvidenceQuality bar, immutable contract tables,
+"Market evidence found" terminology, and the pricing-eligible
+separation — all encoded, not redefined (the mirror tests + the S2-A
+suite + the no-wiring scans pass unchanged).
+
+**10. Files.** Production: NEW `research/semantic_decision_record.py`,
+`research/semantic_decision_codec.py`, `research/semantic_decision_replay.py`;
+`research/__init__.py` (public export surface + phase note);
+`runs/models.py` (additive `SemanticDecisionRecord` model); NEW
+`runs/migrations/0012_semantic_decision_record.py`; `runs/__init__.py`
+(model export); NEW `execution/semantic_decision_persistence.py`.
+Tests: NEW `tests/research/test_semantic_decision_record.py`,
+`test_semantic_decision_codec.py`, `test_semantic_decision_replay.py`,
+`test_semantic_decision_boundaries.py`; NEW
+`tests/runs/test_semantic_decision_record.py`; NEW
+`tests/execution/test_semantic_decision_persistence.py`; six existing
+model-registry / ResearchRun field pins extended in place (the additive
+model is the "made twice" decision: research-identity, runs-boundaries
+[model set + EXPECTED_FIELDS], web-boundaries, providers-boundaries,
+comparable-research-execution). Docs: this section, STATUS, AD-068.
+
+**11. Explicit non-goals.** No S2-C (live semantic execution wiring,
+final V2 input/output contract); no V3 qualification; no UI; no prompt /
+parser / route / transport change; no vendor authority change; no
+deployment; no expansion of the known Windows subprocess flake allowlist.
