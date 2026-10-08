@@ -513,8 +513,9 @@ def test_qualification_v2_exception_is_an_exact_allowlist() -> None:
 
     A. every allowlisted file exists and currently imports
        product_intelligence.research (the exception is load-bearing);
-    B. the other harness modules (canonical, policy, cli, __init__) are
-       NOT authorized and do not import research (least privilege);
+    B. the other harness modules (canonical, policy, cli, __init__,
+       and Q3-A-FU1's direct_capture) are NOT authorized and do not
+       import research (least privilege);
     C. arbitrary other semantic_v2 names, other directories, and files
        outside the repository are NOT covered (no prefix/glob/regex);
     D. the union allowlist is exactly the two reviewer-authorized sets
@@ -531,8 +532,15 @@ def test_qualification_v2_exception_is_an_exact_allowlist() -> None:
             for module in _imported_modules(path)
         ), f"{rel} is allowlisted but no longer imports research"
 
-    for name in ("canonical.py", "policy.py", "cli.py", "__init__.py"):
+    for name in (
+        "canonical.py",
+        "policy.py",
+        "cli.py",
+        "__init__.py",
+        "direct_capture.py",
+    ):
         path = q_root / name
+        assert path.is_file(), name
         assert not _is_authorized_research_importer(path)
         assert not any(
             module.startswith("product_intelligence.research")

@@ -52,10 +52,16 @@ from product_intelligence.research.semantic_v2 import (
     validate_semantic_response_v2,
 )
 from product_intelligence.evaluation.semantic_v2.capture import (
+    CAPTURE_MODE,
     CaptureDocument,
     CaptureRecord,
     FALLBACK_ROUTE,
     PRIMARY_ROUTE,
+)
+from product_intelligence.evaluation.semantic_v2.direct_capture import (
+    DIRECT_CAPTURE_MODE,
+    DirectCaptureDocument,
+    verify_direct_capture_against_corpus,
 )
 from product_intelligence.evaluation.semantic_v2.corpus import (
     AMBIGUOUS_CASE_CLASS,
@@ -75,6 +81,7 @@ __all__ = [
     "QualificationContractError",
     "classify_raw_response",
     "compute_metrics",
+    "evaluate_direct_for_model",
     "evaluate_no_capture",
     "evaluate_offline",
 ]
@@ -298,13 +305,13 @@ def _score_semantic(
     case: CorpusCase,
     case_obj: Any,
     response: SemanticMatchResponseV2,
-    record: CaptureRecord,
+    fallback_used: bool,
     provenance_role: str,
 ) -> CaseOutcome:
     base = _base_outcome(case)
     model_decision = response.decision.value
     notes: list[str] = []
-    if record.fallback_used and provenance_role == "FALLBACK":
+    if fallback_used and provenance_role == "FALLBACK":
         notes.append("FALLBACK_ACCEPTED")
 
     # Harness coherence check the input-aware contract applies: the
@@ -395,6 +402,12 @@ class EvaluationResult:
     capture_notes: str | None
     outcomes: tuple[CaseOutcome, ...]
     metrics: dict[str, Any] = field(compare=True, default_factory=dict)
+    #: The capture mode this result was produced from (production-route
+    #: evaluation stays "PRODUCTION_ROUTE"; direct-model evaluation is
+    #: "DIRECT_MODEL_QUALIFICATION"). Reports identify the mode
+    #: explicitly and the two modes' coverage denominators are never
+    #: mixed.
+    capture_mode: str = CAPTURE_MODE
 
 
 def _model_view(
@@ -439,11 +452,20 @@ def evaluate_for_model(
 
     Raises ``QualificationContractError`` when the capture does not
     bind to the exact corpus / frozen contract (the evaluation is void;
-    never best-effort).
+    never best-effort) - including the cross-mode presentation of a
+    direct-model capture document (refused, never reinterpreted).
     """
     from product_intelligence.evaluation.semantic_v2.capture import (
         verify_capture_against_corpus,
     )
+
+    if not isinstance(capture, CaptureDocument):
+        raise QualificationContractError(
+            "a direct-model capture document was presented to the "
+            "production-route evaluator; the two capture modes are "
+            "separate typed schemas and are never reinterpreted across "
+            "modes"
+        )
 
     if (provider, model) not in (PRIMARY_ROUTE, FALLBACK_ROUTE):
         raise QualificationContractError(
@@ -571,7 +593,7 @@ def evaluate_for_model(
 
         outcomes.append(
             _score_semantic(
-                case, case_obj, response, record, provenance_role=role
+                case, case_obj, response, record.fallback_used, provenance_role=role
             )
         )
 
@@ -649,6 +671,215 @@ def evaluate_no_capture(
         capture_notes=None,
         outcomes=outcomes,
         metrics=compute_metrics(outcomes),
+    )
+
+
+# ---------------------------------------------------------------------------
+# The independent DIRECT_MODEL_QUALIFICATION evaluation (Q3-A-FU1)
+# ---------------------------------------------------------------------------
+
+
+def evaluate_direct_for_model(
+    corpus: CorpusBundle,
+    direct_capture: DirectCaptureDocument,
+    provider: str,
+    model: str,
+) -> EvaluationResult:
+    """Evaluate one DIRECT_MODEL_QUALIFICATION capture for ONE pinned
+    model (offline, deterministic).
+
+    This is a separate evaluator path from the production-route
+    evaluator: it never imports or invokes the production
+    orchestration, there is no primary-before-fallback requirement and
+    no fallback projection, and no NOT_INVOKED state exists. The
+    capture is bound to exactly one provider/model and each eligible
+    semantic case is judged on that model's own execution:
+
+    * record with status OK whose raw output re-parses through the
+      frozen production parser -> EVALUATED;
+    * record with a bounded execution failure status -> RUNTIME_
+      FAILURE (preserved separately, never a semantic decision);
+    * no record for the case -> NOT_CAPTURED (a missing response is
+      never a pass and never a fabricated answer);
+    * record with status OK whose raw output does not survive the
+      production parser -> CAPTURE_INTEGRITY_FAILURE (fail closed,
+      never substituted with the expected answer).
+
+    The frozen production V2 parser is REUSED unchanged
+    (``classify_raw_response`` = ``parse_semantic_response_v2`` +
+    ``validate_semantic_response_v2``); scoring, metrics, and gates are
+    the same label-driven surface, with the capture mode recorded on
+    the result so the two modes' coverage denominators are never
+    mixed.
+
+    Raises ``QualificationContractError`` on any cross-mode, model-
+    identity, corpus, or contract mismatch (the evaluation is void;
+    fail closed).
+    """
+    if not isinstance(direct_capture, DirectCaptureDocument):
+        raise QualificationContractError(
+            "a production-route capture document was presented to the "
+            "direct-model evaluator; the two capture modes are separate "
+            "typed schemas and are never reinterpreted across modes"
+        )
+    if (provider, model) not in (PRIMARY_ROUTE, FALLBACK_ROUTE):
+        raise QualificationContractError(
+            f"model {provider!r}/{model!r} is not one of the frozen V2 "
+            f"pinned routes {PRIMARY_ROUTE!r} / {FALLBACK_ROUTE!r}; no "
+            "direct-model qualification is produced for an unpinned "
+            "identity"
+        )
+    if (provider, model) != (
+        direct_capture.target_provider,
+        direct_capture.target_model,
+    ):
+        raise QualificationContractError(
+            f"the capture is bound to "
+            f"{direct_capture.target_provider!r}/"
+            f"{direct_capture.target_model!r}; direct-model responses "
+            "are never transferred to a different model identity"
+        )
+    role = "PRIMARY" if (provider, model) == PRIMARY_ROUTE else "FALLBACK"
+
+    try:
+        verify_direct_capture_against_corpus(direct_capture, corpus)
+    except Exception as exc:
+        raise QualificationContractError(str(exc)) from exc
+
+    records_by_case = {
+        record.case_id: record for record in direct_capture.records
+    }
+    outcomes: list[CaseOutcome] = []
+    for case in sorted(corpus.cases, key=lambda c: c.case_id):
+        if case.case_class == CONTRACT_NEGATIVE_CASE_CLASS:
+            try:
+                case.build_semantic_case()
+            except CorpusInputRejectionError as exc:
+                outcomes.append(
+                    _contract_negative_outcome(case, exc.rejection_class)
+                )
+            else:
+                outcomes.append(_contract_negative_outcome(case, None))
+            continue
+
+        # A semantic corpus case must reconstruct (corpus defect
+        # otherwise - fail closed, never evaluated as a model answer).
+        try:
+            case_obj = case.build_semantic_case()
+        except CorpusInputRejectionError as exc:
+            base = _base_outcome(case)
+            outcomes.append(
+                CaseOutcome(
+                    **{
+                        **base.__dict__,
+                        "state": "CONTRACT_VIOLATION",
+                        "verdict": "REJECTED_VIOLATION",
+                        "severity": "CRITICAL",
+                        "notes": (
+                            (
+                                f"a semantic corpus case failed the "
+                                f"frozen input contract "
+                                f"[{exc.rejection_class}]: {exc.detail} "
+                                "(corpus defect; fail closed)"
+                            ),
+                        ),
+                    }
+                )
+            )
+            continue
+
+        record = records_by_case.get(case.case_id)
+        base = _base_outcome(case)
+        if record is None:
+            outcomes.append(
+                CaseOutcome(
+                    **{
+                        **base.__dict__,
+                        "state": "NOT_CAPTURED",
+                        "verdict": "NOT_EVALUATED",
+                        "notes": (
+                            (
+                                "the direct capture carries no record "
+                                "for this case; a missing response is "
+                                "never a pass and never a fabricated "
+                                "answer"
+                            ),
+                        ),
+                    }
+                )
+            )
+            continue
+        if record.execution_status != "OK":
+            outcomes.append(
+                CaseOutcome(
+                    **{
+                        **base.__dict__,
+                        "state": "RUNTIME_FAILURE",
+                        "verdict": "RUNTIME_FAILED",
+                        "runtime_failure_status": record.execution_status,
+                        "provenance_role": "DIRECT",
+                        "notes": (
+                            (
+                                "the direct execution failed; preserved "
+                                "separately from any semantic decision "
+                                "(never NO_MATCH, never a pass)"
+                            ),
+                        ),
+                    }
+                )
+            )
+            continue
+
+        response, failure = classify_raw_response(record.raw_output or "")
+        if response is None:
+            outcomes.append(
+                CaseOutcome(
+                    **{
+                        **base.__dict__,
+                        "state": "CAPTURE_INTEGRITY_FAILURE",
+                        "verdict": "INTEGRITY_FAILED",
+                        "severity": "CRITICAL",
+                        "runtime_failure_status": failure,
+                        "notes": (
+                            (
+                                "the direct capture carries an OK record "
+                                "whose raw output does not survive the "
+                                f"production V2 parser ({failure}); the "
+                                "response is NOT accepted and NOT "
+                                "substituted with the expected answer"
+                            ),
+                        ),
+                    }
+                )
+            )
+            continue
+
+        outcomes.append(
+            _score_semantic(
+                case,
+                case_obj,
+                response,
+                fallback_used=False,
+                provenance_role="DIRECT",
+            )
+        )
+
+    outcomes = tuple(outcomes)
+    return EvaluationResult(
+        provider=provider,
+        model=model,
+        route_role=role,
+        corpus_id=corpus.corpus_id,
+        corpus_version=corpus.corpus_version,
+        corpus_digest=corpus.corpus_digest,
+        semantic_contract_binding=corpus.semantic_contract_binding,
+        capture_run_id=direct_capture.capture_run_id or None,
+        captured_at=direct_capture.captured_at,
+        captured_by=direct_capture.captured_by or None,
+        capture_notes=direct_capture.notes or None,
+        outcomes=outcomes,
+        metrics=compute_metrics(outcomes),
+        capture_mode=DIRECT_CAPTURE_MODE,
     )
 
 

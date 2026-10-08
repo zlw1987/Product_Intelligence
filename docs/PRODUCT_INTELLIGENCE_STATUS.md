@@ -6,11 +6,281 @@
 
 
 
+**PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-Q3-A-FU1 (Semantic Authority V2 —
+
+Independent Model Qualification Capture)
+
+— IMPLEMENTED / PENDING FINAL REVIEW**
+
+
+
+Bounded CAPTURE-ARCHITECTURE corrective follow-up on the reviewed
+Q3-A candidate (canonical spec: the Q3-A-FU1 operator briefing;
+decision record: AD-073), on the authoritative starting SHA
+`8435864e7517c17843a7406a79de4c819a6ef2fa` (Q3-A endpoint; baseline
+collection 6748). Q3-A is recorded as REVIEWED / NOT APPROVED / NOT
+FROZEN: review found one blocking architecture defect - the Q3-A
+capture contract is ONE production run of the frozen pinned route
+(primary attempt; fallback on eligible primary execution failure
+only), so a normal run finalizes every case on the primary's success
+and the fallback view of that run is all NOT_INVOKED: a single
+production-route capture structurally cannot provide full
+qualification coverage for BOTH models independently. FU1 corrects
+the capture architecture without touching the frozen Semantic V2
+production contract: it introduces two explicitly distinct, versioned
+capture modes, and a dedicated independent evaluator / report path
+for the benchmark-only mode. **No live model calls were executed in
+FU1** (offline infrastructure only; the controlled capture runner is
+Q3-B). **No frozen production artifact changed**: prompt 2.0, input /
+output schema, reason codes, eligibility, authority matrix,
+persistence adapter, runtime route, and production fallback behavior
+are byte-untouched; the corpus digest is unchanged
+(`2c37ba08...0b549`); the DRAFT policy is unchanged; `V2_AUTHORITY_
+QUALIFIED = False` is unchanged; no Machine Price, Reviewed Price, or
+human-review authority change; no migration; no deployment.
+
+
+**The two capture modes (explicitly distinct typed schemas).**
+
+* **Mode A — PRODUCTION_ROUTE** (the existing `capture.py` schema v1,
+  unchanged and still readable): one capture = one run of the frozen
+  pinned route; primary first; fallback only after an eligible
+  primary EXECUTION failure with the frozen reason mapping; a
+  successful primary finalizes the route; a fallback response never
+  qualifies the primary and vice versa; uninvoked fallback cases stay
+  NOT_INVOKED; the report now explicitly identifies the capture mode
+  (the capture section carries `capture_mode: PRODUCTION_ROUTE` +
+  `capture_schema_version: 1`) - additive identity fields only; no
+  historical committed artifact is affected (the committed baselines
+  are the no-capture state with a null capture section).
+* **Mode B — DIRECT_MODEL_QUALIFICATION** (NEW `direct_capture.py`,
+  its own `direct_capture_schema_version: 1`): a benchmark-only
+  capture targeting EXACTLY ONE pinned provider/model
+  (`amax / qwen3.8-27b` or `vllm-262k / Qwen3.6-27B-262K` - no other
+  identity may enter the frozen V2 qualification; wrong / unknown /
+  mixed provider-model pairs fail closed); every eligible semantic
+  case is that model's own single bounded execution (one
+  `execution_status` from OK + the frozen runtime's execution-failure
+  vocabulary; `raw_output` present iff OK); NO primary-before-
+  fallback requirement, NO fallback attempt, NO artificial primary
+  failures, NO production routing, NO production execution or
+  pricing authority; the model identity is bound to the document AND
+  to every record's interpretation; the capture preserves the exact
+  frozen corpus identity (id / version / digest), semantic contract
+  V2, prompt 2.0, and a distinct run id + provenance per capture;
+  duplicate case IDs, unknown case IDs, contract-negative records
+  (schema-bypass attack), and corpus / prompt / contract mismatches
+  all fail closed. Missing eligible cases are NOT a load error: they
+  surface as NOT_CAPTURED at evaluation (coverage shortfall, never a
+  pass).
+
+
+**Backward compatibility (no cross-mode interpretation).** The two
+modes are SEPARATE typed documents, not one ambiguous structure: a
+PRODUCTION_ROUTE document is refused by the direct loader (explicit
+cross-mode error), a direct document is refused by the production
+loader (exact-key-set failure), a hybrid with both key sets is refused
+by both, and the evaluators and report verifiers each refuse the
+other mode's artifacts (typed cross-mode guards; production-route
+captures are never reinterpreted as direct-model captures and vice
+versa). Old production-route captures remain readable by the
+unchanged production loader; nothing is migrated.
+
+
+**The independent direct-model evaluator (NEW path in
+`evaluator.py`).** `evaluate_direct_for_model` verifies (1) exact
+provider/model identity of the requested model against the frozen
+pinned routes, (2) the capture's bound target == the requested model
+(responses never transfer between identities), (3) corpus id /
+version / digest, (4) semantic contract V2 + prompt 2.0, (5) every
+case ID (duplicates rejected at load; unknown / contract-negative
+records rejected at corpus verification), and fails closed
+(`QualificationContractError`) on any mismatch. It then scores each
+case on that model's own execution: OK + parser-valid -> EVALUATED;
+bounded execution failure -> RUNTIME_FAILURE (preserved separately,
+never a semantic decision); no record -> NOT_CAPTURED; OK but the raw
+output does not survive the FROZEN production V2 parser ->
+CAPTURE_INTEGRITY_FAILURE (never substituted with the expected
+answer). It reuses the production parser composition UNCHANGED
+(`classify_raw_response` = `parse_semantic_response_v2` +
+`validate_semantic_response_v2`), the same label-driven scoring,
+severity, and metric surface - no approximation, no NOT_INVOKED
+state, and no production orchestration import (mechanically
+verified). Metrics, the eight mandatory safety gates, and the
+fail-closed decision (FAIL_CLOSED / NOT_QUALIFIED / POLICY_PENDING /
+INCOMPLETE_COVERAGE / THRESHOLD_INDETERMINATE / BELOW_THRESHOLD /
+QUALIFIED) are computed independently per model in each mode; the
+coverage denominators of the two modes are never mixed (a full
+direct fallback capture is 43 evaluated / 0 NOT_INVOKED while the
+same model's production-route view of a primary-answered run stays 0
+evaluated / 43 NOT_INVOKED - both coexist, proven by test). A
+complete direct-model qualification requires every one of the 43
+eligible semantic cases to have an accepted, parser-valid response;
+primary and fallback must each satisfy this independently.
+
+
+**Reporting (explicit mode identity).** NEW `build_direct_report` /
+`verify_direct_report` (separate report kind
+`SEMANTIC_V2_DIRECT_MODEL_QUALIFICATION_OFFLINE`): the report
+explicitly identifies the capture mode, the capture schema version,
+provider/model (bound target), corpus id / version / digest, the
+frozen contract binding + real system-prompt digest, the capture run
+id + provenance, the evaluation timestamp, and the direct coverage
+facts (eligible / evaluated / not-captured / runtime-failure /
+invalid-response counts WITH case ids, completeness flag), plus the
+per-substate and per-category performance, false-MATCH case ids, the
+eight hard safety-gate results, the qualification policy status
+(DRAFT), and the decision. Each mode's verifier REFUSES the other
+mode's reports (cross-mode kind check - fail closed). Production-
+route `build_report` output is unchanged in content and the committed
+no-capture baseline reports (both pinned candidates) are
+BYTE-IDENTICAL to what the unchanged pipeline reproduces (JSON and
+Markdown, proven by test).
+
+
+**Offline-only boundary.** FU1 implements capture formats + offline
+evaluation infrastructure. It runs NO real model calls, adds NO live
+transport execution, and changes NO production runtime routing; the
+controlled capture runner is Q3-B (after independent FU1 approval).
+The socket-blocked pipeline test and the AST import scan cover the
+direct path.
+
+
+**Architecture boundary (preserved, strengthened).** NEW
+`direct_capture.py` is RESEARCH-INDEPENDENT (it re-imports the
+frozen route / contract pins from the allowlisted `capture.py`, the
+house least-privilege pattern), so the Q3-A evaluation->research
+exact allowlist remains EXACTLY THE SAME SIX FILES - no new exception
+was necessary and none was added; no broad prefix-based exception
+was introduced. The Q3-A mechanism test
+`test_qualification_v2_exception_is_an_exact_allowlist` is
+STRENGTHENED in place (strictly additive: `direct_capture.py` is
+added to the pinned non-allowlisted set and must exist and remain
+research-independent).
+
+
+**Ground truth and safety (unchanged).** The corpus is untouched:
+56 cases (43 semantic: 36 AUTHORITATIVE + 7 AMBIGUOUS; 13
+CONTRACT_NEGATIVE); the motivating Micron case
+(`MTFDKCC3T8TGP-1BK1DABYYR` vs `MTFDKCC3T8TGP-1BK1DABYY`,
+`V2Q-SSD-U5NM1-MICRON-0018`) still expects UNCERTAIN with
+PACKAGING_QUANTITY missing and the commercial sales-unit-safety flag
+(a direct MATCH on it is a CRITICAL false MATCH in both modes -
+proven); synthetic / recorded-fixture / real-market provenance stays
+separate (REAL_MARKET still loader-rejected); no expected decision or
+conflict label changed. The eight mandatory safety gates are
+unchanged and work identically in both modes (gate-for-gate
+equality proven, including the input-aware authority-promotion
+cross-check); the policy remains DRAFT, so no QUALIFIED result can
+be produced (full correct captures stay POLICY_PENDING under the
+shipped policy); `V2_AUTHORITY_QUALIFIED` remains False; no Machine
+Price, Reviewed Price, or human-review authority change.
+
+
+**CLI.** NEW `evaluate-direct` command (one report per pinned model
+per direct capture; void evaluations emit an explicit FAIL_CLOSED
+direct-kind report); the existing `evaluate` command (production-
+route mode, including the no-capture baseline) is unchanged in
+behavior.
+
+
+**Tests.** 76 NEW nodes across four files
+(`tests/evaluation/semantic_v2/`): `test_q3a_fu1_direct_capture.py`
+(35), `test_q3a_fu1_direct_evaluation.py` (19),
+`test_q3a_fu1_qualification.py` (12), `test_q3a_fu1_reports.py` (10)
++ the shared `_q3a_fu1_helpers.py` fixture writer (declared test
+fixtures, not model output) - covering all 32 mandated properties:
+production-route captures still readable / fallback never after
+primary success / fallback execution-failure-only; independent
+direct primary + fallback captures with no fake primary failure;
+cross-mode decode + evaluation fail closed; wrong / unknown /
+mixed provider-model fail closed; duplicate / unknown case IDs;
+contract-negative responses; corpus digest / prompt / contract
+mismatches; missing / runtime-failure / invalid responses cannot
+PASS; primary qualification does not qualify the fallback and vice
+versa; independent denominators (NOT_INVOKED production-only);
+production parser reused without approximation (case-for-case
+outcome equality across modes); false-MATCH gates identical in both
+modes; synthetic labels stay synthetic; the Micron case unchanged;
+no production execution imports (AST + module-state proof);
+no network / model calls (socket-blocked); historical baseline
+reports byte-identical; policy remains DRAFT; `V2_AUTHORITY_
+QUALIFIED` remains False; no pricing / review authority tokens. No
+test deleted, renamed, skipped, xfailed, deselected, ignored, or
+weakened; the one existing test touched is the strictly-additive
+mechanism-test strengthening above; the Windows subprocess flake
+allowlist NOT expanded. Collection 6748 -> 6828 (+80 = 76 new-file
+nodes + 4 auto-expanded parameterized scans for `direct_capture.py`
+[vendor-token +1, stdlib-imports +1, no-outer-layer +1, providers
+INNER_ROOTS +1]; no file decreased).
+
+
+**Validation (this session, candidate pass — final approval remains
+with independent review).**
+
+
+* Collection baseline at `8435864`: **6748**; final: **6828** (+80 as
+  accounted above).
+* Focused Q3-A + FU1 (`tests/evaluation/semantic_v2/`): **208
+  passed, 0 failed** (132 Q3-A + 76 FU1).
+* Focused boundaries (`tests/evaluation/test_evaluation_boundaries.py`
+  + `tests/research/test_research_identity_boundaries.py`): all
+  passed apart from the recorded load-sensitive clean-interpreter
+  subprocess guard flake class (see full suite).
+* Focused S2-A / S2-B / S2-C + FU1 (authority contract, V2 contract,
+  input evidence, V1/V2 record, codec, replay, boundaries, adapter,
+  prompt, runtime): **all passed, 0 failed** (613 nodes).
+* Focused semantic runtime / V2 execution wiring / motivating case /
+  semantic integration / persistence / runs: all passed apart from
+  the same subprocess guard flake class (re-passed on isolated
+  retry).
+* Focused 2A / 3C / 4A / human review: **all passed, 0 failed**.
+* Full suite: **6828 collected; 6817 passed, 11 failed** - all 11
+  failures are the documented load-sensitive clean-interpreter
+  subprocess guard class (fail at `Popen -> _get_handles ->
+  _make_inheritable -> _winapi.DuplicateHandle -> OSError`
+  [WinError 6 x2, WinError 50 x9] BEFORE any project code runs; zero
+  assertion failures, zero collection errors): `test_domain_
+  boundaries::test_domain_imports_without_django_network_or_llm_
+  dependencies`, `test_evaluation_boundaries::test_loading_the_corpus_
+  imports_no_framework_or_provider`, `test_provider_boundaries::
+  test_http_pdf_imports_no_third_party_dependency` / `test_importing_
+  the_page_boundary_pulls_in_no_third_party_dependency` / `test_
+  importing_the_provider_boundary_pulls_in_no_third_party_dependency`,
+  `test_enterprise_ssd_boundaries::test_importing_enterprise_ssd_
+  does_not_load_django` / `test_importing_enterprise_ssd_pulls_in_no_
+  third_party`, `test_listing_normalization_boundaries::test_
+  importing_the_research_core_still_pulls_in_no_third_party_
+  dependency`, `test_research_identity_boundaries::test_importing_the_
+  research_core_pulls_in_no_third_party_dependency`, `test_
+  specification_boundaries::test_importing_specifications_pulls_in_no_
+  third_party_dependency`, `test_research_run_boundaries::test_the_
+  domain_still_imports_without_django_present`. Every one re-passed
+  on isolated one-node-per-process retry (11/11, exit 0). The known
+  flake allowlist was NOT expanded; no non-flake node failed.
+* Skipped / xfailed / deselected: **0 / 0 / 0** (full run: 6817
+  passed + 11 flaked, no other outcomes).
+* `python manage.py check`: System check identified no issues (0
+  silenced). `python manage.py makemigrations --check --dry-run`: No
+  changes detected (no model change; capture formats are evaluation
+  infrastructure only). `python manage.py migrate --plan`: unchanged
+  (final entry `runs.0012_semantic_decision_record`).
+* `git diff --check`: clean.
+
+
+No deployment performed; FU1 does not claim approval or
+qualification: Q3-A remains NOT APPROVED / NOT FROZEN pending review
+of this correction, the qualification policy remains DRAFT, `V2_
+AUTHORITY_QUALIFIED` remains False, and live capture is Q3-B.
+
+
+
 **PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-Q3-A (Semantic Authority V2 —
 
 Qualification V3: Independent Corpus, Harness and Offline Qualification)
 
-— IMPLEMENTED / PENDING FINAL REVIEW**
+— IMPLEMENTED / REVIEWED / NOT APPROVED / NOT FROZEN (capture
+architecture corrected in part by Q3-A-FU1)**
 
 
 

@@ -52,8 +52,18 @@ from product_intelligence.evaluation.semantic_v2.canonical import (
     assert_json_native,
     canonical_sha256,
 )
+from product_intelligence.evaluation.semantic_v2.capture import (
+    CAPTURE_MODE,
+    CAPTURE_SCHEMA_VERSION,
+)
 from product_intelligence.evaluation.semantic_v2.corpus import (
+    CONTRACT_NEGATIVE_CASE_CLASS,
     CorpusBundle,
+)
+from product_intelligence.evaluation.semantic_v2.direct_capture import (
+    DIRECT_CAPTURE_MODE,
+    DIRECT_CAPTURE_SCHEMA_VERSION,
+    DirectCaptureDocument,
 )
 from product_intelligence.evaluation.semantic_v2.evaluator import (
     EvaluationResult,
@@ -66,14 +76,25 @@ from product_intelligence.evaluation.semantic_v2.policy import (
 )
 
 __all__ = [
+    "DIRECT_REPORT_KIND",
+    "PRODUCTION_REPORT_KIND",
     "REPORT_SCHEMA_VERSION",
+    "build_direct_report",
     "build_report",
     "render_markdown",
+    "verify_direct_report",
     "verify_report",
     "ReportError",
 ]
 
 REPORT_SCHEMA_VERSION: Final[int] = 1
+
+#: The two report kinds (one per capture mode; the two are never
+#: reinterpreted across modes - each verifier refuses the other kind).
+PRODUCTION_REPORT_KIND: Final[str] = "SEMANTIC_V2_QUALIFICATION_OFFLINE"
+DIRECT_REPORT_KIND: Final[str] = (
+    "SEMANTIC_V2_DIRECT_MODEL_QUALIFICATION_OFFLINE"
+)
 
 
 class ReportError(Exception):
@@ -135,6 +156,67 @@ def _corpus_input_digest(corpus: CorpusBundle) -> str:
     return canonical_sha256(entries)
 
 
+def _corpus_section(corpus: CorpusBundle, counts: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "corpus_id": corpus.corpus_id,
+        "corpus_version": corpus.corpus_version,
+        "corpus_schema_version": 1,
+        "corpus_digest": corpus.corpus_digest,
+        "total_cases": counts["total_cases"],
+        "authoritative_cases": counts["authoritative_cases"],
+        "ambiguous_cases": counts["ambiguous_cases"],
+        "contract_negative_cases": counts["contract_negative_cases"],
+        "corpus_input_digest": _corpus_input_digest(corpus),
+    }
+
+
+def _policy_section(
+    policy: PolicyDocument | None,
+    threshold_evaluation: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    return (
+        {
+            "policy_id": policy.policy_id,
+            "policy_version": policy.policy_version,
+            "status": policy.status,
+            "approved": policy.approved,
+            "approved_by": policy.approved_by,
+            "approved_utc": policy.approved_utc,
+            "thresholds": {
+                k: f"{v:.6f}" for k, v in policy.thresholds.items()
+            },
+            "threshold_evaluation": threshold_evaluation,
+            "note": (
+                "DRAFT proposal - not a finalized production "
+                "acceptance threshold; qualification requires an "
+                "approved policy"
+                if policy.status == "DRAFT"
+                else "approved qualification policy"
+            ),
+        }
+        if policy is not None
+        else None
+    )
+
+
+def _authority_section() -> dict[str, Any]:
+    return {
+        "granted": False,
+        "v2_authority_qualified": V2_AUTHORITY_QUALIFIED,
+        "note": (
+            "this report is evaluation evidence only; it grants no "
+            "pricing authority, no tier promotion, and no human-"
+            "review behavior change"
+        ),
+    }
+
+
+def _report_digest_fields(
+    report: dict[str, Any],
+) -> dict[str, Any]:
+    return {k: v for k, v in report.items() if k not in ("generated_utc",)}
+
+
 def build_report(
     result: EvaluationResult,
     gates: dict[str, GateResult],
@@ -150,19 +232,9 @@ def build_report(
     counts = result.metrics["counts"]
     report: dict[str, Any] = {
         "report_schema_version": REPORT_SCHEMA_VERSION,
-        "report_kind": "SEMANTIC_V2_QUALIFICATION_OFFLINE",
+        "report_kind": PRODUCTION_REPORT_KIND,
         "generated_utc": generated_utc,
-        "corpus": {
-            "corpus_id": corpus.corpus_id,
-            "corpus_version": corpus.corpus_version,
-            "corpus_schema_version": 1,
-            "corpus_digest": corpus.corpus_digest,
-            "total_cases": counts["total_cases"],
-            "authoritative_cases": counts["authoritative_cases"],
-            "ambiguous_cases": counts["ambiguous_cases"],
-            "contract_negative_cases": counts["contract_negative_cases"],
-            "corpus_input_digest": _corpus_input_digest(corpus),
-        },
+        "corpus": _corpus_section(corpus, counts),
         "contract": _contract_section(),
         "model": {
             "provider": result.provider,
@@ -171,6 +243,8 @@ def build_report(
         },
         "capture": (
             {
+                "capture_mode": CAPTURE_MODE,
+                "capture_schema_version": CAPTURE_SCHEMA_VERSION,
                 "capture_run_id": result.capture_run_id,
                 "captured_at": result.captured_at,
                 "captured_by": result.captured_by,
@@ -184,63 +258,66 @@ def build_report(
         "safety_gates": {
             name: gates[name].to_report_dict() for name in gates
         },
-        "policy": (
-            {
-                "policy_id": policy.policy_id,
-                "policy_version": policy.policy_version,
-                "status": policy.status,
-                "approved": policy.approved,
-                "approved_by": policy.approved_by,
-                "approved_utc": policy.approved_utc,
-                "thresholds": {
-                    k: f"{v:.6f}" for k, v in policy.thresholds.items()
-                },
-                "threshold_evaluation": threshold_evaluation,
-                "note": (
-                    "DRAFT proposal - not a finalized production "
-                    "acceptance threshold; qualification requires an "
-                    "approved policy"
-                    if policy.status == "DRAFT"
-                    else "approved qualification policy"
-                ),
-            }
-            if policy is not None
-            else None
-        ),
+        "policy": _policy_section(policy, threshold_evaluation),
         "decision": decision,
         "decision_rationale": list(rationale),
-        "authority": {
-            "granted": False,
-            "v2_authority_qualified": V2_AUTHORITY_QUALIFIED,
-            "note": (
-                "this report is evaluation evidence only; it grants no "
-                "pricing authority, no tier promotion, and no human-"
-                "review behavior change"
-            ),
-        },
+        "authority": _authority_section(),
     }
     assert_json_native(report, "report")
-    digested = {
-        k: v for k, v in report.items() if k not in ("generated_utc",)
-    }
-    report["report_digest"] = canonical_sha256(digested)
+    report["report_digest"] = canonical_sha256(
+        _report_digest_fields(report)
+    )
     return report
 
 
 def verify_report(
     report: dict[str, Any], corpus: CorpusBundle
 ) -> None:
-    """Verify one historical report against one corpus.
+    """Verify one historical PRODUCTION_ROUTE report against one corpus.
 
-    Fails closed (``ReportError``) when the report was produced
-    against a different corpus digest / contract binding, or when any
-    per-case expected-decision snapshot no longer matches the corpus
-    (a label revision since the report was produced). This is what
-    keeps historical results associated with their original identity
-    and makes silent label mutation after evaluation detectable.
+    Fails closed (``ReportError``) when the report is not a
+    production-route qualification report (cross-mode kind is refused),
+    when it was produced against a different corpus digest / contract
+    binding, or when any per-case expected-decision snapshot no longer
+    matches the corpus (a label revision since the report was
+    produced). This is what keeps historical results associated with
+    their original identity and makes silent label mutation after
+    evaluation detectable.
     """
     if report.get("report_schema_version") != REPORT_SCHEMA_VERSION:
         raise ReportError("unknown report schema version")
+    if report.get("report_kind") != PRODUCTION_REPORT_KIND:
+        raise ReportError(
+            "report kind is not the production-route qualification "
+            "report; cross-mode interpretation is refused (fail closed)"
+        )
+    _verify_report_binding(report, corpus)
+
+
+def verify_direct_report(
+    report: dict[str, Any], corpus: CorpusBundle
+) -> None:
+    """Verify one historical DIRECT_MODEL_QUALIFICATION report against
+    one corpus (the direct-mode counterpart of ``verify_report``;
+    refuses the other mode's reports).
+    """
+    if report.get("report_schema_version") != REPORT_SCHEMA_VERSION:
+        raise ReportError("unknown report schema version")
+    if report.get("report_kind") != DIRECT_REPORT_KIND:
+        raise ReportError(
+            "report kind is not the direct-model qualification report; "
+            "cross-mode interpretation is refused (fail closed)"
+        )
+    if report.get("capture_mode") != DIRECT_CAPTURE_MODE:
+        raise ReportError("report capture mode mismatch")
+    _verify_report_binding(report, corpus)
+
+
+def _verify_report_binding(
+    report: dict[str, Any], corpus: CorpusBundle
+) -> None:
+    """The shared corpus / contract / per-case / digest binding checks
+    (mode-neutral; the public verifiers enforce the kind first)."""
     bound_corpus = report.get("corpus", {})
     if bound_corpus.get("corpus_digest") != corpus.corpus_digest:
         raise ReportError(
@@ -293,21 +370,130 @@ def verify_report(
         raise ReportError("report digest does not verify (tampered)")
 
 
+def build_direct_report(
+    result: EvaluationResult,
+    gates: dict[str, GateResult],
+    policy: PolicyDocument | None,
+    threshold_evaluation: dict[str, Any] | None,
+    decision: str,
+    rationale: tuple[str, ...],
+    corpus: CorpusBundle,
+    direct_capture: DirectCaptureDocument,
+    generated_utc: str,
+) -> dict[str, Any]:
+    """Assemble the machine-readable DIRECT_MODEL_QUALIFICATION report
+    (deterministic apart from ``generated_utc``). The mode, the capture
+    schema version, the single target model identity, and the direct
+    coverage facts are identified explicitly; the report is never
+    combined with a production-route report.
+    """
+    if result.capture_mode != DIRECT_CAPTURE_MODE:
+        raise ReportError(
+            "build_direct_report requires a direct-model evaluation "
+            "result; production-route results are reported by "
+            "build_report (the two modes are never combined)"
+        )
+    counts = result.metrics["counts"]
+    semantic_outcomes = [
+        o for o in result.outcomes
+        if o.case_class != CONTRACT_NEGATIVE_CASE_CLASS
+    ]
+    coverage = {
+        "eligible_semantic_cases": counts["eligible_semantic_cases"],
+        "evaluated_cases": counts["evaluated_cases"],
+        "not_captured": counts["not_captured"],
+        "runtime_failure": counts["runtime_failure_count"],
+        "capture_integrity_failure": counts["capture_integrity_failures"],
+        "complete": (
+            counts["evaluated_cases"] == counts["eligible_semantic_cases"]
+        ),
+        "missing_case_ids": sorted(
+            o.case_id for o in semantic_outcomes if o.state == "NOT_CAPTURED"
+        ),
+        "runtime_failure_case_ids": sorted(
+            o.case_id
+            for o in semantic_outcomes
+            if o.state == "RUNTIME_FAILURE"
+        ),
+        "invalid_response_case_ids": sorted(
+            o.case_id
+            for o in semantic_outcomes
+            if o.state == "CAPTURE_INTEGRITY_FAILURE"
+        ),
+    }
+    report: dict[str, Any] = {
+        "report_schema_version": REPORT_SCHEMA_VERSION,
+        "report_kind": DIRECT_REPORT_KIND,
+        "capture_mode": DIRECT_CAPTURE_MODE,
+        "capture_schema_version": DIRECT_CAPTURE_SCHEMA_VERSION,
+        "generated_utc": generated_utc,
+        "corpus": _corpus_section(corpus, counts),
+        "contract": _contract_section(),
+        "model": {
+            "provider": result.provider,
+            "model": result.model,
+            "route_role": result.route_role,
+            "target_provider": direct_capture.target_provider,
+            "target_model": direct_capture.target_model,
+        },
+        "capture": {
+            "capture_mode": DIRECT_CAPTURE_MODE,
+            "capture_schema_version": direct_capture.direct_capture_schema_version,
+            "capture_run_id": direct_capture.capture_run_id,
+            "captured_at": direct_capture.captured_at,
+            "captured_by": direct_capture.captured_by,
+            "notes": direct_capture.notes,
+        },
+        "coverage": coverage,
+        "cases": [outcome.to_report_dict() for outcome in result.outcomes],
+        "metrics": result.metrics,
+        "safety_gates": {
+            name: gates[name].to_report_dict() for name in gates
+        },
+        "policy": _policy_section(policy, threshold_evaluation),
+        "decision": decision,
+        "decision_rationale": list(rationale),
+        "authority": _authority_section(),
+    }
+    assert_json_native(report, "report")
+    report["report_digest"] = canonical_sha256(
+        _report_digest_fields(report)
+    )
+    return report
+
+
 # ---------------------------------------------------------------------------
 # Human-readable rendering
 # ---------------------------------------------------------------------------
 
 
 def render_markdown(report: dict[str, Any]) -> str:
-    """The human-readable report (deterministic over the same content)."""
+    """The human-readable report (deterministic over the same content).
+    Production-route and direct-model reports are rendered with their
+    explicit mode identification; the production text is unchanged.
+    """
+    is_direct = report.get("capture_mode") == DIRECT_CAPTURE_MODE
     lines: list[str] = []
-    lines.append("# Semantic V2 Qualification Report (Q3-A offline)")
+    if is_direct:
+        lines.append(
+            "# Semantic V2 Direct-Model Qualification Report "
+            "(Q3-A-FU1 offline)"
+        )
+    else:
+        lines.append("# Semantic V2 Qualification Report (Q3-A offline)")
     lines.append("")
     model = report["model"]
     lines.append(
         f"- **Model under qualification:** `{model['provider']}/"
         f"{model['model']}` (route role: {model['route_role']})"
     )
+    if is_direct:
+        lines.append(
+            f"- **Capture mode:** `{report['capture_mode']}` "
+            f"(schema v{report['capture_schema_version']}) - "
+            "independent direct-model capture; no production routing, "
+            "no fallback projection, no production execution authority"
+        )
     corpus = report["corpus"]
     lines.append(
         f"- **Corpus:** `{corpus['corpus_id']}` v{corpus['corpus_version']} "
@@ -342,6 +528,30 @@ def render_markdown(report: dict[str, Any]) -> str:
     lines.append("")
     m = report["metrics"]
     c = m["counts"]
+    if is_direct:
+        cov = report["coverage"]
+        lines.append(
+            f"- Coverage (direct-model denominator): "
+            f"{cov['evaluated_cases']}/{cov['eligible_semantic_cases']} "
+            f"evaluated; not captured {cov['not_captured']}; runtime "
+            f"failures {cov['runtime_failure']}; invalid responses "
+            f"{cov['capture_integrity_failure']}; complete: "
+            f"{cov['complete']}"
+        )
+        if cov["missing_case_ids"]:
+            lines.append(
+                "  - missing: " + ", ".join(cov["missing_case_ids"])
+            )
+        if cov["runtime_failure_case_ids"]:
+            lines.append(
+                "  - runtime failures: "
+                + ", ".join(cov["runtime_failure_case_ids"])
+            )
+        if cov["invalid_response_case_ids"]:
+            lines.append(
+                "  - invalid responses: "
+                + ", ".join(cov["invalid_response_case_ids"])
+            )
     lines.append(
         f"- Total cases: {c['total_cases']} "
         f"(authoritative {c['authoritative_cases']}, "

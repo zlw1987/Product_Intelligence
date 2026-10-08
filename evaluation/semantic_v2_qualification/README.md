@@ -141,10 +141,43 @@ primary-model PASS never qualifies the fallback).
 ## Capture artifact contract (for the later live phase)
 
 The offline harness evaluates PREVIOUSLY CAPTURED model responses.
-The strict format (schema version 1) is defined in
-`product_intelligence/evaluation/semantic_v2/capture.py`: one document
-per pinned model, bound to the exact corpus digest, bounded
-per-attempt provenance mirroring the frozen runtime (fallback on
-execution failure only; raw output only for OK attempts). Q3-A ships
-no captures (no live V2 responses exist yet) — test fixtures exercise
-the format in the suite.
+There are TWO explicitly distinct, versioned capture modes (separate
+typed documents; cross-mode interpretation fails closed in both
+directions; Q3-A-FU1, PLAN §26.29):
+
+### Mode A — PRODUCTION_ROUTE (schema version 1, `capture.py`)
+
+One capture = ONE RUN of the frozen pinned production route:
+PRIMARY attempt first; at most one FALLBACK attempt, entered after an
+eligible primary EXECUTION failure with the frozen reason mapping; a
+successful primary finalizes the route. Qualification is projected
+PER MODEL from the same run (the primary view counts a fallback-
+answered case as its own execution failure; the fallback view counts
+a primary-answered case as NOT_INVOKED). Because a normal run
+finalizes on the primary's success, this mode is production evidence
+only: it cannot by itself provide full qualification coverage for
+both models independently.
+
+### Mode B — DIRECT_MODEL_QUALIFICATION (schema version 1,
+`direct_capture.py`)
+
+A benchmark-only capture targeting EXACTLY ONE pinned provider/model
+(`amax / qwen3.8-27b` or `vllm-262k / Qwen3.6-27B-262K` — no other
+model may enter the frozen V2 qualification; wrong / unknown /
+mixed identities fail closed). Every eligible semantic case is that
+model's own single bounded execution (`execution_status` from OK +
+the frozen runtime execution-failure vocabulary; `raw_output` iff
+OK). There is NO primary-before-fallback requirement, NO artificial
+primary failure, NO production routing, and NO production execution
+or pricing authority. Each capture is bound to the exact corpus
+id / version / digest, semantic contract V2, prompt 2.0, and carries
+its own run id + provenance. Duplicate case IDs, unknown case IDs,
+contract-negative records (schema-bypass attack), and corpus /
+prompt / contract mismatches all fail closed; missing eligible cases
+surface as NOT_CAPTURED at evaluation (a coverage shortfall, never a
+pass). Both pinned models are qualified INDEPENDENTLY, one capture
+per model.
+
+Q3-A / Q3-A-FU1 ship no captures (no live V2 responses exist yet) —
+test fixtures exercise both formats in the suite. The controlled
+capture runner is Q3-B.

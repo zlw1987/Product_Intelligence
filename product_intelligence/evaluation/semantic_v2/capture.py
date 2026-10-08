@@ -30,6 +30,15 @@ case as its own execution failure; the fallback model's view counts a
 primary-answered case as not invoked). A primary-model PASS therefore
 never automatically qualifies the fallback.
 
+This schema is the PRODUCTION_ROUTE capture mode (``CAPTURE_MODE``):
+its coverage is necessarily the production route's (a successful
+primary finalizes the case before any fallback data exists). The
+independent DIRECT_MODEL_QUALIFICATION mode - one capture per pinned
+model, no routing, no manufactured primary failures - is a SEPARATE
+typed schema in ``direct_capture.py``; the two modes are never
+reinterpreted across each other (both loaders refuse the other mode's
+documents).
+
 The bounded status / fallback tables are MIRRORS of the frozen
 production runtime vocabulary (the house pattern: evaluation may not
 import the runtime's private tables; the drift pin lives in the test
@@ -81,6 +90,10 @@ __all__ = [
 ]
 
 CAPTURE_SCHEMA_VERSION: Final[int] = 1
+
+#: The capture mode of this schema (paired with DIRECT_CAPTURE_MODE in
+#: ``direct_capture.py``; reports identify the mode explicitly).
+CAPTURE_MODE: Final[str] = "PRODUCTION_ROUTE"
 
 #: The frozen V2 pinned route identities (mirror of the contract data).
 CaptureRoute = tuple[str, str]

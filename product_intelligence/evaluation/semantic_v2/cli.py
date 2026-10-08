@@ -14,6 +14,12 @@ Usage (all commands are OFFLINE - no network, no model calls):
         --policy <policy.json> \
         --out-dir <dir> \
         --generated-utc 2026-10-08T00:00:00Z
+    python -m product_intelligence.evaluation.semantic_v2.cli evaluate-direct \
+        --corpus <corpus.json> \
+        --capture <direct-capture.json>... \
+        --policy <policy.json> \
+        --out-dir <dir> \
+        --generated-utc 2026-10-08T00:00:00Z
     python -m product_intelligence.evaluation.semantic_v2.cli verify-report \
         --report <report.json> --corpus <corpus.json>
 
@@ -23,6 +29,14 @@ NOT_CAPTURED; the decision is POLICY_PENDING - never a pass). With
 captures, one run is projected onto BOTH models (the primary view and
 the fallback view): one report per provider/model, qualified
 INDEPENDENTLY - a primary-model PASS never qualifies the fallback.
+
+``evaluate-direct`` consumes DIRECT_MODEL_QUALIFICATION captures
+(``direct_capture.py`` schema): each capture targets exactly one
+pinned provider/model and produces exactly one report for that model
+- no primary-before-fallback requirement, no NOT_INVOKED, no
+production routing. Production-route captures are refused by this
+command and direct captures are refused by ``evaluate`` (cross-mode
+interpretation fails closed in both directions).
 
 The CLI consumes the package modules; it imports no production
 research/semantic surface directly (least privilege - the frozen
@@ -248,6 +262,8 @@ def _cmd_evaluate(args: argparse.Namespace) -> int:
     out_dir = Path(args.out_dir)
     if args.capture:
         for capture_path in args.capture:
+            # load_capture fails closed on any non-production-route
+            # document (a direct capture is a different typed schema).
             capture = load_capture(capture_path)
             _evaluate_capture_views(corpus, capture, policy, args.generated_utc, out_dir)
         return 0
@@ -262,6 +278,104 @@ def _cmd_evaluate(args: argparse.Namespace) -> int:
         corpus, FALLBACK_ROUTE[0], FALLBACK_ROUTE[1],
         policy, args.generated_utc, out_dir,
     )
+    return 0
+
+
+def _cmd_evaluate_direct(args: argparse.Namespace) -> int:
+    from product_intelligence.evaluation.semantic_v2.corpus import (
+        load_corpus,
+    )
+    from product_intelligence.evaluation.semantic_v2.direct_capture import (
+        load_direct_capture,
+    )
+    from product_intelligence.evaluation.semantic_v2.evaluator import (
+        QualificationContractError,
+        evaluate_direct_for_model,
+    )
+    from product_intelligence.evaluation.semantic_v2.gates import (
+        decide,
+        evaluate_safety_gates,
+    )
+    from product_intelligence.evaluation.semantic_v2.policy import (
+        evaluate_thresholds,
+        load_policy,
+        policy_applies_to,
+    )
+    from product_intelligence.evaluation.semantic_v2.report import (
+        DIRECT_REPORT_KIND,
+        build_direct_report,
+        render_markdown,
+    )
+
+    if not args.capture:
+        print(
+            "error: evaluate-direct requires at least one --capture",
+            file=sys.stderr,
+        )
+        return 2
+    corpus = load_corpus(args.corpus)
+    policy = load_policy(args.policy) if args.policy else None
+    out_dir = Path(args.out_dir)
+    for capture_path in args.capture:
+        direct = load_direct_capture(capture_path)
+        route = direct.target_route
+        stem = (
+            f"{direct.capture_run_id}__direct__{route[0]}_{route[1]}"
+        ).replace("/", "_").replace(" ", "_")
+        try:
+            result = evaluate_direct_for_model(corpus, direct, *route)
+        except QualificationContractError as exc:
+            # The evaluation is VOID: still emit an explicit fail-closed
+            # report so the mismatch stays visible, never silent.
+            report = {
+                "report_schema_version": 1,
+                "report_kind": DIRECT_REPORT_KIND,
+                "capture_mode": direct.capture_mode,
+                "capture_schema_version": direct.direct_capture_schema_version,
+                "generated_utc": args.generated_utc,
+                "corpus": {
+                    "corpus_id": corpus.corpus_id,
+                    "corpus_version": corpus.corpus_version,
+                    "corpus_digest": corpus.corpus_digest,
+                },
+                "model": {
+                    "provider": route[0],
+                    "model": route[1],
+                },
+                "decision": "FAIL_CLOSED",
+                "decision_rationale": [f"VOID_EVALUATION:{exc}"],
+                "cases": [],
+                "metrics": {},
+                "safety_gates": {},
+                "policy": None,
+                "authority": {"granted": False},
+            }
+            _write_json(out_dir / f"{stem}__report.json", report)
+            print(f"{stem}: FAIL_CLOSED (void evaluation)")
+            continue
+        gates = evaluate_safety_gates(result)
+        threshold_evaluation = None
+        if policy is not None and policy_applies_to(
+            policy, corpus.corpus_id, corpus.corpus_version
+        ):
+            threshold_evaluation = evaluate_thresholds(policy, result.metrics)
+        decision, rationale = decide(result, gates, policy, threshold_evaluation)
+        report = build_direct_report(
+            result=result,
+            gates=gates,
+            policy=policy,
+            threshold_evaluation=threshold_evaluation,
+            decision=decision,
+            rationale=rationale,
+            corpus=corpus,
+            direct_capture=direct,
+            generated_utc=args.generated_utc,
+        )
+        json_path = out_dir / f"{stem}__report.json"
+        md_path = out_dir / f"{stem}__report.md"
+        _write_json(json_path, report)
+        md_path.write_text(render_markdown(report), encoding="utf-8")
+        print(f"{stem}: {decision} ({', '.join(rationale)})")
     return 0
 
 
@@ -307,13 +421,24 @@ def build_parser() -> argparse.ArgumentParser:
     p_manifest.add_argument("--out", required=True)
     p_manifest.set_defaults(func=_cmd_corpus_manifest)
 
-    p_eval = sub.add_parser("evaluate", help="offline evaluation + reports")
+    p_eval = sub.add_parser("evaluate", help="offline production-route evaluation + reports")
     p_eval.add_argument("--corpus", required=True)
     p_eval.add_argument("--capture", action="append", default=None)
     p_eval.add_argument("--policy", default=None)
     p_eval.add_argument("--out-dir", required=True)
     p_eval.add_argument("--generated-utc", required=True)
     p_eval.set_defaults(func=_cmd_evaluate)
+
+    p_eval_direct = sub.add_parser(
+        "evaluate-direct",
+        help="offline direct-model evaluation + reports (one report per pinned model; no production routing)",
+    )
+    p_eval_direct.add_argument("--corpus", required=True)
+    p_eval_direct.add_argument("--capture", action="append", required=True)
+    p_eval_direct.add_argument("--policy", default=None)
+    p_eval_direct.add_argument("--out-dir", required=True)
+    p_eval_direct.add_argument("--generated-utc", required=True)
+    p_eval_direct.set_defaults(func=_cmd_evaluate_direct)
 
     p_verify = sub.add_parser("verify-report", help="verify a historical report against a corpus")
     p_verify.add_argument("--report", required=True)

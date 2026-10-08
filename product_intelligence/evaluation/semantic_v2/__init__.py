@@ -6,7 +6,9 @@ the exact frozen Semantic V2 contract:
 * the versioned, independently labeled qualification corpus
   (``fixtures`` = the auditable source; ``corpus`` = the strict
   loader / decoder / digest / manifest surface);
-* the captured-response artifact contract (``capture``);
+* the captured-response artifact contract (``capture``) and the
+  independent DIRECT_MODEL_QUALIFICATION capture schema
+  (``direct_capture``);
 * the offline evaluator using the REAL production V2 parser and the
   REAL frozen V2 input contract (``evaluator``);
 * the mandatory safety gates and the fail-closed decision
@@ -44,6 +46,7 @@ from product_intelligence.evaluation.semantic_v2.corpus import (
     verify_manifest,
 )
 from product_intelligence.evaluation.semantic_v2.capture import (
+    CAPTURE_MODE,
     CAPTURE_SCHEMA_VERSION,
     CaptureDocument,
     CaptureError,
@@ -54,6 +57,17 @@ from product_intelligence.evaluation.semantic_v2.capture import (
     load_capture,
     verify_capture_against_corpus,
 )
+from product_intelligence.evaluation.semantic_v2.direct_capture import (
+    DIRECT_CAPTURE_MODE,
+    DIRECT_CAPTURE_SCHEMA_VERSION,
+    DIRECT_EXECUTION_STATUSES,
+    DirectCaptureDocument,
+    DirectCaptureError,
+    DirectCaptureIntegrityError,
+    DirectCaptureRecord,
+    load_direct_capture,
+    verify_direct_capture_against_corpus,
+)
 from product_intelligence.evaluation.semantic_v2.evaluator import (
     OUTCOME_STATES,
     SEVERITIES,
@@ -63,6 +77,7 @@ from product_intelligence.evaluation.semantic_v2.evaluator import (
     QualificationContractError,
     classify_raw_response,
     compute_metrics,
+    evaluate_direct_for_model,
     evaluate_no_capture,
     evaluate_offline,
 )
@@ -83,10 +98,14 @@ from product_intelligence.evaluation.semantic_v2.policy import (
     policy_applies_to,
 )
 from product_intelligence.evaluation.semantic_v2.report import (
+    DIRECT_REPORT_KIND,
+    PRODUCTION_REPORT_KIND,
     REPORT_SCHEMA_VERSION,
     ReportError,
+    build_direct_report,
     build_report,
     render_markdown,
+    verify_direct_report,
     verify_report,
 )
 
@@ -96,6 +115,12 @@ __all__ = [
     "CONTRACT_NEGATIVE_CASE_CLASS",
     "CORPUS_SCHEMA_VERSION",
     "CAPTURE_SCHEMA_VERSION",
+    "CAPTURE_MODE",
+    "DIRECT_CAPTURE_MODE",
+    "DIRECT_CAPTURE_SCHEMA_VERSION",
+    "DIRECT_EXECUTION_STATUSES",
+    "DIRECT_REPORT_KIND",
+    "PRODUCTION_REPORT_KIND",
     "POLICY_SCHEMA_VERSION",
     "REPORT_SCHEMA_VERSION",
     "UTC_INSTANT_PATTERN",
@@ -104,6 +129,10 @@ __all__ = [
     "CaptureIntegrityError",
     "CaptureRecord",
     "CAPTURE_STATUS_TO_FALLBACK_REASON",
+    "DirectCaptureDocument",
+    "DirectCaptureError",
+    "DirectCaptureIntegrityError",
+    "DirectCaptureRecord",
     "FALLBACK_ELIGIBLE_STATUSES",
     "CaseOutcome",
     "CorpusBundle",
@@ -126,6 +155,7 @@ __all__ = [
     "VERDICTS",
     "assert_json_native",
     "build_manifest_document",
+    "build_direct_report",
     "build_report",
     "canonical_sha256",
     "canonically_encode",
@@ -133,17 +163,21 @@ __all__ = [
     "compute_metrics",
     "decode_match_case",
     "decide",
+    "evaluate_direct_for_model",
     "evaluate_no_capture",
     "evaluate_offline",
     "evaluate_safety_gates",
     "evaluate_thresholds",
     "load_capture",
     "load_corpus",
+    "load_direct_capture",
     "load_policy",
     "policy_applies_to",
     "render_markdown",
     "reject_class_for",
     "verify_capture_against_corpus",
+    "verify_direct_capture_against_corpus",
+    "verify_direct_report",
     "verify_manifest",
     "verify_report",
 ]
