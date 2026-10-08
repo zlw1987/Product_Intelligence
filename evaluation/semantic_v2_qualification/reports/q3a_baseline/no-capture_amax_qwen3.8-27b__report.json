@@ -1,0 +1,1643 @@
+{
+ "authority": {
+  "granted": false,
+  "note": "this report is evaluation evidence only; it grants no pricing authority, no tier promotion, and no human-review behavior change",
+  "v2_authority_qualified": false
+ },
+ "capture": null,
+ "cases": [
+  {
+   "acceptable_decisions": null,
+   "case_class": "CONTRACT_NEGATIVE",
+   "case_id": "V2Q-CN-CLAIM-FACTOR-0052",
+   "category": "enterprise_ssd",
+   "commercial_sales_unit_safety": false,
+   "expected_conflict_classes": [],
+   "expected_decision": null,
+   "model_confidence": null,
+   "model_conflict_classes": [],
+   "model_decision": null,
+   "model_reason_code": null,
+   "notes": [],
+   "primary_signal": "TITLE_MPN_TOKEN",
+   "provenance_role": null,
+   "runtime_failure_status": null,
+   "severity": null,
+   "state": "CONTRACT_REJECTED_OK",
+   "substate": "U1_TITLE_MPN",
+   "verdict": "REJECTED_AS_EXPECTED"
+  },
+  {
+   "acceptable_decisions": null,
+   "case_class": "CONTRACT_NEGATIVE",
+   "case_id": "V2Q-CN-CONFLICT-0045",
+   "category": "enterprise_ssd",
+   "commercial_sales_unit_safety": false,
+   "expected_conflict_classes": [],
+   "expected_decision": null,
+   "model_confidence": null,
+   "model_conflict_classes": [],
+   "model_decision": null,
+   "model_reason_code": null,
+   "notes": [],
+   "primary_signal": "NO_RELATION",
+   "provenance_role": null,
+   "runtime_failure_status": null,
+   "severity": null,
+   "state": "CONTRACT_REJECTED_OK",
+   "substate": "C1_INCOMPATIBLE_EXPLICIT_MPN",
+   "verdict": "REJECTED_AS_EXPECTED"
+  },
+  {
+   "acceptable_decisions": null,
+   "case_class": "CONTRACT_NEGATIVE",
+   "case_id": "V2Q-CN-EXTRA-KEY-0053",
+   "category": "enterprise_ssd",
+   "commercial_sales_unit_safety": false,
+   "expected_conflict_classes": [],
+   "expected_decision": null,
+   "model_confidence": null,
+   "model_conflict_classes": [],
+   "model_decision": null,
+   "model_reason_code": null,
+   "notes": [],
+   "primary_signal": "TITLE_MPN_TOKEN",
+   "provenance_role": null,
+   "runtime_failure_status": null,
+   "severity": null,
+   "state": "CONTRACT_REJECTED_OK",
+   "substate": "U1_TITLE_MPN",
+   "verdict": "REJECTED_AS_EXPECTED"
+  },
+  {
+   "acceptable_decisions": null,
+   "case_class": "CONTRACT_NEGATIVE",
+   "case_id": "V2Q-CN-FOREIGN-SIGNAL-0048",
+   "category": "enterprise_ssd",
+   "commercial_sales_unit_safety": false,
+   "expected_conflict_classes": [],
+   "expected_decision": null,
+   "model_confidence": null,
+   "model_conflict_classes": [],
+   "model_decision": null,
+   "model_reason_code": null,
+   "notes": [],
+   "primary_signal": "TITLE_MPN_TOKEN",
+   "provenance_role": null,
+   "runtime_failure_status": null,
+   "severity": null,
+   "state": "CONTRACT_REJECTED_OK",
+   "substate": "U2_SKU_ONLY",
+   "verdict": "REJECTED_AS_EXPECTED"
+  },
+  {
+   "acceptable_decisions": null,
+   "case_class": "CONTRACT_NEGATIVE",
+   "case_id": "V2Q-CN-REQ-TAMPER-0047",
+   "category": "enterprise_ssd",
+   "commercial_sales_unit_safety": false,
+   "expected_conflict_classes": [],
+   "expected_decision": null,
+   "model_confidence": null,
+   "model_conflict_classes": [],
+   "model_decision": null,
+   "model_reason_code": null,
+   "notes": [],
+   "primary_signal": "TITLE_MPN_TOKEN",
+   "provenance_role": null,
+   "runtime_failure_status": null,
+   "severity": null,
+   "state": "CONTRACT_REJECTED_OK",
+   "substate": "U1_TITLE_MPN",
+   "verdict": "REJECTED_AS_EXPECTED"
+  },
+  {
+   "acceptable_decisions": null,
+   "case_class": "CONTRACT_NEGATIVE",
+   "case_id": "V2Q-CN-REVIEWED-TAMPER-0056",
+   "category": "enterprise_ssd",
+   "commercial_sales_unit_safety": false,
+   "expected_conflict_classes": [],
+   "expected_decision": null,
+   "model_confidence": null,
+   "model_conflict_classes": [],
+   "model_decision": null,
+   "model_reason_code": null,
+   "notes": [],
+   "primary_signal": "NEAR_MISS_TRUNCATION",
+   "provenance_role": null,
+   "runtime_failure_status": null,
+   "severity": null,
+   "state": "CONTRACT_REJECTED_OK",
+   "substate": "U5_NEAR_MISS_MPN",
+   "verdict": "REJECTED_AS_EXPECTED"
+  },
+  {
+   "acceptable_decisions": null,
+   "case_class": "CONTRACT_NEGATIVE",
+   "case_id": "V2Q-CN-SALESUNIT-X-0054",
+   "category": "enterprise_ssd",
+   "commercial_sales_unit_safety": false,
+   "expected_conflict_classes": [],
+   "expected_decision": null,
+   "model_confidence": null,
+   "model_conflict_classes": [],
+   "model_decision": null,
+   "model_reason_code": null,
+   "notes": [],
+   "primary_signal": "TITLE_MPN_TOKEN",
+   "provenance_role": null,
+   "runtime_failure_status": null,
+   "severity": null,
+   "state": "CONTRACT_REJECTED_OK",
+   "substate": "U1_TITLE_MPN",
+   "verdict": "REJECTED_AS_EXPECTED"
+  },
+  {
+   "acceptable_decisions": null,
+   "case_class": "CONTRACT_NEGATIVE",
+   "case_id": "V2Q-CN-STATE-MISMATCH-0049",
+   "category": "enterprise_ssd",
+   "commercial_sales_unit_safety": false,
+   "expected_conflict_classes": [],
+   "expected_decision": null,
+   "model_confidence": null,
+   "model_conflict_classes": [],
+   "model_decision": null,
+   "model_reason_code": null,
+   "notes": [],
+   "primary_signal": "TITLE_MPN_TOKEN",
+   "provenance_role": null,
+   "runtime_failure_status": null,
+   "severity": null,
+   "state": "CONTRACT_REJECTED_OK",
+   "substate": "V_EXACT",
+   "verdict": "REJECTED_AS_EXPECTED"
+  },
+  {
+   "acceptable_decisions": null,
+   "case_class": "CONTRACT_NEGATIVE",
+   "case_id": "V2Q-CN-U4-NOTITLE-0055",
+   "category": "enterprise_ssd",
+   "commercial_sales_unit_safety": false,
+   "expected_conflict_classes": [],
+   "expected_decision": null,
+   "model_confidence": null,
+   "model_conflict_classes": [],
+   "model_decision": null,
+   "model_reason_code": null,
+   "notes": [],
+   "primary_signal": "NO_RELATION",
+   "provenance_role": null,
+   "runtime_failure_status": null,
+   "severity": null,
+   "state": "CONTRACT_REJECTED_OK",
+   "substate": "U4_NO_MPN",
+   "verdict": "REJECTED_AS_EXPECTED"
+  },
+  {
+   "acceptable_decisions": null,
+   "case_class": "CONTRACT_NEGATIVE",
+   "case_id": "V2Q-CN-UNEVALUABLE-0046",
+   "category": "enterprise_ssd",
+   "commercial_sales_unit_safety": false,
+   "expected_conflict_classes": [],
+   "expected_decision": null,
+   "model_confidence": null,
+   "model_conflict_classes": [],
+   "model_decision": null,
+   "model_reason_code": null,
+   "notes": [],
+   "primary_signal": "NO_RELATION",
+   "provenance_role": null,
+   "runtime_failure_status": null,
+   "severity": null,
+   "state": "CONTRACT_REJECTED_OK",
+   "substate": "E1_NO_TARGET_MPN",
+   "verdict": "REJECTED_AS_EXPECTED"
+  },
+  {
+   "acceptable_decisions": null,
+   "case_class": "CONTRACT_NEGATIVE",
+   "case_id": "V2Q-CN-UNKNOWN-ENUM-0050",
+   "category": "enterprise_ssd",
+   "commercial_sales_unit_safety": false,
+   "expected_conflict_classes": [],
+   "expected_decision": null,
+   "model_confidence": null,
+   "model_conflict_classes": [],
+   "model_decision": null,
+   "model_reason_code": null,
+   "notes": [],
+   "primary_signal": "TITLE_MPN_TOKEN",
+   "provenance_role": null,
+   "runtime_failure_status": null,
+   "severity": null,
+   "state": "CONTRACT_REJECTED_OK",
+   "substate": "U9_INVENTED",
+   "verdict": "REJECTED_AS_EXPECTED"
+  },
+  {
+   "acceptable_decisions": null,
+   "case_class": "CONTRACT_NEGATIVE",
+   "case_id": "V2Q-CN-UNKNOWN-EVIDENCE-SRC-0051",
+   "category": "enterprise_ssd",
+   "commercial_sales_unit_safety": false,
+   "expected_conflict_classes": [],
+   "expected_decision": null,
+   "model_confidence": null,
+   "model_conflict_classes": [],
+   "model_decision": null,
+   "model_reason_code": null,
+   "notes": [],
+   "primary_signal": "TITLE_MPN_TOKEN",
+   "provenance_role": null,
+   "runtime_failure_status": null,
+   "severity": null,
+   "state": "CONTRACT_REJECTED_OK",
+   "substate": "U1_TITLE_MPN",
+   "verdict": "REJECTED_AS_EXPECTED"
+  },
+  {
+   "acceptable_decisions": null,
+   "case_class": "CONTRACT_NEGATIVE",
+   "case_id": "V2Q-CN-VERIFIED-0044",
+   "category": "enterprise_ssd",
+   "commercial_sales_unit_safety": false,
+   "expected_conflict_classes": [],
+   "expected_decision": null,
+   "model_confidence": null,
+   "model_conflict_classes": [],
+   "model_decision": null,
+   "model_reason_code": null,
+   "notes": [],
+   "primary_signal": "EXACT",
+   "provenance_role": null,
+   "runtime_failure_status": null,
+   "severity": null,
+   "state": "CONTRACT_REJECTED_OK",
+   "substate": "V_EXACT",
+   "verdict": "REJECTED_AS_EXPECTED"
+  },
+  {
+   "acceptable_decisions": [
+    "NO_MATCH"
+   ],
+   "case_class": "AUTHORITATIVE",
+   "case_id": "V2Q-CPU-ATTR-GEN-0027",
+   "category": "processor",
+   "commercial_sales_unit_safety": false,
+   "expected_conflict_classes": [
+    "GENERATION"
+   ],
+   "expected_decision": "NO_MATCH",
+   "model_confidence": null,
+   "model_conflict_classes": [],
+   "model_decision": null,
+   "model_reason_code": null,
+   "notes": [],
+   "primary_signal": "NO_RELATION",
+   "provenance_role": null,
+   "runtime_failure_status": null,
+   "severity": null,
+   "state": "NOT_CAPTURED",
+   "substate": "U4_NO_MPN",
+   "verdict": "NOT_EVALUATED"
+  },
+  {
+   "acceptable_decisions": [
+    "NO_MATCH"
+   ],
+   "case_class": "AUTHORITATIVE",
+   "case_id": "V2Q-CPU-U1-CROSSREF-0004",
+   "category": "processor",
+   "commercial_sales_unit_safety": false,
+   "expected_conflict_classes": [
+    "GENERATION"
+   ],
+   "expected_decision": "NO_MATCH",
+   "model_confidence": null,
+   "model_conflict_classes": [],
+   "model_decision": null,
+   "model_reason_code": null,
+   "notes": [],
+   "primary_signal": "TITLE_MPN_TOKEN",
+   "provenance_role": null,
+   "runtime_failure_status": null,
+   "severity": null,
+   "state": "NOT_CAPTURED",
+   "substate": "U1_TITLE_MPN",
+   "verdict": "NOT_EVALUATED"
+  },
+  {
+   "acceptable_decisions": [
+    "NO_MATCH"
+   ],
+   "case_class": "AUTHORITATIVE",
+   "case_id": "V2Q-DIMM-ATTR-CAPACITY-0025",
+   "category": "server_memory",
+   "commercial_sales_unit_safety": false,
+   "expected_conflict_classes": [
+    "CAPACITY"
+   ],
+   "expected_decision": "NO_MATCH",
+   "model_confidence": null,
+   "model_conflict_classes": [],
+   "model_decision": null,
+   "model_reason_code": null,
+   "notes": [],
+   "primary_signal": "NO_RELATION",
+   "provenance_role": null,
+   "runtime_failure_status": null,
+   "severity": null,
+   "state": "NOT_CAPTURED",
+   "substate": "U4_NO_MPN",
+   "verdict": "NOT_EVALUATED"
+  },
+  {
+   "acceptable_decisions": [
+    "MATCH"
+   ],
+   "case_class": "AUTHORITATIVE",
+   "case_id": "V2Q-DIMM-COND-0039",
+   "category": "server_memory",
+   "commercial_sales_unit_safety": false,
+   "expected_conflict_classes": [],
+   "expected_decision": "MATCH",
+   "model_confidence": null,
+   "model_conflict_classes": [],
+   "model_decision": null,
+   "model_reason_code": null,
+   "notes": [],
+   "primary_signal": "SKU_NOT_TARGET",
+   "provenance_role": null,
+   "runtime_failure_status": null,
+   "severity": null,
+   "state": "NOT_CAPTURED",
+   "substate": "U2_SKU_ONLY",
+   "verdict": "NOT_EVALUATED"
+  },
+  {
+   "acceptable_decisions": [
+    "MATCH",
+    "UNCERTAIN"
+   ],
+   "case_class": "AMBIGUOUS",
+   "case_id": "V2Q-DIMM-U2N-THIN-0009",
+   "category": "server_memory",
+   "commercial_sales_unit_safety": false,
+   "expected_conflict_classes": [],
+   "expected_decision": "UNCERTAIN",
+   "model_confidence": null,
+   "model_conflict_classes": [],
+   "model_decision": null,
+   "model_reason_code": null,
+   "notes": [],
+   "primary_signal": "SKU_NOT_TARGET",
+   "provenance_role": null,
+   "runtime_failure_status": null,
+   "severity": null,
+   "state": "NOT_CAPTURED",
+   "substate": "U2_SKU_ONLY",
+   "verdict": "NOT_EVALUATED"
+  },
+  {
+   "acceptable_decisions": [
+    "MATCH"
+   ],
+   "case_class": "AUTHORITATIVE",
+   "case_id": "V2Q-DIMM-U4-MATCH-0014",
+   "category": "server_memory",
+   "commercial_sales_unit_safety": false,
+   "expected_conflict_classes": [],
+   "expected_decision": "MATCH",
+   "model_confidence": null,
+   "model_conflict_classes": [],
+   "model_decision": null,
+   "model_reason_code": null,
+   "notes": [],
+   "primary_signal": "NO_RELATION",
+   "provenance_role": null,
+   "runtime_failure_status": null,
+   "severity": null,
+   "state": "NOT_CAPTURED",
+   "substate": "U4_NO_MPN",
+   "verdict": "NOT_EVALUATED"
+  },
+  {
+   "acceptable_decisions": [
+    "NO_MATCH"
+   ],
+   "case_class": "AUTHORITATIVE",
+   "case_id": "V2Q-GPU-ATTR-MEM-0026",
+   "category": "workstation_gpu",
+   "commercial_sales_unit_safety": false,
+   "expected_conflict_classes": [
+    "CAPACITY"
+   ],
+   "expected_decision": "NO_MATCH",
+   "model_confidence": null,
+   "model_conflict_classes": [],
+   "model_decision": null,
+   "model_reason_code": null,
+   "notes": [],
+   "primary_signal": "NO_RELATION",
+   "provenance_role": null,
+   "runtime_failure_status": null,
+   "severity": null,
+   "state": "NOT_CAPTURED",
+   "substate": "U4_NO_MPN",
+   "verdict": "NOT_EVALUATED"
+  },
+  {
+   "acceptable_decisions": [
+    "NO_MATCH"
+   ],
+   "case_class": "AUTHORITATIVE",
+   "case_id": "V2Q-GPU-SU-BUNDLE-0034",
+   "category": "workstation_gpu",
+   "commercial_sales_unit_safety": true,
+   "expected_conflict_classes": [
+    "BUNDLE"
+   ],
+   "expected_decision": "NO_MATCH",
+   "model_confidence": null,
+   "model_conflict_classes": [],
+   "model_decision": null,
+   "model_reason_code": null,
+   "notes": [],
+   "primary_signal": "NO_RELATION",
+   "provenance_role": null,
+   "runtime_failure_status": null,
+   "severity": null,
+   "state": "NOT_CAPTURED",
+   "substate": "U4_NO_MPN",
+   "verdict": "NOT_EVALUATED"
+  },
+  {
+   "acceptable_decisions": [
+    "NO_MATCH"
+   ],
+   "case_class": "AUTHORITATIVE",
+   "case_id": "V2Q-NIC-ACC-BRACKET-0042",
+   "category": "network_adapter",
+   "commercial_sales_unit_safety": false,
+   "expected_conflict_classes": [
+    "ACCESSORY_RELATION"
+   ],
+   "expected_decision": "NO_MATCH",
+   "model_confidence": null,
+   "model_conflict_classes": [],
+   "model_decision": null,
+   "model_reason_code": null,
+   "notes": [],
+   "primary_signal": "NO_RELATION",
+   "provenance_role": null,
+   "runtime_failure_status": null,
+   "severity": null,
+   "state": "NOT_CAPTURED",
+   "substate": "U4_NO_MPN",
+   "verdict": "NOT_EVALUATED"
+  },
+  {
+   "acceptable_decisions": [
+    "NO_MATCH"
+   ],
+   "case_class": "AUTHORITATIVE",
+   "case_id": "V2Q-NIC-ATTR-IFACE-0030",
+   "category": "network_adapter",
+   "commercial_sales_unit_safety": false,
+   "expected_conflict_classes": [
+    "INTERFACE"
+   ],
+   "expected_decision": "NO_MATCH",
+   "model_confidence": null,
+   "model_conflict_classes": [],
+   "model_decision": null,
+   "model_reason_code": null,
+   "notes": [],
+   "primary_signal": "NO_RELATION",
+   "provenance_role": null,
+   "runtime_failure_status": null,
+   "severity": null,
+   "state": "NOT_CAPTURED",
+   "substate": "U4_NO_MPN",
+   "verdict": "NOT_EVALUATED"
+  },
+  {
+   "acceptable_decisions": [
+    "NO_MATCH"
+   ],
+   "case_class": "AUTHORITATIVE",
+   "case_id": "V2Q-NIC-U4-ROLE-0016",
+   "category": "network_adapter",
+   "commercial_sales_unit_safety": false,
+   "expected_conflict_classes": [
+    "PRODUCT_ROLE"
+   ],
+   "expected_decision": "NO_MATCH",
+   "model_confidence": null,
+   "model_conflict_classes": [],
+   "model_decision": null,
+   "model_reason_code": null,
+   "notes": [],
+   "primary_signal": "NO_RELATION",
+   "provenance_role": null,
+   "runtime_failure_status": null,
+   "severity": null,
+   "state": "NOT_CAPTURED",
+   "substate": "U4_NO_MPN",
+   "verdict": "NOT_EVALUATED"
+  },
+  {
+   "acceptable_decisions": [
+    "NO_MATCH"
+   ],
+   "case_class": "AUTHORITATIVE",
+   "case_id": "V2Q-SSD-ACC-CADDY-0031",
+   "category": "enterprise_ssd",
+   "commercial_sales_unit_safety": false,
+   "expected_conflict_classes": [
+    "ACCESSORY_RELATION"
+   ],
+   "expected_decision": "NO_MATCH",
+   "model_confidence": null,
+   "model_conflict_classes": [],
+   "model_decision": null,
+   "model_reason_code": null,
+   "notes": [],
+   "primary_signal": "TITLE_MPN_TOKEN",
+   "provenance_role": null,
+   "runtime_failure_status": null,
+   "severity": null,
+   "state": "NOT_CAPTURED",
+   "substate": "U1_TITLE_MPN",
+   "verdict": "NOT_EVALUATED"
+  },
+  {
+   "acceptable_decisions": [
+    "NO_MATCH"
+   ],
+   "case_class": "AUTHORITATIVE",
+   "case_id": "V2Q-SSD-ATTR-CAPACITY-0024",
+   "category": "enterprise_ssd",
+   "commercial_sales_unit_safety": false,
+   "expected_conflict_classes": [
+    "CAPACITY"
+   ],
+   "expected_decision": "NO_MATCH",
+   "model_confidence": null,
+   "model_conflict_classes": [],
+   "model_decision": null,
+   "model_reason_code": null,
+   "notes": [],
+   "primary_signal": "NO_RELATION",
+   "provenance_role": null,
+   "runtime_failure_status": null,
+   "severity": null,
+   "state": "NOT_CAPTURED",
+   "substate": "U4_NO_MPN",
+   "verdict": "NOT_EVALUATED"
+  },
+  {
+   "acceptable_decisions": [
+    "NO_MATCH"
+   ],
+   "case_class": "AUTHORITATIVE",
+   "case_id": "V2Q-SSD-ATTR-FF-0029",
+   "category": "enterprise_ssd",
+   "commercial_sales_unit_safety": false,
+   "expected_conflict_classes": [
+    "FORM_FACTOR"
+   ],
+   "expected_decision": "NO_MATCH",
+   "model_confidence": null,
+   "model_conflict_classes": [],
+   "model_decision": null,
+   "model_reason_code": null,
+   "notes": [],
+   "primary_signal": "NO_RELATION",
+   "provenance_role": null,
+   "runtime_failure_status": null,
+   "severity": null,
+   "state": "NOT_CAPTURED",
+   "substate": "U4_NO_MPN",
+   "verdict": "NOT_EVALUATED"
+  },
+  {
+   "acceptable_decisions": [
+    "NO_MATCH"
+   ],
+   "case_class": "AUTHORITATIVE",
+   "case_id": "V2Q-SSD-ATTR-IFACE-0028",
+   "category": "enterprise_ssd",
+   "commercial_sales_unit_safety": false,
+   "expected_conflict_classes": [
+    "INTERFACE"
+   ],
+   "expected_decision": "NO_MATCH",
+   "model_confidence": null,
+   "model_conflict_classes": [],
+   "model_decision": null,
+   "model_reason_code": null,
+   "notes": [],
+   "primary_signal": "NO_RELATION",
+   "provenance_role": null,
+   "runtime_failure_status": null,
+   "severity": null,
+   "state": "NOT_CAPTURED",
+   "substate": "U4_NO_MPN",
+   "verdict": "NOT_EVALUATED"
+  },
+  {
+   "acceptable_decisions": [
+    "NO_MATCH",
+    "UNCERTAIN"
+   ],
+   "case_class": "AMBIGUOUS",
+   "case_id": "V2Q-SSD-BRAND-CONTESTED-0040",
+   "category": "enterprise_ssd",
+   "commercial_sales_unit_safety": false,
+   "expected_conflict_classes": [],
+   "expected_decision": "UNCERTAIN",
+   "model_confidence": null,
+   "model_conflict_classes": [],
+   "model_decision": null,
+   "model_reason_code": null,
+   "notes": [],
+   "primary_signal": "NO_RELATION",
+   "provenance_role": null,
+   "runtime_failure_status": null,
+   "severity": null,
+   "state": "NOT_CAPTURED",
+   "substate": "U4_NO_MPN",
+   "verdict": "NOT_EVALUATED"
+  },
+  {
+   "acceptable_decisions": [
+    "UNCERTAIN"
+   ],
+   "case_class": "AUTHORITATIVE",
+   "case_id": "V2Q-SSD-CONTRA-0037",
+   "category": "enterprise_ssd",
+   "commercial_sales_unit_safety": false,
+   "expected_conflict_classes": [],
+   "expected_decision": "UNCERTAIN",
+   "model_confidence": null,
+   "model_conflict_classes": [],
+   "model_decision": null,
+   "model_reason_code": null,
+   "notes": [],
+   "primary_signal": "NO_RELATION",
+   "provenance_role": null,
+   "runtime_failure_status": null,
+   "severity": null,
+   "state": "NOT_CAPTURED",
+   "substate": "U4_NO_MPN",
+   "verdict": "NOT_EVALUATED"
+  },
+  {
+   "acceptable_decisions": [
+    "NO_MATCH"
+   ],
+   "case_class": "AUTHORITATIVE",
+   "case_id": "V2Q-SSD-MULTI-CONFLICT-0036",
+   "category": "enterprise_ssd",
+   "commercial_sales_unit_safety": false,
+   "expected_conflict_classes": [
+    "CAPACITY",
+    "FORM_FACTOR",
+    "INTERFACE"
+   ],
+   "expected_decision": "NO_MATCH",
+   "model_confidence": null,
+   "model_conflict_classes": [],
+   "model_decision": null,
+   "model_reason_code": null,
+   "notes": [],
+   "primary_signal": "NO_RELATION",
+   "provenance_role": null,
+   "runtime_failure_status": null,
+   "severity": null,
+   "state": "NOT_CAPTURED",
+   "substate": "U4_NO_MPN",
+   "verdict": "NOT_EVALUATED"
+  },
+  {
+   "acceptable_decisions": [
+    "MATCH"
+   ],
+   "case_class": "AUTHORITATIVE",
+   "case_id": "V2Q-SSD-SAME-ALTWORDING-0035",
+   "category": "enterprise_ssd",
+   "commercial_sales_unit_safety": false,
+   "expected_conflict_classes": [],
+   "expected_decision": "MATCH",
+   "model_confidence": null,
+   "model_conflict_classes": [],
+   "model_decision": null,
+   "model_reason_code": null,
+   "notes": [],
+   "primary_signal": "SKU_NOT_TARGET",
+   "provenance_role": null,
+   "runtime_failure_status": null,
+   "severity": null,
+   "state": "NOT_CAPTURED",
+   "substate": "U2_SKU_ONLY",
+   "verdict": "NOT_EVALUATED"
+  },
+  {
+   "acceptable_decisions": [
+    "MATCH"
+   ],
+   "case_class": "AUTHORITATIVE",
+   "case_id": "V2Q-SSD-SEO-MATCH-0038",
+   "category": "enterprise_ssd",
+   "commercial_sales_unit_safety": false,
+   "expected_conflict_classes": [],
+   "expected_decision": "MATCH",
+   "model_confidence": null,
+   "model_conflict_classes": [],
+   "model_decision": null,
+   "model_reason_code": null,
+   "notes": [],
+   "primary_signal": "TITLE_MPN_TOKEN",
+   "provenance_role": null,
+   "runtime_failure_status": null,
+   "severity": null,
+   "state": "NOT_CAPTURED",
+   "substate": "U1_TITLE_MPN",
+   "verdict": "NOT_EVALUATED"
+  },
+  {
+   "acceptable_decisions": [
+    "NO_MATCH"
+   ],
+   "case_class": "AUTHORITATIVE",
+   "case_id": "V2Q-SSD-SU-MULTI-0033",
+   "category": "enterprise_ssd",
+   "commercial_sales_unit_safety": true,
+   "expected_conflict_classes": [
+    "PACKAGING_QUANTITY"
+   ],
+   "expected_decision": "NO_MATCH",
+   "model_confidence": null,
+   "model_conflict_classes": [],
+   "model_decision": null,
+   "model_reason_code": null,
+   "notes": [],
+   "primary_signal": "SKU_NOT_TARGET",
+   "provenance_role": null,
+   "runtime_failure_status": null,
+   "severity": null,
+   "state": "NOT_CAPTURED",
+   "substate": "U2_SKU_ONLY",
+   "verdict": "NOT_EVALUATED"
+  },
+  {
+   "acceptable_decisions": [
+    "NO_MATCH"
+   ],
+   "case_class": "AUTHORITATIVE",
+   "case_id": "V2Q-SSD-SU-TRAY-0032",
+   "category": "enterprise_ssd",
+   "commercial_sales_unit_safety": true,
+   "expected_conflict_classes": [
+    "PACKAGING_QUANTITY"
+   ],
+   "expected_decision": "NO_MATCH",
+   "model_confidence": null,
+   "model_conflict_classes": [],
+   "model_decision": null,
+   "model_reason_code": null,
+   "notes": [],
+   "primary_signal": "SKU_NOT_TARGET",
+   "provenance_role": null,
+   "runtime_failure_status": null,
+   "severity": null,
+   "state": "NOT_CAPTURED",
+   "substate": "U2_SKU_ONLY",
+   "verdict": "NOT_EVALUATED"
+  },
+  {
+   "acceptable_decisions": [
+    "NO_MATCH"
+   ],
+   "case_class": "AUTHORITATIVE",
+   "case_id": "V2Q-SSD-U1-COMPAT-0002",
+   "category": "enterprise_ssd",
+   "commercial_sales_unit_safety": false,
+   "expected_conflict_classes": [
+    "ACCESSORY_RELATION"
+   ],
+   "expected_decision": "NO_MATCH",
+   "model_confidence": null,
+   "model_conflict_classes": [],
+   "model_decision": null,
+   "model_reason_code": null,
+   "notes": [],
+   "primary_signal": "TITLE_MPN_TOKEN",
+   "provenance_role": null,
+   "runtime_failure_status": null,
+   "severity": null,
+   "state": "NOT_CAPTURED",
+   "substate": "U1_TITLE_MPN",
+   "verdict": "NOT_EVALUATED"
+  },
+  {
+   "acceptable_decisions": [
+    "MATCH"
+   ],
+   "case_class": "AUTHORITATIVE",
+   "case_id": "V2Q-SSD-U1-MATCH-0001",
+   "category": "enterprise_ssd",
+   "commercial_sales_unit_safety": false,
+   "expected_conflict_classes": [],
+   "expected_decision": "MATCH",
+   "model_confidence": null,
+   "model_conflict_classes": [],
+   "model_decision": null,
+   "model_reason_code": null,
+   "notes": [],
+   "primary_signal": "TITLE_MPN_TOKEN",
+   "provenance_role": null,
+   "runtime_failure_status": null,
+   "severity": null,
+   "state": "NOT_CAPTURED",
+   "substate": "U1_TITLE_MPN",
+   "verdict": "NOT_EVALUATED"
+  },
+  {
+   "acceptable_decisions": [
+    "MATCH"
+   ],
+   "case_class": "AUTHORITATIVE",
+   "case_id": "V2Q-SSD-U1-PRODCTX-0041",
+   "category": "enterprise_ssd",
+   "commercial_sales_unit_safety": false,
+   "expected_conflict_classes": [],
+   "expected_decision": "MATCH",
+   "model_confidence": null,
+   "model_conflict_classes": [],
+   "model_decision": null,
+   "model_reason_code": null,
+   "notes": [],
+   "primary_signal": "TITLE_MPN_TOKEN",
+   "provenance_role": null,
+   "runtime_failure_status": null,
+   "severity": null,
+   "state": "NOT_CAPTURED",
+   "substate": "U1_TITLE_MPN",
+   "verdict": "NOT_EVALUATED"
+  },
+  {
+   "acceptable_decisions": [
+    "NO_MATCH"
+   ],
+   "case_class": "AUTHORITATIVE",
+   "case_id": "V2Q-SSD-U1-SEO-0003",
+   "category": "enterprise_ssd",
+   "commercial_sales_unit_safety": false,
+   "expected_conflict_classes": [
+    "CAPACITY"
+   ],
+   "expected_decision": "NO_MATCH",
+   "model_confidence": null,
+   "model_conflict_classes": [],
+   "model_decision": null,
+   "model_reason_code": null,
+   "notes": [],
+   "primary_signal": "TITLE_MPN_TOKEN",
+   "provenance_role": null,
+   "runtime_failure_status": null,
+   "severity": null,
+   "state": "NOT_CAPTURED",
+   "substate": "U1_TITLE_MPN",
+   "verdict": "NOT_EVALUATED"
+  },
+  {
+   "acceptable_decisions": [
+    "MATCH",
+    "UNCERTAIN"
+   ],
+   "case_class": "AMBIGUOUS",
+   "case_id": "V2Q-SSD-U1-THIN-0005",
+   "category": "enterprise_ssd",
+   "commercial_sales_unit_safety": false,
+   "expected_conflict_classes": [],
+   "expected_decision": "UNCERTAIN",
+   "model_confidence": null,
+   "model_conflict_classes": [],
+   "model_decision": null,
+   "model_reason_code": null,
+   "notes": [],
+   "primary_signal": "TITLE_MPN_TOKEN",
+   "provenance_role": null,
+   "runtime_failure_status": null,
+   "severity": null,
+   "state": "NOT_CAPTURED",
+   "substate": "U1_TITLE_MPN",
+   "verdict": "NOT_EVALUATED"
+  },
+  {
+   "acceptable_decisions": [
+    "NO_MATCH"
+   ],
+   "case_class": "AUTHORITATIVE",
+   "case_id": "V2Q-SSD-U2E-COLLIDE-0007",
+   "category": "enterprise_ssd",
+   "commercial_sales_unit_safety": false,
+   "expected_conflict_classes": [
+    "PRODUCT_ROLE"
+   ],
+   "expected_decision": "NO_MATCH",
+   "model_confidence": null,
+   "model_conflict_classes": [],
+   "model_decision": null,
+   "model_reason_code": null,
+   "notes": [],
+   "primary_signal": "SKU_EQUALS_TARGET",
+   "provenance_role": null,
+   "runtime_failure_status": null,
+   "severity": null,
+   "state": "NOT_CAPTURED",
+   "substate": "U2_SKU_ONLY",
+   "verdict": "NOT_EVALUATED"
+  },
+  {
+   "acceptable_decisions": [
+    "MATCH"
+   ],
+   "case_class": "AUTHORITATIVE",
+   "case_id": "V2Q-SSD-U2E-MATCH-0006",
+   "category": "enterprise_ssd",
+   "commercial_sales_unit_safety": false,
+   "expected_conflict_classes": [],
+   "expected_decision": "MATCH",
+   "model_confidence": null,
+   "model_conflict_classes": [],
+   "model_decision": null,
+   "model_reason_code": null,
+   "notes": [],
+   "primary_signal": "SKU_EQUALS_TARGET",
+   "provenance_role": null,
+   "runtime_failure_status": null,
+   "severity": null,
+   "state": "NOT_CAPTURED",
+   "substate": "U2_SKU_ONLY",
+   "verdict": "NOT_EVALUATED"
+  },
+  {
+   "acceptable_decisions": [
+    "MATCH"
+   ],
+   "case_class": "AUTHORITATIVE",
+   "case_id": "V2Q-SSD-U2N-MATCH-0008",
+   "category": "enterprise_ssd",
+   "commercial_sales_unit_safety": false,
+   "expected_conflict_classes": [],
+   "expected_decision": "MATCH",
+   "model_confidence": null,
+   "model_conflict_classes": [],
+   "model_decision": null,
+   "model_reason_code": null,
+   "notes": [],
+   "primary_signal": "SKU_NOT_TARGET",
+   "provenance_role": null,
+   "runtime_failure_status": null,
+   "severity": null,
+   "state": "NOT_CAPTURED",
+   "substate": "U2_SKU_ONLY",
+   "verdict": "NOT_EVALUATED"
+  },
+  {
+   "acceptable_decisions": [
+    "NO_MATCH"
+   ],
+   "case_class": "AUTHORITATIVE",
+   "case_id": "V2Q-SSD-U3-CAP-0011",
+   "category": "enterprise_ssd",
+   "commercial_sales_unit_safety": false,
+   "expected_conflict_classes": [
+    "CAPACITY"
+   ],
+   "expected_decision": "NO_MATCH",
+   "model_confidence": null,
+   "model_conflict_classes": [],
+   "model_decision": null,
+   "model_reason_code": null,
+   "notes": [],
+   "primary_signal": "PARTIAL_BOUNDARY",
+   "provenance_role": null,
+   "runtime_failure_status": null,
+   "severity": null,
+   "state": "NOT_CAPTURED",
+   "substate": "U3_PARTIAL_BOUNDARY",
+   "verdict": "NOT_EVALUATED"
+  },
+  {
+   "acceptable_decisions": [
+    "MATCH"
+   ],
+   "case_class": "AUTHORITATIVE",
+   "case_id": "V2Q-SSD-U3-MATCH-0010",
+   "category": "enterprise_ssd",
+   "commercial_sales_unit_safety": false,
+   "expected_conflict_classes": [],
+   "expected_decision": "MATCH",
+   "model_confidence": null,
+   "model_conflict_classes": [],
+   "model_decision": null,
+   "model_reason_code": null,
+   "notes": [],
+   "primary_signal": "PARTIAL_BOUNDARY",
+   "provenance_role": null,
+   "runtime_failure_status": null,
+   "severity": null,
+   "state": "NOT_CAPTURED",
+   "substate": "U3_PARTIAL_BOUNDARY",
+   "verdict": "NOT_EVALUATED"
+  },
+  {
+   "acceptable_decisions": [
+    "UNCERTAIN"
+   ],
+   "case_class": "AUTHORITATIVE",
+   "case_id": "V2Q-SSD-U3-THIN-0012",
+   "category": "enterprise_ssd",
+   "commercial_sales_unit_safety": false,
+   "expected_conflict_classes": [],
+   "expected_decision": "UNCERTAIN",
+   "model_confidence": null,
+   "model_conflict_classes": [],
+   "model_decision": null,
+   "model_reason_code": null,
+   "notes": [],
+   "primary_signal": "PARTIAL_BOUNDARY",
+   "provenance_role": null,
+   "runtime_failure_status": null,
+   "severity": null,
+   "state": "NOT_CAPTURED",
+   "substate": "U3_PARTIAL_BOUNDARY",
+   "verdict": "NOT_EVALUATED"
+  },
+  {
+   "acceptable_decisions": [
+    "UNCERTAIN",
+    "MATCH"
+   ],
+   "case_class": "AMBIGUOUS",
+   "case_id": "V2Q-SSD-U4-AMBIG-0013",
+   "category": "enterprise_ssd",
+   "commercial_sales_unit_safety": false,
+   "expected_conflict_classes": [],
+   "expected_decision": "UNCERTAIN",
+   "model_confidence": null,
+   "model_conflict_classes": [],
+   "model_decision": null,
+   "model_reason_code": null,
+   "notes": [],
+   "primary_signal": "NO_RELATION",
+   "provenance_role": null,
+   "runtime_failure_status": null,
+   "severity": null,
+   "state": "NOT_CAPTURED",
+   "substate": "U4_NO_MPN",
+   "verdict": "NOT_EVALUATED"
+  },
+  {
+   "acceptable_decisions": [
+    "MATCH"
+   ],
+   "case_class": "AUTHORITATIVE",
+   "case_id": "V2Q-SSD-U4-COND-0017",
+   "category": "enterprise_ssd",
+   "commercial_sales_unit_safety": false,
+   "expected_conflict_classes": [],
+   "expected_decision": "MATCH",
+   "model_confidence": null,
+   "model_conflict_classes": [],
+   "model_decision": null,
+   "model_reason_code": null,
+   "notes": [],
+   "primary_signal": "NO_RELATION",
+   "provenance_role": null,
+   "runtime_failure_status": null,
+   "severity": null,
+   "state": "NOT_CAPTURED",
+   "substate": "U4_NO_MPN",
+   "verdict": "NOT_EVALUATED"
+  },
+  {
+   "acceptable_decisions": [
+    "UNCERTAIN"
+   ],
+   "case_class": "AUTHORITATIVE",
+   "case_id": "V2Q-SSD-U4-THIN-0015",
+   "category": "enterprise_ssd",
+   "commercial_sales_unit_safety": false,
+   "expected_conflict_classes": [],
+   "expected_decision": "UNCERTAIN",
+   "model_confidence": null,
+   "model_conflict_classes": [],
+   "model_decision": null,
+   "model_reason_code": null,
+   "notes": [],
+   "primary_signal": "NO_RELATION",
+   "provenance_role": null,
+   "runtime_failure_status": null,
+   "severity": null,
+   "state": "NOT_CAPTURED",
+   "substate": "U4_NO_MPN",
+   "verdict": "NOT_EVALUATED"
+  },
+  {
+   "acceptable_decisions": [
+    "UNCERTAIN"
+   ],
+   "case_class": "AUTHORITATIVE",
+   "case_id": "V2Q-SSD-U5NM1-ALIAS-0022",
+   "category": "enterprise_ssd",
+   "commercial_sales_unit_safety": true,
+   "expected_conflict_classes": [],
+   "expected_decision": "UNCERTAIN",
+   "model_confidence": null,
+   "model_conflict_classes": [],
+   "model_decision": null,
+   "model_reason_code": null,
+   "notes": [],
+   "primary_signal": "NEAR_MISS_TRUNCATION",
+   "provenance_role": null,
+   "runtime_failure_status": null,
+   "severity": null,
+   "state": "NOT_CAPTURED",
+   "substate": "U5_NEAR_MISS_MPN",
+   "verdict": "NOT_EVALUATED"
+  },
+  {
+   "acceptable_decisions": [
+    "UNCERTAIN"
+   ],
+   "case_class": "AUTHORITATIVE",
+   "case_id": "V2Q-SSD-U5NM1-MICRON-0018",
+   "category": "enterprise_ssd",
+   "commercial_sales_unit_safety": true,
+   "expected_conflict_classes": [],
+   "expected_decision": "UNCERTAIN",
+   "model_confidence": null,
+   "model_conflict_classes": [],
+   "model_decision": null,
+   "model_reason_code": null,
+   "notes": [],
+   "primary_signal": "NEAR_MISS_TRUNCATION",
+   "provenance_role": null,
+   "runtime_failure_status": null,
+   "severity": null,
+   "state": "NOT_CAPTURED",
+   "substate": "U5_NEAR_MISS_MPN",
+   "verdict": "NOT_EVALUATED"
+  },
+  {
+   "acceptable_decisions": [
+    "NO_MATCH"
+   ],
+   "case_class": "AUTHORITATIVE",
+   "case_id": "V2Q-SSD-U5NM1-REVCONFLICT-0019",
+   "category": "enterprise_ssd",
+   "commercial_sales_unit_safety": false,
+   "expected_conflict_classes": [
+    "CAPACITY",
+    "INTERFACE"
+   ],
+   "expected_decision": "NO_MATCH",
+   "model_confidence": null,
+   "model_conflict_classes": [],
+   "model_decision": null,
+   "model_reason_code": null,
+   "notes": [],
+   "primary_signal": "NEAR_MISS_TRUNCATION",
+   "provenance_role": null,
+   "runtime_failure_status": null,
+   "severity": null,
+   "state": "NOT_CAPTURED",
+   "substate": "U5_NEAR_MISS_MPN",
+   "verdict": "NOT_EVALUATED"
+  },
+  {
+   "acceptable_decisions": [
+    "NO_MATCH",
+    "UNCERTAIN"
+   ],
+   "case_class": "AMBIGUOUS",
+   "case_id": "V2Q-SSD-U5NM2-NOAUTH-0021",
+   "category": "enterprise_ssd",
+   "commercial_sales_unit_safety": false,
+   "expected_conflict_classes": [],
+   "expected_decision": "UNCERTAIN",
+   "model_confidence": null,
+   "model_conflict_classes": [],
+   "model_decision": null,
+   "model_reason_code": null,
+   "notes": [],
+   "primary_signal": "NEAR_MISS_SUBSTITUTION",
+   "provenance_role": null,
+   "runtime_failure_status": null,
+   "severity": null,
+   "state": "NOT_CAPTURED",
+   "substate": "U5_NEAR_MISS_MPN",
+   "verdict": "NOT_EVALUATED"
+  },
+  {
+   "acceptable_decisions": [
+    "NO_MATCH",
+    "UNCERTAIN"
+   ],
+   "case_class": "AMBIGUOUS",
+   "case_id": "V2Q-SSD-U5NM2-PRODCONTEXT-0023",
+   "category": "enterprise_ssd",
+   "commercial_sales_unit_safety": false,
+   "expected_conflict_classes": [],
+   "expected_decision": "UNCERTAIN",
+   "model_confidence": null,
+   "model_conflict_classes": [],
+   "model_decision": null,
+   "model_reason_code": null,
+   "notes": [],
+   "primary_signal": "NEAR_MISS_SUBSTITUTION",
+   "provenance_role": null,
+   "runtime_failure_status": null,
+   "severity": null,
+   "state": "NOT_CAPTURED",
+   "substate": "U5_NEAR_MISS_MPN",
+   "verdict": "NOT_EVALUATED"
+  },
+  {
+   "acceptable_decisions": [
+    "MATCH"
+   ],
+   "case_class": "AUTHORITATIVE",
+   "case_id": "V2Q-SSD-U5NM2-RELAUTH-0020",
+   "category": "enterprise_ssd",
+   "commercial_sales_unit_safety": false,
+   "expected_conflict_classes": [],
+   "expected_decision": "MATCH",
+   "model_confidence": null,
+   "model_conflict_classes": [],
+   "model_decision": null,
+   "model_reason_code": null,
+   "notes": [],
+   "primary_signal": "NEAR_MISS_SUBSTITUTION",
+   "provenance_role": null,
+   "runtime_failure_status": null,
+   "severity": null,
+   "state": "NOT_CAPTURED",
+   "substate": "U5_NEAR_MISS_MPN",
+   "verdict": "NOT_EVALUATED"
+  },
+  {
+   "acceptable_decisions": [
+    "MATCH",
+    "UNCERTAIN"
+   ],
+   "case_class": "AMBIGUOUS",
+   "case_id": "V2Q-SSD-UNPROVEN-FORM-0043",
+   "category": "enterprise_ssd",
+   "commercial_sales_unit_safety": false,
+   "expected_conflict_classes": [],
+   "expected_decision": "UNCERTAIN",
+   "model_confidence": null,
+   "model_conflict_classes": [],
+   "model_decision": null,
+   "model_reason_code": null,
+   "notes": [],
+   "primary_signal": "NO_RELATION",
+   "provenance_role": null,
+   "runtime_failure_status": null,
+   "severity": null,
+   "state": "NOT_CAPTURED",
+   "substate": "U4_NO_MPN",
+   "verdict": "NOT_EVALUATED"
+  }
+ ],
+ "contract": {
+  "authority_contract_version": "SEMANTIC_AUTHORITY_V2_S2A_FU2",
+  "input_schema_version": 1,
+  "output_schema_version": 1,
+  "prompt_version": "2.0",
+  "runtime_config_identity": {
+   "fallback": {
+    "model": "Qwen3.6-27B-262K",
+    "provider": "vllm-262k"
+   },
+   "max_tokens": 32768,
+   "primary": {
+    "model": "qwen3.8-27b",
+    "provider": "amax"
+   },
+   "temperature": "0.0",
+   "v2_authority_qualified": false
+  },
+  "semantic_contract_binding": [
+   "V2",
+   "2.0",
+   1,
+   1,
+   "SEMANTIC_AUTHORITY_V2_S2A_FU2"
+  ],
+  "semantic_contract_version": "V2",
+  "system_prompt_digest": "c0cc98bdd6d357e81d4692218f18d354351fc2833267b3062b7cd74b18445a84"
+ },
+ "corpus": {
+  "ambiguous_cases": 7,
+  "authoritative_cases": 36,
+  "contract_negative_cases": 13,
+  "corpus_digest": "2c37ba088c317d8cefc6ad0dd7e0d73cfd085f6474ef43eb6953e3cf0170b549",
+  "corpus_id": "PI-SEMANTIC-V2-QUALIFICATION",
+  "corpus_input_digest": "60ea99288e539c149c0627733eccdb30e1cb182cfb1d9546ec098a61b3c6bd67",
+  "corpus_schema_version": 1,
+  "corpus_version": "1.0.0",
+  "total_cases": 56
+ },
+ "decision": "POLICY_PENDING",
+ "decision_rationale": [
+  "COVERAGE:not_captured=43,not_invoked=0,runtime_failures=0,capture_integrity_failures=0,contract_violations=0",
+  "POLICY_PENDING:policy draft-1 is DRAFT, not approved"
+ ],
+ "generated_utc": "2026-10-08T00:00:00Z",
+ "metrics": {
+  "accessory_false_match_count": 0,
+  "ambiguous": {
+   "defensible": 0,
+   "evaluated": 0,
+   "outside_defensible": 0,
+   "outside_examples": []
+  },
+  "by_category": {
+   "enterprise_ssd": {
+    "correct": 0,
+    "evaluated": 0,
+    "false_match": 0,
+    "false_no_match": 0,
+    "not_captured": 32,
+    "not_invoked": 0,
+    "runtime_failure": 0,
+    "total": 32
+   },
+   "network_adapter": {
+    "correct": 0,
+    "evaluated": 0,
+    "false_match": 0,
+    "false_no_match": 0,
+    "not_captured": 3,
+    "not_invoked": 0,
+    "runtime_failure": 0,
+    "total": 3
+   },
+   "processor": {
+    "correct": 0,
+    "evaluated": 0,
+    "false_match": 0,
+    "false_no_match": 0,
+    "not_captured": 2,
+    "not_invoked": 0,
+    "runtime_failure": 0,
+    "total": 2
+   },
+   "server_memory": {
+    "correct": 0,
+    "evaluated": 0,
+    "false_match": 0,
+    "false_no_match": 0,
+    "not_captured": 4,
+    "not_invoked": 0,
+    "runtime_failure": 0,
+    "total": 4
+   },
+   "workstation_gpu": {
+    "correct": 0,
+    "evaluated": 0,
+    "false_match": 0,
+    "false_no_match": 0,
+    "not_captured": 2,
+    "not_invoked": 0,
+    "runtime_failure": 0,
+    "total": 2
+   }
+  },
+  "by_substate": {
+   "U1_TITLE_MPN": {
+    "correct": 0,
+    "evaluated": 0,
+    "false_match": 0,
+    "false_no_match": 0,
+    "not_captured": 8,
+    "not_invoked": 0,
+    "runtime_failure": 0,
+    "total": 8
+   },
+   "U2_SKU_ONLY": {
+    "correct": 0,
+    "evaluated": 0,
+    "false_match": 0,
+    "false_no_match": 0,
+    "not_captured": 8,
+    "not_invoked": 0,
+    "runtime_failure": 0,
+    "total": 8
+   },
+   "U3_PARTIAL_BOUNDARY": {
+    "correct": 0,
+    "evaluated": 0,
+    "false_match": 0,
+    "false_no_match": 0,
+    "not_captured": 3,
+    "not_invoked": 0,
+    "runtime_failure": 0,
+    "total": 3
+   },
+   "U4_NO_MPN": {
+    "correct": 0,
+    "evaluated": 0,
+    "false_match": 0,
+    "false_no_match": 0,
+    "not_captured": 18,
+    "not_invoked": 0,
+    "runtime_failure": 0,
+    "total": 18
+   },
+   "U5_NEAR_MISS_MPN": {
+    "correct": 0,
+    "evaluated": 0,
+    "false_match": 0,
+    "false_no_match": 0,
+    "not_captured": 6,
+    "not_invoked": 0,
+    "runtime_failure": 0,
+    "total": 6
+   }
+  },
+  "contract_negative": {
+   "rejected_as_expected": 13,
+   "violation_examples": [],
+   "violations": 0
+  },
+  "counts": {
+   "ambiguous_cases": 7,
+   "ambiguous_evaluated": 0,
+   "authoritative_cases": 36,
+   "authoritative_evaluated": 0,
+   "capture_integrity_failures": 0,
+   "captured_cases": 0,
+   "contract_negative_cases": 13,
+   "contract_rejected_as_expected": 13,
+   "contract_violations": 0,
+   "eligible_semantic_cases": 43,
+   "evaluated_cases": 0,
+   "fallback_accepted_count": 0,
+   "not_captured": 43,
+   "not_invoked": 0,
+   "runtime_failure_count": 0,
+   "runtime_failures_by_status": {},
+   "total_cases": 56
+  },
+  "false_match_count": 0,
+  "false_match_examples": [],
+  "false_no_match_count": 0,
+  "false_no_match_examples": [],
+  "hard_conflict_false_match_count": 0,
+  "match_precision": {
+   "denominator": 0,
+   "numerator": null,
+   "status": "unavailable",
+   "value": null
+  },
+  "match_recall": {
+   "denominator": 0,
+   "numerator": null,
+   "status": "unavailable",
+   "value": null
+  },
+  "near_miss_false_match_count": 0,
+  "no_match_accuracy": {
+   "denominator": 0,
+   "numerator": null,
+   "status": "unavailable",
+   "value": null
+  },
+  "packaging_false_match_count": 0,
+  "sales_unit_safety_false_match_count": 0,
+  "severity_counts": {
+   "CRITICAL": 0,
+   "HIGH": 0,
+   "MEDIUM": 0,
+   "REVIEW": 0
+  },
+  "uncertain_rate": {
+   "denominator": 0,
+   "numerator": null,
+   "status": "unavailable",
+   "value": null
+  },
+  "valid_structured_response_rate": {
+   "denominator": 0,
+   "numerator": null,
+   "status": "unavailable",
+   "value": null
+  }
+ },
+ "model": {
+  "model": "qwen3.8-27b",
+  "provider": "amax",
+  "route_role": "PRIMARY"
+ },
+ "policy": {
+  "approved": false,
+  "approved_by": null,
+  "approved_utc": null,
+  "note": "DRAFT proposal - not a finalized production acceptance threshold; qualification requires an approved policy",
+  "policy_id": "PI-SEMANTIC-V2-QUALIFICATION-POLICY",
+  "policy_version": "draft-1",
+  "status": "DRAFT",
+  "threshold_evaluation": {
+   "eligible_coverage_min": {
+    "bound": "1.000000",
+    "direction": "min",
+    "met": false,
+    "status": "computed",
+    "value": "0.000000"
+   },
+   "match_precision_min": {
+    "bound": "0.990000",
+    "direction": "min",
+    "met": null,
+    "status": "unavailable",
+    "value": null
+   },
+   "match_recall_min": {
+    "bound": "0.900000",
+    "direction": "min",
+    "met": null,
+    "status": "unavailable",
+    "value": null
+   },
+   "valid_structured_response_rate_min": {
+    "bound": "0.990000",
+    "direction": "min",
+    "met": null,
+    "status": "unavailable",
+    "value": null
+   }
+  },
+  "thresholds": {
+   "eligible_coverage_min": "1.000000",
+   "match_precision_min": "0.990000",
+   "match_recall_min": "0.900000",
+   "valid_structured_response_rate_min": "0.990000"
+  }
+ },
+ "report_digest": "25111207c6957b32d66fc2ba7a99b92144a5fefeab79f1b9c97331cfdf13c2ae",
+ "report_kind": "SEMANTIC_V2_QUALIFICATION_OFFLINE",
+ "report_schema_version": 1,
+ "safety_gates": {
+  "zero_contract_version_mismatch": {
+   "detail": "corpus binds to the exact frozen production contract",
+   "failing_case_ids": [],
+   "passed": true
+  },
+  "zero_customer_alias_authority_promotion": {
+   "detail": "zero customer-retrieval-alias promotion to manufacturer relationship authority",
+   "failing_case_ids": [],
+   "passed": true
+  },
+  "zero_false_match_on_accessory_product_role_conflicts": {
+   "detail": "zero false MATCH on known accessory / product-role conflict cases",
+   "failing_case_ids": [],
+   "passed": true
+  },
+  "zero_false_match_on_always_hard_conflicts": {
+   "detail": "zero false MATCH on independently established ALWAYS_HARD conflict cases",
+   "failing_case_ids": [],
+   "passed": true
+  },
+  "zero_false_match_on_packaging_quantity_conflicts": {
+   "detail": "zero false MATCH on known packaging-quantity / bundle conflict cases",
+   "failing_case_ids": [],
+   "passed": true
+  },
+  "zero_missing_required_evaluation_silent_pass": {
+   "detail": "every corpus case carries exactly one explicit outcome (no missing required evaluation silently treated as PASS)",
+   "failing_case_ids": [],
+   "passed": true
+  },
+  "zero_schema_bypass_acceptance": {
+   "detail": "zero schema-bypass acceptance (no ineligible payload evaluated, no tampered capture accepted)",
+   "failing_case_ids": [],
+   "passed": true
+  },
+  "zero_unauthorized_authority_promotion": {
+   "detail": "zero unauthorized authority promotion (no response claims reviewed manufacturer relationship authority the input did not label)",
+   "failing_case_ids": [],
+   "passed": true
+  }
+ }
+}

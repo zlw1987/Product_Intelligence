@@ -1,0 +1,22 @@
+{
+ "applicability": {
+  "corpus_id": "PI-SEMANTIC-V2-QUALIFICATION",
+  "corpus_version": "1.0.0"
+ },
+ "approval": {
+  "approved": false,
+  "approved_by": null,
+  "approved_utc": null
+ },
+ "policy_id": "PI-SEMANTIC-V2-QUALIFICATION-POLICY",
+ "policy_schema_version": 1,
+ "policy_version": "draft-1",
+ "rationale": "DRAFT proposal for the reviewable qualification thresholds (Q3-A). These are NOT finalized production acceptance thresholds: the hard safety gates (zero false MATCH on ALWAYS_HARD / packaging / accessory cases, zero schema-bypass acceptance, zero unauthorized authority promotion, zero customer-alias promotion, zero contract-version mismatch, zero silent missing evaluation) are mandatory and live in the harness, not here. The proposed values: MATCH precision 0.99 (a false MATCH is materially worse than UNCERTAIN; the product's identity-safety bar), MATCH recall 0.90 (the recall feature is the point of V2, but abstention is always safe), valid structured response rate 0.99 (the strict output contract must hold at the boundary), eligible coverage 1.0 (every eligible case must produce an accepted parser-valid response; runtime failures are execution health, not model answers). Approval requires explicit ChatGPT/user review; until then the qualification decision is POLICY_PENDING, never QUALIFIED.",
+ "status": "DRAFT",
+ "thresholds": {
+  "eligible_coverage_min": 1.0,
+  "match_precision_min": 0.99,
+  "match_recall_min": 0.9,
+  "valid_structured_response_rate_min": 0.99
+ }
+}

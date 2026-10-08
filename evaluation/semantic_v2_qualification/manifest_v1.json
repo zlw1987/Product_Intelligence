@@ -1,0 +1,465 @@
+{
+ "case_count": 56,
+ "cases": [
+  {
+   "case_class": "CONTRACT_NEGATIVE",
+   "case_digest": "b394d754e8ed3e0bd2c4b86142b58a6f08fa4f33083f6793d13abb6d96475121",
+   "case_id": "V2Q-CN-CLAIM-FACTOR-0052",
+   "category": "enterprise_ssd",
+   "primary_signal": "TITLE_MPN_TOKEN",
+   "substate": "U1_TITLE_MPN"
+  },
+  {
+   "case_class": "CONTRACT_NEGATIVE",
+   "case_digest": "b318469b582c284a13ab5d9d6852f113c93962fa7bf902a0c1d9d146aa4ae8d5",
+   "case_id": "V2Q-CN-CONFLICT-0045",
+   "category": "enterprise_ssd",
+   "primary_signal": "NO_RELATION",
+   "substate": "C1_INCOMPATIBLE_EXPLICIT_MPN"
+  },
+  {
+   "case_class": "CONTRACT_NEGATIVE",
+   "case_digest": "b9349f9b375554cf70c8b8ee2ffafa651199968f1699acac82c576bc9be482ab",
+   "case_id": "V2Q-CN-EXTRA-KEY-0053",
+   "category": "enterprise_ssd",
+   "primary_signal": "TITLE_MPN_TOKEN",
+   "substate": "U1_TITLE_MPN"
+  },
+  {
+   "case_class": "CONTRACT_NEGATIVE",
+   "case_digest": "68cf6de23dc0bb2e968dd44a85e9116bd8b5ee905ccac587f45ddcd98976aca4",
+   "case_id": "V2Q-CN-FOREIGN-SIGNAL-0048",
+   "category": "enterprise_ssd",
+   "primary_signal": "TITLE_MPN_TOKEN",
+   "substate": "U2_SKU_ONLY"
+  },
+  {
+   "case_class": "CONTRACT_NEGATIVE",
+   "case_digest": "ca0c29469a04eae5cb8828acc621772a34b7a126439d7e60a004f16087cd21d2",
+   "case_id": "V2Q-CN-REQ-TAMPER-0047",
+   "category": "enterprise_ssd",
+   "primary_signal": "TITLE_MPN_TOKEN",
+   "substate": "U1_TITLE_MPN"
+  },
+  {
+   "case_class": "CONTRACT_NEGATIVE",
+   "case_digest": "5f7947112273b417a2a152935f9abe42a7c3d891f3e94d6a61c8ae9f13c7cf0a",
+   "case_id": "V2Q-CN-REVIEWED-TAMPER-0056",
+   "category": "enterprise_ssd",
+   "primary_signal": "NEAR_MISS_TRUNCATION",
+   "substate": "U5_NEAR_MISS_MPN"
+  },
+  {
+   "case_class": "CONTRACT_NEGATIVE",
+   "case_digest": "af3194cc36578d25c9f59356477941d9d7863132d2262a6a5fdd9eac756958a0",
+   "case_id": "V2Q-CN-SALESUNIT-X-0054",
+   "category": "enterprise_ssd",
+   "primary_signal": "TITLE_MPN_TOKEN",
+   "substate": "U1_TITLE_MPN"
+  },
+  {
+   "case_class": "CONTRACT_NEGATIVE",
+   "case_digest": "4e378014e7447f7d7b10f14cc2ddec352aacac9080d73b745d076ae37fa2e62c",
+   "case_id": "V2Q-CN-STATE-MISMATCH-0049",
+   "category": "enterprise_ssd",
+   "primary_signal": "TITLE_MPN_TOKEN",
+   "substate": "V_EXACT"
+  },
+  {
+   "case_class": "CONTRACT_NEGATIVE",
+   "case_digest": "05eaa86377ebeebfb444a931ba7d12f3d8940c97a240288d305c1e2d7c8780ba",
+   "case_id": "V2Q-CN-U4-NOTITLE-0055",
+   "category": "enterprise_ssd",
+   "primary_signal": "NO_RELATION",
+   "substate": "U4_NO_MPN"
+  },
+  {
+   "case_class": "CONTRACT_NEGATIVE",
+   "case_digest": "f95964ac54248d6ddd199087dabe382ab83cbfc715a21e704406f4ae869790a8",
+   "case_id": "V2Q-CN-UNEVALUABLE-0046",
+   "category": "enterprise_ssd",
+   "primary_signal": "NO_RELATION",
+   "substate": "E1_NO_TARGET_MPN"
+  },
+  {
+   "case_class": "CONTRACT_NEGATIVE",
+   "case_digest": "d8acf99a8411819b317091a07962edda7e4d7596df0732a12cef6cd6128788ae",
+   "case_id": "V2Q-CN-UNKNOWN-ENUM-0050",
+   "category": "enterprise_ssd",
+   "primary_signal": "TITLE_MPN_TOKEN",
+   "substate": "U9_INVENTED"
+  },
+  {
+   "case_class": "CONTRACT_NEGATIVE",
+   "case_digest": "ad9f569cf4547994d9b232498fdcd31cda78b17cd6895f8003ad0de583704bf6",
+   "case_id": "V2Q-CN-UNKNOWN-EVIDENCE-SRC-0051",
+   "category": "enterprise_ssd",
+   "primary_signal": "TITLE_MPN_TOKEN",
+   "substate": "U1_TITLE_MPN"
+  },
+  {
+   "case_class": "CONTRACT_NEGATIVE",
+   "case_digest": "76453fe080ae9b260053a32599cda4aeb2eb5816679f30d5f2b013d1445e2d46",
+   "case_id": "V2Q-CN-VERIFIED-0044",
+   "category": "enterprise_ssd",
+   "primary_signal": "EXACT",
+   "substate": "V_EXACT"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "5de8e3e2a9fa2bba770d6eb96d134a0baa0f3fc846da51a23568bfd60859a53f",
+   "case_id": "V2Q-CPU-ATTR-GEN-0027",
+   "category": "processor",
+   "primary_signal": "NO_RELATION",
+   "substate": "U4_NO_MPN"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "6292d47bab9189b3f2bb7d104f989e43ab96fc1687894a960d6e604905cb93bb",
+   "case_id": "V2Q-CPU-U1-CROSSREF-0004",
+   "category": "processor",
+   "primary_signal": "TITLE_MPN_TOKEN",
+   "substate": "U1_TITLE_MPN"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "877e06ce2ec5bb715c8982d46a38cc2c5fa74ceb4e142ad972aafb9c9003f7e8",
+   "case_id": "V2Q-DIMM-ATTR-CAPACITY-0025",
+   "category": "server_memory",
+   "primary_signal": "NO_RELATION",
+   "substate": "U4_NO_MPN"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "03ee70b5d869777e5cc34c86d4e827e7e1ea0513f45299f536368d64a5fd8ff1",
+   "case_id": "V2Q-DIMM-COND-0039",
+   "category": "server_memory",
+   "primary_signal": "SKU_NOT_TARGET",
+   "substate": "U2_SKU_ONLY"
+  },
+  {
+   "case_class": "AMBIGUOUS",
+   "case_digest": "ceeb6cefc3aca9ff58a674e438a23042fb5bb0f570c24ea28dc148d880de89b6",
+   "case_id": "V2Q-DIMM-U2N-THIN-0009",
+   "category": "server_memory",
+   "primary_signal": "SKU_NOT_TARGET",
+   "substate": "U2_SKU_ONLY"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "665fa6ccdfa98123871beb606e5daaae2128fe727a839ce06e5edd7130391240",
+   "case_id": "V2Q-DIMM-U4-MATCH-0014",
+   "category": "server_memory",
+   "primary_signal": "NO_RELATION",
+   "substate": "U4_NO_MPN"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "b66bdbb23034895aaa15a97a730ceeeb86a5674154476f88edd2f09e3836d49c",
+   "case_id": "V2Q-GPU-ATTR-MEM-0026",
+   "category": "workstation_gpu",
+   "primary_signal": "NO_RELATION",
+   "substate": "U4_NO_MPN"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "04a21f09263ca6c74e4704bb57018eb1aac13908596a39c98b2133b7f542df96",
+   "case_id": "V2Q-GPU-SU-BUNDLE-0034",
+   "category": "workstation_gpu",
+   "primary_signal": "NO_RELATION",
+   "substate": "U4_NO_MPN"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "4807387ce1ff75adedddc06db95e90deb6906e1e7c931b0c6a6831e269e60cde",
+   "case_id": "V2Q-NIC-ACC-BRACKET-0042",
+   "category": "network_adapter",
+   "primary_signal": "NO_RELATION",
+   "substate": "U4_NO_MPN"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "2791f286ff4354a192c6cf519a0b8654fd1fcd55413ba1b443564e77f55a2bb4",
+   "case_id": "V2Q-NIC-ATTR-IFACE-0030",
+   "category": "network_adapter",
+   "primary_signal": "NO_RELATION",
+   "substate": "U4_NO_MPN"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "0f3ac43cfad9d219989970e58ff5a2e2866cb58d3a1f496dd1a31016f5d0f6ad",
+   "case_id": "V2Q-NIC-U4-ROLE-0016",
+   "category": "network_adapter",
+   "primary_signal": "NO_RELATION",
+   "substate": "U4_NO_MPN"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "a4e5530766d74a329709ad2432874df33edd98ced28ca216b7a6e78fbe05d7c7",
+   "case_id": "V2Q-SSD-ACC-CADDY-0031",
+   "category": "enterprise_ssd",
+   "primary_signal": "TITLE_MPN_TOKEN",
+   "substate": "U1_TITLE_MPN"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "da1398f1522e47cc6d78cc75ee766d244f381bcc8b898915aeb4cab75ca48dc1",
+   "case_id": "V2Q-SSD-ATTR-CAPACITY-0024",
+   "category": "enterprise_ssd",
+   "primary_signal": "NO_RELATION",
+   "substate": "U4_NO_MPN"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "f5e0648d5432836c963da932bfe3ee54e283b65af39d67eb681f188d2c9edadd",
+   "case_id": "V2Q-SSD-ATTR-FF-0029",
+   "category": "enterprise_ssd",
+   "primary_signal": "NO_RELATION",
+   "substate": "U4_NO_MPN"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "f0dc5090c9b5da74fa283ff8a3b736f7fbd4e42a4edd00f3f802c7f667c4d654",
+   "case_id": "V2Q-SSD-ATTR-IFACE-0028",
+   "category": "enterprise_ssd",
+   "primary_signal": "NO_RELATION",
+   "substate": "U4_NO_MPN"
+  },
+  {
+   "case_class": "AMBIGUOUS",
+   "case_digest": "5c49696efdc5b2a949f99348b18e6f5c8485c8ab478a48b5102bb7d087471060",
+   "case_id": "V2Q-SSD-BRAND-CONTESTED-0040",
+   "category": "enterprise_ssd",
+   "primary_signal": "NO_RELATION",
+   "substate": "U4_NO_MPN"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "dbc27ef4808ef9bcd8c851cd0c395eda49ae46b3aa63b13ecf659f9782bb48ba",
+   "case_id": "V2Q-SSD-CONTRA-0037",
+   "category": "enterprise_ssd",
+   "primary_signal": "NO_RELATION",
+   "substate": "U4_NO_MPN"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "5db84534901bbf63b858634dc620ed46bf9c2a051eb9b5426a3312dd85ed3a5f",
+   "case_id": "V2Q-SSD-MULTI-CONFLICT-0036",
+   "category": "enterprise_ssd",
+   "primary_signal": "NO_RELATION",
+   "substate": "U4_NO_MPN"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "78b752ac1d9d289b7af2b95080fc35a1f3c8eb15501506edd56ab0848f516a05",
+   "case_id": "V2Q-SSD-SAME-ALTWORDING-0035",
+   "category": "enterprise_ssd",
+   "primary_signal": "SKU_NOT_TARGET",
+   "substate": "U2_SKU_ONLY"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "2db3a7f7f0604d868de7e6a99dce77e0f5386d5b76efac8ba2c3039cdd56bac6",
+   "case_id": "V2Q-SSD-SEO-MATCH-0038",
+   "category": "enterprise_ssd",
+   "primary_signal": "TITLE_MPN_TOKEN",
+   "substate": "U1_TITLE_MPN"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "24ea91aa52944ca3e60dae8cdc989fbfdc2453443c55556fec27341c4024b03f",
+   "case_id": "V2Q-SSD-SU-MULTI-0033",
+   "category": "enterprise_ssd",
+   "primary_signal": "SKU_NOT_TARGET",
+   "substate": "U2_SKU_ONLY"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "0979e338bab4478a095dccb93879f50cdbc1efa59a12c834c620cfff306f1b93",
+   "case_id": "V2Q-SSD-SU-TRAY-0032",
+   "category": "enterprise_ssd",
+   "primary_signal": "SKU_NOT_TARGET",
+   "substate": "U2_SKU_ONLY"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "375df96b4c4c2a65d71b8ee8727cdc3d743941b37a5591fd702b58b9395767c0",
+   "case_id": "V2Q-SSD-U1-COMPAT-0002",
+   "category": "enterprise_ssd",
+   "primary_signal": "TITLE_MPN_TOKEN",
+   "substate": "U1_TITLE_MPN"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "3e3ec285c92007b9470d2b74b40c377db0d694c82c6ed8c69a885a93985ef354",
+   "case_id": "V2Q-SSD-U1-MATCH-0001",
+   "category": "enterprise_ssd",
+   "primary_signal": "TITLE_MPN_TOKEN",
+   "substate": "U1_TITLE_MPN"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "25d4ed1830a868d41a68cf45f528fa18c9ae7c216f1f285f9b3cc43956379dd8",
+   "case_id": "V2Q-SSD-U1-PRODCTX-0041",
+   "category": "enterprise_ssd",
+   "primary_signal": "TITLE_MPN_TOKEN",
+   "substate": "U1_TITLE_MPN"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "989e47adfe13b39d05381eaf76175ed252b75cf7edd09f0b934d8e8dc3ae5613",
+   "case_id": "V2Q-SSD-U1-SEO-0003",
+   "category": "enterprise_ssd",
+   "primary_signal": "TITLE_MPN_TOKEN",
+   "substate": "U1_TITLE_MPN"
+  },
+  {
+   "case_class": "AMBIGUOUS",
+   "case_digest": "08ddc29dd77b2acf2f963b77347fc32bf01583df4317dbec0821725c316c7cbc",
+   "case_id": "V2Q-SSD-U1-THIN-0005",
+   "category": "enterprise_ssd",
+   "primary_signal": "TITLE_MPN_TOKEN",
+   "substate": "U1_TITLE_MPN"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "641ad4d46781abe7797aa10749c89c6e200ccd766d7b93cec0c8b8266532dd53",
+   "case_id": "V2Q-SSD-U2E-COLLIDE-0007",
+   "category": "enterprise_ssd",
+   "primary_signal": "SKU_EQUALS_TARGET",
+   "substate": "U2_SKU_ONLY"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "0c45eaacb2f7166256a29c5c5a85c7e8f8d03bd565ae21f71c81cad182618309",
+   "case_id": "V2Q-SSD-U2E-MATCH-0006",
+   "category": "enterprise_ssd",
+   "primary_signal": "SKU_EQUALS_TARGET",
+   "substate": "U2_SKU_ONLY"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "667c492df707b7f544e9d7504b497a71badb5bc44489e99d7f96bfb2bf59916a",
+   "case_id": "V2Q-SSD-U2N-MATCH-0008",
+   "category": "enterprise_ssd",
+   "primary_signal": "SKU_NOT_TARGET",
+   "substate": "U2_SKU_ONLY"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "4036310d7070a48ee0b1e1aa6a1d791fac8b95a01890cda03fe85cd6af567206",
+   "case_id": "V2Q-SSD-U3-CAP-0011",
+   "category": "enterprise_ssd",
+   "primary_signal": "PARTIAL_BOUNDARY",
+   "substate": "U3_PARTIAL_BOUNDARY"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "a79d1f39ee9c0b9ab32ed3cf31cf4924da08a2533fe1a103d215dff6ef41a2e0",
+   "case_id": "V2Q-SSD-U3-MATCH-0010",
+   "category": "enterprise_ssd",
+   "primary_signal": "PARTIAL_BOUNDARY",
+   "substate": "U3_PARTIAL_BOUNDARY"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "0311f2454cffb174e9077055acea57eb5aad687806e2474242860a4be06f4d3e",
+   "case_id": "V2Q-SSD-U3-THIN-0012",
+   "category": "enterprise_ssd",
+   "primary_signal": "PARTIAL_BOUNDARY",
+   "substate": "U3_PARTIAL_BOUNDARY"
+  },
+  {
+   "case_class": "AMBIGUOUS",
+   "case_digest": "a1f4fb6ea44bfc01c575d5314295cbad7f6c2795a6df05b5eb66bf6c9d035564",
+   "case_id": "V2Q-SSD-U4-AMBIG-0013",
+   "category": "enterprise_ssd",
+   "primary_signal": "NO_RELATION",
+   "substate": "U4_NO_MPN"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "692704f07a000a3c2e25a68b25a9d643bbcdf3e5b5719f17c0efff082fafdec4",
+   "case_id": "V2Q-SSD-U4-COND-0017",
+   "category": "enterprise_ssd",
+   "primary_signal": "NO_RELATION",
+   "substate": "U4_NO_MPN"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "94fd0925238bea1b06531ca643d27e76c9a182847bb7b4fce1b1b53d4db6cf1a",
+   "case_id": "V2Q-SSD-U4-THIN-0015",
+   "category": "enterprise_ssd",
+   "primary_signal": "NO_RELATION",
+   "substate": "U4_NO_MPN"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "b4eefbb919a38b70fe51addd2f5a29a191fe3e1b5353af7986fa0a279e17867e",
+   "case_id": "V2Q-SSD-U5NM1-ALIAS-0022",
+   "category": "enterprise_ssd",
+   "primary_signal": "NEAR_MISS_TRUNCATION",
+   "substate": "U5_NEAR_MISS_MPN"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "6add4f66f75cd5b44a17e3d7dff3639a676ab26caf92eed24ce9c135d678d920",
+   "case_id": "V2Q-SSD-U5NM1-MICRON-0018",
+   "category": "enterprise_ssd",
+   "primary_signal": "NEAR_MISS_TRUNCATION",
+   "substate": "U5_NEAR_MISS_MPN"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "8c64eaadbc83d47c7e9d67abc4dd9edb61ed4a16b9390cdc0f07e5d5d8d0f039",
+   "case_id": "V2Q-SSD-U5NM1-REVCONFLICT-0019",
+   "category": "enterprise_ssd",
+   "primary_signal": "NEAR_MISS_TRUNCATION",
+   "substate": "U5_NEAR_MISS_MPN"
+  },
+  {
+   "case_class": "AMBIGUOUS",
+   "case_digest": "011487a67af48bbc3eb45067abec9a97d46d955c4501ce4c9e6979e9d34b0d5b",
+   "case_id": "V2Q-SSD-U5NM2-NOAUTH-0021",
+   "category": "enterprise_ssd",
+   "primary_signal": "NEAR_MISS_SUBSTITUTION",
+   "substate": "U5_NEAR_MISS_MPN"
+  },
+  {
+   "case_class": "AMBIGUOUS",
+   "case_digest": "da15c4fa4319a540160d0609578d117bfe61c91dc810cf2562c078c85c8026bc",
+   "case_id": "V2Q-SSD-U5NM2-PRODCONTEXT-0023",
+   "category": "enterprise_ssd",
+   "primary_signal": "NEAR_MISS_SUBSTITUTION",
+   "substate": "U5_NEAR_MISS_MPN"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "dea31278e11a6385d204b18a66cdd82e946abc3e5ea97379025c2b44f6f7f328",
+   "case_id": "V2Q-SSD-U5NM2-RELAUTH-0020",
+   "category": "enterprise_ssd",
+   "primary_signal": "NEAR_MISS_SUBSTITUTION",
+   "substate": "U5_NEAR_MISS_MPN"
+  },
+  {
+   "case_class": "AMBIGUOUS",
+   "case_digest": "e4da95563a18d03bb724e2e2a885a7bef9b39b9b7b45ab8a7e0787411b0c0553",
+   "case_id": "V2Q-SSD-UNPROVEN-FORM-0043",
+   "category": "enterprise_ssd",
+   "primary_signal": "NO_RELATION",
+   "substate": "U4_NO_MPN"
+  }
+ ],
+ "corpus_digest": "2c37ba088c317d8cefc6ad0dd7e0d73cfd085f6474ef43eb6953e3cf0170b549",
+ "corpus_id": "PI-SEMANTIC-V2-QUALIFICATION",
+ "corpus_version": "1.0.0",
+ "manifest_digest": "aa870660f287236d6d08a40c9cc15d58b5bfe2b36772e286102fe4a0673452e9",
+ "manifest_schema_version": 1,
+ "semantic_contract_binding": [
+  "V2",
+  "2.0",
+  1,
+  1,
+  "SEMANTIC_AUTHORITY_V2_S2A_FU2"
+ ]
+}

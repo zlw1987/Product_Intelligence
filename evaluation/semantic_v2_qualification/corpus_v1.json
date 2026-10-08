@@ -1,0 +1,5794 @@
+{
+ "cases": [
+  {
+   "case_class": "CONTRACT_NEGATIVE",
+   "case_digest": "b394d754e8ed3e0bd2c4b86142b58a6f08fa4f33083f6793d13abb6d96475121",
+   "case_id": "V2Q-CN-CLAIM-FACTOR-0052",
+   "category": "enterprise_ssd",
+   "challenge_tags": [
+    "title_mpn_only"
+   ],
+   "evidence_kind": "SYNTHETIC",
+   "expected": {
+    "acceptable_decisions": null,
+    "commercial_sales_unit_safety": false,
+    "conflict_classes": [],
+    "decision": null,
+    "disposition": "INPUT_REJECTED",
+    "expected_reason_code": null,
+    "missing_dimensions": [],
+    "rejection_class": "INVALID_INPUT_SCHEMA"
+   },
+   "input_payload": {
+    "candidate": {
+     "commercial": {
+      "availability": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "In stock"
+      },
+      "condition": null,
+      "currency": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "USD"
+      },
+      "offer_url": null,
+      "price": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "100"
+      },
+      "sales_unit": {
+       "kind": null,
+       "quantity": null,
+       "raw_detail": null,
+       "source": null,
+       "state": "UNAVAILABLE"
+      },
+      "seller": null
+     },
+     "evidence_source": "TITLE_TEXT",
+     "mpn_field": null,
+     "product": {
+      "accessory_relation": null,
+      "brand": null,
+      "capacity": null,
+      "form_factor": null,
+      "generation": null,
+      "interface": null,
+      "product_family": null,
+      "product_role": null,
+      "raw_specification_text": null,
+      "raw_title_text": "SYN-SSD-3840-U3 | 3.84TB U.3 NVMe SSD | best price | free shipping | hot deal 2026 | data center enterprise",
+      "revision_or_suffix": null
+     },
+     "sku": null,
+     "source_url": "https://example.com/v2q-cases/v2q-ssd-seo-match-0038"
+    },
+    "case_id": "V2Q-CN-CLAIM-FACTOR-0052",
+    "context_provenance": [],
+    "deterministic_identity_context": {
+     "identity_state": "DETERMINISTIC_UNCERTAIN",
+     "normalized_candidate_part_number": "SYN-SSD-3840-U3",
+     "normalized_requested_part_number": "SYN-SSD-3840-U3",
+     "primary_relationship_signal": "TITLE_MPN_TOKEN",
+     "relationship_requirement": "NOT_REQUIRED",
+     "relationship_signals": [
+      "TITLE_MPN_TOKEN"
+     ],
+     "substate": "U1_TITLE_MPN"
+    },
+    "product_evidence": {
+     "has_usable_product_title": true,
+     "matched_facts": [
+      {
+       "dimension": "CAPACITY",
+       "sources": [
+        "MODEL_CLAIM"
+       ]
+      }
+     ]
+    },
+    "target": {
+     "description_raw_text": "3.84TB U.3 NVMe data center SSD",
+     "mpn": "SYN-SSD-3840-U3",
+     "reviewed_context": null
+    }
+   },
+   "input_shape": "LIVE_SHAPE",
+   "label": {
+    "ambiguity": "UNAMBIGUOUS",
+    "evidence": "The payload violates the frozen V2 input contract; the real case constructor must reject it. Expected rejection class recorded for harness verification.",
+    "reviewer": "PRODUCT-INTEL.Q3A.CORPUS-AUTHOR",
+    "reviewer_status": "REVIEWED",
+    "source": "frozen Semantic V2 input contract (research/semantic_v2.py construction rules)",
+    "source_kind": "CONTRACT_GROUNDED"
+   },
+   "primary_signal": "TITLE_MPN_TOKEN",
+   "substate": "U1_TITLE_MPN"
+  },
+  {
+   "case_class": "CONTRACT_NEGATIVE",
+   "case_digest": "b318469b582c284a13ab5d9d6852f113c93962fa7bf902a0c1d9d146aa4ae8d5",
+   "case_id": "V2Q-CN-CONFLICT-0045",
+   "category": "enterprise_ssd",
+   "challenge_tags": [
+    "title_mpn_only"
+   ],
+   "evidence_kind": "SYNTHETIC",
+   "expected": {
+    "acceptable_decisions": null,
+    "commercial_sales_unit_safety": false,
+    "conflict_classes": [],
+    "decision": null,
+    "disposition": "INPUT_REJECTED",
+    "expected_reason_code": null,
+    "missing_dimensions": [],
+    "rejection_class": "NON_UNCERTAIN_STATE"
+   },
+   "input_payload": {
+    "candidate": {
+     "commercial": {
+      "availability": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "In stock"
+      },
+      "condition": null,
+      "currency": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "USD"
+      },
+      "offer_url": null,
+      "price": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "100"
+      },
+      "sales_unit": {
+       "kind": null,
+       "quantity": null,
+       "raw_detail": null,
+       "source": null,
+       "state": "UNAVAILABLE"
+      },
+      "seller": null
+     },
+     "evidence_source": "TITLE_TEXT",
+     "mpn_field": null,
+     "product": {
+      "accessory_relation": null,
+      "brand": null,
+      "capacity": null,
+      "form_factor": null,
+      "generation": null,
+      "interface": null,
+      "product_family": null,
+      "product_role": null,
+      "raw_specification_text": null,
+      "raw_title_text": "SYN-SSD-3840-U3 | 3.84TB U.3 NVMe SSD | best price | free shipping | hot deal 2026 | data center enterprise",
+      "revision_or_suffix": null
+     },
+     "sku": null,
+     "source_url": "https://example.com/v2q-cases/v2q-ssd-seo-match-0038"
+    },
+    "case_id": "V2Q-CN-CONFLICT-0045",
+    "context_provenance": [],
+    "deterministic_identity_context": {
+     "identity_state": "DETERMINISTIC_CONFLICT",
+     "normalized_candidate_part_number": "SYN-C-2",
+     "normalized_requested_part_number": "SYN-C-1",
+     "primary_relationship_signal": "NO_RELATION",
+     "relationship_requirement": "NOT_APPLICABLE",
+     "relationship_signals": [
+      "NO_RELATION"
+     ],
+     "substate": "C1_INCOMPATIBLE_EXPLICIT_MPN"
+    },
+    "product_evidence": {
+     "has_usable_product_title": true,
+     "matched_facts": []
+    },
+    "target": {
+     "description_raw_text": "3.84TB U.3 NVMe data center SSD",
+     "mpn": "SYN-SSD-3840-U3",
+     "reviewed_context": null
+    }
+   },
+   "input_shape": "LIVE_SHAPE",
+   "label": {
+    "ambiguity": "UNAMBIGUOUS",
+    "evidence": "The payload violates the frozen V2 input contract; the real case constructor must reject it. Expected rejection class recorded for harness verification.",
+    "reviewer": "PRODUCT-INTEL.Q3A.CORPUS-AUTHOR",
+    "reviewer_status": "REVIEWED",
+    "source": "frozen Semantic V2 input contract (research/semantic_v2.py construction rules)",
+    "source_kind": "CONTRACT_GROUNDED"
+   },
+   "primary_signal": "NO_RELATION",
+   "substate": "C1_INCOMPATIBLE_EXPLICIT_MPN"
+  },
+  {
+   "case_class": "CONTRACT_NEGATIVE",
+   "case_digest": "b9349f9b375554cf70c8b8ee2ffafa651199968f1699acac82c576bc9be482ab",
+   "case_id": "V2Q-CN-EXTRA-KEY-0053",
+   "category": "enterprise_ssd",
+   "challenge_tags": [
+    "title_mpn_only"
+   ],
+   "evidence_kind": "SYNTHETIC",
+   "expected": {
+    "acceptable_decisions": null,
+    "commercial_sales_unit_safety": false,
+    "conflict_classes": [],
+    "decision": null,
+    "disposition": "INPUT_REJECTED",
+    "expected_reason_code": null,
+    "missing_dimensions": [],
+    "rejection_class": "INVALID_INPUT_SCHEMA"
+   },
+   "input_payload": {
+    "candidate": {
+     "commercial": {
+      "availability": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "In stock"
+      },
+      "condition": null,
+      "currency": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "USD"
+      },
+      "offer_url": null,
+      "price": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "100"
+      },
+      "sales_unit": {
+       "kind": null,
+       "quantity": null,
+       "raw_detail": null,
+       "source": null,
+       "state": "UNAVAILABLE"
+      },
+      "seller": null
+     },
+     "evidence_source": "TITLE_TEXT",
+     "mpn_field": null,
+     "product": {
+      "accessory_relation": null,
+      "brand": null,
+      "capacity": null,
+      "form_factor": null,
+      "generation": null,
+      "interface": null,
+      "product_family": null,
+      "product_role": null,
+      "raw_specification_text": null,
+      "raw_title_text": "SYN-SSD-3840-U3 | 3.84TB U.3 NVMe SSD | best price | free shipping | hot deal 2026 | data center enterprise",
+      "revision_or_suffix": null
+     },
+     "sku": null,
+     "source_url": "https://example.com/v2q-cases/v2q-ssd-seo-match-0038"
+    },
+    "case_id": "V2Q-CN-EXTRA-KEY-0053",
+    "context_provenance": [],
+    "deterministic_identity_context": {
+     "identity_state": "DETERMINISTIC_UNCERTAIN",
+     "normalized_candidate_part_number": "SYN-SSD-3840-U3",
+     "normalized_requested_part_number": "SYN-SSD-3840-U3",
+     "primary_relationship_signal": "TITLE_MPN_TOKEN",
+     "relationship_requirement": "NOT_REQUIRED",
+     "relationship_signals": [
+      "TITLE_MPN_TOKEN"
+     ],
+     "substate": "U1_TITLE_MPN"
+    },
+    "injected_field": "authority",
+    "product_evidence": {
+     "has_usable_product_title": true,
+     "matched_facts": []
+    },
+    "target": {
+     "description_raw_text": "3.84TB U.3 NVMe data center SSD",
+     "mpn": "SYN-SSD-3840-U3",
+     "reviewed_context": null
+    }
+   },
+   "input_shape": "LIVE_SHAPE",
+   "label": {
+    "ambiguity": "UNAMBIGUOUS",
+    "evidence": "The payload violates the frozen V2 input contract; the real case constructor must reject it. Expected rejection class recorded for harness verification.",
+    "reviewer": "PRODUCT-INTEL.Q3A.CORPUS-AUTHOR",
+    "reviewer_status": "REVIEWED",
+    "source": "frozen Semantic V2 input contract (research/semantic_v2.py construction rules)",
+    "source_kind": "CONTRACT_GROUNDED"
+   },
+   "primary_signal": "TITLE_MPN_TOKEN",
+   "substate": "U1_TITLE_MPN"
+  },
+  {
+   "case_class": "CONTRACT_NEGATIVE",
+   "case_digest": "68cf6de23dc0bb2e968dd44a85e9116bd8b5ee905ccac587f45ddcd98976aca4",
+   "case_id": "V2Q-CN-FOREIGN-SIGNAL-0048",
+   "category": "enterprise_ssd",
+   "challenge_tags": [
+    "title_mpn_only"
+   ],
+   "evidence_kind": "SYNTHETIC",
+   "expected": {
+    "acceptable_decisions": null,
+    "commercial_sales_unit_safety": false,
+    "conflict_classes": [],
+    "decision": null,
+    "disposition": "INPUT_REJECTED",
+    "expected_reason_code": null,
+    "missing_dimensions": [],
+    "rejection_class": "FOREIGN_DETERMINISTIC_CONTEXT"
+   },
+   "input_payload": {
+    "candidate": {
+     "commercial": {
+      "availability": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "In stock"
+      },
+      "condition": null,
+      "currency": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "USD"
+      },
+      "offer_url": null,
+      "price": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "100"
+      },
+      "sales_unit": {
+       "kind": null,
+       "quantity": null,
+       "raw_detail": null,
+       "source": null,
+       "state": "UNAVAILABLE"
+      },
+      "seller": null
+     },
+     "evidence_source": "TITLE_TEXT",
+     "mpn_field": null,
+     "product": {
+      "accessory_relation": null,
+      "brand": null,
+      "capacity": null,
+      "form_factor": null,
+      "generation": null,
+      "interface": null,
+      "product_family": null,
+      "product_role": null,
+      "raw_specification_text": null,
+      "raw_title_text": "SYN-SSD-3840-U3 | 3.84TB U.3 NVMe SSD | best price | free shipping | hot deal 2026 | data center enterprise",
+      "revision_or_suffix": null
+     },
+     "sku": null,
+     "source_url": "https://example.com/v2q-cases/v2q-ssd-seo-match-0038"
+    },
+    "case_id": "V2Q-CN-FOREIGN-SIGNAL-0048",
+    "context_provenance": [],
+    "deterministic_identity_context": {
+     "identity_state": "DETERMINISTIC_UNCERTAIN",
+     "normalized_candidate_part_number": "SYN-SSD-3840-U3",
+     "normalized_requested_part_number": "SYN-SSD-3840-U3",
+     "primary_relationship_signal": "TITLE_MPN_TOKEN",
+     "relationship_requirement": "NOT_REQUIRED",
+     "relationship_signals": [
+      "TITLE_MPN_TOKEN"
+     ],
+     "substate": "U2_SKU_ONLY"
+    },
+    "product_evidence": {
+     "has_usable_product_title": true,
+     "matched_facts": []
+    },
+    "target": {
+     "description_raw_text": "3.84TB U.3 NVMe data center SSD",
+     "mpn": "SYN-SSD-3840-U3",
+     "reviewed_context": null
+    }
+   },
+   "input_shape": "LIVE_SHAPE",
+   "label": {
+    "ambiguity": "UNAMBIGUOUS",
+    "evidence": "The payload violates the frozen V2 input contract; the real case constructor must reject it. Expected rejection class recorded for harness verification.",
+    "reviewer": "PRODUCT-INTEL.Q3A.CORPUS-AUTHOR",
+    "reviewer_status": "REVIEWED",
+    "source": "frozen Semantic V2 input contract (research/semantic_v2.py construction rules)",
+    "source_kind": "CONTRACT_GROUNDED"
+   },
+   "primary_signal": "TITLE_MPN_TOKEN",
+   "substate": "U2_SKU_ONLY"
+  },
+  {
+   "case_class": "CONTRACT_NEGATIVE",
+   "case_digest": "ca0c29469a04eae5cb8828acc621772a34b7a126439d7e60a004f16087cd21d2",
+   "case_id": "V2Q-CN-REQ-TAMPER-0047",
+   "category": "enterprise_ssd",
+   "challenge_tags": [
+    "title_mpn_only"
+   ],
+   "evidence_kind": "SYNTHETIC",
+   "expected": {
+    "acceptable_decisions": null,
+    "commercial_sales_unit_safety": false,
+    "conflict_classes": [],
+    "decision": null,
+    "disposition": "INPUT_REJECTED",
+    "expected_reason_code": null,
+    "missing_dimensions": [],
+    "rejection_class": "FOREIGN_DETERMINISTIC_CONTEXT"
+   },
+   "input_payload": {
+    "candidate": {
+     "commercial": {
+      "availability": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "In stock"
+      },
+      "condition": null,
+      "currency": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "USD"
+      },
+      "offer_url": null,
+      "price": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "100"
+      },
+      "sales_unit": {
+       "kind": null,
+       "quantity": null,
+       "raw_detail": null,
+       "source": null,
+       "state": "UNAVAILABLE"
+      },
+      "seller": null
+     },
+     "evidence_source": "TITLE_TEXT",
+     "mpn_field": null,
+     "product": {
+      "accessory_relation": null,
+      "brand": null,
+      "capacity": null,
+      "form_factor": null,
+      "generation": null,
+      "interface": null,
+      "product_family": null,
+      "product_role": null,
+      "raw_specification_text": null,
+      "raw_title_text": "SYN-SSD-3840-U3 | 3.84TB U.3 NVMe SSD | best price | free shipping | hot deal 2026 | data center enterprise",
+      "revision_or_suffix": null
+     },
+     "sku": null,
+     "source_url": "https://example.com/v2q-cases/v2q-ssd-seo-match-0038"
+    },
+    "case_id": "V2Q-CN-REQ-TAMPER-0047",
+    "context_provenance": [],
+    "deterministic_identity_context": {
+     "identity_state": "DETERMINISTIC_UNCERTAIN",
+     "normalized_candidate_part_number": "SYN-SSD-3840-U3",
+     "normalized_requested_part_number": "SYN-SSD-3840-U3",
+     "primary_relationship_signal": "TITLE_MPN_TOKEN",
+     "relationship_requirement": "REVIEWED_RELATION_AUTHORITY_REQUIRED",
+     "relationship_signals": [
+      "TITLE_MPN_TOKEN"
+     ],
+     "substate": "U1_TITLE_MPN"
+    },
+    "product_evidence": {
+     "has_usable_product_title": true,
+     "matched_facts": []
+    },
+    "target": {
+     "description_raw_text": "3.84TB U.3 NVMe data center SSD",
+     "mpn": "SYN-SSD-3840-U3",
+     "reviewed_context": null
+    }
+   },
+   "input_shape": "LIVE_SHAPE",
+   "label": {
+    "ambiguity": "UNAMBIGUOUS",
+    "evidence": "The payload violates the frozen V2 input contract; the real case constructor must reject it. Expected rejection class recorded for harness verification.",
+    "reviewer": "PRODUCT-INTEL.Q3A.CORPUS-AUTHOR",
+    "reviewer_status": "REVIEWED",
+    "source": "frozen Semantic V2 input contract (research/semantic_v2.py construction rules)",
+    "source_kind": "CONTRACT_GROUNDED"
+   },
+   "primary_signal": "TITLE_MPN_TOKEN",
+   "substate": "U1_TITLE_MPN"
+  },
+  {
+   "case_class": "CONTRACT_NEGATIVE",
+   "case_digest": "5f7947112273b417a2a152935f9abe42a7c3d891f3e94d6a61c8ae9f13c7cf0a",
+   "case_id": "V2Q-CN-REVIEWED-TAMPER-0056",
+   "category": "enterprise_ssd",
+   "challenge_tags": [
+    "customer_retrieval_alias"
+   ],
+   "evidence_kind": "SYNTHETIC",
+   "expected": {
+    "acceptable_decisions": null,
+    "commercial_sales_unit_safety": false,
+    "conflict_classes": [],
+    "decision": null,
+    "disposition": "INPUT_REJECTED",
+    "expected_reason_code": null,
+    "missing_dimensions": [],
+    "rejection_class": "INVALID_INPUT_SCHEMA"
+   },
+   "input_payload": {
+    "candidate": {
+     "commercial": {
+      "availability": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "In stock"
+      },
+      "condition": null,
+      "currency": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "USD"
+      },
+      "offer_url": null,
+      "price": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "100"
+      },
+      "sales_unit": {
+       "kind": null,
+       "quantity": null,
+       "raw_detail": null,
+       "source": null,
+       "state": "UNAVAILABLE"
+      },
+      "seller": null
+     },
+     "evidence_source": "EXPLICIT_MPN_FIELD",
+     "mpn_field": "MTFDKCC3T8TGP-1BK1DABYY",
+     "product": {
+      "accessory_relation": null,
+      "brand": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "Micron"
+      },
+      "capacity": null,
+      "form_factor": null,
+      "generation": null,
+      "interface": null,
+      "product_family": null,
+      "product_role": null,
+      "raw_specification_text": null,
+      "raw_title_text": "Micron 7500 4TB U.3 NVMe SSD Data Center",
+      "revision_or_suffix": null
+     },
+     "sku": null,
+     "source_url": "https://example.com/v2q-cases/v2q-ssd-u5nm1-micron-0018"
+    },
+    "case_id": "V2Q-CN-REVIEWED-TAMPER-0056",
+    "context_provenance": [
+     "CUSTOMER_RETRIEVAL_RELATION"
+    ],
+    "deterministic_identity_context": {
+     "identity_state": "DETERMINISTIC_UNCERTAIN",
+     "normalized_candidate_part_number": "MTFDKCC3T8TGP-1BK1DABYY",
+     "normalized_requested_part_number": "MTFDKCC3T8TGP-1BK1DABYYR",
+     "primary_relationship_signal": "NEAR_MISS_TRUNCATION",
+     "relationship_requirement": "REVIEWED_RELATION_AUTHORITY_REQUIRED",
+     "relationship_signals": [
+      "NEAR_MISS_TRUNCATION"
+     ],
+     "substate": "U5_NEAR_MISS_MPN"
+    },
+    "product_evidence": {
+     "has_usable_product_title": true,
+     "matched_facts": []
+    },
+    "target": {
+     "description_raw_text": "Micron 7500 4TB U.3 NVMe SSD",
+     "mpn": "MTFDKCC3T8TGP-1BK1DABYYR",
+     "reviewed_context": {
+      "category": "SSD",
+      "evidence_body_sha256": "160d4fe97a5df5249e8f6404f6b005c0515fab4def1b4668fdaf87c727600743",
+      "manufacturer": "Micron",
+      "matched_base_part_number": "MTFDKCC3T8TGP-1BK1DABYY",
+      "relation_family_part_numbers": [
+       "MTFDKCC3T8TGP-1BK1DABYY",
+       "MTFDKCC3T8TGP-1BK1DABYYT"
+      ],
+      "relation_kind": "MANUFACTURER_STATED_ALIAS",
+      "retrieved_at": "2026-09-22T00:00:00Z",
+      "source_name": "Micron 7500 part catalog (recorded 4D-D fixture)",
+      "source_url": "https://www.micron.com/content/micron/us/en/products/storage/ssd/data-center-ssd/7500-ssd/part-catalog/_jcr_content.products.json/getpartcatalog/storage/7500-ssd/-/en_US"
+     }
+    }
+   },
+   "input_shape": "LIVE_SHAPE",
+   "label": {
+    "ambiguity": "UNAMBIGUOUS",
+    "evidence": "The payload violates the frozen V2 input contract; the real case constructor must reject it. Expected rejection class recorded for harness verification.",
+    "reviewer": "PRODUCT-INTEL.Q3A.CORPUS-AUTHOR",
+    "reviewer_status": "REVIEWED",
+    "source": "frozen Semantic V2 input contract (research/semantic_v2.py construction rules)",
+    "source_kind": "CONTRACT_GROUNDED"
+   },
+   "primary_signal": "NEAR_MISS_TRUNCATION",
+   "substate": "U5_NEAR_MISS_MPN"
+  },
+  {
+   "case_class": "CONTRACT_NEGATIVE",
+   "case_digest": "af3194cc36578d25c9f59356477941d9d7863132d2262a6a5fdd9eac756958a0",
+   "case_id": "V2Q-CN-SALESUNIT-X-0054",
+   "category": "enterprise_ssd",
+   "challenge_tags": [
+    "title_mpn_only"
+   ],
+   "evidence_kind": "SYNTHETIC",
+   "expected": {
+    "acceptable_decisions": null,
+    "commercial_sales_unit_safety": false,
+    "conflict_classes": [],
+    "decision": null,
+    "disposition": "INPUT_REJECTED",
+    "expected_reason_code": null,
+    "missing_dimensions": [],
+    "rejection_class": "INVALID_INPUT_SCHEMA"
+   },
+   "input_payload": {
+    "candidate": {
+     "commercial": {
+      "availability": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "In stock"
+      },
+      "condition": null,
+      "currency": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "USD"
+      },
+      "offer_url": null,
+      "price": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "100"
+      },
+      "sales_unit": {
+       "kind": null,
+       "quantity": 20,
+       "raw_detail": null,
+       "source": null,
+       "state": "UNAVAILABLE"
+      },
+      "seller": null
+     },
+     "evidence_source": "TITLE_TEXT",
+     "mpn_field": null,
+     "product": {
+      "accessory_relation": null,
+      "brand": null,
+      "capacity": null,
+      "form_factor": null,
+      "generation": null,
+      "interface": null,
+      "product_family": null,
+      "product_role": null,
+      "raw_specification_text": null,
+      "raw_title_text": "SYN-SSD-3840-U3 | 3.84TB U.3 NVMe SSD | best price | free shipping | hot deal 2026 | data center enterprise",
+      "revision_or_suffix": null
+     },
+     "sku": null,
+     "source_url": "https://example.com/v2q-cases/v2q-ssd-seo-match-0038"
+    },
+    "case_id": "V2Q-CN-SALESUNIT-X-0054",
+    "context_provenance": [],
+    "deterministic_identity_context": {
+     "identity_state": "DETERMINISTIC_UNCERTAIN",
+     "normalized_candidate_part_number": "SYN-SSD-3840-U3",
+     "normalized_requested_part_number": "SYN-SSD-3840-U3",
+     "primary_relationship_signal": "TITLE_MPN_TOKEN",
+     "relationship_requirement": "NOT_REQUIRED",
+     "relationship_signals": [
+      "TITLE_MPN_TOKEN"
+     ],
+     "substate": "U1_TITLE_MPN"
+    },
+    "product_evidence": {
+     "has_usable_product_title": true,
+     "matched_facts": []
+    },
+    "target": {
+     "description_raw_text": "3.84TB U.3 NVMe data center SSD",
+     "mpn": "SYN-SSD-3840-U3",
+     "reviewed_context": null
+    }
+   },
+   "input_shape": "LIVE_SHAPE",
+   "label": {
+    "ambiguity": "UNAMBIGUOUS",
+    "evidence": "The payload violates the frozen V2 input contract; the real case constructor must reject it. Expected rejection class recorded for harness verification.",
+    "reviewer": "PRODUCT-INTEL.Q3A.CORPUS-AUTHOR",
+    "reviewer_status": "REVIEWED",
+    "source": "frozen Semantic V2 input contract (research/semantic_v2.py construction rules)",
+    "source_kind": "CONTRACT_GROUNDED"
+   },
+   "primary_signal": "TITLE_MPN_TOKEN",
+   "substate": "U1_TITLE_MPN"
+  },
+  {
+   "case_class": "CONTRACT_NEGATIVE",
+   "case_digest": "4e378014e7447f7d7b10f14cc2ddec352aacac9080d73b745d076ae37fa2e62c",
+   "case_id": "V2Q-CN-STATE-MISMATCH-0049",
+   "category": "enterprise_ssd",
+   "challenge_tags": [
+    "title_mpn_only"
+   ],
+   "evidence_kind": "SYNTHETIC",
+   "expected": {
+    "acceptable_decisions": null,
+    "commercial_sales_unit_safety": false,
+    "conflict_classes": [],
+    "decision": null,
+    "disposition": "INPUT_REJECTED",
+    "expected_reason_code": null,
+    "missing_dimensions": [],
+    "rejection_class": "FOREIGN_DETERMINISTIC_CONTEXT"
+   },
+   "input_payload": {
+    "candidate": {
+     "commercial": {
+      "availability": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "In stock"
+      },
+      "condition": null,
+      "currency": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "USD"
+      },
+      "offer_url": null,
+      "price": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "100"
+      },
+      "sales_unit": {
+       "kind": null,
+       "quantity": null,
+       "raw_detail": null,
+       "source": null,
+       "state": "UNAVAILABLE"
+      },
+      "seller": null
+     },
+     "evidence_source": "TITLE_TEXT",
+     "mpn_field": null,
+     "product": {
+      "accessory_relation": null,
+      "brand": null,
+      "capacity": null,
+      "form_factor": null,
+      "generation": null,
+      "interface": null,
+      "product_family": null,
+      "product_role": null,
+      "raw_specification_text": null,
+      "raw_title_text": "SYN-SSD-3840-U3 | 3.84TB U.3 NVMe SSD | best price | free shipping | hot deal 2026 | data center enterprise",
+      "revision_or_suffix": null
+     },
+     "sku": null,
+     "source_url": "https://example.com/v2q-cases/v2q-ssd-seo-match-0038"
+    },
+    "case_id": "V2Q-CN-STATE-MISMATCH-0049",
+    "context_provenance": [],
+    "deterministic_identity_context": {
+     "identity_state": "DETERMINISTIC_UNCERTAIN",
+     "normalized_candidate_part_number": "SYN-SSD-3840-U3",
+     "normalized_requested_part_number": "SYN-SSD-3840-U3",
+     "primary_relationship_signal": "TITLE_MPN_TOKEN",
+     "relationship_requirement": "NOT_REQUIRED",
+     "relationship_signals": [
+      "TITLE_MPN_TOKEN"
+     ],
+     "substate": "V_EXACT"
+    },
+    "product_evidence": {
+     "has_usable_product_title": true,
+     "matched_facts": []
+    },
+    "target": {
+     "description_raw_text": "3.84TB U.3 NVMe data center SSD",
+     "mpn": "SYN-SSD-3840-U3",
+     "reviewed_context": null
+    }
+   },
+   "input_shape": "LIVE_SHAPE",
+   "label": {
+    "ambiguity": "UNAMBIGUOUS",
+    "evidence": "The payload violates the frozen V2 input contract; the real case constructor must reject it. Expected rejection class recorded for harness verification.",
+    "reviewer": "PRODUCT-INTEL.Q3A.CORPUS-AUTHOR",
+    "reviewer_status": "REVIEWED",
+    "source": "frozen Semantic V2 input contract (research/semantic_v2.py construction rules)",
+    "source_kind": "CONTRACT_GROUNDED"
+   },
+   "primary_signal": "TITLE_MPN_TOKEN",
+   "substate": "V_EXACT"
+  },
+  {
+   "case_class": "CONTRACT_NEGATIVE",
+   "case_digest": "05eaa86377ebeebfb444a931ba7d12f3d8940c97a240288d305c1e2d7c8780ba",
+   "case_id": "V2Q-CN-U4-NOTITLE-0055",
+   "category": "enterprise_ssd",
+   "challenge_tags": [
+    "title_mpn_only"
+   ],
+   "evidence_kind": "SYNTHETIC",
+   "expected": {
+    "acceptable_decisions": null,
+    "commercial_sales_unit_safety": false,
+    "conflict_classes": [],
+    "decision": null,
+    "disposition": "INPUT_REJECTED",
+    "expected_reason_code": null,
+    "missing_dimensions": [],
+    "rejection_class": "FOREIGN_DETERMINISTIC_CONTEXT"
+   },
+   "input_payload": {
+    "candidate": {
+     "commercial": {
+      "availability": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "In stock"
+      },
+      "condition": null,
+      "currency": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "USD"
+      },
+      "offer_url": null,
+      "price": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "100"
+      },
+      "sales_unit": {
+       "kind": null,
+       "quantity": null,
+       "raw_detail": null,
+       "source": null,
+       "state": "UNAVAILABLE"
+      },
+      "seller": null
+     },
+     "evidence_source": "TITLE_TEXT",
+     "mpn_field": null,
+     "product": {
+      "accessory_relation": null,
+      "brand": null,
+      "capacity": null,
+      "form_factor": null,
+      "generation": null,
+      "interface": null,
+      "product_family": null,
+      "product_role": null,
+      "raw_specification_text": null,
+      "raw_title_text": "SYN-SSD-3840-U3 | 3.84TB U.3 NVMe SSD | best price | free shipping | hot deal 2026 | data center enterprise",
+      "revision_or_suffix": null
+     },
+     "sku": null,
+     "source_url": "https://example.com/v2q-cases/v2q-ssd-seo-match-0038"
+    },
+    "case_id": "V2Q-CN-U4-NOTITLE-0055",
+    "context_provenance": [],
+    "deterministic_identity_context": {
+     "identity_state": "DETERMINISTIC_UNCERTAIN",
+     "normalized_candidate_part_number": "SYN-SSD-3840-U3",
+     "normalized_requested_part_number": "SYN-SSD-3840-U3",
+     "primary_relationship_signal": "NO_RELATION",
+     "relationship_requirement": "NOT_APPLICABLE",
+     "relationship_signals": [
+      "NO_RELATION"
+     ],
+     "substate": "U4_NO_MPN"
+    },
+    "product_evidence": {
+     "has_usable_product_title": false,
+     "matched_facts": []
+    },
+    "target": {
+     "description_raw_text": "3.84TB U.3 NVMe data center SSD",
+     "mpn": "SYN-SSD-3840-U3",
+     "reviewed_context": null
+    }
+   },
+   "input_shape": "LIVE_SHAPE",
+   "label": {
+    "ambiguity": "UNAMBIGUOUS",
+    "evidence": "The payload violates the frozen V2 input contract; the real case constructor must reject it. Expected rejection class recorded for harness verification.",
+    "reviewer": "PRODUCT-INTEL.Q3A.CORPUS-AUTHOR",
+    "reviewer_status": "REVIEWED",
+    "source": "frozen Semantic V2 input contract (research/semantic_v2.py construction rules)",
+    "source_kind": "CONTRACT_GROUNDED"
+   },
+   "primary_signal": "NO_RELATION",
+   "substate": "U4_NO_MPN"
+  },
+  {
+   "case_class": "CONTRACT_NEGATIVE",
+   "case_digest": "f95964ac54248d6ddd199087dabe382ab83cbfc715a21e704406f4ae869790a8",
+   "case_id": "V2Q-CN-UNEVALUABLE-0046",
+   "category": "enterprise_ssd",
+   "challenge_tags": [
+    "title_mpn_only"
+   ],
+   "evidence_kind": "SYNTHETIC",
+   "expected": {
+    "acceptable_decisions": null,
+    "commercial_sales_unit_safety": false,
+    "conflict_classes": [],
+    "decision": null,
+    "disposition": "INPUT_REJECTED",
+    "expected_reason_code": null,
+    "missing_dimensions": [],
+    "rejection_class": "NON_UNCERTAIN_STATE"
+   },
+   "input_payload": {
+    "candidate": {
+     "commercial": {
+      "availability": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "In stock"
+      },
+      "condition": null,
+      "currency": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "USD"
+      },
+      "offer_url": null,
+      "price": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "100"
+      },
+      "sales_unit": {
+       "kind": null,
+       "quantity": null,
+       "raw_detail": null,
+       "source": null,
+       "state": "UNAVAILABLE"
+      },
+      "seller": null
+     },
+     "evidence_source": "TITLE_TEXT",
+     "mpn_field": null,
+     "product": {
+      "accessory_relation": null,
+      "brand": null,
+      "capacity": null,
+      "form_factor": null,
+      "generation": null,
+      "interface": null,
+      "product_family": null,
+      "product_role": null,
+      "raw_specification_text": null,
+      "raw_title_text": "SYN-SSD-3840-U3 | 3.84TB U.3 NVMe SSD | best price | free shipping | hot deal 2026 | data center enterprise",
+      "revision_or_suffix": null
+     },
+     "sku": null,
+     "source_url": "https://example.com/v2q-cases/v2q-ssd-seo-match-0038"
+    },
+    "case_id": "V2Q-CN-UNEVALUABLE-0046",
+    "context_provenance": [],
+    "deterministic_identity_context": {
+     "identity_state": "DETERMINISTIC_UNEVALUABLE",
+     "normalized_candidate_part_number": "",
+     "normalized_requested_part_number": "",
+     "primary_relationship_signal": "NO_RELATION",
+     "relationship_requirement": "NOT_APPLICABLE",
+     "relationship_signals": [
+      "NO_RELATION"
+     ],
+     "substate": "E1_NO_TARGET_MPN"
+    },
+    "product_evidence": {
+     "has_usable_product_title": true,
+     "matched_facts": []
+    },
+    "target": {
+     "description_raw_text": "3.84TB U.3 NVMe data center SSD",
+     "mpn": "SYN-SSD-3840-U3",
+     "reviewed_context": null
+    }
+   },
+   "input_shape": "LIVE_SHAPE",
+   "label": {
+    "ambiguity": "UNAMBIGUOUS",
+    "evidence": "The payload violates the frozen V2 input contract; the real case constructor must reject it. Expected rejection class recorded for harness verification.",
+    "reviewer": "PRODUCT-INTEL.Q3A.CORPUS-AUTHOR",
+    "reviewer_status": "REVIEWED",
+    "source": "frozen Semantic V2 input contract (research/semantic_v2.py construction rules)",
+    "source_kind": "CONTRACT_GROUNDED"
+   },
+   "primary_signal": "NO_RELATION",
+   "substate": "E1_NO_TARGET_MPN"
+  },
+  {
+   "case_class": "CONTRACT_NEGATIVE",
+   "case_digest": "d8acf99a8411819b317091a07962edda7e4d7596df0732a12cef6cd6128788ae",
+   "case_id": "V2Q-CN-UNKNOWN-ENUM-0050",
+   "category": "enterprise_ssd",
+   "challenge_tags": [
+    "title_mpn_only"
+   ],
+   "evidence_kind": "SYNTHETIC",
+   "expected": {
+    "acceptable_decisions": null,
+    "commercial_sales_unit_safety": false,
+    "conflict_classes": [],
+    "decision": null,
+    "disposition": "INPUT_REJECTED",
+    "expected_reason_code": null,
+    "missing_dimensions": [],
+    "rejection_class": "INVALID_INPUT_SCHEMA"
+   },
+   "input_payload": {
+    "candidate": {
+     "commercial": {
+      "availability": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "In stock"
+      },
+      "condition": null,
+      "currency": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "USD"
+      },
+      "offer_url": null,
+      "price": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "100"
+      },
+      "sales_unit": {
+       "kind": null,
+       "quantity": null,
+       "raw_detail": null,
+       "source": null,
+       "state": "UNAVAILABLE"
+      },
+      "seller": null
+     },
+     "evidence_source": "TITLE_TEXT",
+     "mpn_field": null,
+     "product": {
+      "accessory_relation": null,
+      "brand": null,
+      "capacity": null,
+      "form_factor": null,
+      "generation": null,
+      "interface": null,
+      "product_family": null,
+      "product_role": null,
+      "raw_specification_text": null,
+      "raw_title_text": "SYN-SSD-3840-U3 | 3.84TB U.3 NVMe SSD | best price | free shipping | hot deal 2026 | data center enterprise",
+      "revision_or_suffix": null
+     },
+     "sku": null,
+     "source_url": "https://example.com/v2q-cases/v2q-ssd-seo-match-0038"
+    },
+    "case_id": "V2Q-CN-UNKNOWN-ENUM-0050",
+    "context_provenance": [],
+    "deterministic_identity_context": {
+     "identity_state": "DETERMINISTIC_UNCERTAIN",
+     "normalized_candidate_part_number": "SYN-SSD-3840-U3",
+     "normalized_requested_part_number": "SYN-SSD-3840-U3",
+     "primary_relationship_signal": "TITLE_MPN_TOKEN",
+     "relationship_requirement": "NOT_REQUIRED",
+     "relationship_signals": [
+      "TITLE_MPN_TOKEN"
+     ],
+     "substate": "U9_INVENTED"
+    },
+    "product_evidence": {
+     "has_usable_product_title": true,
+     "matched_facts": []
+    },
+    "target": {
+     "description_raw_text": "3.84TB U.3 NVMe data center SSD",
+     "mpn": "SYN-SSD-3840-U3",
+     "reviewed_context": null
+    }
+   },
+   "input_shape": "LIVE_SHAPE",
+   "label": {
+    "ambiguity": "UNAMBIGUOUS",
+    "evidence": "The payload violates the frozen V2 input contract; the real case constructor must reject it. Expected rejection class recorded for harness verification.",
+    "reviewer": "PRODUCT-INTEL.Q3A.CORPUS-AUTHOR",
+    "reviewer_status": "REVIEWED",
+    "source": "frozen Semantic V2 input contract (research/semantic_v2.py construction rules)",
+    "source_kind": "CONTRACT_GROUNDED"
+   },
+   "primary_signal": "TITLE_MPN_TOKEN",
+   "substate": "U9_INVENTED"
+  },
+  {
+   "case_class": "CONTRACT_NEGATIVE",
+   "case_digest": "ad9f569cf4547994d9b232498fdcd31cda78b17cd6895f8003ad0de583704bf6",
+   "case_id": "V2Q-CN-UNKNOWN-EVIDENCE-SRC-0051",
+   "category": "enterprise_ssd",
+   "challenge_tags": [
+    "title_mpn_only"
+   ],
+   "evidence_kind": "SYNTHETIC",
+   "expected": {
+    "acceptable_decisions": null,
+    "commercial_sales_unit_safety": false,
+    "conflict_classes": [],
+    "decision": null,
+    "disposition": "INPUT_REJECTED",
+    "expected_reason_code": null,
+    "missing_dimensions": [],
+    "rejection_class": "INVALID_INPUT_SCHEMA"
+   },
+   "input_payload": {
+    "candidate": {
+     "commercial": {
+      "availability": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "In stock"
+      },
+      "condition": null,
+      "currency": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "USD"
+      },
+      "offer_url": null,
+      "price": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "100"
+      },
+      "sales_unit": {
+       "kind": null,
+       "quantity": null,
+       "raw_detail": null,
+       "source": null,
+       "state": "UNAVAILABLE"
+      },
+      "seller": null
+     },
+     "evidence_source": "TITLE_TEXT",
+     "mpn_field": null,
+     "product": {
+      "accessory_relation": null,
+      "brand": {
+       "source": "MODEL_CLAIM",
+       "value": "ProbeBrand"
+      },
+      "capacity": null,
+      "form_factor": null,
+      "generation": null,
+      "interface": null,
+      "product_family": null,
+      "product_role": null,
+      "raw_specification_text": null,
+      "raw_title_text": "SYN-SSD-3840-U3 | 3.84TB U.3 NVMe SSD | best price | free shipping | hot deal 2026 | data center enterprise",
+      "revision_or_suffix": null
+     },
+     "sku": null,
+     "source_url": "https://example.com/v2q-cases/v2q-ssd-seo-match-0038"
+    },
+    "case_id": "V2Q-CN-UNKNOWN-EVIDENCE-SRC-0051",
+    "context_provenance": [],
+    "deterministic_identity_context": {
+     "identity_state": "DETERMINISTIC_UNCERTAIN",
+     "normalized_candidate_part_number": "SYN-SSD-3840-U3",
+     "normalized_requested_part_number": "SYN-SSD-3840-U3",
+     "primary_relationship_signal": "TITLE_MPN_TOKEN",
+     "relationship_requirement": "NOT_REQUIRED",
+     "relationship_signals": [
+      "TITLE_MPN_TOKEN"
+     ],
+     "substate": "U1_TITLE_MPN"
+    },
+    "product_evidence": {
+     "has_usable_product_title": true,
+     "matched_facts": []
+    },
+    "target": {
+     "description_raw_text": "3.84TB U.3 NVMe data center SSD",
+     "mpn": "SYN-SSD-3840-U3",
+     "reviewed_context": null
+    }
+   },
+   "input_shape": "LIVE_SHAPE",
+   "label": {
+    "ambiguity": "UNAMBIGUOUS",
+    "evidence": "The payload violates the frozen V2 input contract; the real case constructor must reject it. Expected rejection class recorded for harness verification.",
+    "reviewer": "PRODUCT-INTEL.Q3A.CORPUS-AUTHOR",
+    "reviewer_status": "REVIEWED",
+    "source": "frozen Semantic V2 input contract (research/semantic_v2.py construction rules)",
+    "source_kind": "CONTRACT_GROUNDED"
+   },
+   "primary_signal": "TITLE_MPN_TOKEN",
+   "substate": "U1_TITLE_MPN"
+  },
+  {
+   "case_class": "CONTRACT_NEGATIVE",
+   "case_digest": "76453fe080ae9b260053a32599cda4aeb2eb5816679f30d5f2b013d1445e2d46",
+   "case_id": "V2Q-CN-VERIFIED-0044",
+   "category": "enterprise_ssd",
+   "challenge_tags": [
+    "title_mpn_only"
+   ],
+   "evidence_kind": "SYNTHETIC",
+   "expected": {
+    "acceptable_decisions": null,
+    "commercial_sales_unit_safety": false,
+    "conflict_classes": [],
+    "decision": null,
+    "disposition": "INPUT_REJECTED",
+    "expected_reason_code": null,
+    "missing_dimensions": [],
+    "rejection_class": "NON_UNCERTAIN_STATE"
+   },
+   "input_payload": {
+    "candidate": {
+     "commercial": {
+      "availability": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "In stock"
+      },
+      "condition": null,
+      "currency": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "USD"
+      },
+      "offer_url": null,
+      "price": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "100"
+      },
+      "sales_unit": {
+       "kind": null,
+       "quantity": null,
+       "raw_detail": null,
+       "source": null,
+       "state": "UNAVAILABLE"
+      },
+      "seller": null
+     },
+     "evidence_source": "TITLE_TEXT",
+     "mpn_field": null,
+     "product": {
+      "accessory_relation": null,
+      "brand": null,
+      "capacity": null,
+      "form_factor": null,
+      "generation": null,
+      "interface": null,
+      "product_family": null,
+      "product_role": null,
+      "raw_specification_text": null,
+      "raw_title_text": "SYN-SSD-3840-U3 | 3.84TB U.3 NVMe SSD | best price | free shipping | hot deal 2026 | data center enterprise",
+      "revision_or_suffix": null
+     },
+     "sku": null,
+     "source_url": "https://example.com/v2q-cases/v2q-ssd-seo-match-0038"
+    },
+    "case_id": "V2Q-CN-VERIFIED-0044",
+    "context_provenance": [],
+    "deterministic_identity_context": {
+     "identity_state": "DETERMINISTIC_VERIFIED",
+     "normalized_candidate_part_number": "SYN-VER-1",
+     "normalized_requested_part_number": "SYN-SSD-3840-U3",
+     "primary_relationship_signal": "EXACT",
+     "relationship_requirement": "NOT_APPLICABLE",
+     "relationship_signals": [
+      "EXACT"
+     ],
+     "substate": "V_EXACT"
+    },
+    "product_evidence": {
+     "has_usable_product_title": true,
+     "matched_facts": []
+    },
+    "target": {
+     "description_raw_text": "3.84TB U.3 NVMe data center SSD",
+     "mpn": "SYN-SSD-3840-U3",
+     "reviewed_context": null
+    }
+   },
+   "input_shape": "LIVE_SHAPE",
+   "label": {
+    "ambiguity": "UNAMBIGUOUS",
+    "evidence": "The payload violates the frozen V2 input contract; the real case constructor must reject it. Expected rejection class recorded for harness verification.",
+    "reviewer": "PRODUCT-INTEL.Q3A.CORPUS-AUTHOR",
+    "reviewer_status": "REVIEWED",
+    "source": "frozen Semantic V2 input contract (research/semantic_v2.py construction rules)",
+    "source_kind": "CONTRACT_GROUNDED"
+   },
+   "primary_signal": "EXACT",
+   "substate": "V_EXACT"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "5de8e3e2a9fa2bba770d6eb96d134a0baa0f3fc846da51a23568bfd60859a53f",
+   "case_id": "V2Q-CPU-ATTR-GEN-0027",
+   "category": "processor",
+   "challenge_tags": [
+    "different_generation"
+   ],
+   "evidence_kind": "SYNTHETIC",
+   "expected": {
+    "acceptable_decisions": [
+     "NO_MATCH"
+    ],
+    "commercial_sales_unit_safety": false,
+    "conflict_classes": [
+     "GENERATION"
+    ],
+    "decision": "NO_MATCH",
+    "disposition": "SEMANTIC_EVALUATION",
+    "expected_reason_code": "NO_MATCH_GENERATION",
+    "missing_dimensions": [],
+    "rejection_class": null
+   },
+   "input_payload": {
+    "candidate": {
+     "commercial": {
+      "availability": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "In stock"
+      },
+      "condition": null,
+      "currency": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "USD"
+      },
+      "offer_url": null,
+      "price": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "100"
+      },
+      "sales_unit": {
+       "kind": null,
+       "quantity": null,
+       "raw_detail": null,
+       "source": null,
+       "state": "UNAVAILABLE"
+      },
+      "seller": null
+     },
+     "evidence_source": "NONE",
+     "mpn_field": null,
+     "product": {
+      "accessory_relation": null,
+      "brand": null,
+      "capacity": null,
+      "form_factor": null,
+      "generation": null,
+      "interface": null,
+      "product_family": null,
+      "product_role": null,
+      "raw_specification_text": null,
+      "raw_title_text": "32-Core Server CPU, Generation 9005, Socket SP5",
+      "revision_or_suffix": null
+     },
+     "sku": null,
+     "source_url": "https://example.com/v2q-cases/v2q-cpu-attr-gen-0027"
+    },
+    "case_id": "V2Q-CPU-ATTR-GEN-0027",
+    "context_provenance": [],
+    "deterministic_identity_context": {
+     "identity_state": "DETERMINISTIC_UNCERTAIN",
+     "normalized_candidate_part_number": "",
+     "normalized_requested_part_number": "SYN-CPU-9004-32",
+     "primary_relationship_signal": "NO_RELATION",
+     "relationship_requirement": "NOT_APPLICABLE",
+     "relationship_signals": [
+      "NO_RELATION"
+     ],
+     "substate": "U4_NO_MPN"
+    },
+    "product_evidence": {
+     "has_usable_product_title": true,
+     "matched_facts": []
+    },
+    "target": {
+     "description_raw_text": "32-core server CPU, generation 9004",
+     "mpn": "SYN-CPU-9004-32",
+     "reviewed_context": null
+    }
+   },
+   "input_shape": "LIVE_SHAPE",
+   "label": {
+    "ambiguity": "UNAMBIGUOUS",
+    "evidence": "Published generation 9005 vs requested 9004 by construction; generation is ALWAYS_HARD -> NO_MATCH (different category: processor).",
+    "reviewer": "PRODUCT-INTEL.Q3A.CORPUS-AUTHOR (synthetic by-construction)",
+    "reviewer_status": "REVIEWED",
+    "source": "synthetic by-construction scenario (corpus 1.0.0)",
+    "source_kind": "CONTRACT_GROUNDED"
+   },
+   "primary_signal": "NO_RELATION",
+   "substate": "U4_NO_MPN"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "6292d47bab9189b3f2bb7d104f989e43ab96fc1687894a960d6e604905cb93bb",
+   "case_id": "V2Q-CPU-U1-CROSSREF-0004",
+   "category": "processor",
+   "challenge_tags": [
+    "compatibility_wording",
+    "different_generation"
+   ],
+   "evidence_kind": "SYNTHETIC",
+   "expected": {
+    "acceptable_decisions": [
+     "NO_MATCH"
+    ],
+    "commercial_sales_unit_safety": false,
+    "conflict_classes": [
+     "GENERATION"
+    ],
+    "decision": "NO_MATCH",
+    "disposition": "SEMANTIC_EVALUATION",
+    "expected_reason_code": "NO_MATCH_GENERATION",
+    "missing_dimensions": [],
+    "rejection_class": null
+   },
+   "input_payload": {
+    "candidate": {
+     "commercial": {
+      "availability": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "In stock"
+      },
+      "condition": null,
+      "currency": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "USD"
+      },
+      "offer_url": null,
+      "price": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "100"
+      },
+      "sales_unit": {
+       "kind": null,
+       "quantity": null,
+       "raw_detail": null,
+       "source": null,
+       "state": "UNAVAILABLE"
+      },
+      "seller": null
+     },
+     "evidence_source": "TITLE_TEXT",
+     "mpn_field": null,
+     "product": {
+      "accessory_relation": null,
+      "brand": null,
+      "capacity": null,
+      "form_factor": null,
+      "generation": null,
+      "interface": null,
+      "product_family": null,
+      "product_role": null,
+      "raw_specification_text": null,
+      "raw_title_text": "Synthetic 9354 32-Core Server CPU (replacement for SYN-CPU-9254)",
+      "revision_or_suffix": null
+     },
+     "sku": null,
+     "source_url": "https://example.com/v2q-cases/v2q-cpu-u1-crossref-0004"
+    },
+    "case_id": "V2Q-CPU-U1-CROSSREF-0004",
+    "context_provenance": [],
+    "deterministic_identity_context": {
+     "identity_state": "DETERMINISTIC_UNCERTAIN",
+     "normalized_candidate_part_number": "SYN-CPU-9254",
+     "normalized_requested_part_number": "SYN-CPU-9254",
+     "primary_relationship_signal": "TITLE_MPN_TOKEN",
+     "relationship_requirement": "NOT_REQUIRED",
+     "relationship_signals": [
+      "COMPATIBILITY_WORDING",
+      "TITLE_MPN_TOKEN"
+     ],
+     "substate": "U1_TITLE_MPN"
+    },
+    "product_evidence": {
+     "has_usable_product_title": true,
+     "matched_facts": []
+    },
+    "target": {
+     "description_raw_text": "32-core server processor, generation 9254",
+     "mpn": "SYN-CPU-9254",
+     "reviewed_context": null
+    }
+   },
+   "input_shape": "LIVE_SHAPE",
+   "label": {
+    "ambiguity": "UNAMBIGUOUS",
+    "evidence": "By construction the listing publishes generation 9354 as the product and references the requested 9254 only as 'replacement for' (compatibility wording). A different published generation is the ALWAYS_HARD GENERATION conflict -> NO_MATCH.",
+    "reviewer": "PRODUCT-INTEL.Q3A.CORPUS-AUTHOR (synthetic by-construction)",
+    "reviewer_status": "REVIEWED",
+    "source": "synthetic by-construction scenario (corpus 1.0.0)",
+    "source_kind": "CONTRACT_GROUNDED"
+   },
+   "primary_signal": "TITLE_MPN_TOKEN",
+   "substate": "U1_TITLE_MPN"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "877e06ce2ec5bb715c8982d46a38cc2c5fa74ceb4e142ad972aafb9c9003f7e8",
+   "case_id": "V2Q-DIMM-ATTR-CAPACITY-0025",
+   "category": "server_memory",
+   "challenge_tags": [
+    "different_capacity"
+   ],
+   "evidence_kind": "SYNTHETIC",
+   "expected": {
+    "acceptable_decisions": [
+     "NO_MATCH"
+    ],
+    "commercial_sales_unit_safety": false,
+    "conflict_classes": [
+     "CAPACITY"
+    ],
+    "decision": "NO_MATCH",
+    "disposition": "SEMANTIC_EVALUATION",
+    "expected_reason_code": "NO_MATCH_CAPACITY",
+    "missing_dimensions": [],
+    "rejection_class": null
+   },
+   "input_payload": {
+    "candidate": {
+     "commercial": {
+      "availability": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "In stock"
+      },
+      "condition": null,
+      "currency": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "USD"
+      },
+      "offer_url": null,
+      "price": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "100"
+      },
+      "sales_unit": {
+       "kind": null,
+       "quantity": null,
+       "raw_detail": null,
+       "source": null,
+       "state": "UNAVAILABLE"
+      },
+      "seller": null
+     },
+     "evidence_source": "NONE",
+     "mpn_field": null,
+     "product": {
+      "accessory_relation": null,
+      "brand": null,
+      "capacity": null,
+      "form_factor": null,
+      "generation": null,
+      "interface": null,
+      "product_family": null,
+      "product_role": null,
+      "raw_specification_text": null,
+      "raw_title_text": "128GB DDR5-6400 Server Memory Module",
+      "revision_or_suffix": null
+     },
+     "sku": null,
+     "source_url": "https://example.com/v2q-cases/v2q-dimm-attr-capacity-0025"
+    },
+    "case_id": "V2Q-DIMM-ATTR-CAPACITY-0025",
+    "context_provenance": [],
+    "deterministic_identity_context": {
+     "identity_state": "DETERMINISTIC_UNCERTAIN",
+     "normalized_candidate_part_number": "",
+     "normalized_requested_part_number": "SYN-DIMM-96G-6400",
+     "primary_relationship_signal": "NO_RELATION",
+     "relationship_requirement": "NOT_APPLICABLE",
+     "relationship_signals": [
+      "NO_RELATION"
+     ],
+     "substate": "U4_NO_MPN"
+    },
+    "product_evidence": {
+     "has_usable_product_title": true,
+     "matched_facts": []
+    },
+    "target": {
+     "description_raw_text": "96GB DDR5-6400 server memory",
+     "mpn": "SYN-DIMM-96G-6400",
+     "reviewed_context": null
+    }
+   },
+   "input_shape": "LIVE_SHAPE",
+   "label": {
+    "ambiguity": "UNAMBIGUOUS",
+    "evidence": "Published capacity 128GB vs requested 96GB by construction; memory capacity is the ALWAYS_HARD CAPACITY dimension -> NO_MATCH (different category than SSD: memory module).",
+    "reviewer": "PRODUCT-INTEL.Q3A.CORPUS-AUTHOR (synthetic by-construction)",
+    "reviewer_status": "REVIEWED",
+    "source": "synthetic by-construction scenario (corpus 1.0.0)",
+    "source_kind": "CONTRACT_GROUNDED"
+   },
+   "primary_signal": "NO_RELATION",
+   "substate": "U4_NO_MPN"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "03ee70b5d869777e5cc34c86d4e827e7e1ea0513f45299f536368d64a5fd8ff1",
+   "case_id": "V2Q-DIMM-COND-0039",
+   "category": "server_memory",
+   "challenge_tags": [
+    "condition_only_difference"
+   ],
+   "evidence_kind": "SYNTHETIC",
+   "expected": {
+    "acceptable_decisions": [
+     "MATCH"
+    ],
+    "commercial_sales_unit_safety": false,
+    "conflict_classes": [],
+    "decision": "MATCH",
+    "disposition": "SEMANTIC_EVALUATION",
+    "expected_reason_code": null,
+    "missing_dimensions": [],
+    "rejection_class": null
+   },
+   "input_payload": {
+    "candidate": {
+     "commercial": {
+      "availability": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "In stock"
+      },
+      "condition": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "Open box"
+      },
+      "currency": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "USD"
+      },
+      "offer_url": null,
+      "price": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "100"
+      },
+      "sales_unit": {
+       "kind": null,
+       "quantity": null,
+       "raw_detail": null,
+       "source": null,
+       "state": "UNAVAILABLE"
+      },
+      "seller": null
+     },
+     "evidence_source": "SKU_FIELD",
+     "mpn_field": null,
+     "product": {
+      "accessory_relation": null,
+      "brand": null,
+      "capacity": null,
+      "form_factor": null,
+      "generation": null,
+      "interface": null,
+      "product_family": null,
+      "product_role": null,
+      "raw_specification_text": null,
+      "raw_title_text": "96GB DDR5-6400 MRDIMM Server Memory",
+      "revision_or_suffix": null
+     },
+     "sku": "MEM-96G-6400-REF",
+     "source_url": "https://example.com/v2q-cases/v2q-dimm-cond-0039"
+    },
+    "case_id": "V2Q-DIMM-COND-0039",
+    "context_provenance": [],
+    "deterministic_identity_context": {
+     "identity_state": "DETERMINISTIC_UNCERTAIN",
+     "normalized_candidate_part_number": "MEM-96G-6400-REF",
+     "normalized_requested_part_number": "SYN-DIMM-96G-6400",
+     "primary_relationship_signal": "SKU_NOT_TARGET",
+     "relationship_requirement": "REVIEWED_RELATION_AUTHORITY_REQUIRED",
+     "relationship_signals": [
+      "SKU_NOT_TARGET"
+     ],
+     "substate": "U2_SKU_ONLY"
+    },
+    "product_evidence": {
+     "has_usable_product_title": true,
+     "matched_facts": []
+    },
+    "target": {
+     "description_raw_text": "96GB DDR5-6400 server memory, new",
+     "mpn": "SYN-DIMM-96G-6400",
+     "reviewed_context": null
+    }
+   },
+   "input_shape": "LIVE_SHAPE",
+   "label": {
+    "ambiguity": "UNAMBIGUOUS",
+    "evidence": "All identity attributes align by construction; the only difference is published condition ('Open box' vs requested new). CONDITION is frozen PRICE_DIMENSION_ONLY - never an identity conflict (different category: server memory module).",
+    "reviewer": "PRODUCT-INTEL.Q3A.CORPUS-AUTHOR (synthetic by-construction)",
+    "reviewer_status": "REVIEWED",
+    "source": "synthetic by-construction scenario (corpus 1.0.0)",
+    "source_kind": "CONTRACT_GROUNDED"
+   },
+   "primary_signal": "SKU_NOT_TARGET",
+   "substate": "U2_SKU_ONLY"
+  },
+  {
+   "case_class": "AMBIGUOUS",
+   "case_digest": "ceeb6cefc3aca9ff58a674e438a23042fb5bb0f570c24ea28dc148d880de89b6",
+   "case_id": "V2Q-DIMM-U2N-THIN-0009",
+   "category": "server_memory",
+   "challenge_tags": [
+    "different_sku_same_product",
+    "missing_critical_specs"
+   ],
+   "evidence_kind": "SYNTHETIC",
+   "expected": {
+    "acceptable_decisions": [
+     "MATCH",
+     "UNCERTAIN"
+    ],
+    "commercial_sales_unit_safety": false,
+    "conflict_classes": [],
+    "decision": "UNCERTAIN",
+    "disposition": "SEMANTIC_EVALUATION",
+    "expected_reason_code": null,
+    "missing_dimensions": [],
+    "rejection_class": null
+   },
+   "input_payload": {
+    "candidate": {
+     "commercial": {
+      "availability": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "In stock"
+      },
+      "condition": null,
+      "currency": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "USD"
+      },
+      "offer_url": null,
+      "price": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "100"
+      },
+      "sales_unit": {
+       "kind": null,
+       "quantity": null,
+       "raw_detail": null,
+       "source": null,
+       "state": "UNAVAILABLE"
+      },
+      "seller": null
+     },
+     "evidence_source": "SKU_FIELD",
+     "mpn_field": null,
+     "product": {
+      "accessory_relation": null,
+      "brand": null,
+      "capacity": null,
+      "form_factor": null,
+      "generation": null,
+      "interface": null,
+      "product_family": null,
+      "product_role": null,
+      "raw_specification_text": null,
+      "raw_title_text": "96GB DDR5 server memory",
+      "revision_or_suffix": null
+     },
+     "sku": "MEM-96-DS",
+     "source_url": "https://example.com/v2q-cases/v2q-dimm-u2n-thin-0009"
+    },
+    "case_id": "V2Q-DIMM-U2N-THIN-0009",
+    "context_provenance": [],
+    "deterministic_identity_context": {
+     "identity_state": "DETERMINISTIC_UNCERTAIN",
+     "normalized_candidate_part_number": "MEM-96-DS",
+     "normalized_requested_part_number": "SYN-DIMM-96G-6400",
+     "primary_relationship_signal": "SKU_NOT_TARGET",
+     "relationship_requirement": "REVIEWED_RELATION_AUTHORITY_REQUIRED",
+     "relationship_signals": [
+      "SKU_NOT_TARGET"
+     ],
+     "substate": "U2_SKU_ONLY"
+    },
+    "product_evidence": {
+     "has_usable_product_title": true,
+     "matched_facts": []
+    },
+    "target": {
+     "description_raw_text": "96GB DDR5-6400 server memory module",
+     "mpn": "SYN-DIMM-96G-6400",
+     "reviewed_context": null
+    }
+   },
+   "input_shape": "LIVE_SHAPE",
+   "label": {
+    "ambiguity": "CONTESTABLE",
+    "evidence": "Capacity (96GB) and family (DDR5 server memory) align by construction, but the published title states no memory speed; the requested product is 6400 MT/s and a different speed is a material (interface-dimension) difference. Neither equivalence nor non-equivalence is established by the supplied evidence: MATCH (no conflicting evidence) and UNCERTAIN (critical speed attribute missing) are both defensible; NO_MATCH would require published contrary evidence the scenario does not provide.",
+    "reviewer": "PRODUCT-INTEL.Q3A.CORPUS-AUTHOR (synthetic by-construction)",
+    "reviewer_status": "REVIEWED",
+    "source": "synthetic by-construction scenario (corpus 1.0.0)",
+    "source_kind": "CONTRACT_GROUNDED"
+   },
+   "primary_signal": "SKU_NOT_TARGET",
+   "substate": "U2_SKU_ONLY"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "665fa6ccdfa98123871beb606e5daaae2128fe727a839ce06e5edd7130391240",
+   "case_id": "V2Q-DIMM-U4-MATCH-0014",
+   "category": "server_memory",
+   "challenge_tags": [
+    "exact_product_alt_wording",
+    "missing_candidate_mpn"
+   ],
+   "evidence_kind": "SYNTHETIC",
+   "expected": {
+    "acceptable_decisions": [
+     "MATCH"
+    ],
+    "commercial_sales_unit_safety": false,
+    "conflict_classes": [],
+    "decision": "MATCH",
+    "disposition": "SEMANTIC_EVALUATION",
+    "expected_reason_code": null,
+    "missing_dimensions": [],
+    "rejection_class": null
+   },
+   "input_payload": {
+    "candidate": {
+     "commercial": {
+      "availability": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "In stock"
+      },
+      "condition": null,
+      "currency": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "USD"
+      },
+      "offer_url": null,
+      "price": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "100"
+      },
+      "sales_unit": {
+       "kind": null,
+       "quantity": null,
+       "raw_detail": null,
+       "source": null,
+       "state": "UNAVAILABLE"
+      },
+      "seller": null
+     },
+     "evidence_source": "NONE",
+     "mpn_field": null,
+     "product": {
+      "accessory_relation": null,
+      "brand": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "SyntheticMemory"
+      },
+      "capacity": null,
+      "form_factor": null,
+      "generation": null,
+      "interface": null,
+      "product_family": null,
+      "product_role": null,
+      "raw_specification_text": null,
+      "raw_title_text": "96GB DDR5-6400 MRDIMM Server Memory Module",
+      "revision_or_suffix": null
+     },
+     "sku": null,
+     "source_url": "https://example.com/v2q-cases/v2q-dimm-u4-match-0014"
+    },
+    "case_id": "V2Q-DIMM-U4-MATCH-0014",
+    "context_provenance": [],
+    "deterministic_identity_context": {
+     "identity_state": "DETERMINISTIC_UNCERTAIN",
+     "normalized_candidate_part_number": "",
+     "normalized_requested_part_number": "SYN-DIMM-96G-6400",
+     "primary_relationship_signal": "NO_RELATION",
+     "relationship_requirement": "NOT_APPLICABLE",
+     "relationship_signals": [
+      "NO_RELATION"
+     ],
+     "substate": "U4_NO_MPN"
+    },
+    "product_evidence": {
+     "has_usable_product_title": true,
+     "matched_facts": []
+    },
+    "target": {
+     "description_raw_text": "96GB DDR5-6400 MRDIMM server memory",
+     "mpn": "SYN-DIMM-96G-6400",
+     "reviewed_context": null
+    }
+   },
+   "input_shape": "LIVE_SHAPE",
+   "label": {
+    "ambiguity": "UNAMBIGUOUS",
+    "evidence": "No candidate MPN is published, but the title publishes the full aligned attribute set by construction: capacity 96GB, speed DDR5-6400, module type MRDIMM, role server memory - exactly the requested product's description. The missing candidate MPN is explicitly NOT automatically NO_MATCH under the frozen prompt; on the supplied evidence the product is commercially equivalent.",
+    "reviewer": "PRODUCT-INTEL.Q3A.CORPUS-AUTHOR (synthetic by-construction)",
+    "reviewer_status": "REVIEWED",
+    "source": "synthetic by-construction scenario (corpus 1.0.0)",
+    "source_kind": "CONTRACT_GROUNDED"
+   },
+   "primary_signal": "NO_RELATION",
+   "substate": "U4_NO_MPN"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "b66bdbb23034895aaa15a97a730ceeeb86a5674154476f88edd2f09e3836d49c",
+   "case_id": "V2Q-GPU-ATTR-MEM-0026",
+   "category": "workstation_gpu",
+   "challenge_tags": [
+    "different_capacity"
+   ],
+   "evidence_kind": "SYNTHETIC",
+   "expected": {
+    "acceptable_decisions": [
+     "NO_MATCH"
+    ],
+    "commercial_sales_unit_safety": false,
+    "conflict_classes": [
+     "CAPACITY"
+    ],
+    "decision": "NO_MATCH",
+    "disposition": "SEMANTIC_EVALUATION",
+    "expected_reason_code": "NO_MATCH_CAPACITY",
+    "missing_dimensions": [],
+    "rejection_class": null
+   },
+   "input_payload": {
+    "candidate": {
+     "commercial": {
+      "availability": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "In stock"
+      },
+      "condition": null,
+      "currency": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "USD"
+      },
+      "offer_url": null,
+      "price": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "100"
+      },
+      "sales_unit": {
+       "kind": null,
+       "quantity": null,
+       "raw_detail": null,
+       "source": null,
+       "state": "UNAVAILABLE"
+      },
+      "seller": null
+     },
+     "evidence_source": "NONE",
+     "mpn_field": null,
+     "product": {
+      "accessory_relation": null,
+      "brand": null,
+      "capacity": null,
+      "form_factor": null,
+      "generation": null,
+      "interface": null,
+      "product_family": null,
+      "product_role": null,
+      "raw_specification_text": null,
+      "raw_title_text": "48GB Workstation GPU, PCIe 4.0",
+      "revision_or_suffix": null
+     },
+     "sku": null,
+     "source_url": "https://example.com/v2q-cases/v2q-gpu-attr-mem-0026"
+    },
+    "case_id": "V2Q-GPU-ATTR-MEM-0026",
+    "context_provenance": [],
+    "deterministic_identity_context": {
+     "identity_state": "DETERMINISTIC_UNCERTAIN",
+     "normalized_candidate_part_number": "",
+     "normalized_requested_part_number": "SYN-GPU-24G",
+     "primary_relationship_signal": "NO_RELATION",
+     "relationship_requirement": "NOT_APPLICABLE",
+     "relationship_signals": [
+      "NO_RELATION"
+     ],
+     "substate": "U4_NO_MPN"
+    },
+    "product_evidence": {
+     "has_usable_product_title": true,
+     "matched_facts": []
+    },
+    "target": {
+     "description_raw_text": "24GB workstation GPU, PCIe",
+     "mpn": "SYN-GPU-24G",
+     "reviewed_context": null
+    }
+   },
+   "input_shape": "LIVE_SHAPE",
+   "label": {
+    "ambiguity": "UNAMBIGUOUS",
+    "evidence": "Published memory size 48GB vs requested 24GB by construction; GPU memory size is the capacity dimension (ALWAYS_HARD) -> NO_MATCH (different category: workstation GPU).",
+    "reviewer": "PRODUCT-INTEL.Q3A.CORPUS-AUTHOR (synthetic by-construction)",
+    "reviewer_status": "REVIEWED",
+    "source": "synthetic by-construction scenario (corpus 1.0.0)",
+    "source_kind": "CONTRACT_GROUNDED"
+   },
+   "primary_signal": "NO_RELATION",
+   "substate": "U4_NO_MPN"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "04a21f09263ca6c74e4704bb57018eb1aac13908596a39c98b2133b7f542df96",
+   "case_id": "V2Q-GPU-SU-BUNDLE-0034",
+   "category": "workstation_gpu",
+   "challenge_tags": [
+    "standalone_vs_bundle"
+   ],
+   "evidence_kind": "SYNTHETIC",
+   "expected": {
+    "acceptable_decisions": [
+     "NO_MATCH"
+    ],
+    "commercial_sales_unit_safety": true,
+    "conflict_classes": [
+     "BUNDLE"
+    ],
+    "decision": "NO_MATCH",
+    "disposition": "SEMANTIC_EVALUATION",
+    "expected_reason_code": "NO_MATCH_BUNDLE",
+    "missing_dimensions": [],
+    "rejection_class": null
+   },
+   "input_payload": {
+    "candidate": {
+     "commercial": {
+      "availability": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "In stock"
+      },
+      "condition": null,
+      "currency": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "USD"
+      },
+      "offer_url": null,
+      "price": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "100"
+      },
+      "sales_unit": {
+       "kind": "BUNDLE",
+       "quantity": null,
+       "raw_detail": "GPU + power cables + bracket kit",
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "state": "OBSERVED"
+      },
+      "seller": null
+     },
+     "evidence_source": "NONE",
+     "mpn_field": null,
+     "product": {
+      "accessory_relation": null,
+      "brand": null,
+      "capacity": null,
+      "form_factor": null,
+      "generation": null,
+      "interface": null,
+      "product_family": null,
+      "product_role": null,
+      "raw_specification_text": null,
+      "raw_title_text": "Workstation GPU 24GB + 2x Power Cable + Bracket Kit",
+      "revision_or_suffix": null
+     },
+     "sku": null,
+     "source_url": "https://example.com/v2q-cases/v2q-gpu-su-bundle-0034"
+    },
+    "case_id": "V2Q-GPU-SU-BUNDLE-0034",
+    "context_provenance": [],
+    "deterministic_identity_context": {
+     "identity_state": "DETERMINISTIC_UNCERTAIN",
+     "normalized_candidate_part_number": "",
+     "normalized_requested_part_number": "SYN-GPU-24G",
+     "primary_relationship_signal": "NO_RELATION",
+     "relationship_requirement": "NOT_APPLICABLE",
+     "relationship_signals": [
+      "NO_RELATION"
+     ],
+     "substate": "U4_NO_MPN"
+    },
+    "product_evidence": {
+     "has_usable_product_title": true,
+     "matched_facts": []
+    },
+    "target": {
+     "description_raw_text": "24GB workstation GPU, standalone card",
+     "mpn": "SYN-GPU-24G",
+     "reviewed_context": null
+    }
+   },
+   "input_shape": "CONTRACT_SURFACE",
+   "label": {
+    "ambiguity": "UNAMBIGUOUS",
+    "evidence": "By construction the request is a standalone card and the candidate publishes a bundle (card + cables + bracket) in its structured packaging field. Standalone-versus-bundle is the ALWAYS_HARD BUNDLE conflict -> NO_MATCH (different category: workstation GPU).",
+    "reviewer": "PRODUCT-INTEL.Q3A.CORPUS-AUTHOR (synthetic by-construction)",
+    "reviewer_status": "REVIEWED",
+    "source": "synthetic by-construction scenario (corpus 1.0.0)",
+    "source_kind": "CONTRACT_GROUNDED"
+   },
+   "primary_signal": "NO_RELATION",
+   "substate": "U4_NO_MPN"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "4807387ce1ff75adedddc06db95e90deb6906e1e7c931b0c6a6831e269e60cde",
+   "case_id": "V2Q-NIC-ACC-BRACKET-0042",
+   "category": "network_adapter",
+   "challenge_tags": [
+    "accessory_vs_product",
+    "cross_category"
+   ],
+   "evidence_kind": "SYNTHETIC",
+   "expected": {
+    "acceptable_decisions": [
+     "NO_MATCH"
+    ],
+    "commercial_sales_unit_safety": false,
+    "conflict_classes": [
+     "ACCESSORY_RELATION"
+    ],
+    "decision": "NO_MATCH",
+    "disposition": "SEMANTIC_EVALUATION",
+    "expected_reason_code": "NO_MATCH_ACCESSORY",
+    "missing_dimensions": [],
+    "rejection_class": null
+   },
+   "input_payload": {
+    "candidate": {
+     "commercial": {
+      "availability": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "In stock"
+      },
+      "condition": null,
+      "currency": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "USD"
+      },
+      "offer_url": null,
+      "price": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "15"
+      },
+      "sales_unit": {
+       "kind": null,
+       "quantity": null,
+       "raw_detail": null,
+       "source": null,
+       "state": "UNAVAILABLE"
+      },
+      "seller": null
+     },
+     "evidence_source": "NONE",
+     "mpn_field": null,
+     "product": {
+      "accessory_relation": null,
+      "brand": null,
+      "capacity": null,
+      "form_factor": null,
+      "generation": null,
+      "interface": null,
+      "product_family": null,
+      "product_role": null,
+      "raw_specification_text": null,
+      "raw_title_text": "Low-profile PCIe bracket and SAS cable kit",
+      "revision_or_suffix": null
+     },
+     "sku": null,
+     "source_url": "https://example.com/v2q-cases/v2q-nic-acc-bracket-0042"
+    },
+    "case_id": "V2Q-NIC-ACC-BRACKET-0042",
+    "context_provenance": [],
+    "deterministic_identity_context": {
+     "identity_state": "DETERMINISTIC_UNCERTAIN",
+     "normalized_candidate_part_number": "",
+     "normalized_requested_part_number": "SYN-NIC-25GE-SFP",
+     "primary_relationship_signal": "NO_RELATION",
+     "relationship_requirement": "NOT_APPLICABLE",
+     "relationship_signals": [
+      "NO_RELATION"
+     ],
+     "substate": "U4_NO_MPN"
+    },
+    "product_evidence": {
+     "has_usable_product_title": true,
+     "matched_facts": []
+    },
+    "target": {
+     "description_raw_text": "25GbE SFP28 network interface card",
+     "mpn": "SYN-NIC-25GE-SFP",
+     "reviewed_context": null
+    }
+   },
+   "input_shape": "LIVE_SHAPE",
+   "label": {
+    "ambiguity": "UNAMBIGUOUS",
+    "evidence": "By construction the listing publishes a bracket/cable kit - an accessory - against the requested network interface card. ACCESSORY_RELATION is ALWAYS_HARD -> NO_MATCH (different category: network adapter).",
+    "reviewer": "PRODUCT-INTEL.Q3A.CORPUS-AUTHOR (synthetic by-construction)",
+    "reviewer_status": "REVIEWED",
+    "source": "synthetic by-construction scenario (corpus 1.0.0)",
+    "source_kind": "CONTRACT_GROUNDED"
+   },
+   "primary_signal": "NO_RELATION",
+   "substate": "U4_NO_MPN"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "2791f286ff4354a192c6cf519a0b8654fd1fcd55413ba1b443564e77f55a2bb4",
+   "case_id": "V2Q-NIC-ATTR-IFACE-0030",
+   "category": "network_adapter",
+   "challenge_tags": [
+    "different_interface"
+   ],
+   "evidence_kind": "SYNTHETIC",
+   "expected": {
+    "acceptable_decisions": [
+     "NO_MATCH"
+    ],
+    "commercial_sales_unit_safety": false,
+    "conflict_classes": [
+     "INTERFACE"
+    ],
+    "decision": "NO_MATCH",
+    "disposition": "SEMANTIC_EVALUATION",
+    "expected_reason_code": "NO_MATCH_INTERFACE",
+    "missing_dimensions": [],
+    "rejection_class": null
+   },
+   "input_payload": {
+    "candidate": {
+     "commercial": {
+      "availability": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "In stock"
+      },
+      "condition": null,
+      "currency": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "USD"
+      },
+      "offer_url": null,
+      "price": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "100"
+      },
+      "sales_unit": {
+       "kind": null,
+       "quantity": null,
+       "raw_detail": null,
+       "source": null,
+       "state": "UNAVAILABLE"
+      },
+      "seller": null
+     },
+     "evidence_source": "NONE",
+     "mpn_field": null,
+     "product": {
+      "accessory_relation": null,
+      "brand": null,
+      "capacity": null,
+      "form_factor": null,
+      "generation": null,
+      "interface": null,
+      "product_family": null,
+      "product_role": null,
+      "raw_specification_text": null,
+      "raw_title_text": "25GbE SFP28 PCIe Network Interface Card",
+      "revision_or_suffix": null
+     },
+     "sku": null,
+     "source_url": "https://example.com/v2q-cases/v2q-nic-attr-iface-0030"
+    },
+    "case_id": "V2Q-NIC-ATTR-IFACE-0030",
+    "context_provenance": [],
+    "deterministic_identity_context": {
+     "identity_state": "DETERMINISTIC_UNCERTAIN",
+     "normalized_candidate_part_number": "",
+     "normalized_requested_part_number": "SYN-NIC-10GE",
+     "primary_relationship_signal": "NO_RELATION",
+     "relationship_requirement": "NOT_APPLICABLE",
+     "relationship_signals": [
+      "NO_RELATION"
+     ],
+     "substate": "U4_NO_MPN"
+    },
+    "product_evidence": {
+     "has_usable_product_title": true,
+     "matched_facts": []
+    },
+    "target": {
+     "description_raw_text": "10GbE SFP+ network interface card",
+     "mpn": "SYN-NIC-10GE",
+     "reviewed_context": null
+    }
+   },
+   "input_shape": "LIVE_SHAPE",
+   "label": {
+    "ambiguity": "UNAMBIGUOUS",
+    "evidence": "Published interface 25GbE SFP28 vs requested 10GbE SFP+ by construction; interface speed is the ALWAYS_HARD INTERFACE dimension -> NO_MATCH (different category: network adapter).",
+    "reviewer": "PRODUCT-INTEL.Q3A.CORPUS-AUTHOR (synthetic by-construction)",
+    "reviewer_status": "REVIEWED",
+    "source": "synthetic by-construction scenario (corpus 1.0.0)",
+    "source_kind": "CONTRACT_GROUNDED"
+   },
+   "primary_signal": "NO_RELATION",
+   "substate": "U4_NO_MPN"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "0f3ac43cfad9d219989970e58ff5a2e2866cb58d3a1f496dd1a31016f5d0f6ad",
+   "case_id": "V2Q-NIC-U4-ROLE-0016",
+   "category": "network_adapter",
+   "challenge_tags": [
+    "cross_category",
+    "missing_candidate_mpn"
+   ],
+   "evidence_kind": "SYNTHETIC",
+   "expected": {
+    "acceptable_decisions": [
+     "NO_MATCH"
+    ],
+    "commercial_sales_unit_safety": false,
+    "conflict_classes": [
+     "PRODUCT_ROLE"
+    ],
+    "decision": "NO_MATCH",
+    "disposition": "SEMANTIC_EVALUATION",
+    "expected_reason_code": "NO_MATCH_PRODUCT_ROLE",
+    "missing_dimensions": [],
+    "rejection_class": null
+   },
+   "input_payload": {
+    "candidate": {
+     "commercial": {
+      "availability": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "In stock"
+      },
+      "condition": null,
+      "currency": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "USD"
+      },
+      "offer_url": null,
+      "price": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "50"
+      },
+      "sales_unit": {
+       "kind": null,
+       "quantity": null,
+       "raw_detail": null,
+       "source": null,
+       "state": "UNAVAILABLE"
+      },
+      "seller": null
+     },
+     "evidence_source": "NONE",
+     "mpn_field": null,
+     "product": {
+      "accessory_relation": null,
+      "brand": null,
+      "capacity": null,
+      "form_factor": null,
+      "generation": null,
+      "interface": null,
+      "product_family": null,
+      "product_role": null,
+      "raw_specification_text": null,
+      "raw_title_text": "PCIe 4.0 NVMe M.2 2280 2TB Solid State Drive",
+      "revision_or_suffix": null
+     },
+     "sku": null,
+     "source_url": "https://example.com/v2q-cases/v2q-nic-u4-role-0016"
+    },
+    "case_id": "V2Q-NIC-U4-ROLE-0016",
+    "context_provenance": [],
+    "deterministic_identity_context": {
+     "identity_state": "DETERMINISTIC_UNCERTAIN",
+     "normalized_candidate_part_number": "",
+     "normalized_requested_part_number": "SYN-NIC-25GE-SFP",
+     "primary_relationship_signal": "NO_RELATION",
+     "relationship_requirement": "NOT_APPLICABLE",
+     "relationship_signals": [
+      "NO_RELATION"
+     ],
+     "substate": "U4_NO_MPN"
+    },
+    "product_evidence": {
+     "has_usable_product_title": true,
+     "matched_facts": []
+    },
+    "target": {
+     "description_raw_text": "25GbE SFP28 network interface card",
+     "mpn": "SYN-NIC-25GE-SFP",
+     "reviewed_context": null
+    }
+   },
+   "input_shape": "LIVE_SHAPE",
+   "label": {
+    "ambiguity": "UNAMBIGUOUS",
+    "evidence": "By construction the listing publishes a solid-state drive, a different product category and role than the requested network interface card. A cross-category listing is the ALWAYS_HARD PRODUCT_ROLE conflict -> NO_MATCH; commercial equivalence across product categories does not exist.",
+    "reviewer": "PRODUCT-INTEL.Q3A.CORPUS-AUTHOR (synthetic by-construction)",
+    "reviewer_status": "REVIEWED",
+    "source": "synthetic by-construction scenario (corpus 1.0.0)",
+    "source_kind": "CONTRACT_GROUNDED"
+   },
+   "primary_signal": "NO_RELATION",
+   "substate": "U4_NO_MPN"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "a4e5530766d74a329709ad2432874df33edd98ced28ca216b7a6e78fbe05d7c7",
+   "case_id": "V2Q-SSD-ACC-CADDY-0031",
+   "category": "enterprise_ssd",
+   "challenge_tags": [
+    "accessory_vs_product",
+    "compatibility_wording"
+   ],
+   "evidence_kind": "RECORDED_FIXTURE",
+   "expected": {
+    "acceptable_decisions": [
+     "NO_MATCH"
+    ],
+    "commercial_sales_unit_safety": false,
+    "conflict_classes": [
+     "ACCESSORY_RELATION"
+    ],
+    "decision": "NO_MATCH",
+    "disposition": "SEMANTIC_EVALUATION",
+    "expected_reason_code": "NO_MATCH_ACCESSORY",
+    "missing_dimensions": [],
+    "rejection_class": null
+   },
+   "input_payload": {
+    "candidate": {
+     "commercial": {
+      "availability": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "In stock"
+      },
+      "condition": null,
+      "currency": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "USD"
+      },
+      "offer_url": null,
+      "price": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "100"
+      },
+      "sales_unit": {
+       "kind": null,
+       "quantity": null,
+       "raw_detail": null,
+       "source": null,
+       "state": "UNAVAILABLE"
+      },
+      "seller": null
+     },
+     "evidence_source": "TITLE_TEXT",
+     "mpn_field": null,
+     "product": {
+      "accessory_relation": null,
+      "brand": null,
+      "capacity": null,
+      "form_factor": null,
+      "generation": null,
+      "interface": null,
+      "product_family": null,
+      "product_role": null,
+      "raw_specification_text": null,
+      "raw_title_text": "Replacement SSD caddy for MZ1L2960HCJR-00A07",
+      "revision_or_suffix": null
+     },
+     "sku": null,
+     "source_url": "https://example.com/v2q-cases/v2q-ssd-acc-caddy-0031"
+    },
+    "case_id": "V2Q-SSD-ACC-CADDY-0031",
+    "context_provenance": [],
+    "deterministic_identity_context": {
+     "identity_state": "DETERMINISTIC_UNCERTAIN",
+     "normalized_candidate_part_number": "MZ1L2960HCJR-00A07",
+     "normalized_requested_part_number": "MZ1L2960HCJR-00A07",
+     "primary_relationship_signal": "TITLE_MPN_TOKEN",
+     "relationship_requirement": "NOT_REQUIRED",
+     "relationship_signals": [
+      "COMPATIBILITY_WORDING",
+      "TITLE_MPN_TOKEN"
+     ],
+     "substate": "U1_TITLE_MPN"
+    },
+    "product_evidence": {
+     "has_usable_product_title": true,
+     "matched_facts": []
+    },
+    "target": {
+     "description_raw_text": "Samsung SSD PM9A3 960GB M.2 NVMe PCIe Gen4",
+     "mpn": "MZ1L2960HCJR-00A07",
+     "reviewed_context": null
+    }
+   },
+   "input_shape": "LIVE_SHAPE",
+   "label": {
+    "ambiguity": "UNAMBIGUOUS",
+    "evidence": "The recorded project-UAT expectation: 'replacement caddy for' is compatibility/reference wording; the listed product is a caddy (accessory), not the SSD. ACCESSORY_RELATION is ALWAYS_HARD -> NO_MATCH.",
+    "reviewer": "PROJECT_UAT (recorded in repository)",
+    "reviewer_status": "REVIEWED",
+    "source": "evaluation/semantic_corpus/cases.json SMQ-0006 (provenance: project_uat)",
+    "source_kind": "REVIEWED_SOURCE_GROUNDED"
+   },
+   "primary_signal": "TITLE_MPN_TOKEN",
+   "substate": "U1_TITLE_MPN"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "da1398f1522e47cc6d78cc75ee766d244f381bcc8b898915aeb4cab75ca48dc1",
+   "case_id": "V2Q-SSD-ATTR-CAPACITY-0024",
+   "category": "enterprise_ssd",
+   "challenge_tags": [
+    "different_capacity"
+   ],
+   "evidence_kind": "SYNTHETIC",
+   "expected": {
+    "acceptable_decisions": [
+     "NO_MATCH"
+    ],
+    "commercial_sales_unit_safety": false,
+    "conflict_classes": [
+     "CAPACITY"
+    ],
+    "decision": "NO_MATCH",
+    "disposition": "SEMANTIC_EVALUATION",
+    "expected_reason_code": "NO_MATCH_CAPACITY",
+    "missing_dimensions": [],
+    "rejection_class": null
+   },
+   "input_payload": {
+    "candidate": {
+     "commercial": {
+      "availability": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "In stock"
+      },
+      "condition": null,
+      "currency": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "USD"
+      },
+      "offer_url": null,
+      "price": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "100"
+      },
+      "sales_unit": {
+       "kind": null,
+       "quantity": null,
+       "raw_detail": null,
+       "source": null,
+       "state": "UNAVAILABLE"
+      },
+      "seller": null
+     },
+     "evidence_source": "NONE",
+     "mpn_field": null,
+     "product": {
+      "accessory_relation": null,
+      "brand": null,
+      "capacity": null,
+      "form_factor": null,
+      "generation": null,
+      "interface": null,
+      "product_family": null,
+      "product_role": null,
+      "raw_specification_text": null,
+      "raw_title_text": "7.68TB U.3 NVMe SSD, data center",
+      "revision_or_suffix": null
+     },
+     "sku": null,
+     "source_url": "https://example.com/v2q-cases/v2q-ssd-attr-capacity-0024"
+    },
+    "case_id": "V2Q-SSD-ATTR-CAPACITY-0024",
+    "context_provenance": [],
+    "deterministic_identity_context": {
+     "identity_state": "DETERMINISTIC_UNCERTAIN",
+     "normalized_candidate_part_number": "",
+     "normalized_requested_part_number": "SYN-SSD-3840-U3",
+     "primary_relationship_signal": "NO_RELATION",
+     "relationship_requirement": "NOT_APPLICABLE",
+     "relationship_signals": [
+      "NO_RELATION"
+     ],
+     "substate": "U4_NO_MPN"
+    },
+    "product_evidence": {
+     "has_usable_product_title": true,
+     "matched_facts": []
+    },
+    "target": {
+     "description_raw_text": "3.84TB U.3 NVMe data center SSD",
+     "mpn": "SYN-SSD-3840-U3",
+     "reviewed_context": null
+    }
+   },
+   "input_shape": "LIVE_SHAPE",
+   "label": {
+    "ambiguity": "UNAMBIGUOUS",
+    "evidence": "The published title states 7.68TB against the requested 3.84TB by construction; capacity is ALWAYS_HARD -> NO_MATCH.",
+    "reviewer": "PRODUCT-INTEL.Q3A.CORPUS-AUTHOR (synthetic by-construction)",
+    "reviewer_status": "REVIEWED",
+    "source": "synthetic by-construction scenario (corpus 1.0.0)",
+    "source_kind": "CONTRACT_GROUNDED"
+   },
+   "primary_signal": "NO_RELATION",
+   "substate": "U4_NO_MPN"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "f5e0648d5432836c963da932bfe3ee54e283b65af39d67eb681f188d2c9edadd",
+   "case_id": "V2Q-SSD-ATTR-FF-0029",
+   "category": "enterprise_ssd",
+   "challenge_tags": [
+    "different_form_factor"
+   ],
+   "evidence_kind": "SYNTHETIC",
+   "expected": {
+    "acceptable_decisions": [
+     "NO_MATCH"
+    ],
+    "commercial_sales_unit_safety": false,
+    "conflict_classes": [
+     "FORM_FACTOR"
+    ],
+    "decision": "NO_MATCH",
+    "disposition": "SEMANTIC_EVALUATION",
+    "expected_reason_code": "NO_MATCH_FORM_FACTOR",
+    "missing_dimensions": [],
+    "rejection_class": null
+   },
+   "input_payload": {
+    "candidate": {
+     "commercial": {
+      "availability": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "In stock"
+      },
+      "condition": null,
+      "currency": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "USD"
+      },
+      "offer_url": null,
+      "price": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "100"
+      },
+      "sales_unit": {
+       "kind": null,
+       "quantity": null,
+       "raw_detail": null,
+       "source": null,
+       "state": "UNAVAILABLE"
+      },
+      "seller": null
+     },
+     "evidence_source": "NONE",
+     "mpn_field": null,
+     "product": {
+      "accessory_relation": null,
+      "brand": null,
+      "capacity": null,
+      "form_factor": null,
+      "generation": null,
+      "interface": null,
+      "product_family": null,
+      "product_role": null,
+      "raw_specification_text": null,
+      "raw_title_text": "1.92TB U.3 2.5-inch NVMe SSD",
+      "revision_or_suffix": null
+     },
+     "sku": null,
+     "source_url": "https://example.com/v2q-cases/v2q-ssd-attr-ff-0029"
+    },
+    "case_id": "V2Q-SSD-ATTR-FF-0029",
+    "context_provenance": [],
+    "deterministic_identity_context": {
+     "identity_state": "DETERMINISTIC_UNCERTAIN",
+     "normalized_candidate_part_number": "",
+     "normalized_requested_part_number": "SYN-SSD-1920-M2",
+     "primary_relationship_signal": "NO_RELATION",
+     "relationship_requirement": "NOT_APPLICABLE",
+     "relationship_signals": [
+      "NO_RELATION"
+     ],
+     "substate": "U4_NO_MPN"
+    },
+    "product_evidence": {
+     "has_usable_product_title": true,
+     "matched_facts": []
+    },
+    "target": {
+     "description_raw_text": "1.92TB M.2 2280 NVMe SSD",
+     "mpn": "SYN-SSD-1920-M2",
+     "reviewed_context": null
+    }
+   },
+   "input_shape": "LIVE_SHAPE",
+   "label": {
+    "ambiguity": "UNAMBIGUOUS",
+    "evidence": "Published form factor U.3 2.5-inch vs requested M.2 2280 by construction (capacity aligns); form factor is ALWAYS_HARD -> NO_MATCH.",
+    "reviewer": "PRODUCT-INTEL.Q3A.CORPUS-AUTHOR (synthetic by-construction)",
+    "reviewer_status": "REVIEWED",
+    "source": "synthetic by-construction scenario (corpus 1.0.0)",
+    "source_kind": "CONTRACT_GROUNDED"
+   },
+   "primary_signal": "NO_RELATION",
+   "substate": "U4_NO_MPN"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "f0dc5090c9b5da74fa283ff8a3b736f7fbd4e42a4edd00f3f802c7f667c4d654",
+   "case_id": "V2Q-SSD-ATTR-IFACE-0028",
+   "category": "enterprise_ssd",
+   "challenge_tags": [
+    "different_interface"
+   ],
+   "evidence_kind": "SYNTHETIC",
+   "expected": {
+    "acceptable_decisions": [
+     "NO_MATCH"
+    ],
+    "commercial_sales_unit_safety": false,
+    "conflict_classes": [
+     "INTERFACE"
+    ],
+    "decision": "NO_MATCH",
+    "disposition": "SEMANTIC_EVALUATION",
+    "expected_reason_code": "NO_MATCH_INTERFACE",
+    "missing_dimensions": [],
+    "rejection_class": null
+   },
+   "input_payload": {
+    "candidate": {
+     "commercial": {
+      "availability": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "In stock"
+      },
+      "condition": null,
+      "currency": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "USD"
+      },
+      "offer_url": null,
+      "price": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "100"
+      },
+      "sales_unit": {
+       "kind": null,
+       "quantity": null,
+       "raw_detail": null,
+       "source": null,
+       "state": "UNAVAILABLE"
+      },
+      "seller": null
+     },
+     "evidence_source": "NONE",
+     "mpn_field": null,
+     "product": {
+      "accessory_relation": null,
+      "brand": null,
+      "capacity": null,
+      "form_factor": null,
+      "generation": null,
+      "interface": null,
+      "product_family": null,
+      "product_role": null,
+      "raw_specification_text": null,
+      "raw_title_text": "3.84TB NVMe U.3 2.5-inch Enterprise SSD",
+      "revision_or_suffix": null
+     },
+     "sku": null,
+     "source_url": "https://example.com/v2q-cases/v2q-ssd-attr-iface-0028"
+    },
+    "case_id": "V2Q-SSD-ATTR-IFACE-0028",
+    "context_provenance": [],
+    "deterministic_identity_context": {
+     "identity_state": "DETERMINISTIC_UNCERTAIN",
+     "normalized_candidate_part_number": "",
+     "normalized_requested_part_number": "SYN-SSD-3840-SATA",
+     "primary_relationship_signal": "NO_RELATION",
+     "relationship_requirement": "NOT_APPLICABLE",
+     "relationship_signals": [
+      "NO_RELATION"
+     ],
+     "substate": "U4_NO_MPN"
+    },
+    "product_evidence": {
+     "has_usable_product_title": true,
+     "matched_facts": []
+    },
+    "target": {
+     "description_raw_text": "3.84TB SATA 6Gbps 2.5-inch enterprise SSD",
+     "mpn": "SYN-SSD-3840-SATA",
+     "reviewed_context": null
+    }
+   },
+   "input_shape": "LIVE_SHAPE",
+   "label": {
+    "ambiguity": "UNAMBIGUOUS",
+    "evidence": "Published interface NVMe vs requested SATA 6Gbps by construction (capacity and size align); interface is ALWAYS_HARD -> NO_MATCH.",
+    "reviewer": "PRODUCT-INTEL.Q3A.CORPUS-AUTHOR (synthetic by-construction)",
+    "reviewer_status": "REVIEWED",
+    "source": "synthetic by-construction scenario (corpus 1.0.0)",
+    "source_kind": "CONTRACT_GROUNDED"
+   },
+   "primary_signal": "NO_RELATION",
+   "substate": "U4_NO_MPN"
+  },
+  {
+   "case_class": "AMBIGUOUS",
+   "case_digest": "5c49696efdc5b2a949f99348b18e6f5c8485c8ab478a48b5102bb7d087471060",
+   "case_id": "V2Q-SSD-BRAND-CONTESTED-0040",
+   "category": "enterprise_ssd",
+   "challenge_tags": [
+    "different_brand"
+   ],
+   "evidence_kind": "SYNTHETIC",
+   "expected": {
+    "acceptable_decisions": [
+     "NO_MATCH",
+     "UNCERTAIN"
+    ],
+    "commercial_sales_unit_safety": false,
+    "conflict_classes": [],
+    "decision": "UNCERTAIN",
+    "disposition": "SEMANTIC_EVALUATION",
+    "expected_reason_code": null,
+    "missing_dimensions": [],
+    "rejection_class": null
+   },
+   "input_payload": {
+    "candidate": {
+     "commercial": {
+      "availability": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "In stock"
+      },
+      "condition": null,
+      "currency": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "USD"
+      },
+      "offer_url": null,
+      "price": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "100"
+      },
+      "sales_unit": {
+       "kind": null,
+       "quantity": null,
+       "raw_detail": null,
+       "source": null,
+       "state": "UNAVAILABLE"
+      },
+      "seller": null
+     },
+     "evidence_source": "NONE",
+     "mpn_field": null,
+     "product": {
+      "accessory_relation": null,
+      "brand": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "OtherBrand"
+      },
+      "capacity": null,
+      "form_factor": null,
+      "generation": null,
+      "interface": null,
+      "product_family": null,
+      "product_role": null,
+      "raw_specification_text": null,
+      "raw_title_text": "OtherBrand 3.84TB U.3 NVMe Data Center SSD",
+      "revision_or_suffix": null
+     },
+     "sku": null,
+     "source_url": "https://example.com/v2q-cases/v2q-ssd-brand-contested-0040"
+    },
+    "case_id": "V2Q-SSD-BRAND-CONTESTED-0040",
+    "context_provenance": [],
+    "deterministic_identity_context": {
+     "identity_state": "DETERMINISTIC_UNCERTAIN",
+     "normalized_candidate_part_number": "",
+     "normalized_requested_part_number": "SYN-SSD-3840-U3",
+     "primary_relationship_signal": "NO_RELATION",
+     "relationship_requirement": "NOT_APPLICABLE",
+     "relationship_signals": [
+      "NO_RELATION"
+     ],
+     "substate": "U4_NO_MPN"
+    },
+    "product_evidence": {
+     "has_usable_product_title": true,
+     "matched_facts": []
+    },
+    "target": {
+     "description_raw_text": "SyntheticBrand 3.84TB U.3 NVMe data center SSD",
+     "mpn": "SYN-SSD-3840-U3",
+     "reviewed_context": null
+    }
+   },
+   "input_shape": "LIVE_SHAPE",
+   "label": {
+    "ambiguity": "CONTESTABLE",
+    "evidence": "The candidate publishes a different brand than the requested product while all other attributes align. BRAND is a frozen REVIEWABLE conflict (material but resolvable by inspection): in real markets a different published brand may be a genuinely different product or an OEM/relabel of the same physical product, and the supplied evidence decides neither. NO_MATCH (published brand is material) and UNCERTAIN (inspection required) are both defensible; MATCH would ignore a published material difference.",
+    "reviewer": "PRODUCT-INTEL.Q3A.CORPUS-AUTHOR (synthetic by-construction)",
+    "reviewer_status": "REVIEWED",
+    "source": "synthetic by-construction scenario (corpus 1.0.0)",
+    "source_kind": "CONTRACT_GROUNDED"
+   },
+   "primary_signal": "NO_RELATION",
+   "substate": "U4_NO_MPN"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "dbc27ef4808ef9bcd8c851cd0c395eda49ae46b3aa63b13ecf659f9782bb48ba",
+   "case_id": "V2Q-SSD-CONTRA-0037",
+   "category": "enterprise_ssd",
+   "challenge_tags": [
+    "contradictory_listing_evidence"
+   ],
+   "evidence_kind": "SYNTHETIC",
+   "expected": {
+    "acceptable_decisions": [
+     "UNCERTAIN"
+    ],
+    "commercial_sales_unit_safety": false,
+    "conflict_classes": [],
+    "decision": "UNCERTAIN",
+    "disposition": "SEMANTIC_EVALUATION",
+    "expected_reason_code": null,
+    "missing_dimensions": [],
+    "rejection_class": null
+   },
+   "input_payload": {
+    "candidate": {
+     "commercial": {
+      "availability": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "In stock"
+      },
+      "condition": null,
+      "currency": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "USD"
+      },
+      "offer_url": null,
+      "price": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "100"
+      },
+      "sales_unit": {
+       "kind": null,
+       "quantity": null,
+       "raw_detail": null,
+       "source": null,
+       "state": "UNAVAILABLE"
+      },
+      "seller": null
+     },
+     "evidence_source": "NONE",
+     "mpn_field": null,
+     "product": {
+      "accessory_relation": null,
+      "brand": null,
+      "capacity": null,
+      "form_factor": null,
+      "generation": null,
+      "interface": null,
+      "product_family": null,
+      "product_role": null,
+      "raw_specification_text": "Capacity: 7.68TB; Form factor: U.3",
+      "raw_title_text": "3.84TB U.3 NVMe SSD, data center",
+      "revision_or_suffix": null
+     },
+     "sku": null,
+     "source_url": "https://example.com/v2q-cases/v2q-ssd-contra-0037"
+    },
+    "case_id": "V2Q-SSD-CONTRA-0037",
+    "context_provenance": [],
+    "deterministic_identity_context": {
+     "identity_state": "DETERMINISTIC_UNCERTAIN",
+     "normalized_candidate_part_number": "",
+     "normalized_requested_part_number": "SYN-SSD-3840-U3",
+     "primary_relationship_signal": "NO_RELATION",
+     "relationship_requirement": "NOT_APPLICABLE",
+     "relationship_signals": [
+      "NO_RELATION"
+     ],
+     "substate": "U4_NO_MPN"
+    },
+    "product_evidence": {
+     "has_usable_product_title": true,
+     "matched_facts": []
+    },
+    "target": {
+     "description_raw_text": "3.84TB U.3 NVMe data center SSD",
+     "mpn": "SYN-SSD-3840-U3",
+     "reviewed_context": null
+    }
+   },
+   "input_shape": "CONTRACT_SURFACE",
+   "label": {
+    "ambiguity": "UNAMBIGUOUS",
+    "evidence": "The published title states 3.84TB while the published specification text states 7.68TB: the listing contradicts itself. Neither value can be taken as the product's capacity on the supplied evidence, so no conflict class can be established and no equivalence can be affirmed. The frozen prompt: insufficient or ambiguous evidence -> UNCERTAIN, never a guess; asserting CAPACITY either way would be manufacturing a fact from contradictory evidence.",
+    "reviewer": "PRODUCT-INTEL.Q3A.CORPUS-AUTHOR (synthetic by-construction)",
+    "reviewer_status": "REVIEWED",
+    "source": "synthetic by-construction scenario (corpus 1.0.0)",
+    "source_kind": "CONTRACT_GROUNDED"
+   },
+   "primary_signal": "NO_RELATION",
+   "substate": "U4_NO_MPN"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "5db84534901bbf63b858634dc620ed46bf9c2a051eb9b5426a3312dd85ed3a5f",
+   "case_id": "V2Q-SSD-MULTI-CONFLICT-0036",
+   "category": "enterprise_ssd",
+   "challenge_tags": [
+    "different_capacity",
+    "different_form_factor",
+    "different_interface",
+    "multi_conflict"
+   ],
+   "evidence_kind": "SYNTHETIC",
+   "expected": {
+    "acceptable_decisions": [
+     "NO_MATCH"
+    ],
+    "commercial_sales_unit_safety": false,
+    "conflict_classes": [
+     "CAPACITY",
+     "FORM_FACTOR",
+     "INTERFACE"
+    ],
+    "decision": "NO_MATCH",
+    "disposition": "SEMANTIC_EVALUATION",
+    "expected_reason_code": "NO_MATCH_MULTIPLE_CONFLICTS",
+    "missing_dimensions": [],
+    "rejection_class": null
+   },
+   "input_payload": {
+    "candidate": {
+     "commercial": {
+      "availability": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "In stock"
+      },
+      "condition": null,
+      "currency": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "USD"
+      },
+      "offer_url": null,
+      "price": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "100"
+      },
+      "sales_unit": {
+       "kind": null,
+       "quantity": null,
+       "raw_detail": null,
+       "source": null,
+       "state": "UNAVAILABLE"
+      },
+      "seller": null
+     },
+     "evidence_source": "NONE",
+     "mpn_field": null,
+     "product": {
+      "accessory_relation": null,
+      "brand": null,
+      "capacity": null,
+      "form_factor": null,
+      "generation": null,
+      "interface": null,
+      "product_family": null,
+      "product_role": null,
+      "raw_specification_text": null,
+      "raw_title_text": "7.68TB M.2 NVMe PCIe Gen5 SSD",
+      "revision_or_suffix": null
+     },
+     "sku": null,
+     "source_url": "https://example.com/v2q-cases/v2q-ssd-multi-conflict-0036"
+    },
+    "case_id": "V2Q-SSD-MULTI-CONFLICT-0036",
+    "context_provenance": [],
+    "deterministic_identity_context": {
+     "identity_state": "DETERMINISTIC_UNCERTAIN",
+     "normalized_candidate_part_number": "",
+     "normalized_requested_part_number": "SYN-SSD-3840-U3-GEN4",
+     "primary_relationship_signal": "NO_RELATION",
+     "relationship_requirement": "NOT_APPLICABLE",
+     "relationship_signals": [
+      "NO_RELATION"
+     ],
+     "substate": "U4_NO_MPN"
+    },
+    "product_evidence": {
+     "has_usable_product_title": true,
+     "matched_facts": []
+    },
+    "target": {
+     "description_raw_text": "3.84TB U.3 NVMe PCIe Gen4 data center SSD",
+     "mpn": "SYN-SSD-3840-U3-GEN4",
+     "reviewed_context": null
+    }
+   },
+   "input_shape": "LIVE_SHAPE",
+   "label": {
+    "ambiguity": "UNAMBIGUOUS",
+    "evidence": "By construction three ALWAYS_HARD conflicts are published simultaneously (7.68TB vs 3.84TB; M.2 vs U.3; Gen5 vs Gen4). Two or more hard conflicts jointly establish non-equivalence; the bounded reason NO_MATCH_MULTIPLE_CONFLICTS names this shape.",
+    "reviewer": "PRODUCT-INTEL.Q3A.CORPUS-AUTHOR (synthetic by-construction)",
+    "reviewer_status": "REVIEWED",
+    "source": "synthetic by-construction scenario (corpus 1.0.0)",
+    "source_kind": "CONTRACT_GROUNDED"
+   },
+   "primary_signal": "NO_RELATION",
+   "substate": "U4_NO_MPN"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "78b752ac1d9d289b7af2b95080fc35a1f3c8eb15501506edd56ab0848f516a05",
+   "case_id": "V2Q-SSD-SAME-ALTWORDING-0035",
+   "category": "enterprise_ssd",
+   "challenge_tags": [
+    "different_sku_same_product",
+    "exact_product_alt_wording"
+   ],
+   "evidence_kind": "SYNTHETIC",
+   "expected": {
+    "acceptable_decisions": [
+     "MATCH"
+    ],
+    "commercial_sales_unit_safety": false,
+    "conflict_classes": [],
+    "decision": "MATCH",
+    "disposition": "SEMANTIC_EVALUATION",
+    "expected_reason_code": null,
+    "missing_dimensions": [],
+    "rejection_class": null
+   },
+   "input_payload": {
+    "candidate": {
+     "commercial": {
+      "availability": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "In stock"
+      },
+      "condition": null,
+      "currency": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "USD"
+      },
+      "offer_url": null,
+      "price": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "100"
+      },
+      "sales_unit": {
+       "kind": null,
+       "quantity": null,
+       "raw_detail": null,
+       "source": null,
+       "state": "UNAVAILABLE"
+      },
+      "seller": null
+     },
+     "evidence_source": "SKU_FIELD",
+     "mpn_field": null,
+     "product": {
+      "accessory_relation": null,
+      "brand": null,
+      "capacity": null,
+      "form_factor": null,
+      "generation": null,
+      "interface": null,
+      "product_family": null,
+      "product_role": null,
+      "raw_specification_text": null,
+      "raw_title_text": "Enterprise NVMe Solid State Drive, 3.84 Terabytes, U.3 2.5in, PCIe Gen4",
+      "revision_or_suffix": null
+     },
+     "sku": "DC-SSD-3.84-U3-NEW",
+     "source_url": "https://example.com/v2q-cases/v2q-ssd-same-altwording-0035"
+    },
+    "case_id": "V2Q-SSD-SAME-ALTWORDING-0035",
+    "context_provenance": [],
+    "deterministic_identity_context": {
+     "identity_state": "DETERMINISTIC_UNCERTAIN",
+     "normalized_candidate_part_number": "DC-SSD-3.84-U3-NEW",
+     "normalized_requested_part_number": "SYN-SSD-3840-U3",
+     "primary_relationship_signal": "SKU_NOT_TARGET",
+     "relationship_requirement": "REVIEWED_RELATION_AUTHORITY_REQUIRED",
+     "relationship_signals": [
+      "SKU_NOT_TARGET"
+     ],
+     "substate": "U2_SKU_ONLY"
+    },
+    "product_evidence": {
+     "has_usable_product_title": true,
+     "matched_facts": []
+    },
+    "target": {
+     "description_raw_text": "3.84TB U.3 NVMe data center SSD",
+     "mpn": "SYN-SSD-3840-U3",
+     "reviewed_context": null
+    }
+   },
+   "input_shape": "LIVE_SHAPE",
+   "label": {
+    "ambiguity": "UNAMBIGUOUS",
+    "evidence": "The exact product expressed in different legitimate listing wording by construction: '3.84 Terabytes' = 3.84TB, 'U.3 2.5in' = U.3 form factor, 'Enterprise NVMe Solid State Drive' = the requested family/role. A different retailer SKU is not proof of a different product (frozen prompt). No conflicting attribute is published; commercial equivalence holds.",
+    "reviewer": "PRODUCT-INTEL.Q3A.CORPUS-AUTHOR (synthetic by-construction)",
+    "reviewer_status": "REVIEWED",
+    "source": "synthetic by-construction scenario (corpus 1.0.0)",
+    "source_kind": "CONTRACT_GROUNDED"
+   },
+   "primary_signal": "SKU_NOT_TARGET",
+   "substate": "U2_SKU_ONLY"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "2db3a7f7f0604d868de7e6a99dce77e0f5386d5b76efac8ba2c3039cdd56bac6",
+   "case_id": "V2Q-SSD-SEO-MATCH-0038",
+   "category": "enterprise_ssd",
+   "challenge_tags": [
+    "exact_product_alt_wording",
+    "misleading_seo"
+   ],
+   "evidence_kind": "SYNTHETIC",
+   "expected": {
+    "acceptable_decisions": [
+     "MATCH"
+    ],
+    "commercial_sales_unit_safety": false,
+    "conflict_classes": [],
+    "decision": "MATCH",
+    "disposition": "SEMANTIC_EVALUATION",
+    "expected_reason_code": null,
+    "missing_dimensions": [],
+    "rejection_class": null
+   },
+   "input_payload": {
+    "candidate": {
+     "commercial": {
+      "availability": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "In stock"
+      },
+      "condition": null,
+      "currency": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "USD"
+      },
+      "offer_url": null,
+      "price": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "100"
+      },
+      "sales_unit": {
+       "kind": null,
+       "quantity": null,
+       "raw_detail": null,
+       "source": null,
+       "state": "UNAVAILABLE"
+      },
+      "seller": null
+     },
+     "evidence_source": "TITLE_TEXT",
+     "mpn_field": null,
+     "product": {
+      "accessory_relation": null,
+      "brand": null,
+      "capacity": null,
+      "form_factor": null,
+      "generation": null,
+      "interface": null,
+      "product_family": null,
+      "product_role": null,
+      "raw_specification_text": null,
+      "raw_title_text": "SYN-SSD-3840-U3 | 3.84TB U.3 NVMe SSD | best price | free shipping | hot deal 2026 | data center enterprise",
+      "revision_or_suffix": null
+     },
+     "sku": null,
+     "source_url": "https://example.com/v2q-cases/v2q-ssd-seo-match-0038"
+    },
+    "case_id": "V2Q-SSD-SEO-MATCH-0038",
+    "context_provenance": [],
+    "deterministic_identity_context": {
+     "identity_state": "DETERMINISTIC_UNCERTAIN",
+     "normalized_candidate_part_number": "SYN-SSD-3840-U3",
+     "normalized_requested_part_number": "SYN-SSD-3840-U3",
+     "primary_relationship_signal": "TITLE_MPN_TOKEN",
+     "relationship_requirement": "NOT_REQUIRED",
+     "relationship_signals": [
+      "TITLE_MPN_TOKEN"
+     ],
+     "substate": "U1_TITLE_MPN"
+    },
+    "product_evidence": {
+     "has_usable_product_title": true,
+     "matched_facts": []
+    },
+    "target": {
+     "description_raw_text": "3.84TB U.3 NVMe data center SSD",
+     "mpn": "SYN-SSD-3840-U3",
+     "reviewed_context": null
+    }
+   },
+   "input_shape": "LIVE_SHAPE",
+   "label": {
+    "ambiguity": "UNAMBIGUOUS",
+    "evidence": "SEO noise around an aligned product: the title publishes the exact requested MPN token and the aligned capacity/form factor; the marketing tokens ('best price', 'free shipping', 'hot deal') carry no product evidence in either direction. Misleading wording must not manufacture a false NO_MATCH; commercial equivalence holds on the supplied evidence.",
+    "reviewer": "PRODUCT-INTEL.Q3A.CORPUS-AUTHOR (synthetic by-construction)",
+    "reviewer_status": "REVIEWED",
+    "source": "synthetic by-construction scenario (corpus 1.0.0)",
+    "source_kind": "CONTRACT_GROUNDED"
+   },
+   "primary_signal": "TITLE_MPN_TOKEN",
+   "substate": "U1_TITLE_MPN"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "24ea91aa52944ca3e60dae8cdc989fbfdc2453443c55556fec27341c4024b03f",
+   "case_id": "V2Q-SSD-SU-MULTI-0033",
+   "category": "enterprise_ssd",
+   "challenge_tags": [
+    "single_vs_multipack"
+   ],
+   "evidence_kind": "SYNTHETIC",
+   "expected": {
+    "acceptable_decisions": [
+     "NO_MATCH"
+    ],
+    "commercial_sales_unit_safety": true,
+    "conflict_classes": [
+     "PACKAGING_QUANTITY"
+    ],
+    "decision": "NO_MATCH",
+    "disposition": "SEMANTIC_EVALUATION",
+    "expected_reason_code": "NO_MATCH_PACKAGING",
+    "missing_dimensions": [],
+    "rejection_class": null
+   },
+   "input_payload": {
+    "candidate": {
+     "commercial": {
+      "availability": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "In stock"
+      },
+      "condition": null,
+      "currency": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "USD"
+      },
+      "offer_url": null,
+      "price": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "100"
+      },
+      "sales_unit": {
+       "kind": "PACK_QUANTITY",
+       "quantity": 4,
+       "raw_detail": "pack of 4",
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "state": "OBSERVED"
+      },
+      "seller": null
+     },
+     "evidence_source": "SKU_FIELD",
+     "mpn_field": null,
+     "product": {
+      "accessory_relation": null,
+      "brand": null,
+      "capacity": null,
+      "form_factor": null,
+      "generation": null,
+      "interface": null,
+      "product_family": null,
+      "product_role": null,
+      "raw_specification_text": null,
+      "raw_title_text": "1.92TB M.2 NVMe SSD (pack of 4)",
+      "revision_or_suffix": null
+     },
+     "sku": "PK-1920-M2-4",
+     "source_url": "https://example.com/v2q-cases/v2q-ssd-su-multi-0033"
+    },
+    "case_id": "V2Q-SSD-SU-MULTI-0033",
+    "context_provenance": [],
+    "deterministic_identity_context": {
+     "identity_state": "DETERMINISTIC_UNCERTAIN",
+     "normalized_candidate_part_number": "PK-1920-M2-4",
+     "normalized_requested_part_number": "SYN-SSD-1920-M2",
+     "primary_relationship_signal": "SKU_NOT_TARGET",
+     "relationship_requirement": "REVIEWED_RELATION_AUTHORITY_REQUIRED",
+     "relationship_signals": [
+      "SKU_NOT_TARGET"
+     ],
+     "substate": "U2_SKU_ONLY"
+    },
+    "product_evidence": {
+     "has_usable_product_title": true,
+     "matched_facts": []
+    },
+    "target": {
+     "description_raw_text": "1.92TB M.2 2280 NVMe SSD, single unit",
+     "mpn": "SYN-SSD-1920-M2",
+     "reviewed_context": null
+    }
+   },
+   "input_shape": "CONTRACT_SURFACE",
+   "label": {
+    "ambiguity": "UNAMBIGUOUS",
+    "evidence": "By construction the request is a single unit and the candidate publishes a pack of 4 in its structured packaging field. Single-versus-multi-pack is a frozen ALWAYS_HARD PACKAGING_QUANTITY conflict -> NO_MATCH; the same physical drive is not pricing-comparable as the same sales unit.",
+    "reviewer": "PRODUCT-INTEL.Q3A.CORPUS-AUTHOR (synthetic by-construction)",
+    "reviewer_status": "REVIEWED",
+    "source": "synthetic by-construction scenario (corpus 1.0.0)",
+    "source_kind": "CONTRACT_GROUNDED"
+   },
+   "primary_signal": "SKU_NOT_TARGET",
+   "substate": "U2_SKU_ONLY"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "0979e338bab4478a095dccb93879f50cdbc1efa59a12c834c620cfff306f1b93",
+   "case_id": "V2Q-SSD-SU-TRAY-0032",
+   "category": "enterprise_ssd",
+   "challenge_tags": [
+    "tray_vs_retail"
+   ],
+   "evidence_kind": "SYNTHETIC",
+   "expected": {
+    "acceptable_decisions": [
+     "NO_MATCH"
+    ],
+    "commercial_sales_unit_safety": true,
+    "conflict_classes": [
+     "PACKAGING_QUANTITY"
+    ],
+    "decision": "NO_MATCH",
+    "disposition": "SEMANTIC_EVALUATION",
+    "expected_reason_code": "NO_MATCH_PACKAGING",
+    "missing_dimensions": [],
+    "rejection_class": null
+   },
+   "input_payload": {
+    "candidate": {
+     "commercial": {
+      "availability": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "In stock"
+      },
+      "condition": null,
+      "currency": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "USD"
+      },
+      "offer_url": null,
+      "price": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "100"
+      },
+      "sales_unit": {
+       "kind": "TRAY_OR_FACTORY_PACK",
+       "quantity": null,
+       "raw_detail": "tray of 20",
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "state": "OBSERVED"
+      },
+      "seller": null
+     },
+     "evidence_source": "SKU_FIELD",
+     "mpn_field": null,
+     "product": {
+      "accessory_relation": null,
+      "brand": null,
+      "capacity": null,
+      "form_factor": null,
+      "generation": null,
+      "interface": null,
+      "product_family": null,
+      "product_role": null,
+      "raw_specification_text": null,
+      "raw_title_text": "3.84TB U.3 NVMe SSD, data center (tray)",
+      "revision_or_suffix": null
+     },
+     "sku": "STOR-3840-U3-TRAY20",
+     "source_url": "https://example.com/v2q-cases/v2q-ssd-su-tray-0032"
+    },
+    "case_id": "V2Q-SSD-SU-TRAY-0032",
+    "context_provenance": [],
+    "deterministic_identity_context": {
+     "identity_state": "DETERMINISTIC_UNCERTAIN",
+     "normalized_candidate_part_number": "STOR-3840-U3-TRAY20",
+     "normalized_requested_part_number": "SYN-SSD-3840-U3",
+     "primary_relationship_signal": "SKU_NOT_TARGET",
+     "relationship_requirement": "REVIEWED_RELATION_AUTHORITY_REQUIRED",
+     "relationship_signals": [
+      "SKU_NOT_TARGET"
+     ],
+     "substate": "U2_SKU_ONLY"
+    },
+    "product_evidence": {
+     "has_usable_product_title": true,
+     "matched_facts": []
+    },
+    "target": {
+     "description_raw_text": "3.84TB U.3 NVMe data center SSD, retail single unit",
+     "mpn": "SYN-SSD-3840-U3",
+     "reviewed_context": null
+    }
+   },
+   "input_shape": "CONTRACT_SURFACE",
+   "label": {
+    "ambiguity": "UNAMBIGUOUS",
+    "evidence": "By construction the request is a retail single unit and the candidate publishes (in its structured packaging field) a tray of 20. The frozen contract is explicit: physical-product equivalence is never sales-unit equivalence; a tray/factory pack candidate against a retail single-unit target carries the ALWAYS_HARD PACKAGING_QUANTITY conflict -> NO_MATCH. (CONTRACT_SURFACE: the live extractor publishes no packaging field today; the frozen channel represents this observation.)",
+    "reviewer": "PRODUCT-INTEL.Q3A.CORPUS-AUTHOR (synthetic by-construction)",
+    "reviewer_status": "REVIEWED",
+    "source": "synthetic by-construction scenario (corpus 1.0.0)",
+    "source_kind": "CONTRACT_GROUNDED"
+   },
+   "primary_signal": "SKU_NOT_TARGET",
+   "substate": "U2_SKU_ONLY"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "375df96b4c4c2a65d71b8ee8727cdc3d743941b37a5591fd702b58b9395767c0",
+   "case_id": "V2Q-SSD-U1-COMPAT-0002",
+   "category": "enterprise_ssd",
+   "challenge_tags": [
+    "accessory_vs_product",
+    "compatibility_wording"
+   ],
+   "evidence_kind": "RECORDED_FIXTURE",
+   "expected": {
+    "acceptable_decisions": [
+     "NO_MATCH"
+    ],
+    "commercial_sales_unit_safety": false,
+    "conflict_classes": [
+     "ACCESSORY_RELATION"
+    ],
+    "decision": "NO_MATCH",
+    "disposition": "SEMANTIC_EVALUATION",
+    "expected_reason_code": "NO_MATCH_ACCESSORY",
+    "missing_dimensions": [],
+    "rejection_class": null
+   },
+   "input_payload": {
+    "candidate": {
+     "commercial": {
+      "availability": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "In stock"
+      },
+      "condition": null,
+      "currency": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "USD"
+      },
+      "offer_url": null,
+      "price": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "100"
+      },
+      "sales_unit": {
+       "kind": null,
+       "quantity": null,
+       "raw_detail": null,
+       "source": null,
+       "state": "UNAVAILABLE"
+      },
+      "seller": null
+     },
+     "evidence_source": "TITLE_TEXT",
+     "mpn_field": null,
+     "product": {
+      "accessory_relation": null,
+      "brand": null,
+      "capacity": null,
+      "form_factor": null,
+      "generation": null,
+      "interface": null,
+      "product_family": null,
+      "product_role": null,
+      "raw_specification_text": null,
+      "raw_title_text": "2.5-inch drive tray compatible with Samsung MZ1L2960HCJR-00A07",
+      "revision_or_suffix": null
+     },
+     "sku": null,
+     "source_url": "https://example.com/v2q-cases/v2q-ssd-u1-compat-0002"
+    },
+    "case_id": "V2Q-SSD-U1-COMPAT-0002",
+    "context_provenance": [],
+    "deterministic_identity_context": {
+     "identity_state": "DETERMINISTIC_UNCERTAIN",
+     "normalized_candidate_part_number": "MZ1L2960HCJR-00A07",
+     "normalized_requested_part_number": "MZ1L2960HCJR-00A07",
+     "primary_relationship_signal": "TITLE_MPN_TOKEN",
+     "relationship_requirement": "NOT_REQUIRED",
+     "relationship_signals": [
+      "COMPATIBILITY_WORDING",
+      "TITLE_MPN_TOKEN"
+     ],
+     "substate": "U1_TITLE_MPN"
+    },
+    "product_evidence": {
+     "has_usable_product_title": true,
+     "matched_facts": []
+    },
+    "target": {
+     "description_raw_text": "Samsung SSD PM9A3 960GB M.2 NVMe PCIe Gen4",
+     "mpn": "MZ1L2960HCJR-00A07",
+     "reviewed_context": null
+    }
+   },
+   "input_shape": "LIVE_SHAPE",
+   "label": {
+    "ambiguity": "UNAMBIGUOUS",
+    "evidence": "The recorded project-UAT expectation: 'compatible with' is compatibility wording, not product identity; the listing publishes a drive tray (an accessory), not the requested SSD. The frozen conflict taxonomy makes ACCESSORY_RELATION ALWAYS_HARD; the frozen prompt: an accessory instead of the requested product is a material conflict -> NO_MATCH.",
+    "reviewer": "PROJECT_UAT (recorded in repository)",
+    "reviewer_status": "REVIEWED",
+    "source": "evaluation/semantic_corpus/cases.json SMQ-0005 (provenance: project_uat)",
+    "source_kind": "REVIEWED_SOURCE_GROUNDED"
+   },
+   "primary_signal": "TITLE_MPN_TOKEN",
+   "substate": "U1_TITLE_MPN"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "3e3ec285c92007b9470d2b74b40c377db0d694c82c6ed8c69a885a93985ef354",
+   "case_id": "V2Q-SSD-U1-MATCH-0001",
+   "category": "enterprise_ssd",
+   "challenge_tags": [
+    "exact_product_alt_wording",
+    "title_mpn_only"
+   ],
+   "evidence_kind": "RECORDED_FIXTURE",
+   "expected": {
+    "acceptable_decisions": [
+     "MATCH"
+    ],
+    "commercial_sales_unit_safety": false,
+    "conflict_classes": [],
+    "decision": "MATCH",
+    "disposition": "SEMANTIC_EVALUATION",
+    "expected_reason_code": null,
+    "missing_dimensions": [],
+    "rejection_class": null
+   },
+   "input_payload": {
+    "candidate": {
+     "commercial": {
+      "availability": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "In stock"
+      },
+      "condition": null,
+      "currency": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "USD"
+      },
+      "offer_url": null,
+      "price": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "100"
+      },
+      "sales_unit": {
+       "kind": null,
+       "quantity": null,
+       "raw_detail": null,
+       "source": null,
+       "state": "UNAVAILABLE"
+      },
+      "seller": null
+     },
+     "evidence_source": "TITLE_TEXT",
+     "mpn_field": null,
+     "product": {
+      "accessory_relation": null,
+      "brand": null,
+      "capacity": null,
+      "form_factor": null,
+      "generation": null,
+      "interface": null,
+      "product_family": null,
+      "product_role": null,
+      "raw_specification_text": null,
+      "raw_title_text": "SSD disk Samsung PM9A3 960GB M.2 22110 NVMe PCIe Gen4 x4 | MZ1L2960HCJR-00A07",
+      "revision_or_suffix": null
+     },
+     "sku": null,
+     "source_url": "https://example.com/v2q-cases/v2q-ssd-u1-match-0001"
+    },
+    "case_id": "V2Q-SSD-U1-MATCH-0001",
+    "context_provenance": [],
+    "deterministic_identity_context": {
+     "identity_state": "DETERMINISTIC_UNCERTAIN",
+     "normalized_candidate_part_number": "MZ1L2960HCJR-00A07",
+     "normalized_requested_part_number": "MZ1L2960HCJR-00A07",
+     "primary_relationship_signal": "TITLE_MPN_TOKEN",
+     "relationship_requirement": "NOT_REQUIRED",
+     "relationship_signals": [
+      "TITLE_MPN_TOKEN"
+     ],
+     "substate": "U1_TITLE_MPN"
+    },
+    "product_evidence": {
+     "has_usable_product_title": true,
+     "matched_facts": []
+    },
+    "target": {
+     "description_raw_text": "Samsung SSD PM9A3 960GB M.2 NVMe PCIe Gen4",
+     "mpn": "MZ1L2960HCJR-00A07",
+     "reviewed_context": null
+    }
+   },
+   "input_shape": "LIVE_SHAPE",
+   "label": {
+    "ambiguity": "UNAMBIGUOUS",
+    "evidence": "The recorded project-UAT expectation for this exact scenario: the exact requested MPN is published in the listing title together with an aligned product description (960GB M.2 NVMe Gen4 PM9A3); no conflicting attribute is published. Exact MPN equality in the title is strong identifier evidence; the frozen V2 contract's own U1 state exists for exactly this semantic resolution.",
+    "reviewer": "PROJECT_UAT (recorded in repository)",
+    "reviewer_status": "REVIEWED",
+    "source": "evaluation/semantic_corpus/cases.json SMQ-0001 (provenance: project_uat)",
+    "source_kind": "REVIEWED_SOURCE_GROUNDED"
+   },
+   "primary_signal": "TITLE_MPN_TOKEN",
+   "substate": "U1_TITLE_MPN"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "25d4ed1830a868d41a68cf45f528fa18c9ae7c216f1f285f9b3cc43956379dd8",
+   "case_id": "V2Q-SSD-U1-PRODCTX-0041",
+   "category": "enterprise_ssd",
+   "challenge_tags": [
+    "manufacturer_product_context_only",
+    "title_mpn_only"
+   ],
+   "evidence_kind": "SYNTHETIC",
+   "expected": {
+    "acceptable_decisions": [
+     "MATCH"
+    ],
+    "commercial_sales_unit_safety": false,
+    "conflict_classes": [],
+    "decision": "MATCH",
+    "disposition": "SEMANTIC_EVALUATION",
+    "expected_reason_code": null,
+    "missing_dimensions": [],
+    "rejection_class": null
+   },
+   "input_payload": {
+    "candidate": {
+     "commercial": {
+      "availability": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "In stock"
+      },
+      "condition": null,
+      "currency": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "USD"
+      },
+      "offer_url": null,
+      "price": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "100"
+      },
+      "sales_unit": {
+       "kind": null,
+       "quantity": null,
+       "raw_detail": null,
+       "source": null,
+       "state": "UNAVAILABLE"
+      },
+      "seller": null
+     },
+     "evidence_source": "TITLE_TEXT",
+     "mpn_field": null,
+     "product": {
+      "accessory_relation": null,
+      "brand": null,
+      "capacity": null,
+      "form_factor": null,
+      "generation": null,
+      "interface": null,
+      "product_family": null,
+      "product_role": null,
+      "raw_specification_text": null,
+      "raw_title_text": "3.84TB U.3 NVMe SSD, data center (SYN-SSD-3840-U3)",
+      "revision_or_suffix": null
+     },
+     "sku": null,
+     "source_url": "https://example.com/v2q-cases/v2q-ssd-u1-prodctx-0041"
+    },
+    "case_id": "V2Q-SSD-U1-PRODCTX-0041",
+    "context_provenance": [
+     "MANUFACTURER_PRODUCT_CONTEXT"
+    ],
+    "deterministic_identity_context": {
+     "identity_state": "DETERMINISTIC_UNCERTAIN",
+     "normalized_candidate_part_number": "SYN-SSD-3840-U3",
+     "normalized_requested_part_number": "SYN-SSD-3840-U3",
+     "primary_relationship_signal": "TITLE_MPN_TOKEN",
+     "relationship_requirement": "NOT_REQUIRED",
+     "relationship_signals": [
+      "TITLE_MPN_TOKEN"
+     ],
+     "substate": "U1_TITLE_MPN"
+    },
+    "product_evidence": {
+     "has_usable_product_title": true,
+     "matched_facts": [
+      {
+       "dimension": "CAPACITY",
+       "sources": [
+        "LISTING_PRODUCT_TITLE"
+       ]
+      },
+      {
+       "dimension": "FORM_FACTOR",
+       "sources": [
+        "LISTING_PRODUCT_TITLE"
+       ]
+      }
+     ]
+    },
+    "target": {
+     "description_raw_text": "3.84TB U.3 NVMe data center SSD",
+     "mpn": "SYN-SSD-3840-U3",
+     "reviewed_context": null
+    }
+   },
+   "input_shape": "LIVE_SHAPE",
+   "label": {
+    "ambiguity": "UNAMBIGUOUS",
+    "evidence": "The title publishes the exact requested MPN token with aligned attributes by construction, and the scenario carries MANUFACTURER_PRODUCT_CONTEXT with a STRONG title-grounded authority profile (two hard dimensions). Product context strengthens product grounding but is not needed for the decision: the U1 state does not require reviewed relation authority, and the identifier + attribute evidence establishes commercial equivalence.",
+    "reviewer": "PRODUCT-INTEL.Q3A.CORPUS-AUTHOR (synthetic by-construction)",
+    "reviewer_status": "REVIEWED",
+    "source": "synthetic by-construction scenario (corpus 1.0.0)",
+    "source_kind": "CONTRACT_GROUNDED"
+   },
+   "primary_signal": "TITLE_MPN_TOKEN",
+   "substate": "U1_TITLE_MPN"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "989e47adfe13b39d05381eaf76175ed252b75cf7edd09f0b934d8e8dc3ae5613",
+   "case_id": "V2Q-SSD-U1-SEO-0003",
+   "category": "enterprise_ssd",
+   "challenge_tags": [
+    "different_capacity",
+    "misleading_seo"
+   ],
+   "evidence_kind": "SYNTHETIC",
+   "expected": {
+    "acceptable_decisions": [
+     "NO_MATCH"
+    ],
+    "commercial_sales_unit_safety": false,
+    "conflict_classes": [
+     "CAPACITY"
+    ],
+    "decision": "NO_MATCH",
+    "disposition": "SEMANTIC_EVALUATION",
+    "expected_reason_code": "NO_MATCH_CAPACITY",
+    "missing_dimensions": [],
+    "rejection_class": null
+   },
+   "input_payload": {
+    "candidate": {
+     "commercial": {
+      "availability": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "In stock"
+      },
+      "condition": null,
+      "currency": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "USD"
+      },
+      "offer_url": null,
+      "price": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "100"
+      },
+      "sales_unit": {
+       "kind": null,
+       "quantity": null,
+       "raw_detail": null,
+       "source": null,
+       "state": "UNAVAILABLE"
+      },
+      "seller": null
+     },
+     "evidence_source": "TITLE_TEXT",
+     "mpn_field": null,
+     "product": {
+      "accessory_relation": null,
+      "brand": null,
+      "capacity": null,
+      "form_factor": null,
+      "generation": null,
+      "interface": null,
+      "product_family": null,
+      "product_role": null,
+      "raw_specification_text": null,
+      "raw_title_text": "7.68TB NVMe SSD - fast upgrade from SYN-SSD-3840-U3 - hot deal",
+      "revision_or_suffix": null
+     },
+     "sku": null,
+     "source_url": "https://example.com/v2q-cases/v2q-ssd-u1-seo-0003"
+    },
+    "case_id": "V2Q-SSD-U1-SEO-0003",
+    "context_provenance": [],
+    "deterministic_identity_context": {
+     "identity_state": "DETERMINISTIC_UNCERTAIN",
+     "normalized_candidate_part_number": "SYN-SSD-3840-U3",
+     "normalized_requested_part_number": "SYN-SSD-3840-U3",
+     "primary_relationship_signal": "TITLE_MPN_TOKEN",
+     "relationship_requirement": "NOT_REQUIRED",
+     "relationship_signals": [
+      "TITLE_MPN_TOKEN"
+     ],
+     "substate": "U1_TITLE_MPN"
+    },
+    "product_evidence": {
+     "has_usable_product_title": true,
+     "matched_facts": []
+    },
+    "target": {
+     "description_raw_text": "3.84TB U.3 NVMe data center SSD",
+     "mpn": "SYN-SSD-3840-U3",
+     "reviewed_context": null
+    }
+   },
+   "input_shape": "LIVE_SHAPE",
+   "label": {
+    "ambiguity": "UNAMBIGUOUS",
+    "evidence": "By construction the requested product is 3.84TB and the published title states 7.68TB; the requested MPN appears only as SEO reference wording ('upgrade from'). Different published capacity is the ALWAYS_HARD CAPACITY conflict; the frozen contract requires NO_MATCH grounded in it. The identifier token in marketing wording is not identity evidence.",
+    "reviewer": "PRODUCT-INTEL.Q3A.CORPUS-AUTHOR (synthetic by-construction)",
+    "reviewer_status": "REVIEWED",
+    "source": "synthetic by-construction scenario (corpus 1.0.0)",
+    "source_kind": "CONTRACT_GROUNDED"
+   },
+   "primary_signal": "TITLE_MPN_TOKEN",
+   "substate": "U1_TITLE_MPN"
+  },
+  {
+   "case_class": "AMBIGUOUS",
+   "case_digest": "08ddc29dd77b2acf2f963b77347fc32bf01583df4317dbec0821725c316c7cbc",
+   "case_id": "V2Q-SSD-U1-THIN-0005",
+   "category": "enterprise_ssd",
+   "challenge_tags": [
+    "insufficient_evidence",
+    "title_mpn_only"
+   ],
+   "evidence_kind": "RECORDED_FIXTURE",
+   "expected": {
+    "acceptable_decisions": [
+     "MATCH",
+     "UNCERTAIN"
+    ],
+    "commercial_sales_unit_safety": false,
+    "conflict_classes": [],
+    "decision": "UNCERTAIN",
+    "disposition": "SEMANTIC_EVALUATION",
+    "expected_reason_code": null,
+    "missing_dimensions": [],
+    "rejection_class": null
+   },
+   "input_payload": {
+    "candidate": {
+     "commercial": {
+      "availability": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "In stock"
+      },
+      "condition": null,
+      "currency": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "USD"
+      },
+      "offer_url": null,
+      "price": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "100"
+      },
+      "sales_unit": {
+       "kind": null,
+       "quantity": null,
+       "raw_detail": null,
+       "source": null,
+       "state": "UNAVAILABLE"
+      },
+      "seller": null
+     },
+     "evidence_source": "TITLE_TEXT",
+     "mpn_field": null,
+     "product": {
+      "accessory_relation": null,
+      "brand": null,
+      "capacity": null,
+      "form_factor": null,
+      "generation": null,
+      "interface": null,
+      "product_family": null,
+      "product_role": null,
+      "raw_specification_text": null,
+      "raw_title_text": "MTFDKCC3T8TGP-1BK1DABYY",
+      "revision_or_suffix": null
+     },
+     "sku": null,
+     "source_url": "https://example.com/v2q-cases/v2q-ssd-u1-thin-0005"
+    },
+    "case_id": "V2Q-SSD-U1-THIN-0005",
+    "context_provenance": [],
+    "deterministic_identity_context": {
+     "identity_state": "DETERMINISTIC_UNCERTAIN",
+     "normalized_candidate_part_number": "MTFDKCC3T8TGP-1BK1DABYY",
+     "normalized_requested_part_number": "MTFDKCC3T8TGP-1BK1DABYY",
+     "primary_relationship_signal": "TITLE_MPN_TOKEN",
+     "relationship_requirement": "NOT_REQUIRED",
+     "relationship_signals": [
+      "TITLE_MPN_TOKEN"
+     ],
+     "substate": "U1_TITLE_MPN"
+    },
+    "product_evidence": {
+     "has_usable_product_title": true,
+     "matched_facts": []
+    },
+    "target": {
+     "description_raw_text": "Micron 7500 4TB U.3 NVMe SSD",
+     "mpn": "MTFDKCC3T8TGP-1BK1DABYY",
+     "reviewed_context": null
+    }
+   },
+   "input_shape": "LIVE_SHAPE",
+   "label": {
+    "ambiguity": "CONTESTABLE",
+    "evidence": "The recorded catalog confirms the title MPN is a real published part (7500 4TB U.3), so NO_MATCH is not defensible. But the listing publishes nothing beyond the identifier token: no capacity, no form factor, no brand. The recorded project-UAT corpus scores the analogous bare-identifier case UNCERTAIN (SMQ-0002: base identifier without the establishing suffix -> UNCERTAIN). Both 'strong identifier evidence -> MATCH' and 'identifier alone is not the only evidence -> UNCERTAIN' are defensible readings of the frozen prompt; the case is legitimately contested and is NOT forced to either pole.",
+    "reviewer": "PROJECT_UAT (recorded) + Q3-A corpus author (classification)",
+    "reviewer_status": "REVIEWED",
+    "source": "tests/fixtures/pages/micron_7500_part_catalog.json (recorded 4D-D fixture, 2026-09-22); evaluation/semantic_corpus/cases.json SMQ-0001 pattern (provenance: project_uat)",
+    "source_kind": "REVIEWED_SOURCE_GROUNDED"
+   },
+   "primary_signal": "TITLE_MPN_TOKEN",
+   "substate": "U1_TITLE_MPN"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "641ad4d46781abe7797aa10749c89c6e200ccd766d7b93cec0c8b8266532dd53",
+   "case_id": "V2Q-SSD-U2E-COLLIDE-0007",
+   "category": "enterprise_ssd",
+   "challenge_tags": [
+    "accessory_vs_product",
+    "sku_matches_target_mpn"
+   ],
+   "evidence_kind": "SYNTHETIC",
+   "expected": {
+    "acceptable_decisions": [
+     "NO_MATCH"
+    ],
+    "commercial_sales_unit_safety": false,
+    "conflict_classes": [
+     "PRODUCT_ROLE"
+    ],
+    "decision": "NO_MATCH",
+    "disposition": "SEMANTIC_EVALUATION",
+    "expected_reason_code": "NO_MATCH_PRODUCT_ROLE",
+    "missing_dimensions": [],
+    "rejection_class": null
+   },
+   "input_payload": {
+    "candidate": {
+     "commercial": {
+      "availability": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "In stock"
+      },
+      "condition": null,
+      "currency": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "USD"
+      },
+      "offer_url": null,
+      "price": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "100"
+      },
+      "sales_unit": {
+       "kind": null,
+       "quantity": null,
+       "raw_detail": null,
+       "source": null,
+       "state": "UNAVAILABLE"
+      },
+      "seller": null
+     },
+     "evidence_source": "SKU_FIELD",
+     "mpn_field": null,
+     "product": {
+      "accessory_relation": null,
+      "brand": null,
+      "capacity": null,
+      "form_factor": null,
+      "generation": null,
+      "interface": null,
+      "product_family": null,
+      "product_role": null,
+      "raw_specification_text": null,
+      "raw_title_text": "SAS to NVMe adapter cable, 25cm",
+      "revision_or_suffix": null
+     },
+     "sku": "SYN-SSD-3840-U3",
+     "source_url": "https://example.com/v2q-cases/v2q-ssd-u2e-collide-0007"
+    },
+    "case_id": "V2Q-SSD-U2E-COLLIDE-0007",
+    "context_provenance": [],
+    "deterministic_identity_context": {
+     "identity_state": "DETERMINISTIC_UNCERTAIN",
+     "normalized_candidate_part_number": "SYN-SSD-3840-U3",
+     "normalized_requested_part_number": "SYN-SSD-3840-U3",
+     "primary_relationship_signal": "SKU_EQUALS_TARGET",
+     "relationship_requirement": "NOT_APPLICABLE",
+     "relationship_signals": [
+      "SKU_EQUALS_TARGET"
+     ],
+     "substate": "U2_SKU_ONLY"
+    },
+    "product_evidence": {
+     "has_usable_product_title": true,
+     "matched_facts": []
+    },
+    "target": {
+     "description_raw_text": "3.84TB U.3 NVMe data center SSD",
+     "mpn": "SYN-SSD-3840-U3",
+     "reviewed_context": null
+    }
+   },
+   "input_shape": "LIVE_SHAPE",
+   "label": {
+    "ambiguity": "UNAMBIGUOUS",
+    "evidence": "By construction the published SKU accidentally equals the requested MPN while the published title describes an adapter cable - a different product role. The frozen prompt: SKU evidence must be interpreted carefully; a different product role is the ALWAYS_HARD PRODUCT_ROLE conflict -> NO_MATCH. An identifier coincidence never overrides published product evidence.",
+    "reviewer": "PRODUCT-INTEL.Q3A.CORPUS-AUTHOR (synthetic by-construction)",
+    "reviewer_status": "REVIEWED",
+    "source": "synthetic by-construction scenario (corpus 1.0.0)",
+    "source_kind": "CONTRACT_GROUNDED"
+   },
+   "primary_signal": "SKU_EQUALS_TARGET",
+   "substate": "U2_SKU_ONLY"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "0c45eaacb2f7166256a29c5c5a85c7e8f8d03bd565ae21f71c81cad182618309",
+   "case_id": "V2Q-SSD-U2E-MATCH-0006",
+   "category": "enterprise_ssd",
+   "challenge_tags": [
+    "exact_product_alt_wording"
+   ],
+   "evidence_kind": "SYNTHETIC",
+   "expected": {
+    "acceptable_decisions": [
+     "MATCH"
+    ],
+    "commercial_sales_unit_safety": false,
+    "conflict_classes": [],
+    "decision": "MATCH",
+    "disposition": "SEMANTIC_EVALUATION",
+    "expected_reason_code": null,
+    "missing_dimensions": [],
+    "rejection_class": null
+   },
+   "input_payload": {
+    "candidate": {
+     "commercial": {
+      "availability": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "In stock"
+      },
+      "condition": null,
+      "currency": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "USD"
+      },
+      "offer_url": null,
+      "price": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "100"
+      },
+      "sales_unit": {
+       "kind": null,
+       "quantity": null,
+       "raw_detail": null,
+       "source": null,
+       "state": "UNAVAILABLE"
+      },
+      "seller": null
+     },
+     "evidence_source": "SKU_FIELD",
+     "mpn_field": null,
+     "product": {
+      "accessory_relation": null,
+      "brand": null,
+      "capacity": null,
+      "form_factor": null,
+      "generation": null,
+      "interface": null,
+      "product_family": null,
+      "product_role": null,
+      "raw_specification_text": null,
+      "raw_title_text": "3.84TB U.3 NVMe SSD, data center",
+      "revision_or_suffix": null
+     },
+     "sku": "SYN-SSD-3840-U3",
+     "source_url": "https://example.com/v2q-cases/v2q-ssd-u2e-match-0006"
+    },
+    "case_id": "V2Q-SSD-U2E-MATCH-0006",
+    "context_provenance": [],
+    "deterministic_identity_context": {
+     "identity_state": "DETERMINISTIC_UNCERTAIN",
+     "normalized_candidate_part_number": "SYN-SSD-3840-U3",
+     "normalized_requested_part_number": "SYN-SSD-3840-U3",
+     "primary_relationship_signal": "SKU_EQUALS_TARGET",
+     "relationship_requirement": "NOT_APPLICABLE",
+     "relationship_signals": [
+      "SKU_EQUALS_TARGET"
+     ],
+     "substate": "U2_SKU_ONLY"
+    },
+    "product_evidence": {
+     "has_usable_product_title": true,
+     "matched_facts": []
+    },
+    "target": {
+     "description_raw_text": "3.84TB U.3 NVMe data center SSD",
+     "mpn": "SYN-SSD-3840-U3",
+     "reviewed_context": null
+    }
+   },
+   "input_shape": "LIVE_SHAPE",
+   "label": {
+    "ambiguity": "UNAMBIGUOUS",
+    "evidence": "The published SKU is frozen-2A identical to the requested MPN (the deterministic layer records SKU_EQUALS_TARGET; the frozen relationship table makes this state NOT_APPLICABLE for reviewed-relation gating). The title aligns on capacity and form factor by construction; no conflicting attribute is published. Commercial equivalence is established by the supplied evidence.",
+    "reviewer": "PRODUCT-INTEL.Q3A.CORPUS-AUTHOR (synthetic by-construction)",
+    "reviewer_status": "REVIEWED",
+    "source": "synthetic by-construction scenario (corpus 1.0.0)",
+    "source_kind": "CONTRACT_GROUNDED"
+   },
+   "primary_signal": "SKU_EQUALS_TARGET",
+   "substate": "U2_SKU_ONLY"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "667c492df707b7f544e9d7504b497a71badb5bc44489e99d7f96bfb2bf59916a",
+   "case_id": "V2Q-SSD-U2N-MATCH-0008",
+   "category": "enterprise_ssd",
+   "challenge_tags": [
+    "different_sku_same_product"
+   ],
+   "evidence_kind": "SYNTHETIC",
+   "expected": {
+    "acceptable_decisions": [
+     "MATCH"
+    ],
+    "commercial_sales_unit_safety": false,
+    "conflict_classes": [],
+    "decision": "MATCH",
+    "disposition": "SEMANTIC_EVALUATION",
+    "expected_reason_code": null,
+    "missing_dimensions": [],
+    "rejection_class": null
+   },
+   "input_payload": {
+    "candidate": {
+     "commercial": {
+      "availability": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "In stock"
+      },
+      "condition": null,
+      "currency": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "USD"
+      },
+      "offer_url": null,
+      "price": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "100"
+      },
+      "sales_unit": {
+       "kind": null,
+       "quantity": null,
+       "raw_detail": null,
+       "source": null,
+       "state": "UNAVAILABLE"
+      },
+      "seller": null
+     },
+     "evidence_source": "SKU_FIELD",
+     "mpn_field": null,
+     "product": {
+      "accessory_relation": null,
+      "brand": null,
+      "capacity": null,
+      "form_factor": null,
+      "generation": null,
+      "interface": null,
+      "product_family": null,
+      "product_role": null,
+      "raw_specification_text": null,
+      "raw_title_text": "3.84TB U.3 NVMe SSD, data center, new",
+      "revision_or_suffix": null
+     },
+     "sku": "STOR-U3-3840-RET",
+     "source_url": "https://example.com/v2q-cases/v2q-ssd-u2n-match-0008"
+    },
+    "case_id": "V2Q-SSD-U2N-MATCH-0008",
+    "context_provenance": [],
+    "deterministic_identity_context": {
+     "identity_state": "DETERMINISTIC_UNCERTAIN",
+     "normalized_candidate_part_number": "STOR-U3-3840-RET",
+     "normalized_requested_part_number": "SYN-SSD-3840-U3",
+     "primary_relationship_signal": "SKU_NOT_TARGET",
+     "relationship_requirement": "REVIEWED_RELATION_AUTHORITY_REQUIRED",
+     "relationship_signals": [
+      "SKU_NOT_TARGET"
+     ],
+     "substate": "U2_SKU_ONLY"
+    },
+    "product_evidence": {
+     "has_usable_product_title": true,
+     "matched_facts": []
+    },
+    "target": {
+     "description_raw_text": "3.84TB U.3 NVMe data center SSD",
+     "mpn": "SYN-SSD-3840-U3",
+     "reviewed_context": null
+    }
+   },
+   "input_shape": "LIVE_SHAPE",
+   "label": {
+    "ambiguity": "UNAMBIGUOUS",
+    "evidence": "The published SKU differs from the requested MPN (a retailer SKU), which the frozen contract explicitly states is not by itself proof of a different product. Capacity and form factor align by construction; no conflicting attribute is published. Commercial equivalence holds on the supplied evidence.",
+    "reviewer": "PRODUCT-INTEL.Q3A.CORPUS-AUTHOR (synthetic by-construction)",
+    "reviewer_status": "REVIEWED",
+    "source": "synthetic by-construction scenario (corpus 1.0.0)",
+    "source_kind": "CONTRACT_GROUNDED"
+   },
+   "primary_signal": "SKU_NOT_TARGET",
+   "substate": "U2_SKU_ONLY"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "4036310d7070a48ee0b1e1aa6a1d791fac8b95a01890cda03fe85cd6af567206",
+   "case_id": "V2Q-SSD-U3-CAP-0011",
+   "category": "enterprise_ssd",
+   "challenge_tags": [
+    "different_capacity",
+    "partial_mpn_boundary"
+   ],
+   "evidence_kind": "RECORDED_FIXTURE",
+   "expected": {
+    "acceptable_decisions": [
+     "NO_MATCH"
+    ],
+    "commercial_sales_unit_safety": false,
+    "conflict_classes": [
+     "CAPACITY"
+    ],
+    "decision": "NO_MATCH",
+    "disposition": "SEMANTIC_EVALUATION",
+    "expected_reason_code": "NO_MATCH_CAPACITY",
+    "missing_dimensions": [],
+    "rejection_class": null
+   },
+   "input_payload": {
+    "candidate": {
+     "commercial": {
+      "availability": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "In stock"
+      },
+      "condition": null,
+      "currency": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "USD"
+      },
+      "offer_url": null,
+      "price": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "100"
+      },
+      "sales_unit": {
+       "kind": null,
+       "quantity": null,
+       "raw_detail": null,
+       "source": null,
+       "state": "UNAVAILABLE"
+      },
+      "seller": null
+     },
+     "evidence_source": "EXPLICIT_MPN_FIELD",
+     "mpn_field": "MTFDKCC3T8TGP",
+     "product": {
+      "accessory_relation": null,
+      "brand": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "Micron"
+      },
+      "capacity": null,
+      "form_factor": null,
+      "generation": null,
+      "interface": null,
+      "product_family": null,
+      "product_role": null,
+      "raw_specification_text": null,
+      "raw_title_text": "Micron 7500 8TB U.3 NVMe SSD",
+      "revision_or_suffix": null
+     },
+     "sku": null,
+     "source_url": "https://example.com/v2q-cases/v2q-ssd-u3-cap-0011"
+    },
+    "case_id": "V2Q-SSD-U3-CAP-0011",
+    "context_provenance": [],
+    "deterministic_identity_context": {
+     "identity_state": "DETERMINISTIC_UNCERTAIN",
+     "normalized_candidate_part_number": "MTFDKCC3T8TGP",
+     "normalized_requested_part_number": "MTFDKCC3T8TGP-1BK1DABYY",
+     "primary_relationship_signal": "PARTIAL_BOUNDARY",
+     "relationship_requirement": "REVIEWED_RELATION_AUTHORITY_REQUIRED",
+     "relationship_signals": [
+      "PARTIAL_BOUNDARY"
+     ],
+     "substate": "U3_PARTIAL_BOUNDARY"
+    },
+    "product_evidence": {
+     "has_usable_product_title": true,
+     "matched_facts": []
+    },
+    "target": {
+     "description_raw_text": "Micron 7500 4TB U.3 NVMe SSD",
+     "mpn": "MTFDKCC3T8TGP-1BK1DABYY",
+     "reviewed_context": null
+    }
+   },
+   "input_shape": "LIVE_SHAPE",
+   "label": {
+    "ambiguity": "UNAMBIGUOUS",
+    "evidence": "The recorded catalog lists the 7500 family as distinct parts per capacity (4TB and 8TB are separate published parts); the partial identifier is family-consistent but the published capacity (8TB) differs from the requested 4TB - the ALWAYS_HARD CAPACITY conflict decides NO_MATCH regardless of the identifier.",
+    "reviewer": "PRODUCT-INTEL.Q3A.CORPUS-AUTHOR (recorded fixture)",
+    "reviewer_status": "REVIEWED",
+    "source": "tests/fixtures/pages/micron_7500_part_catalog.json (recorded 4D-D fixture, 2026-09-22)",
+    "source_kind": "REVIEWED_SOURCE_GROUNDED"
+   },
+   "primary_signal": "PARTIAL_BOUNDARY",
+   "substate": "U3_PARTIAL_BOUNDARY"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "a79d1f39ee9c0b9ab32ed3cf31cf4924da08a2533fe1a103d215dff6ef41a2e0",
+   "case_id": "V2Q-SSD-U3-MATCH-0010",
+   "category": "enterprise_ssd",
+   "challenge_tags": [
+    "partial_mpn_boundary"
+   ],
+   "evidence_kind": "RECORDED_FIXTURE",
+   "expected": {
+    "acceptable_decisions": [
+     "MATCH"
+    ],
+    "commercial_sales_unit_safety": false,
+    "conflict_classes": [],
+    "decision": "MATCH",
+    "disposition": "SEMANTIC_EVALUATION",
+    "expected_reason_code": null,
+    "missing_dimensions": [],
+    "rejection_class": null
+   },
+   "input_payload": {
+    "candidate": {
+     "commercial": {
+      "availability": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "In stock"
+      },
+      "condition": null,
+      "currency": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "USD"
+      },
+      "offer_url": null,
+      "price": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "100"
+      },
+      "sales_unit": {
+       "kind": null,
+       "quantity": null,
+       "raw_detail": null,
+       "source": null,
+       "state": "UNAVAILABLE"
+      },
+      "seller": null
+     },
+     "evidence_source": "EXPLICIT_MPN_FIELD",
+     "mpn_field": "MTFDKCC3T8TGP",
+     "product": {
+      "accessory_relation": null,
+      "brand": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "Micron"
+      },
+      "capacity": null,
+      "form_factor": null,
+      "generation": null,
+      "interface": null,
+      "product_family": null,
+      "product_role": null,
+      "raw_specification_text": null,
+      "raw_title_text": "Micron 7500 4TB U.3 NVMe SSD",
+      "revision_or_suffix": null
+     },
+     "sku": null,
+     "source_url": "https://example.com/v2q-cases/v2q-ssd-u3-match-0010"
+    },
+    "case_id": "V2Q-SSD-U3-MATCH-0010",
+    "context_provenance": [],
+    "deterministic_identity_context": {
+     "identity_state": "DETERMINISTIC_UNCERTAIN",
+     "normalized_candidate_part_number": "MTFDKCC3T8TGP",
+     "normalized_requested_part_number": "MTFDKCC3T8TGP-1BK1DABYY",
+     "primary_relationship_signal": "PARTIAL_BOUNDARY",
+     "relationship_requirement": "REVIEWED_RELATION_AUTHORITY_REQUIRED",
+     "relationship_signals": [
+      "PARTIAL_BOUNDARY"
+     ],
+     "substate": "U3_PARTIAL_BOUNDARY"
+    },
+    "product_evidence": {
+     "has_usable_product_title": true,
+     "matched_facts": []
+    },
+    "target": {
+     "description_raw_text": "Micron 7500 4TB U.3 NVMe SSD",
+     "mpn": "MTFDKCC3T8TGP-1BK1DABYY",
+     "reviewed_context": null
+    }
+   },
+   "input_shape": "LIVE_SHAPE",
+   "label": {
+    "ambiguity": "UNAMBIGUOUS",
+    "evidence": "The published partial MPN 'MTFDKCC3T8TGP' is exactly the recorded catalog's published family prefix of the requested part MTFDKCC3T8TGP-1BK1DABYY ('7500 4TB U.3 SSD'); the listing additionally publishes brand Micron and the aligned family / capacity / form-factor designation by construction. The identifier is consistent with the requested product and no conflicting attribute is published; the partial-boundary state exists for this semantic resolution.",
+    "reviewer": "PRODUCT-INTEL.Q3A.CORPUS-AUTHOR (recorded fixture)",
+    "reviewer_status": "REVIEWED",
+    "source": "tests/fixtures/pages/micron_7500_part_catalog.json (recorded 4D-D fixture, 2026-09-22)",
+    "source_kind": "REVIEWED_SOURCE_GROUNDED"
+   },
+   "primary_signal": "PARTIAL_BOUNDARY",
+   "substate": "U3_PARTIAL_BOUNDARY"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "0311f2454cffb174e9077055acea57eb5aad687806e2474242860a4be06f4d3e",
+   "case_id": "V2Q-SSD-U3-THIN-0012",
+   "category": "enterprise_ssd",
+   "challenge_tags": [
+    "insufficient_evidence",
+    "missing_critical_specs",
+    "partial_mpn_boundary"
+   ],
+   "evidence_kind": "SYNTHETIC",
+   "expected": {
+    "acceptable_decisions": [
+     "UNCERTAIN"
+    ],
+    "commercial_sales_unit_safety": false,
+    "conflict_classes": [],
+    "decision": "UNCERTAIN",
+    "disposition": "SEMANTIC_EVALUATION",
+    "expected_reason_code": "UNCERTAIN_MISSING_CRITICAL_ATTRIBUTES",
+    "missing_dimensions": [
+     "CAPACITY",
+     "FORM_FACTOR"
+    ],
+    "rejection_class": null
+   },
+   "input_payload": {
+    "candidate": {
+     "commercial": {
+      "availability": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "In stock"
+      },
+      "condition": null,
+      "currency": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "USD"
+      },
+      "offer_url": null,
+      "price": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "100"
+      },
+      "sales_unit": {
+       "kind": null,
+       "quantity": null,
+       "raw_detail": null,
+       "source": null,
+       "state": "UNAVAILABLE"
+      },
+      "seller": null
+     },
+     "evidence_source": "EXPLICIT_MPN_FIELD",
+     "mpn_field": "SYN-SSD-1920",
+     "product": {
+      "accessory_relation": null,
+      "brand": null,
+      "capacity": null,
+      "form_factor": null,
+      "generation": null,
+      "interface": null,
+      "product_family": null,
+      "product_role": null,
+      "raw_specification_text": null,
+      "raw_title_text": "NVMe data center SSD",
+      "revision_or_suffix": null
+     },
+     "sku": null,
+     "source_url": "https://example.com/v2q-cases/v2q-ssd-u3-thin-0012"
+    },
+    "case_id": "V2Q-SSD-U3-THIN-0012",
+    "context_provenance": [],
+    "deterministic_identity_context": {
+     "identity_state": "DETERMINISTIC_UNCERTAIN",
+     "normalized_candidate_part_number": "SYN-SSD-1920",
+     "normalized_requested_part_number": "SYN-SSD-1920-U2",
+     "primary_relationship_signal": "PARTIAL_BOUNDARY",
+     "relationship_requirement": "REVIEWED_RELATION_AUTHORITY_REQUIRED",
+     "relationship_signals": [
+      "PARTIAL_BOUNDARY"
+     ],
+     "substate": "U3_PARTIAL_BOUNDARY"
+    },
+    "product_evidence": {
+     "has_usable_product_title": true,
+     "matched_facts": []
+    },
+    "target": {
+     "description_raw_text": "1.92TB U.2 NVMe data center SSD",
+     "mpn": "SYN-SSD-1920-U2",
+     "reviewed_context": null
+    }
+   },
+   "input_shape": "LIVE_SHAPE",
+   "label": {
+    "ambiguity": "UNAMBIGUOUS",
+    "evidence": "The published partial identifier is consistent by construction, but the title publishes no capacity and no form factor: the critical identity dimensions are absent from all supplied evidence. The frozen prompt: never manufacture a missing fact; insufficient evidence -> UNCERTAIN (missing_critical_attributes names the gap).",
+    "reviewer": "PRODUCT-INTEL.Q3A.CORPUS-AUTHOR (synthetic by-construction)",
+    "reviewer_status": "REVIEWED",
+    "source": "synthetic by-construction scenario (corpus 1.0.0)",
+    "source_kind": "CONTRACT_GROUNDED"
+   },
+   "primary_signal": "PARTIAL_BOUNDARY",
+   "substate": "U3_PARTIAL_BOUNDARY"
+  },
+  {
+   "case_class": "AMBIGUOUS",
+   "case_digest": "a1f4fb6ea44bfc01c575d5314295cbad7f6c2795a6df05b5eb66bf6c9d035564",
+   "case_id": "V2Q-SSD-U4-AMBIG-0013",
+   "category": "enterprise_ssd",
+   "challenge_tags": [
+    "insufficient_evidence",
+    "missing_candidate_mpn"
+   ],
+   "evidence_kind": "RECORDED_FIXTURE",
+   "expected": {
+    "acceptable_decisions": [
+     "UNCERTAIN",
+     "MATCH"
+    ],
+    "commercial_sales_unit_safety": false,
+    "conflict_classes": [],
+    "decision": "UNCERTAIN",
+    "disposition": "SEMANTIC_EVALUATION",
+    "expected_reason_code": null,
+    "missing_dimensions": [],
+    "rejection_class": null
+   },
+   "input_payload": {
+    "candidate": {
+     "commercial": {
+      "availability": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "In stock"
+      },
+      "condition": null,
+      "currency": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "USD"
+      },
+      "offer_url": null,
+      "price": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "100"
+      },
+      "sales_unit": {
+       "kind": null,
+       "quantity": null,
+       "raw_detail": null,
+       "source": null,
+       "state": "UNAVAILABLE"
+      },
+      "seller": null
+     },
+     "evidence_source": "NONE",
+     "mpn_field": null,
+     "product": {
+      "accessory_relation": null,
+      "brand": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "Micron"
+      },
+      "capacity": null,
+      "form_factor": null,
+      "generation": null,
+      "interface": null,
+      "product_family": null,
+      "product_role": null,
+      "raw_specification_text": null,
+      "raw_title_text": "Micron 7500 4TB U.3 NVMe SSD",
+      "revision_or_suffix": null
+     },
+     "sku": null,
+     "source_url": "https://example.com/v2q-cases/v2q-ssd-u4-ambig-0013"
+    },
+    "case_id": "V2Q-SSD-U4-AMBIG-0013",
+    "context_provenance": [],
+    "deterministic_identity_context": {
+     "identity_state": "DETERMINISTIC_UNCERTAIN",
+     "normalized_candidate_part_number": "",
+     "normalized_requested_part_number": "MTFDKCC3T8TGP-1BK1DABYY",
+     "primary_relationship_signal": "NO_RELATION",
+     "relationship_requirement": "NOT_APPLICABLE",
+     "relationship_signals": [
+      "NO_RELATION"
+     ],
+     "substate": "U4_NO_MPN"
+    },
+    "product_evidence": {
+     "has_usable_product_title": true,
+     "matched_facts": []
+    },
+    "target": {
+     "description_raw_text": "Micron 7500 4TB U.3 NVMe SSD",
+     "mpn": "MTFDKCC3T8TGP-1BK1DABYY",
+     "reviewed_context": null
+    }
+   },
+   "input_shape": "LIVE_SHAPE",
+   "label": {
+    "ambiguity": "CONTESTABLE",
+    "evidence": "The recorded catalog publishes THREE distinct 7500 4TB U.3 parts (MTFDKCC3T8TGP-1BK1DABYY, MTFDKCC3T8TGP-1BK1JABYY, MTFDKCC3T8TGP-1BK1DFCYY). The candidate publishes brand, family, capacity, and form factor but no identifier: the evidence cannot distinguish which of the three published parts is listed, so UNCERTAIN is independently supported. MATCH is defensible only by ignoring the recorded ambiguity; the case is genuinely contested and stays visible at both poles.",
+    "reviewer": "PRODUCT-INTEL.Q3A.CORPUS-AUTHOR (recorded fixture)",
+    "reviewer_status": "REVIEWED",
+    "source": "tests/fixtures/pages/micron_7500_part_catalog.json (recorded 4D-D fixture, 2026-09-22)",
+    "source_kind": "REVIEWED_SOURCE_GROUNDED"
+   },
+   "primary_signal": "NO_RELATION",
+   "substate": "U4_NO_MPN"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "692704f07a000a3c2e25a68b25a9d643bbcdf3e5b5719f17c0efff082fafdec4",
+   "case_id": "V2Q-SSD-U4-COND-0017",
+   "category": "enterprise_ssd",
+   "challenge_tags": [
+    "condition_only_difference"
+   ],
+   "evidence_kind": "SYNTHETIC",
+   "expected": {
+    "acceptable_decisions": [
+     "MATCH"
+    ],
+    "commercial_sales_unit_safety": false,
+    "conflict_classes": [],
+    "decision": "MATCH",
+    "disposition": "SEMANTIC_EVALUATION",
+    "expected_reason_code": null,
+    "missing_dimensions": [],
+    "rejection_class": null
+   },
+   "input_payload": {
+    "candidate": {
+     "commercial": {
+      "availability": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "In stock"
+      },
+      "condition": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "Refurbished"
+      },
+      "currency": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "USD"
+      },
+      "offer_url": null,
+      "price": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "100"
+      },
+      "sales_unit": {
+       "kind": null,
+       "quantity": null,
+       "raw_detail": null,
+       "source": null,
+       "state": "UNAVAILABLE"
+      },
+      "seller": null
+     },
+     "evidence_source": "NONE",
+     "mpn_field": null,
+     "product": {
+      "accessory_relation": null,
+      "brand": null,
+      "capacity": null,
+      "form_factor": null,
+      "generation": null,
+      "interface": null,
+      "product_family": null,
+      "product_role": null,
+      "raw_specification_text": null,
+      "raw_title_text": "3.84TB U.3 NVMe SSD, data center",
+      "revision_or_suffix": null
+     },
+     "sku": null,
+     "source_url": "https://example.com/v2q-cases/v2q-ssd-u4-cond-0017"
+    },
+    "case_id": "V2Q-SSD-U4-COND-0017",
+    "context_provenance": [],
+    "deterministic_identity_context": {
+     "identity_state": "DETERMINISTIC_UNCERTAIN",
+     "normalized_candidate_part_number": "",
+     "normalized_requested_part_number": "SYN-SSD-3840-U3",
+     "primary_relationship_signal": "NO_RELATION",
+     "relationship_requirement": "NOT_APPLICABLE",
+     "relationship_signals": [
+      "NO_RELATION"
+     ],
+     "substate": "U4_NO_MPN"
+    },
+    "product_evidence": {
+     "has_usable_product_title": true,
+     "matched_facts": []
+    },
+    "target": {
+     "description_raw_text": "3.84TB U.3 NVMe data center SSD, new",
+     "mpn": "SYN-SSD-3840-U3",
+     "reviewed_context": null
+    }
+   },
+   "input_shape": "LIVE_SHAPE",
+   "label": {
+    "ambiguity": "UNAMBIGUOUS",
+    "evidence": "All published identity attributes align by construction; the only difference is condition (published 'Refurbished' vs the requested 'new'). The frozen taxonomy is explicit: CONDITION is PRICE_DIMENSION_ONLY, never an identity conflict. A NO_MATCH on condition alone would be a false NO_MATCH; the correct commercial-identity decision is MATCH.",
+    "reviewer": "PRODUCT-INTEL.Q3A.CORPUS-AUTHOR (synthetic by-construction)",
+    "reviewer_status": "REVIEWED",
+    "source": "synthetic by-construction scenario (corpus 1.0.0)",
+    "source_kind": "CONTRACT_GROUNDED"
+   },
+   "primary_signal": "NO_RELATION",
+   "substate": "U4_NO_MPN"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "94fd0925238bea1b06531ca643d27e76c9a182847bb7b4fce1b1b53d4db6cf1a",
+   "case_id": "V2Q-SSD-U4-THIN-0015",
+   "category": "enterprise_ssd",
+   "challenge_tags": [
+    "insufficient_evidence",
+    "missing_candidate_mpn",
+    "missing_critical_specs"
+   ],
+   "evidence_kind": "SYNTHETIC",
+   "expected": {
+    "acceptable_decisions": [
+     "UNCERTAIN"
+    ],
+    "commercial_sales_unit_safety": false,
+    "conflict_classes": [],
+    "decision": "UNCERTAIN",
+    "disposition": "SEMANTIC_EVALUATION",
+    "expected_reason_code": "UNCERTAIN_MISSING_CRITICAL_ATTRIBUTES",
+    "missing_dimensions": [
+     "CAPACITY",
+     "FORM_FACTOR"
+    ],
+    "rejection_class": null
+   },
+   "input_payload": {
+    "candidate": {
+     "commercial": {
+      "availability": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "In stock"
+      },
+      "condition": null,
+      "currency": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "USD"
+      },
+      "offer_url": null,
+      "price": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "100"
+      },
+      "sales_unit": {
+       "kind": null,
+       "quantity": null,
+       "raw_detail": null,
+       "source": null,
+       "state": "UNAVAILABLE"
+      },
+      "seller": null
+     },
+     "evidence_source": "NONE",
+     "mpn_field": null,
+     "product": {
+      "accessory_relation": null,
+      "brand": null,
+      "capacity": null,
+      "form_factor": null,
+      "generation": null,
+      "interface": null,
+      "product_family": null,
+      "product_role": null,
+      "raw_specification_text": null,
+      "raw_title_text": "NVMe SSD",
+      "revision_or_suffix": null
+     },
+     "sku": null,
+     "source_url": "https://example.com/v2q-cases/v2q-ssd-u4-thin-0015"
+    },
+    "case_id": "V2Q-SSD-U4-THIN-0015",
+    "context_provenance": [],
+    "deterministic_identity_context": {
+     "identity_state": "DETERMINISTIC_UNCERTAIN",
+     "normalized_candidate_part_number": "",
+     "normalized_requested_part_number": "SYN-SSD-3840-U3",
+     "primary_relationship_signal": "NO_RELATION",
+     "relationship_requirement": "NOT_APPLICABLE",
+     "relationship_signals": [
+      "NO_RELATION"
+     ],
+     "substate": "U4_NO_MPN"
+    },
+    "product_evidence": {
+     "has_usable_product_title": true,
+     "matched_facts": []
+    },
+    "target": {
+     "description_raw_text": "3.84TB U.3 NVMe data center SSD",
+     "mpn": "SYN-SSD-3840-U3",
+     "reviewed_context": null
+    }
+   },
+   "input_shape": "LIVE_SHAPE",
+   "label": {
+    "ambiguity": "UNAMBIGUOUS",
+    "evidence": "The published title is only 'NVMe SSD': no capacity, no form factor, no family designation, no identifier. The critical identity dimensions are absent from all supplied evidence; the frozen prompt requires UNCERTAIN with the gap named, never a guess in either direction.",
+    "reviewer": "PRODUCT-INTEL.Q3A.CORPUS-AUTHOR (synthetic by-construction)",
+    "reviewer_status": "REVIEWED",
+    "source": "synthetic by-construction scenario (corpus 1.0.0)",
+    "source_kind": "CONTRACT_GROUNDED"
+   },
+   "primary_signal": "NO_RELATION",
+   "substate": "U4_NO_MPN"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "b4eefbb919a38b70fe51addd2f5a29a191fe3e1b5353af7986fa0a279e17867e",
+   "case_id": "V2Q-SSD-U5NM1-ALIAS-0022",
+   "category": "enterprise_ssd",
+   "challenge_tags": [
+    "customer_retrieval_alias",
+    "near_miss_truncated",
+    "sales_unit_unproven"
+   ],
+   "evidence_kind": "SYNTHETIC",
+   "expected": {
+    "acceptable_decisions": [
+     "UNCERTAIN"
+    ],
+    "commercial_sales_unit_safety": true,
+    "conflict_classes": [],
+    "decision": "UNCERTAIN",
+    "disposition": "SEMANTIC_EVALUATION",
+    "expected_reason_code": "UNCERTAIN_MISSING_CRITICAL_ATTRIBUTES",
+    "missing_dimensions": [
+     "PACKAGING_QUANTITY"
+    ],
+    "rejection_class": null
+   },
+   "input_payload": {
+    "candidate": {
+     "commercial": {
+      "availability": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "In stock"
+      },
+      "condition": null,
+      "currency": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "USD"
+      },
+      "offer_url": null,
+      "price": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "100"
+      },
+      "sales_unit": {
+       "kind": null,
+       "quantity": null,
+       "raw_detail": null,
+       "source": null,
+       "state": "UNAVAILABLE"
+      },
+      "seller": null
+     },
+     "evidence_source": "EXPLICIT_MPN_FIELD",
+     "mpn_field": "MTFDKCC3T8TGP-1BK1DABYY",
+     "product": {
+      "accessory_relation": null,
+      "brand": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "Micron"
+      },
+      "capacity": null,
+      "form_factor": null,
+      "generation": null,
+      "interface": null,
+      "product_family": null,
+      "product_role": null,
+      "raw_specification_text": null,
+      "raw_title_text": "Micron 7500 4TB U.3 NVMe SSD Data Center",
+      "revision_or_suffix": null
+     },
+     "sku": null,
+     "source_url": "https://example.com/v2q-cases/v2q-ssd-u5nm1-alias-0022"
+    },
+    "case_id": "V2Q-SSD-U5NM1-ALIAS-0022",
+    "context_provenance": [
+     "CUSTOMER_RETRIEVAL_RELATION"
+    ],
+    "deterministic_identity_context": {
+     "identity_state": "DETERMINISTIC_UNCERTAIN",
+     "normalized_candidate_part_number": "MTFDKCC3T8TGP-1BK1DABYY",
+     "normalized_requested_part_number": "MTFDKCC3T8TGP-1BK1DABYYT",
+     "primary_relationship_signal": "NEAR_MISS_TRUNCATION",
+     "relationship_requirement": "REVIEWED_RELATION_AUTHORITY_REQUIRED",
+     "relationship_signals": [
+      "NEAR_MISS_TRUNCATION"
+     ],
+     "substate": "U5_NEAR_MISS_MPN"
+    },
+    "product_evidence": {
+     "has_usable_product_title": true,
+     "matched_facts": []
+    },
+    "target": {
+     "description_raw_text": "Micron 7500 4TB U.3 NVMe SSD",
+     "mpn": "MTFDKCC3T8TGP-1BK1DABYYT",
+     "reviewed_context": null
+    }
+   },
+   "input_shape": "LIVE_SHAPE",
+   "label": {
+    "ambiguity": "UNAMBIGUOUS",
+    "evidence": "Same family shape as the motivating case, without the reviewed target context: only the customer-retrieval relation is present. The frozen contract assigns CUSTOMER_RETRIEVAL_RELATION ZERO identity authority (retrieval hint only); the T form's sales unit is unproven by manufacturer-stated evidence. The alias must not promote the pair to MATCH: the independent commercial answer on this evidence is UNCERTAIN with the sales-unit gap named.",
+    "reviewer": "PRODUCT-INTEL.Q3A.CORPUS-AUTHOR (frozen rule + recorded fixture)",
+    "reviewer_status": "REVIEWED",
+    "source": "frozen 4D-D v1 customer R/T rule (product_intelligence/research/micron_packaging_alias.py); recorded catalog context (tests/fixtures/pages/micron_7500_part_catalog.json)",
+    "source_kind": "CONTRACT_GROUNDED"
+   },
+   "primary_signal": "NEAR_MISS_TRUNCATION",
+   "substate": "U5_NEAR_MISS_MPN"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "6add4f66f75cd5b44a17e3d7dff3639a676ab26caf92eed24ce9c135d678d920",
+   "case_id": "V2Q-SSD-U5NM1-MICRON-0018",
+   "category": "enterprise_ssd",
+   "challenge_tags": [
+    "customer_retrieval_alias",
+    "near_miss_truncated",
+    "sales_unit_unproven"
+   ],
+   "evidence_kind": "RECORDED_FIXTURE",
+   "expected": {
+    "acceptable_decisions": [
+     "UNCERTAIN"
+    ],
+    "commercial_sales_unit_safety": true,
+    "conflict_classes": [],
+    "decision": "UNCERTAIN",
+    "disposition": "SEMANTIC_EVALUATION",
+    "expected_reason_code": "UNCERTAIN_MISSING_CRITICAL_ATTRIBUTES",
+    "missing_dimensions": [
+     "PACKAGING_QUANTITY"
+    ],
+    "rejection_class": null
+   },
+   "input_payload": {
+    "candidate": {
+     "commercial": {
+      "availability": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "In stock"
+      },
+      "condition": null,
+      "currency": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "USD"
+      },
+      "offer_url": null,
+      "price": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "100"
+      },
+      "sales_unit": {
+       "kind": null,
+       "quantity": null,
+       "raw_detail": null,
+       "source": null,
+       "state": "UNAVAILABLE"
+      },
+      "seller": null
+     },
+     "evidence_source": "EXPLICIT_MPN_FIELD",
+     "mpn_field": "MTFDKCC3T8TGP-1BK1DABYY",
+     "product": {
+      "accessory_relation": null,
+      "brand": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "Micron"
+      },
+      "capacity": null,
+      "form_factor": null,
+      "generation": null,
+      "interface": null,
+      "product_family": null,
+      "product_role": null,
+      "raw_specification_text": null,
+      "raw_title_text": "Micron 7500 4TB U.3 NVMe SSD Data Center",
+      "revision_or_suffix": null
+     },
+     "sku": null,
+     "source_url": "https://example.com/v2q-cases/v2q-ssd-u5nm1-micron-0018"
+    },
+    "case_id": "V2Q-SSD-U5NM1-MICRON-0018",
+    "context_provenance": [
+     "CUSTOMER_RETRIEVAL_RELATION"
+    ],
+    "deterministic_identity_context": {
+     "identity_state": "DETERMINISTIC_UNCERTAIN",
+     "normalized_candidate_part_number": "MTFDKCC3T8TGP-1BK1DABYY",
+     "normalized_requested_part_number": "MTFDKCC3T8TGP-1BK1DABYYR",
+     "primary_relationship_signal": "NEAR_MISS_TRUNCATION",
+     "relationship_requirement": "REVIEWED_RELATION_AUTHORITY_REQUIRED",
+     "relationship_signals": [
+      "NEAR_MISS_TRUNCATION"
+     ],
+     "substate": "U5_NEAR_MISS_MPN"
+    },
+    "product_evidence": {
+     "has_usable_product_title": true,
+     "matched_facts": []
+    },
+    "target": {
+     "description_raw_text": "Micron 7500 4TB U.3 NVMe SSD",
+     "mpn": "MTFDKCC3T8TGP-1BK1DABYYR",
+     "reviewed_context": {
+      "category": "SSD",
+      "evidence_body_sha256": "160d4fe97a5df5249e8f6404f6b005c0515fab4def1b4668fdaf87c727600743",
+      "manufacturer": "Micron",
+      "matched_base_part_number": "MTFDKCC3T8TGP-1BK1DABYY",
+      "relation_family_part_numbers": [
+       "MTFDKCC3T8TGP-1BK1DABYY",
+       "MTFDKCC3T8TGP-1BK1DABYYT"
+      ],
+      "relation_kind": "CUSTOMER_RETRIEVAL_ALIAS",
+      "retrieved_at": "2026-09-22T00:00:00Z",
+      "source_name": "Micron 7500 part catalog (recorded 4D-D fixture)",
+      "source_url": "https://www.micron.com/content/micron/us/en/products/storage/ssd/data-center-ssd/7500-ssd/part-catalog/_jcr_content.products.json/getpartcatalog/storage/7500-ssd/-/en_US"
+     }
+    }
+   },
+   "input_shape": "LIVE_SHAPE",
+   "label": {
+    "ambiguity": "UNAMBIGUOUS",
+    "evidence": "Motivating case. The candidate's published MPN is the exact recorded catalog part '7500 4TB U.3 SSD'; the requested form differs by a truncated final 'R'. The recorded 4D-D fixture establishes the base part's identity, but the R/T family relation is a CUSTOMER-DEFINED retrieval rule: no manufacturer document states what the final R suffix denotes (the 4D-D module records this explicitly), so the R form's commercial sales unit is UNPROVEN. Sharing a base identifier is not equivalence: physical-product family membership (grounded) is distinct from sales-unit comparability (unproven). The frozen prompt's never-infer rule requires UNCERTAIN with PACKAGING_QUANTITY named missing; a false MATCH here is the exact commercial-safety error the case exists to catch. The customer-retrieval relation carries zero identity authority.",
+    "reviewer": "PRODUCT-INTEL.Q3A.CORPUS-AUTHOR (recorded fixture + frozen 4D-D rule)",
+    "reviewer_status": "REVIEWED",
+    "source": "tests/fixtures/pages/micron_7500_part_catalog.json (recorded 4D-D fixture, 2026-09-22, body digest 160d4fe97a5d...); product_intelligence/research/micron_packaging_alias.py (frozen 4D-D v1 customer R/T rule)",
+    "source_kind": "REVIEWED_SOURCE_GROUNDED"
+   },
+   "primary_signal": "NEAR_MISS_TRUNCATION",
+   "substate": "U5_NEAR_MISS_MPN"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "8c64eaadbc83d47c7e9d67abc4dd9edb61ed4a16b9390cdc0f07e5d5d8d0f039",
+   "case_id": "V2Q-SSD-U5NM1-REVCONFLICT-0019",
+   "category": "enterprise_ssd",
+   "challenge_tags": [
+    "different_capacity",
+    "different_interface",
+    "multi_conflict",
+    "near_miss_truncated"
+   ],
+   "evidence_kind": "SYNTHETIC",
+   "expected": {
+    "acceptable_decisions": [
+     "NO_MATCH"
+    ],
+    "commercial_sales_unit_safety": false,
+    "conflict_classes": [
+     "CAPACITY",
+     "INTERFACE"
+    ],
+    "decision": "NO_MATCH",
+    "disposition": "SEMANTIC_EVALUATION",
+    "expected_reason_code": "NO_MATCH_MULTIPLE_CONFLICTS",
+    "missing_dimensions": [],
+    "rejection_class": null
+   },
+   "input_payload": {
+    "candidate": {
+     "commercial": {
+      "availability": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "In stock"
+      },
+      "condition": null,
+      "currency": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "USD"
+      },
+      "offer_url": null,
+      "price": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "100"
+      },
+      "sales_unit": {
+       "kind": null,
+       "quantity": null,
+       "raw_detail": null,
+       "source": null,
+       "state": "UNAVAILABLE"
+      },
+      "seller": null
+     },
+     "evidence_source": "EXPLICIT_MPN_FIELD",
+     "mpn_field": "SYN-SSD-3840-G4U",
+     "product": {
+      "accessory_relation": null,
+      "brand": null,
+      "capacity": null,
+      "form_factor": null,
+      "generation": null,
+      "interface": null,
+      "product_family": null,
+      "product_role": null,
+      "raw_specification_text": null,
+      "raw_title_text": "7.68TB PCIe Gen5 U.3 NVMe SSD",
+      "revision_or_suffix": null
+     },
+     "sku": null,
+     "source_url": "https://example.com/v2q-cases/v2q-ssd-u5nm1-revconflict-0019"
+    },
+    "case_id": "V2Q-SSD-U5NM1-REVCONFLICT-0019",
+    "context_provenance": [],
+    "deterministic_identity_context": {
+     "identity_state": "DETERMINISTIC_UNCERTAIN",
+     "normalized_candidate_part_number": "SYN-SSD-3840-G4U",
+     "normalized_requested_part_number": "SYN-SSD-3840-G4",
+     "primary_relationship_signal": "NEAR_MISS_TRUNCATION",
+     "relationship_requirement": "REVIEWED_RELATION_AUTHORITY_REQUIRED",
+     "relationship_signals": [
+      "NEAR_MISS_TRUNCATION"
+     ],
+     "substate": "U5_NEAR_MISS_MPN"
+    },
+    "product_evidence": {
+     "has_usable_product_title": true,
+     "matched_facts": []
+    },
+    "target": {
+     "description_raw_text": "3.84TB PCIe Gen4 U.3 NVMe SSD",
+     "mpn": "SYN-SSD-3840-G4",
+     "reviewed_context": null
+    }
+   },
+   "input_shape": "LIVE_SHAPE",
+   "label": {
+    "ambiguity": "UNAMBIGUOUS",
+    "evidence": "The candidate identifier is a reverse-direction truncation near miss (the requested key is a strict prefix), and the published title states two ALWAYS_HARD conflicts by construction: capacity 7.68TB vs 3.84TB and interface Gen5 vs Gen4. Published attribute conflicts decide NO_MATCH regardless of the identifier shape.",
+    "reviewer": "PRODUCT-INTEL.Q3A.CORPUS-AUTHOR (synthetic by-construction)",
+    "reviewer_status": "REVIEWED",
+    "source": "synthetic by-construction scenario (corpus 1.0.0)",
+    "source_kind": "CONTRACT_GROUNDED"
+   },
+   "primary_signal": "NEAR_MISS_TRUNCATION",
+   "substate": "U5_NEAR_MISS_MPN"
+  },
+  {
+   "case_class": "AMBIGUOUS",
+   "case_digest": "011487a67af48bbc3eb45067abec9a97d46d955c4501ce4c9e6979e9d34b0d5b",
+   "case_id": "V2Q-SSD-U5NM2-NOAUTH-0021",
+   "category": "enterprise_ssd",
+   "challenge_tags": [
+    "near_miss_one_char"
+   ],
+   "evidence_kind": "SYNTHETIC",
+   "expected": {
+    "acceptable_decisions": [
+     "NO_MATCH",
+     "UNCERTAIN"
+    ],
+    "commercial_sales_unit_safety": false,
+    "conflict_classes": [],
+    "decision": "UNCERTAIN",
+    "disposition": "SEMANTIC_EVALUATION",
+    "expected_reason_code": null,
+    "missing_dimensions": [],
+    "rejection_class": null
+   },
+   "input_payload": {
+    "candidate": {
+     "commercial": {
+      "availability": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "In stock"
+      },
+      "condition": null,
+      "currency": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "USD"
+      },
+      "offer_url": null,
+      "price": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "100"
+      },
+      "sales_unit": {
+       "kind": null,
+       "quantity": null,
+       "raw_detail": null,
+       "source": null,
+       "state": "UNAVAILABLE"
+      },
+      "seller": null
+     },
+     "evidence_source": "EXPLICIT_MPN_FIELD",
+     "mpn_field": "SYN-SSD-ABCD-02",
+     "product": {
+      "accessory_relation": null,
+      "brand": null,
+      "capacity": null,
+      "form_factor": null,
+      "generation": null,
+      "interface": null,
+      "product_family": null,
+      "product_role": null,
+      "raw_specification_text": null,
+      "raw_title_text": "Synthetic 3.84TB U.3 NVMe SSD",
+      "revision_or_suffix": null
+     },
+     "sku": null,
+     "source_url": "https://example.com/v2q-cases/v2q-ssd-u5nm2-noauth-0021"
+    },
+    "case_id": "V2Q-SSD-U5NM2-NOAUTH-0021",
+    "context_provenance": [],
+    "deterministic_identity_context": {
+     "identity_state": "DETERMINISTIC_UNCERTAIN",
+     "normalized_candidate_part_number": "SYN-SSD-ABCD-02",
+     "normalized_requested_part_number": "SYN-SSD-ABCD-01",
+     "primary_relationship_signal": "NEAR_MISS_SUBSTITUTION",
+     "relationship_requirement": "REVIEWED_RELATION_AUTHORITY_REQUIRED",
+     "relationship_signals": [
+      "NEAR_MISS_SUBSTITUTION"
+     ],
+     "substate": "U5_NEAR_MISS_MPN"
+    },
+    "product_evidence": {
+     "has_usable_product_title": true,
+     "matched_facts": []
+    },
+    "target": {
+     "description_raw_text": "Synthetic 3.84TB U.3 NVMe SSD",
+     "mpn": "SYN-SSD-ABCD-01",
+     "reviewed_context": null
+    }
+   },
+   "input_shape": "LIVE_SHAPE",
+   "label": {
+    "ambiguity": "CONTESTABLE",
+    "evidence": "One-character substitution near miss with NO reviewed relationship authority and no published attribute difference. The frozen near-miss semantics state a one-character difference CAN mean a different revision - but the scenario publishes nothing proving it does. NO_MATCH (treat as different revision) and UNCERTAIN (insufficient evidence) are both defensible; MATCH is not (no identifier relation is established, and the frozen table requires reviewed relation authority for this substate in any future automatic tier).",
+    "reviewer": "PRODUCT-INTEL.Q3A.CORPUS-AUTHOR (synthetic by-construction)",
+    "reviewer_status": "REVIEWED",
+    "source": "synthetic by-construction scenario (corpus 1.0.0)",
+    "source_kind": "CONTRACT_GROUNDED"
+   },
+   "primary_signal": "NEAR_MISS_SUBSTITUTION",
+   "substate": "U5_NEAR_MISS_MPN"
+  },
+  {
+   "case_class": "AMBIGUOUS",
+   "case_digest": "da15c4fa4319a540160d0609578d117bfe61c91dc810cf2562c078c85c8026bc",
+   "case_id": "V2Q-SSD-U5NM2-PRODCONTEXT-0023",
+   "category": "enterprise_ssd",
+   "challenge_tags": [
+    "manufacturer_product_context_only",
+    "near_miss_one_char"
+   ],
+   "evidence_kind": "SYNTHETIC",
+   "expected": {
+    "acceptable_decisions": [
+     "NO_MATCH",
+     "UNCERTAIN"
+    ],
+    "commercial_sales_unit_safety": false,
+    "conflict_classes": [],
+    "decision": "UNCERTAIN",
+    "disposition": "SEMANTIC_EVALUATION",
+    "expected_reason_code": null,
+    "missing_dimensions": [],
+    "rejection_class": null
+   },
+   "input_payload": {
+    "candidate": {
+     "commercial": {
+      "availability": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "In stock"
+      },
+      "condition": null,
+      "currency": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "USD"
+      },
+      "offer_url": null,
+      "price": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "100"
+      },
+      "sales_unit": {
+       "kind": null,
+       "quantity": null,
+       "raw_detail": null,
+       "source": null,
+       "state": "UNAVAILABLE"
+      },
+      "seller": null
+     },
+     "evidence_source": "EXPLICIT_MPN_FIELD",
+     "mpn_field": "SYN-SSD-ABCD-02",
+     "product": {
+      "accessory_relation": null,
+      "brand": null,
+      "capacity": null,
+      "form_factor": null,
+      "generation": null,
+      "interface": null,
+      "product_family": null,
+      "product_role": null,
+      "raw_specification_text": null,
+      "raw_title_text": "Synthetic 3.84TB U.3 NVMe SSD",
+      "revision_or_suffix": null
+     },
+     "sku": null,
+     "source_url": "https://example.com/v2q-cases/v2q-ssd-u5nm2-prodcontext-0023"
+    },
+    "case_id": "V2Q-SSD-U5NM2-PRODCONTEXT-0023",
+    "context_provenance": [
+     "MANUFACTURER_PRODUCT_CONTEXT"
+    ],
+    "deterministic_identity_context": {
+     "identity_state": "DETERMINISTIC_UNCERTAIN",
+     "normalized_candidate_part_number": "SYN-SSD-ABCD-02",
+     "normalized_requested_part_number": "SYN-SSD-ABCD-01",
+     "primary_relationship_signal": "NEAR_MISS_SUBSTITUTION",
+     "relationship_requirement": "REVIEWED_RELATION_AUTHORITY_REQUIRED",
+     "relationship_signals": [
+      "NEAR_MISS_SUBSTITUTION"
+     ],
+     "substate": "U5_NEAR_MISS_MPN"
+    },
+    "product_evidence": {
+     "has_usable_product_title": true,
+     "matched_facts": [
+      {
+       "dimension": "CAPACITY",
+       "sources": [
+        "LISTING_PRODUCT_TITLE"
+       ]
+      },
+      {
+       "dimension": "FORM_FACTOR",
+       "sources": [
+        "LISTING_PRODUCT_TITLE"
+       ]
+      }
+     ]
+    },
+    "target": {
+     "description_raw_text": "Synthetic 3.84TB U.3 NVMe SSD",
+     "mpn": "SYN-SSD-ABCD-01",
+     "reviewed_context": null
+    }
+   },
+   "input_shape": "LIVE_SHAPE",
+   "label": {
+    "ambiguity": "CONTESTABLE",
+    "evidence": "MANUFACTURER_PRODUCT_CONTEXT grounds product facts (the authority-side profile reaches STRONG by construction: two hard dimensions title-grounded) but the frozen capability set excludes ESTABLISH_IDENTIFIER_RELATIONSHIP: product context without relationship authority does not establish the 01/02 identifier relation. The NM-2 substate keeps its conservative policy; NO_MATCH and UNCERTAIN are both defensible, MATCH is not.",
+    "reviewer": "PRODUCT-INTEL.Q3A.CORPUS-AUTHOR (synthetic by-construction)",
+    "reviewer_status": "REVIEWED",
+    "source": "synthetic by-construction scenario (corpus 1.0.0)",
+    "source_kind": "CONTRACT_GROUNDED"
+   },
+   "primary_signal": "NEAR_MISS_SUBSTITUTION",
+   "substate": "U5_NEAR_MISS_MPN"
+  },
+  {
+   "case_class": "AUTHORITATIVE",
+   "case_digest": "dea31278e11a6385d204b18a66cdd82e946abc3e5ea97379025c2b44f6f7f328",
+   "case_id": "V2Q-SSD-U5NM2-RELAUTH-0020",
+   "category": "enterprise_ssd",
+   "challenge_tags": [
+    "near_miss_one_char",
+    "reviewed_relation_authority"
+   ],
+   "evidence_kind": "SYNTHETIC",
+   "expected": {
+    "acceptable_decisions": [
+     "MATCH"
+    ],
+    "commercial_sales_unit_safety": false,
+    "conflict_classes": [],
+    "decision": "MATCH",
+    "disposition": "SEMANTIC_EVALUATION",
+    "expected_reason_code": "MATCH_AUTHORIZED_IDENTIFIER_RELATION",
+    "missing_dimensions": [],
+    "rejection_class": null
+   },
+   "input_payload": {
+    "candidate": {
+     "commercial": {
+      "availability": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "In stock"
+      },
+      "condition": null,
+      "currency": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "USD"
+      },
+      "offer_url": null,
+      "price": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "100"
+      },
+      "sales_unit": {
+       "kind": null,
+       "quantity": null,
+       "raw_detail": null,
+       "source": null,
+       "state": "UNAVAILABLE"
+      },
+      "seller": null
+     },
+     "evidence_source": "EXPLICIT_MPN_FIELD",
+     "mpn_field": "SYN-SSD-ABCD-02",
+     "product": {
+      "accessory_relation": null,
+      "brand": null,
+      "capacity": null,
+      "form_factor": null,
+      "generation": null,
+      "interface": null,
+      "product_family": null,
+      "product_role": null,
+      "raw_specification_text": null,
+      "raw_title_text": "Synthetic 3.84TB U.3 NVMe SSD, revision 02",
+      "revision_or_suffix": null
+     },
+     "sku": null,
+     "source_url": "https://example.com/v2q-cases/v2q-ssd-u5nm2-relauth-0020"
+    },
+    "case_id": "V2Q-SSD-U5NM2-RELAUTH-0020",
+    "context_provenance": [
+     "MANUFACTURER_RELATION_AUTHORITY"
+    ],
+    "deterministic_identity_context": {
+     "identity_state": "DETERMINISTIC_UNCERTAIN",
+     "normalized_candidate_part_number": "SYN-SSD-ABCD-02",
+     "normalized_requested_part_number": "SYN-SSD-ABCD-01",
+     "primary_relationship_signal": "NEAR_MISS_SUBSTITUTION",
+     "relationship_requirement": "REVIEWED_RELATION_AUTHORITY_REQUIRED",
+     "relationship_signals": [
+      "NEAR_MISS_SUBSTITUTION"
+     ],
+     "substate": "U5_NEAR_MISS_MPN"
+    },
+    "product_evidence": {
+     "has_usable_product_title": true,
+     "matched_facts": []
+    },
+    "target": {
+     "description_raw_text": "Synthetic 3.84TB U.3 NVMe SSD, revision 01",
+     "mpn": "SYN-SSD-ABCD-01",
+     "reviewed_context": null
+    }
+   },
+   "input_shape": "LIVE_SHAPE",
+   "label": {
+    "ambiguity": "UNAMBIGUOUS",
+    "evidence": "The scenario explicitly carries labeled manufacturer relationship authority (MANUFACTURER_RELATION_AUTHORITY), which by construction establishes the 01/02 identifier relation; the frozen prompt names that provenance as stronger evidence and the bounded reason vocabulary includes MATCH_AUTHORIZED_IDENTIFIER_RELATION for exactly this shape. All other attributes align by construction; no conflict is published. (Synthetic: the 'reviewed authority' is a by-construction scenario input, not a real manufacturer document.)",
+    "reviewer": "PRODUCT-INTEL.Q3A.CORPUS-AUTHOR (synthetic by-construction)",
+    "reviewer_status": "REVIEWED",
+    "source": "synthetic by-construction scenario (corpus 1.0.0)",
+    "source_kind": "CONTRACT_GROUNDED"
+   },
+   "primary_signal": "NEAR_MISS_SUBSTITUTION",
+   "substate": "U5_NEAR_MISS_MPN"
+  },
+  {
+   "case_class": "AMBIGUOUS",
+   "case_digest": "e4da95563a18d03bb724e2e2a885a7bef9b39b9b7b45ab8a7e0787411b0c0553",
+   "case_id": "V2Q-SSD-UNPROVEN-FORM-0043",
+   "category": "enterprise_ssd",
+   "challenge_tags": [
+    "insufficient_evidence",
+    "missing_candidate_mpn",
+    "missing_critical_specs"
+   ],
+   "evidence_kind": "SYNTHETIC",
+   "expected": {
+    "acceptable_decisions": [
+     "MATCH",
+     "UNCERTAIN"
+    ],
+    "commercial_sales_unit_safety": false,
+    "conflict_classes": [],
+    "decision": "UNCERTAIN",
+    "disposition": "SEMANTIC_EVALUATION",
+    "expected_reason_code": null,
+    "missing_dimensions": [],
+    "rejection_class": null
+   },
+   "input_payload": {
+    "candidate": {
+     "commercial": {
+      "availability": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "In stock"
+      },
+      "condition": null,
+      "currency": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "USD"
+      },
+      "offer_url": null,
+      "price": {
+       "source": "PUBLISHED_STRUCTURED_FIELD",
+       "value": "100"
+      },
+      "sales_unit": {
+       "kind": null,
+       "quantity": null,
+       "raw_detail": null,
+       "source": null,
+       "state": "UNAVAILABLE"
+      },
+      "seller": null
+     },
+     "evidence_source": "NONE",
+     "mpn_field": null,
+     "product": {
+      "accessory_relation": null,
+      "brand": null,
+      "capacity": null,
+      "form_factor": null,
+      "generation": null,
+      "interface": null,
+      "product_family": null,
+      "product_role": null,
+      "raw_specification_text": null,
+      "raw_title_text": "3.84TB NVMe SSD",
+      "revision_or_suffix": null
+     },
+     "sku": null,
+     "source_url": "https://example.com/v2q-cases/v2q-ssd-unproven-form-0043"
+    },
+    "case_id": "V2Q-SSD-UNPROVEN-FORM-0043",
+    "context_provenance": [],
+    "deterministic_identity_context": {
+     "identity_state": "DETERMINISTIC_UNCERTAIN",
+     "normalized_candidate_part_number": "",
+     "normalized_requested_part_number": "SYN-SSD-3840-U3",
+     "primary_relationship_signal": "NO_RELATION",
+     "relationship_requirement": "NOT_APPLICABLE",
+     "relationship_signals": [
+      "NO_RELATION"
+     ],
+     "substate": "U4_NO_MPN"
+    },
+    "product_evidence": {
+     "has_usable_product_title": true,
+     "matched_facts": []
+    },
+    "target": {
+     "description_raw_text": "3.84TB U.3 NVMe data center SSD",
+     "mpn": "SYN-SSD-3840-U3",
+     "reviewed_context": null
+    }
+   },
+   "input_shape": "LIVE_SHAPE",
+   "label": {
+    "ambiguity": "CONTESTABLE",
+    "evidence": "Capacity and interface align by construction, but the form factor (U.3 vs M.2 vs 2.5-inch) is published nowhere: a hard identity dimension is unproven. Neither equivalence (form factor unverified) nor non-equivalence (no contrary evidence) is established; MATCH and UNCERTAIN are both defensible.",
+    "reviewer": "PRODUCT-INTEL.Q3A.CORPUS-AUTHOR (synthetic by-construction)",
+    "reviewer_status": "REVIEWED",
+    "source": "synthetic by-construction scenario (corpus 1.0.0)",
+    "source_kind": "CONTRACT_GROUNDED"
+   },
+   "primary_signal": "NO_RELATION",
+   "substate": "U4_NO_MPN"
+  }
+ ],
+ "corpus_digest": "2c37ba088c317d8cefc6ad0dd7e0d73cfd085f6474ef43eb6953e3cf0170b549",
+ "corpus_id": "PI-SEMANTIC-V2-QUALIFICATION",
+ "corpus_label": "q3a-independent-v2-qualification",
+ "corpus_schema_version": 1,
+ "corpus_version": "1.0.0",
+ "created_utc": "2026-10-08T00:00:00Z",
+ "label_revisions": [],
+ "semantic_contract_binding": [
+  "V2",
+  "2.0",
+  1,
+  1,
+  "SEMANTIC_AUTHORITY_V2_S2A_FU2"
+ ]
+}

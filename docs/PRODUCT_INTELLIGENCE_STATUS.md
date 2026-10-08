@@ -1,9 +1,534 @@
 # Product Intelligence — Current Status
 
+
+
 ## Current state
 
+
+
+**PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-Q3-A (Semantic Authority V2 —
+
+Qualification V3: Independent Corpus, Harness and Offline Qualification)
+
+— IMPLEMENTED / PENDING FINAL REVIEW**
+
+
+
+Bounded QUALIFICATION-INFRASTRUCTURE phase on the authoritative starting
+
+SHA `cf51a23e31d175cc9e6759d12f97171769db87e5` (S2-C-FU1 endpoint,
+
+now APPROVED / FROZEN per the operator briefing; baseline collection
+
+6575). Canonical spec: PLAN §26.28; decision record: AD-072. Q3-A
+
+builds the independent, deterministic, OFFLINE qualification system for
+
+the exact frozen Semantic V2 contract: a versioned, independently
+
+labeled corpus, a reproducible offline evaluation harness that uses the
+
+REAL frozen V2 input / prompt / parser (no recreation), separate
+
+semantic-accuracy and safety metrics, explicit false-MATCH detection
+
+with deterministic severity, contract / version / provenance
+
+verification, a fail-closed qualification decision, and a reproducible
+
+offline report bound to the exact corpus digest. **No live model
+
+qualification was executed in Q3-A** (no V2 responses exist yet; the
+
+harness evaluates previously captured responses, and the committed
+
+baseline reports are the explicit no-capture state). **No frozen
+
+production artifact changed**: the Semantic V2 prompt, input schema,
+
+output schema, reason codes, eligibility, authority matrix, persistence
+
+adapter, and runtime route are byte-untouched; `V2_AUTHORITY_QUALIFIED
+
+= False` is unchanged; no deployment.
+
+
+
+**Approval record (state transition).** The operator briefing for Q3-A
+
+declares "S2-C APPROVED / FROZEN". The committed STATUS at the starting
+
+SHA still carried S2-C / S2-C-FU1 as PENDING FINAL REVIEW (the approval
+
+had not yet been recorded in-repo). Following the project's established
+
+transition pattern (S2-A-FU2's approval was recorded by the S2-B
+
+commit), this commit records the approval: the S2-C and S2-C-FU1
+
+sections below are flipped to APPROVED / FROZEN, and the frozen
+
+Semantic V2 contract that Qualification V3 qualifies against is the
+
+corrected S2-C-FU1 contract with binding exactly
+
+`("V2", "2.0", 1, 1, "SEMANTIC_AUTHORITY_V2_S2A_FU2")` and prompt
+
+`2.0` (the pre-freeze 2.0 text, never shipped).
+
+
+
+**The corpus (versioned, digest-sealed, independently labeled).** NEW
+
+`evaluation/semantic_v2_qualification/` (data, outside the Python
+
+package): `corpus_v1.json` — 56 cases (43 semantic: 36 AUTHORITATIVE +
+
+7 AMBIGUOUS; 13 CONTRACT_NEGATIVE) across 5 product categories
+
+(enterprise_ssd 45, server_memory 4, processor 2, network_adapter 3,
+
+workstation_gpu 2); covers all seven frozen S2-A uncertain
+
+state/substate combinations (U1, U2 both signals, U3, U4, U5 NM-1,
+
+U5 NM-2) and every mandated adversarial shape (exact product in
+
+different legitimate wording; title-MPN only; compatibility/reference
+
+wording; different generation/capacity/interface/form factor;
+
+accessory vs product; standalone vs bundle; single vs multi-pack;
+
+tray vs retail; missing candidate MPN; different SKU for the same
+
+product; SKU accidentally matching the requested MPN; one-character
+
+MPN difference; truncated MPN; different brand; condition-only
+
+difference; missing critical specs; customer retrieval alias;
+
+manufacturer product context without relation authority; explicit
+
+reviewed relation authority; contradictory listing evidence;
+
+misleading SEO; insufficient evidence). The motivating Micron case
+
+(target `MTFDKCC3T8TGP-1BK1DABYYR` vs candidate
+
+`MTFDKCC3T8TGP-1BK1DABYY`) is present
+
+(`V2Q-SSD-U5NM1-MICRON-0018`, RECORDED_FIXTURE): the truncated form is
+
+the exact recorded-catalog part ("7500 4TB U.3 SSD"), the R/T family
+
+relation is the recorded CUSTOMER-DEFINED 4D-D rule (no manufacturer
+
+document states what R denotes), so physical-product family membership
+
+is grounded while commercial sales-unit comparability is UNPROVEN —
+
+the independent expected decision is **UNCERTAIN** with
+
+PACKAGING_QUANTITY missing, flagged `commercial_sales_unit_safety`
+
+(a false MATCH is CRITICAL). The pair is NOT labeled equivalent merely
+
+because it shares a base identifier. Ground truth: every case carries
+
+source kind (CONTRACT_GROUNDED / PRODUCT_KNOWLEDGE_GROUNDED /
+
+REVIEWED_SOURCE_GROUNDED), explicit source citation, the independent
+
+evidence, reviewer identity + status, and ambiguity classification;
+
+the loader mechanically rejects label text naming model output or a
+
+candidate model; synthetic cases are labeled SYNTHETIC and never
+
+real-market evidence; `REAL_MARKET` is reserved (corpus 1.0.0 ships
+
+none — the loader rejects it); the recorded-fixture cases cite the
+
+recorded 4D-D Micron 7500 catalog (body digest
+
+`160d4fe9...00743`) and the recorded project-UAT V1 semantic corpus.
+
+
+
+**Corpus integrity (frozen, digest-bound).** Canonical serialization
+
+(sorted keys, compact, ASCII, no floats) + SHA-256: per-case
+
+`case_digest` and whole-state `corpus_digest` (v1.0.0: corpus
+
+`2c37ba08...0b549`, manifest `aa870660...2e9`). The auditable source is
+
+`product_intelligence/evaluation/semantic_v2/fixtures.py` (declarative
+
+cases that run the EXACT frozen chain: request -> observation -> 3B
+
+normalization -> 3C assessment -> S2-A derivation -> S2-C input
+
+builder / real `SemanticMatchCaseV2` constructor); a self-check fails
+
+generation if a fixture lands in a different deterministic state than
+
+declared; regeneration must reproduce the committed corpus
+
+byte-for-byte (proven by test). A label change must change the digest
+
+and create a bounded `label_revisions` entry (reason class A/B/C/D —
+
+"the new implementation failed this case" is not a valid class);
+
+reports verify against the corpus digest and per-case label snapshots,
+
+so a historical report stays bound to its original corpus and fails
+
+against a mutated one. Reproducible `manifest_v1.json` per case.
+
+
+
+**Offline harness (NEW `product_intelligence/evaluation/semantic_v2/`).**
+
+* `fixtures.py` — corpus source (frozen chain); * `corpus.py` — strict
+
+loader / typed case reconstruction / bounded rejection classes
+
+(NON_UNCERTAIN_STATE / INVALID_INPUT_SCHEMA /
+
+FOREIGN_DETERMINISTIC_CONTEXT / UNSUPPORTED_EVIDENCE) / digest /
+
+manifest; * `capture.py` — the captured-response artifact contract for
+
+the later live phase (schema v1; binds to the exact corpus digest, the
+
+frozen prompt `2.0`, the semantic contract `V2`; attempts mirror the
+
+frozen runtime discipline — PRIMARY first, fallback on execution
+
+failure only with the frozen reason mapping, raw output only for OK
+
+attempts; a record for a contract-negative case is a schema-bypass
+
+attack); a capture records ONE RUN and is projected per model; *
+
+`evaluator.py` — deterministic zero-network zero-AI evaluation using
+
+the PRODUCTION V2 parser (`parse_semantic_response_v2` +
+
+`validate_semantic_response_v2`; no recreation) and the REAL
+
+`SemanticMatchCaseV2` constructor: per-case states EVALUATED /
+
+NOT_CAPTURED / NOT_INVOKED / RUNTIME_FAILURE /
+
+CAPTURE_INTEGRITY_FAILURE / CONTRACT_REJECTED_OK / CONTRACT_VIOLATION;
+
+the primary and fallback are qualified INDEPENDENTLY (a primary view
+
+counts a fallback-answered case as its own execution failure; a
+
+fallback view counts a primary-answered case as not invoked — a
+
+primary PASS never qualifies the fallback); an invalid captured
+
+response is a bounded failure, never substituted with the expected
+
+answer; model confidence never overrides the label (severity comes
+
+from the label's conflict classes / flags: CRITICAL = false MATCH on
+
+an independently established ALWAYS_HARD conflict or commercial
+
+sales-unit safety; HIGH = other false MATCH; MEDIUM = false NO_MATCH
+
+on expected MATCH; REVIEW = abstention on definite / outside the
+
+ambiguous defensible set); * `gates.py` — the eight MANDATORY hard
+
+safety gates (zero false MATCH on ALWAYS_HARD / packaging / accessory
+
+conflicts; zero schema-bypass acceptance; zero unauthorized authority
+
+promotion; zero customer-alias promotion; zero contract-version
+
+mismatch; zero missing-required-evaluation-silent-pass) + the
+
+fail-closed decision (NOT_QUALIFIED > POLICY_PENDING >
+
+INCOMPLETE_COVERAGE > BELOW_THRESHOLD / THRESHOLD_INDETERMINATE >
+
+QUALIFIED); * `policy.py` + `policy/qualification_policy_draft_1.json`
+
+— the DRAFT threshold proposal (match precision >= 0.99, recall >=
+
+0.90, valid response rate >= 0.99, eligible coverage >= 1.0) marked
+
+DRAFT / unapproved: NOT finalized production thresholds; without an
+
+approved policy the decision is POLICY_PENDING, never QUALIFIED; *
+
+`report.py` — the reproducible offline report (machine JSON + human
+
+Markdown) bound to the exact corpus digest, the frozen contract
+
+binding, the REAL system prompt by digest, the runtime configuration
+
+identity (pinned routes, temperature 0.0, max_tokens 32768, the
+
+`V2_AUTHORITY_QUALIFIED` marker), and the capture provenance; the
+
+report grants no authority and no decision token grants one; *
+
+`cli.py` — offline commands (corpus-build / corpus-digest /
+
+corpus-manifest / evaluate / verify-report), no network, no AI.
+
+Committed baseline: `reports/q3a_baseline/` — the explicit no-capture
+
+reports for BOTH pinned route candidates (43/43 eligible NOT_CAPTURED,
+
+13/13 contract-negative rejected as expected, all gates pass,
+
+decision POLICY_PENDING; reproducible byte-for-byte by test).
+
+
+
+**Architecture boundary (explicit, documented).** The Q3-A harness must
+
+use the real frozen research/semantic surface, so the A1-FU2
+
+evaluation->research exact-allowlist mechanism is extended by EXACTLY
+
+SIX named files (`corpus.py`, `fixtures.py`, `capture.py`,
+
+`evaluator.py`, `gates.py`, `report.py` — `canonical.py`, `policy.py`,
+
+`cli.py`, `__init__.py` stay research-independent). The A1-FU2 entry
+
+remains exactly one file; the mechanism tests are preserved and a new
+
+exact-allowlist mechanism test locks the Q3-A set (no prefix/glob/
+
+regex). Recorded in the test docstrings, PLAN §26.28 item 9, and
+
+AD-072.
+
+
+
+**Tests.** New: 132 nodes across 5 files (`tests/evaluation/
+
+semantic_v2/`): corpus schema validation; independent label provenance
+
+(incl. the mechanical model-output-naming rejection and the
+
+corpus-never-reads-captures proof); synthetic vs real evidence
+
+classification; corpus digest stability + regeneration byte-identity;
+
+label mutation changes digest (incl. the sealed-revision path);
+
+duplicate case id; unknown corpus version; unknown semantic contract;
+
+prompt version mismatch; production prompt fidelity (real digest, no
+
+prompt copy in the harness); production parser fidelity (sentinel-proof
+
+that the classifier composes the real parser); valid MATCH /
+
+NO_MATCH / UNCERTAIN evaluation; invalid JSON; unknown response field;
+
+unknown conflict class; incoherent reason/conflict pair; missing model
+
+response; runtime failure (incl. both model views of a failed
+
+fallback); false-MATCH detection (hard-conflict / packaging / accessory
+
+/ near-miss / sales-unit-safety, with case-id examples); ambiguous
+
+exclusion from hard accuracy; zero-denominator metrics reported
+
+unavailable (never 100%); independent primary/fallback qualification
+
+(a primary PASS on one run leaves the fallback INCOMPLETE — no data
+
+crossing); incomplete coverage cannot PASS; policy-pending cannot
+
+PASS; safety failure cannot be masked by high aggregate accuracy; no
+
+network in offline replay (socket blocked); no AI calls in offline
+
+replay (transport never imported, runtime construction refused);
+
+no authority promotion (marker False, report grants nothing, alias
+
+promotion flagged, no pricing/review surface imported); historical
+
+results retain exact corpus/contract identity (reproducible digest,
+
+verify-against-corpus, mutation detection, capture cannot follow a
+
+corpus revision, committed baselines verify). Anti-manipulation:
+
+changing expectations to fit model output is detectable (digest change
+
++ historical report stops verifying + capture cannot follow the
+
+revision) and an unsealed label edit is rejected on load.
+
+Corrected in place (requirement correction, safety preserved):
+
+`test_only_promotion_regression_may_wire_research` (the count pin now
+
+spans both exact allowlists; the A1-FU2 one-file pin is preserved;
+
+the no-heavy-imports property applies to all excepted files); the
+
+`test_no_outer_layer...` docstring (Q3-A extension recorded). No test
+
+deleted/renamed/skipped/xfail/deselected/ignored; no file decreased;
+
+the known Windows/Python-3.14 subprocess flake allowlist NOT expanded.
+
+Collection 6575 -> 6748 (+173 = 132 new-file nodes + 40 auto-expanded
+
+parameterized scans for the 10 new evaluation files [vendor-token +10,
+
+stdlib-imports +10, no-outer-layer +10, providers INNER_ROOTS +10] + 1
+
+new exact-allowlist mechanism node; no file decreased).
+
+
+
+**Validation (this session, candidate pass — final approval remains
+
+with independent review).**
+
+
+
+* Collection baseline at `cf51a23`: **6575**; final: **6748** (+173 as
+
+  accounted above).
+
+* Focused Q3-A (`tests/evaluation/semantic_v2/`): **132 passed, 0
+
+  failed**.
+
+* Focused boundaries (`tests/evaluation/test_evaluation_boundaries.py`
+
+  + `tests/research/test_research_identity_boundaries.py`): **161
+
+  passed, 0 failed** (one allowlisted clean-interpreter subprocess
+
+  guard flaked once with the recorded `WinError 6` Popen signature
+
+  before any project code runs and re-passed on isolated retry).
+
+* Focused S2-A + S2-C + FU1 (authority contract, V2 contract, input
+
+  evidence, V2 adapter, V2 boundaries, prompt, runtime): **all passed,
+
+  0 failed**.
+
+* Focused S2-B + FU1 (record, codec, replay, boundaries, runs,
+
+  persistence service): **all passed, 0 failed**.
+
+* Focused semantic runtime / V2 execution wiring / motivating case /
+
+  semantic integration / 2A / 3C / 4A / human review: **all passed, 0
+
+  failed**.
+
+* Full suite: **6748 collected; 6747 passed, 1 failed** — the single
+
+  failure is `tests/domain/test_domain_boundaries.py::test_domain_
+
+  imports_without_django_network_or_llm_dependencies`, a clean-
+
+  interpreter subprocess guard (an area Q3-A does not touch) with the
+
+  recorded `subprocess.run(capture_output=True) -> Popen ->
+
+  _get_handles -> _make_inheritable -> OSError: [WinError 6]`
+
+  signature before any project code runs (load-sensitive; the same
+
+  class failed once more, in an allowlisted member, during the focused
+
+  boundary batch and re-passed); it **re-passed on isolated retry**
+
+  (exit 0). The known flake allowlist was NOT expanded; no non-flake
+
+  node failed. (Earlier in the session, a full-suite run additionally
+
+  showed 3 `tests/semantic/test_contract_sharing.py` failures —
+
+  diagnosed and fixed in-session: a Q3-A test had popped the live
+
+  transport module from `sys.modules`, breaking a module-identity pin
+
+  in later tests; the test no longer disturbs global module state, and
+
+  the full run above is clean apart from the one subprocess flake.)
+
+* `python manage.py check`: System check identified no issues (0
+
+  silenced).
+
+* `python manage.py makemigrations --check --dry-run`: No changes
+
+  detected (no model change; the harness is evaluation infrastructure
+
+  only).
+
+* `python manage.py migrate --plan`: unchanged (final entry
+
+  `runs.0012_semantic_decision_record`).
+
+* `git diff --check`: clean (see commit message for the diff
+
+  summary).
+
+
+
+No deployment performed in this commit; the Q3-A artifacts are
+
+evaluation infrastructure and a DRAFT policy. The V2 route remains
+
+`V2_AUTHORITY_QUALIFIED = False`; qualification (live capture under
+
+the exact frozen prompt, then offline evaluation, then an APPROVED
+
+policy) is future work — Q3-A explicitly does NOT execute live model
+
+qualification and does NOT claim any qualification or approval.
+
+
+
 **PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-S2-C-FU1 (Semantic Authority V2 —
-Input Evidence Fidelity) — IMPLEMENTED / PENDING FINAL REVIEW**
+
+Input Evidence Fidelity) — IMPLEMENTED / APPROVED / FROZEN**
+
+
+
+Approval recorded at the start of Q3-A (operator briefing: "S2-C
+
+APPROVED / FROZEN"); the corrected pre-freeze candidate is the frozen
+
+Semantic V2 contract Qualification V3 qualifies against: binding
+
+`("V2", "2.0", 1, 1, "SEMANTIC_AUTHORITY_V2_S2A_FU2")`, prompt `2.0`
+
+(the corrected text; 2.0 never shipped). The S2-C-FU1 MUST-NOT-deploy
+
+restriction remains in force until an explicitly reviewed deployment
+
+phase.
+
+
 
 Bounded INPUT-EVIDENCE corrective follow-up on the pending S2-C
 candidate (canonical spec: PLAN §26.27; decision record: AD-071, amending
@@ -227,11 +752,13 @@ MUST NOT deploy. Qualification V3 is NOT started.
 
 **PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-S2-C (Semantic Authority V2 —
 Final Semantic V2 Contract + Eligibility + Execution Wiring) —
-IMPLEMENTED / AMENDED IN PART BY S2-C-FU1 (PENDING FINAL REVIEW)**
+IMPLEMENTED / APPROVED / FROZEN (AMENDED IN PART BY S2-C-FU1; approval
+recorded at the start of Q3-A)**
 
 **PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-S2-C (Semantic Authority V2 —
 Final Semantic V2 Contract + Eligibility + Execution Wiring) —
-IMPLEMENTED / AMENDED IN PART BY S2-C-FU1 (PENDING FINAL REVIEW)**
+IMPLEMENTED / APPROVED / FROZEN (AMENDED IN PART BY S2-C-FU1; approval
+recorded at the start of Q3-A)**
 
 Bounded FINAL-CONTRACT + WIRING phase on the authoritative starting SHA
 `c6caa23c024e48962191a0c856230b684fb21c3c` (S2-B-FU1, PENDING FINAL

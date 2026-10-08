@@ -70,6 +70,42 @@ PROMOTION_REGRESSION_RESEARCH_EXCEPTION = frozenset(
     }
 )
 
+# Q3-A reviewer-authorized evaluation->research exception (least
+# privilege, exact-allowlist mechanism preserved).
+#
+# The offline Semantic V2 qualification harness must use the REAL frozen
+# V2 input contract, prompt rendering, and output parser (never a
+# recreated approximation) and the REAL frozen contract identity / route
+# pins, so the architecture reviewer authorized exactly the harness
+# modules that require the dependency: corpus (typed case
+# reconstruction + contract identity), fixtures (the corpus source runs
+# the frozen chain), capture (the pinned route / prompt / contract
+# binding), evaluator (the production parser composition + case
+# reconstruction), gates (the frozen contract binding constant), and
+# report (the contract / prompt / runtime identity digests). Every other
+# harness module (canonical, policy, cli, __init__) remains
+# research-independent, and any future harness file that needs a direct
+# research dependency requires a NEW explicit architecture-review
+# decision recorded here (no prefix/glob/regex match). Documented in
+# PLAN 26.28 (item 9) and the Q3-A STATUS section.
+QUALIFICATION_V2_RESEARCH_EXCEPTION = frozenset(
+    {
+        "product_intelligence/evaluation/semantic_v2/corpus.py",
+        "product_intelligence/evaluation/semantic_v2/fixtures.py",
+        "product_intelligence/evaluation/semantic_v2/capture.py",
+        "product_intelligence/evaluation/semantic_v2/evaluator.py",
+        "product_intelligence/evaluation/semantic_v2/gates.py",
+        "product_intelligence/evaluation/semantic_v2/report.py",
+    }
+)
+
+
+#: The union of the two explicit reviewer-authorized exceptions.
+AUTHORIZED_RESEARCH_IMPORTERS = frozenset(
+    PROMOTION_REGRESSION_RESEARCH_EXCEPTION
+    | QUALIFICATION_V2_RESEARCH_EXCEPTION
+)
+
 
 def _repo_relative_posix(path: Path) -> str | None:
     """Repository-relative POSIX path, or None if not inside the repo."""
@@ -80,14 +116,16 @@ def _repo_relative_posix(path: Path) -> str | None:
 
 
 def _is_authorized_research_importer(path: Path) -> bool:
-    """True ONLY for the exact allowlisted file above.
+    """True ONLY for the exact allowlisted files (A1-FU2 promotion
+    regression + Q3-A qualification harness).
 
     promotion_regression_extra.py, promotion_regression_hack.py, a
-    promotion_regression.py in any other directory, or any file outside
-    the repository are all outside the exception.
+    promotion_regression.py in any other directory, any other
+    semantic_v2 harness file, or any file outside the repository are all
+    outside the exceptions.
     """
     rel = _repo_relative_posix(path)
-    return rel is not None and rel in PROMOTION_REGRESSION_RESEARCH_EXCEPTION
+    return rel is not None and rel in AUTHORIZED_RESEARCH_IMPORTERS
 
 
 def _imported_modules(path: Path) -> set[str]:
@@ -285,6 +323,16 @@ def test_no_outer_layer_is_wired_to_the_identity_primitive_yet(root: Path) -> No
     including future ``promotion_regression_*`` names, is outside the
     exception. The mechanism is locked by
     ``test_promotion_regression_exception_is_an_exact_allowlist``.
+
+    Q3-A REVIEWER-AUTHORIZED EXACT-ALLOWLIST EXTENSION: the offline
+    Semantic V2 qualification harness must use the REAL frozen V2
+    input contract / prompt / parser / contract identity, so exactly
+    the six named modules in ``QUALIFICATION_V2_RESEARCH_EXCEPTION``
+    are additionally authorized (the same least-privilege mechanism:
+    exact paths, no prefix/glob/regex; every other harness module stays
+    research-independent; locked by
+    ``test_qualification_v2_exception_is_an_exact_allowlist``; PLAN
+    26.28 item 9).
     """
     for path in _python_files(root):
         if _is_authorized_research_importer(path):
@@ -337,19 +385,27 @@ def test_only_promotion_regression_may_wire_research() -> None:
                 if module.startswith("product_intelligence.research")
             )
             assert not offending, (
-                f"{path} imports {offending}; the A1-FU2 exception covers "
-                "ONLY the one allowlisted promotion-regression module"
+                f"{path} imports {offending}; the reviewer-authorized "
+                "exceptions cover ONLY the exact A1-FU2 promotion-"
+                "regression file and the exact Q3-A qualification "
+                "modules - any other file requires a new explicit "
+                "reviewer decision"
             )
     assert len(PROMOTION_REGRESSION_RESEARCH_EXCEPTION) == 1, (
         "the A1-FU2 least-privilege contract authorizes EXACTLY ONE "
         "evaluation file to import research; any other entry requires a "
         "new explicit reviewer decision"
     )
-    assert exception_count == len(PROMOTION_REGRESSION_RESEARCH_EXCEPTION), (
-        f"expected exactly the {len(PROMOTION_REGRESSION_RESEARCH_EXCEPTION)} "
-        "allowlisted promotion-regression file under evaluation/, found "
-        f"{exception_count}; the allowlist must be updated through an "
-        "explicit reviewer decision, never implicitly"
+    assert len(QUALIFICATION_V2_RESEARCH_EXCEPTION) == 6, (
+        "the Q3-A least-privilege contract authorizes EXACTLY the six "
+        "named qualification harness modules; any other entry requires "
+        "a new explicit reviewer decision"
+    )
+    assert exception_count == len(AUTHORIZED_RESEARCH_IMPORTERS), (
+        f"expected exactly the {len(AUTHORIZED_RESEARCH_IMPORTERS)} "
+        "allowlisted evaluation files (1 A1-FU2 + 6 Q3-A) under "
+        f"evaluation/, found {exception_count}; the allowlists must be "
+        "updated through an explicit reviewer decision, never implicitly"
     )
 
 
@@ -377,8 +433,9 @@ def test_promotion_regression_exception_is_an_exact_allowlist() -> None:
        directory, in any other directory, or outside the repository —
        are NOT covered (no prefix/glob/regex matching);
     E. every real evaluation file importing product_intelligence.
-       research belongs to the exact one-file allowlist (today: the
-       harness only).
+       research belongs to the exact union allowlist (today: the A1-FU2
+       harness + the Q3-A qualification modules named in
+       QUALIFICATION_V2_RESEARCH_EXCEPTION).
     """
     evaluation_root = PACKAGE_ROOT / "evaluation"
     semantic = evaluation_root / "semantic"
@@ -434,9 +491,10 @@ def test_promotion_regression_exception_is_an_exact_allowlist() -> None:
         assert not _is_authorized_research_importer(path), path
 
     # E. Any evaluation file that imports research must be on the exact
-    # allowlist: today that is the harness only, and every unrelated
-    # evaluation module (runner, cli, comparison, evaluator, loader, ...)
-    # is outside the exception.
+    # allowlist: today that is the A1-FU2 harness plus the Q3-A
+    # qualification modules, and every unrelated evaluation module
+    # (runner, cli, comparison, evaluator, loader, ...) is outside the
+    # exception.
     for path in _python_files(evaluation_root):
         if any(
             module.startswith("product_intelligence.research")
@@ -445,6 +503,70 @@ def test_promotion_regression_exception_is_an_exact_allowlist() -> None:
             assert _is_authorized_research_importer(path), path
     for name in ("runner.py", "cli.py", "comparison.py", "evaluator.py", "loader.py"):
         assert not _is_authorized_research_importer(semantic / name), name
+
+
+def test_qualification_v2_exception_is_an_exact_allowlist() -> None:
+    """Q3-A: the reviewer-authorized qualification exception is EXACTLY
+    the six named harness modules and cannot expand implicitly.
+
+    Mechanically demonstrates, against the boundary predicate itself:
+
+    A. every allowlisted file exists and currently imports
+       product_intelligence.research (the exception is load-bearing);
+    B. the other harness modules (canonical, policy, cli, __init__) are
+       NOT authorized and do not import research (least privilege);
+    C. arbitrary other semantic_v2 names, other directories, and files
+       outside the repository are NOT covered (no prefix/glob/regex);
+    D. the union allowlist is exactly the two reviewer-authorized sets
+       (the A1-FU2 harness stays EXACTLY ONE file - that decision is
+       unchanged).
+    """
+    q_root = PACKAGE_ROOT / "evaluation" / "semantic_v2"
+    for rel in sorted(QUALIFICATION_V2_RESEARCH_EXCEPTION):
+        path = REPO_ROOT / rel
+        assert path.is_file(), rel
+        assert _is_authorized_research_importer(path)
+        assert any(
+            module.startswith("product_intelligence.research")
+            for module in _imported_modules(path)
+        ), f"{rel} is allowlisted but no longer imports research"
+
+    for name in ("canonical.py", "policy.py", "cli.py", "__init__.py"):
+        path = q_root / name
+        assert not _is_authorized_research_importer(path)
+        assert not any(
+            module.startswith("product_intelligence.research")
+            for module in _imported_modules(path)
+        ), f"{name} imports research without an explicit exception"
+
+    not_covered = [
+        q_root / name
+        for name in (
+            "corpus_extra.py",
+            "fixtures_hack.py",
+            "evaluator_temp.py",
+            "harness.py",
+            "report_backup.py",
+        )
+    ]
+    not_covered += [
+        PACKAGE_ROOT / "evaluation" / "semantic_v2_nested" / "corpus.py",
+        PACKAGE_ROOT / "evaluation" / "corpus.py",
+        REPO_ROOT / "elsewhere" / "corpus.py",
+    ]
+    for path in not_covered:
+        assert not _is_authorized_research_importer(path), path
+
+    assert len(PROMOTION_REGRESSION_RESEARCH_EXCEPTION) == 1
+    assert len(QUALIFICATION_V2_RESEARCH_EXCEPTION) == 6
+    assert AUTHORIZED_RESEARCH_IMPORTERS == (
+        PROMOTION_REGRESSION_RESEARCH_EXCEPTION
+        | QUALIFICATION_V2_RESEARCH_EXCEPTION
+    )
+    # The promotion-regression exception is untouched by Q3-A.
+    assert PROMOTION_REGRESSION_RESEARCH_EXCEPTION == {
+        "product_intelligence/evaluation/semantic/promotion_regression.py"
+    }
 
 
 def test_the_identity_primitive_adds_no_model_and_no_migration() -> None:
