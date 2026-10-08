@@ -63,6 +63,7 @@ def _case(
     provenances=NO_CTX,
     req_mpn="ABC-123",
     description="A test product",
+    reviewed_target_context=None,
 ):
     request = ResearchRequest(req_mpn, description)
     observation = ListingObservation(
@@ -93,6 +94,7 @@ def _case(
         context=context,
         product_evidence=profile,
         context_provenances=provenances,
+        reviewed_target_context=reviewed_target_context,
     )
 
 
@@ -299,20 +301,52 @@ class TestUserPromptRendering:
         assert "PRODUCT EVIDENCE" in prompt
 
     def test_target_section(self) -> None:
+        # S2-C-FU1 (rendering correction): the target section makes the
+        # evidence class explicit — the MPN is STRUCTURED, the description
+        # is RAW observation text, and the reviewed manufacturer target
+        # context is explicit when carried (absent = labeled, not hidden).
         prompt = render_v2_user_prompt(_case(title="Has ABC-123 in the title"))
-        assert "- Requested manufacturer part number (MPN): ABC-123" in prompt
-        assert "- Requested description: A test product" in prompt
+        assert (
+            "- Requested MPN (STRUCTURED; caller-published; the run's "
+            "identity anchor): ABC-123"
+        ) in prompt
+        assert (
+            "- Requested description (RAW OBSERVATION TEXT; may support "
+            "reasoning; not a reviewed specification): A test product"
+        ) in prompt
+        assert (
+            "- Reviewed manufacturer target context: "
+            "(none carried by the execution flow)"
+        ) in prompt
 
     def test_candidate_section_with_absent_facts_explicit(self) -> None:
+        # S2-C-FU1 (rendering correction): the candidate section renders
+        # the bounded structured facts (each with its source label or the
+        # explicit absence), the RAW observation text under its raw-text
+        # label, and the commercial / packaging evidence with the explicit
+        # sales-unit state — the pre-FU1 free-text 'Structured listing
+        # evidence' and composed 'Price: 100 USD' blobs are gone.
         prompt = render_v2_user_prompt(_case(title="Has ABC-123 in the title"))
         assert "- Source URL: https://example.com/product" in prompt
-        assert "- Title: Has ABC-123 in the title" in prompt
         assert "- Published MPN field: (not published)" in prompt
         assert "- Published SKU: (not published)" in prompt
         assert "- Candidate evidence source: TITLE_TEXT" in prompt
-        # Price/package observations are context, explicitly labeled.
-        assert "Price: 100 USD" in prompt
+        # Structured product evidence: every dimension explicit.
+        assert "- product_family: (none)" in prompt
+        assert "- capacity: (none)" in prompt
+        assert "- interface: (none)" in prompt
+        assert "- brand: (none)" in prompt
+        # The published title is RAW observation text, not a fact.
+        assert '- Listing title: "Has ABC-123 in the title"' in prompt
+        assert "NOT structured evidence" in prompt
+        # Commercial facts are bounded with source labels; NEVER identity.
+        assert '- price: "100" [published structured field]' in prompt
+        assert '- currency: "USD" [published structured field]' in prompt
+        assert '- condition: "New" [published structured field]' in prompt
         assert "NEVER identity evidence" in prompt
+        # The packaging channel is explicit: UNAVAILABLE (the extractor
+        # publishes no packaging field; nothing inferred from price).
+        assert "- Sales unit / packaging: UNAVAILABLE" in prompt
 
     def test_deterministic_context_section(self) -> None:
         prompt = render_v2_user_prompt(_case(title="Has ABC-123 in the title"))
@@ -382,4 +416,126 @@ class TestUserPromptRendering:
     def test_absent_description_renders_explicitly(self) -> None:
         case = _case(description="")
         prompt = render_v2_user_prompt(case)
-        assert "- Requested description: (not provided)" in prompt
+        assert (
+            "- Requested description (RAW OBSERVATION TEXT; may support "
+            "reasoning; not a reviewed specification): (not provided)"
+        ) in prompt
+
+
+# ===========================================================================
+# S2-C-FU1: evidence classes in the prompt (structured vs raw vs commercial
+# vs reviewed-target vs authority-side)
+# ===========================================================================
+
+
+def _reviewed_target_context():
+    from product_intelligence.research import (
+        ReviewedTargetContextV2,
+        TargetIdentifierRelationKindV2,
+    )
+
+    return ReviewedTargetContextV2(
+        manufacturer="Micron",
+        category="SSD",
+        matched_base_part_number="MTFDKCC3T8TGP-1BK1DABYY",
+        relation_kind=TargetIdentifierRelationKindV2.CUSTOMER_RETRIEVAL_ALIAS,
+        relation_family_part_numbers=(
+            "MTFDKCC3T8TGP-1BK1DABYY",
+            "MTFDKCC3T8TGP-1BK1DABYYT",
+        ),
+        source_name="Micron 7500 SSD catalog",
+        source_url="https://www.micron.com/catalog",
+        retrieved_at="2026-02-10T12:00:00Z",
+        evidence_body_sha256="ab" * 32,
+    )
+
+
+class TestEvidenceClasses:
+    def test_system_prompt_defines_the_evidence_classes(self) -> None:
+        assert "EVIDENCE CLASSES" in SYSTEM_PROMPT_V2
+        assert "STRUCTURED FACT" in SYSTEM_PROMPT_V2
+        assert "RAW OBSERVATION TEXT" in SYSTEM_PROMPT_V2
+        assert "COMMERCIAL / PACKAGING EVIDENCE" in SYSTEM_PROMPT_V2
+        assert "REVIEWED TARGET CONTEXT" in SYSTEM_PROMPT_V2
+        assert "AUTHORITY-SIDE PRODUCT EVIDENCE" in SYSTEM_PROMPT_V2
+
+    def test_absence_of_packaging_is_not_proof_of_equal_sales_unit(self) -> None:
+        assert (
+            "Absence of packaging evidence is NOT proof of equal sales unit"
+            in SYSTEM_PROMPT_V2
+        )
+        assert "do not infer a packaging value from price" in SYSTEM_PROMPT_V2
+
+    def test_raw_text_may_reason_but_never_manufacturer_authority(self) -> None:
+        assert (
+            "a token occurring in raw text is NOT a structured fact"
+            in SYSTEM_PROMPT_V2
+        )
+        assert "raw text NEVER becomes manufacturer authority" in SYSTEM_PROMPT_V2
+
+    def test_absence_of_structured_fact_does_not_erase_raw_evidence(self) -> None:
+        assert (
+            "Absence of a structured fact does not erase the raw observation "
+            "evidence"
+        ) in SYSTEM_PROMPT_V2
+
+    def test_never_manufacture_a_missing_fact(self) -> None:
+        assert "NEVER MANUFACTURE A MISSING FACT" in SYSTEM_PROMPT_V2
+        assert (
+            "if a critical attribute is absent from ALL supplied evidence, "
+            "name it in missing_critical_attributes"
+        ) in SYSTEM_PROMPT_V2
+
+    def test_uncertain_missing_critical_when_sales_unit_unproven(self) -> None:
+        assert "sales-unit equivalence is UNPROVEN" in SYSTEM_PROMPT_V2
+        assert "UNCERTAIN_MISSING_CRITICAL_ATTRIBUTES" in SYSTEM_PROMPT_V2
+
+    def test_reviewed_target_context_renders_labeled_and_zero_authority(self) -> None:
+        prompt = render_v2_user_prompt(
+            _case(
+                title="Has ABC-123 in the title",
+                reviewed_target_context=_reviewed_target_context(),
+            )
+        )
+        assert (
+            "- Reviewed manufacturer target context (STRUCTURED/REVIEWED; "
+            "target-side only; zero identity authority):"
+        ) in prompt
+        assert "  - Manufacturer: Micron" in prompt
+        assert "  - Verified category: SSD" in prompt
+        assert (
+            "  - Matched base part number (source-published): "
+            "MTFDKCC3T8TGP-1BK1DABYY"
+        ) in prompt
+        assert "CUSTOMER_RETRIEVAL_ALIAS" in prompt
+        assert "customer-defined retrieval relation" in prompt
+        assert "NOT manufacturer-stated" in prompt
+        assert "zero identity authority" in prompt
+        assert "  - Source: Micron 7500 SSD catalog" in prompt
+        assert "  - Evidence body SHA-256: " + "ab" * 32 in prompt
+
+    def test_structured_facts_render_with_their_source_label(self) -> None:
+        # A published brand field renders as a bounded fact with its
+        # provenance label; raw title text renders under the raw label.
+        case = _case(title="Has ABC-123 in the title")
+        from dataclasses import replace
+
+        from product_intelligence.research import (
+            CandidateEvidenceSourceV2,
+            CandidateObservationFactV2,
+        )
+
+        branded = replace(
+            case,
+            candidate_product=replace(
+                case.candidate_product,
+                brand=CandidateObservationFactV2(
+                    value="Micron",
+                    source=CandidateEvidenceSourceV2.PUBLISHED_STRUCTURED_FIELD,
+                ),
+            ),
+        )
+        prompt = render_v2_user_prompt(branded)
+        assert "- brand: \"Micron\" [published structured field]" in prompt
+        # The raw title is NOT duplicated as a structured fact.
+        assert "- capacity: (none)" in prompt

@@ -45,6 +45,24 @@ identity-dimension equality for listing candidates (documented
 limitation; no fabricated facts; candidates remain at most LIMITED /
 WEAK under the frozen S2-A bar).
 
+Candidate observation evidence in the live path (S2-C-FU1): the bounded
+evidence builders read ONLY the page-published structured fields the 3A
+extractor actually carries (brand, the commercial fields). The published
+title is RAW observation text — no title token is parsed into a
+structured fact. The sales-unit / packaging channel is the explicit
+UNAVAILABLE state (the extractor publishes no packaging field; nothing is
+inferred from price).
+
+Reviewed target context in the live path (S2-C-FU1): when the run's 4D-D
+alias acquisition is ESTABLISHED, its re-verified reviewed fields
+(manufacturer, verified category, exact source-published base MPN,
+customer-retrieval relation, bounded fetch provenance) are carried in
+section A of every recorded V2 input as STRUCTURED/REVIEWED target-side
+observation evidence — zero identity authority (the relation kind is
+bounded to customer retrieval), never a candidate-side evidence source,
+and it grounds no authority fact. Non-ESTABLISHED acquisitions carry none
+(explicit absence).
+
 Execution evidence: V2 writes no ``ExecutionEvidenceRecord`` rows and
 adds no new ``ExecutionDetailCode`` vocabulary. The semantic-decision
 LEDGER record (per-attempt bounded provenance, failure class, fallback
@@ -57,6 +75,7 @@ from __future__ import annotations
 import hashlib
 import logging
 from dataclasses import dataclass
+from datetime import timezone
 from typing import TYPE_CHECKING, Mapping
 
 from product_intelligence.domain import ResearchRequest
@@ -67,17 +86,23 @@ from product_intelligence.research import (
     IdentityStateAssessmentV2,
     ListingIdentityAssessment,
     ProductEvidenceProfileV2,
+    ReviewedTargetContextV2,
     SemanticDecisionAttempt,
     SemanticEvaluationStateV2,
     SemanticEvaluationV2,
     SemanticFallbackReason,
     SemanticFailureClass,
     SemanticMatchCaseV2,
+    TargetIdentifierRelationKindV2,
     build_semantic_match_case_v2,
     build_v2_product_evidence_profile,
     derive_authority_tier,
     derive_identity_state_v2,
     is_v2_semantic_eligible,
+)
+from product_intelligence.research.micron_packaging_alias import (
+    MicronAliasEligibilityResult,
+    MicronAliasEligibilityStatus,
 )
 from product_intelligence.research.semantic_decision_v2 import (
     SemanticDecisionRecordV2,
@@ -102,7 +127,73 @@ __all__ = [
     "build_semantic_decision_records_v2",
     "evaluate_semantic_matches_v2",
     "persist_semantic_decision_records_v2",
+    "reviewed_target_context_from_alias_result",
 ]
+
+
+# ---------------------------------------------------------------------------
+# Reviewed target context from the 4D-D alias acquisition (S2-C-FU1)
+# ---------------------------------------------------------------------------
+
+
+def reviewed_target_context_from_alias_result(
+    alias_result: MicronAliasEligibilityResult,
+) -> ReviewedTargetContextV2 | None:
+    """The reviewed manufacturer TARGET context carried by a 4D-D alias
+    acquisition (S2-C-FU1).
+
+    Returns the bounded ``ReviewedTargetContextV2`` when the acquisition
+    is ESTABLISHED — the reviewed v1 policy's manufacturer / verified
+    category, the exact source-published base MPN, the CUSTOMER-DEFINED
+    relation (retrieval only, zero identity authority), and the bounded
+    fetch provenance. Every value is the result's own re-verified field:
+    nothing is inferred. A non-ESTABLISHED result carries none of the
+    authority fields and returns explicit None (absent, not guessed).
+
+    An ESTABLISHED result missing any reviewed field is a data-integrity
+    failure and fails closed (``ValueError``).
+    """
+    if not isinstance(alias_result, MicronAliasEligibilityResult):
+        raise TypeError(
+            "alias_result must be MicronAliasEligibilityResult, got "
+            f"{type(alias_result).__name__}"
+        )
+    if alias_result.status is not MicronAliasEligibilityStatus.ESTABLISHED:
+        return None
+    relation = alias_result.alias_relation
+    required: dict[str, object] = {
+        "manufacturer": alias_result.manufacturer,
+        "category": alias_result.category,
+        "matched_base_mpn": alias_result.matched_base_mpn,
+        "alias_relation": relation,
+        "source_name": alias_result.source_name,
+        "requested_source_url": alias_result.requested_source_url,
+        "retrieved_at": alias_result.retrieved_at,
+        "body_sha256": alias_result.body_sha256,
+    }
+    missing = sorted(name for name, value in required.items() if value is None)
+    if missing:
+        raise ValueError(
+            "an ESTABLISHED 4D-D result is missing a reviewed field "
+            f"({', '.join(missing)}); the target context cannot be "
+            "constructed (fail closed)"
+        )
+    instant = (
+        alias_result.retrieved_at.astimezone(timezone.utc)
+        .isoformat()
+        .replace("+00:00", "Z")
+    )
+    return ReviewedTargetContextV2(
+        manufacturer=alias_result.manufacturer,
+        category=alias_result.category,
+        matched_base_part_number=alias_result.matched_base_mpn,
+        relation_kind=TargetIdentifierRelationKindV2.CUSTOMER_RETRIEVAL_ALIAS,
+        relation_family_part_numbers=tuple(relation.aliases),
+        source_name=alias_result.source_name,
+        source_url=alias_result.requested_source_url,
+        retrieved_at=instant,
+        evidence_body_sha256=alias_result.body_sha256,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -197,6 +288,7 @@ def evaluate_semantic_matches_v2(
     context_provenances_by_assessment: Mapping[
         ListingIdentityAssessment, frozenset[ContextProvenance]
     ],
+    reviewed_target_context: ReviewedTargetContextV2 | None,
     runtime_v2: SemanticRuntimeV2 | None = None,
 ) -> tuple[SemanticDecisionV2Outcome, ...]:
     """Execute the FINAL V2 semantic evaluation for every V2-eligible
@@ -220,6 +312,17 @@ def evaluate_semantic_matches_v2(
     * The authority-side product evidence is built by the SAFE builder
       with ZERO matched facts (the documented main-flow limitation); the
       model's matched_attributes never enter it.
+    * The candidate observation evidence is built by the bounded
+      S2-C-FU1 builders over the frozen observation: published
+      structured fields only, the title as RAW observation text, and the
+      explicit UNAVAILABLE sales-unit / packaging channel (nothing
+      inferred from price or any other commercial fact).
+    * ``reviewed_target_context`` is explicit: the reviewed manufacturer
+      TARGET context the execution flow carries for this request (today:
+      the ESTABLISHED 4D-D alias acquisition), or None when it carries
+      none. It is recorded in section A of every case (target-side only;
+      zero identity authority; it never grounds candidate-side authority
+      facts).
     * ``context_provenances_by_assessment`` supplies the per-candidate
       bounded context provenance (absent entry -> no provenance).
     * Programming exceptions from the runtime propagate (a V2 defect
@@ -238,6 +341,14 @@ def evaluate_semantic_matches_v2(
         raise TypeError(
             "context_provenances_by_assessment must be a mapping of "
             "assessment -> frozenset[ContextProvenance]"
+        )
+    if reviewed_target_context is not None and not isinstance(
+        reviewed_target_context, ReviewedTargetContextV2
+    ):
+        raise TypeError(
+            "reviewed_target_context must be ReviewedTargetContextV2 or "
+            f"None (explicit absence), got "
+            f"{type(reviewed_target_context).__name__}"
         )
 
     outcomes: list[SemanticDecisionV2Outcome] = []
@@ -271,6 +382,7 @@ def evaluate_semantic_matches_v2(
             context=context,
             product_evidence=product_evidence,
             context_provenances=provenances,
+            reviewed_target_context=reviewed_target_context,
         )
         result = runtime.evaluate(case)
         outcomes.append(

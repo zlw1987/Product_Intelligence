@@ -48,6 +48,7 @@ from product_intelligence.execution.semantic_decision_v2_execution import (
     build_semantic_decision_records_v2,
     evaluate_semantic_matches_v2,
     persist_semantic_decision_records_v2,
+    reviewed_target_context_from_alias_result,
 )
 from product_intelligence.execution.deduplication import CandidateDeduplicator
 from product_intelligence.execution.evidence_writer import ExecutionEvidenceWriter
@@ -297,6 +298,7 @@ def _execute_claimed_run(
     # exactly these.
     search_batch_assessments: list = []
     alias_expanded = False
+    alias_result = None
 
     # ---------------------------------------------------------------
     # Step 3: Fallback search (lazy construction)
@@ -492,10 +494,21 @@ def _execute_claimed_run(
         )
         for _assessment in search_batch_assessments:
             v2_provenances_by_assessment[_assessment] = _customer_retrieval
+    # S2-C-FU1: the reviewed manufacturer TARGET context the execution
+    # flow carries for this request — only an ESTABLISHED 4D-D alias
+    # acquisition (its re-verified reviewed fields, zero identity
+    # authority); explicit None otherwise (non-ESTABLISHED acquisitions
+    # and non-alias runs carry no reviewed target context).
+    v2_reviewed_target_context = (
+        reviewed_target_context_from_alias_result(alias_result)
+        if alias_result is not None
+        else None
+    )
     v2_outcomes = evaluate_semantic_matches_v2(
         request,
         total_assessments,
         context_provenances_by_assessment=v2_provenances_by_assessment,
+        reviewed_target_context=v2_reviewed_target_context,
     )
     v2_records = build_semantic_decision_records_v2(
         claimed_run,

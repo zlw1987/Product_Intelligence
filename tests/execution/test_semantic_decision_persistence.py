@@ -840,7 +840,6 @@ class TestUniversalServiceDecoupling:
             build_semantic_match_case_v2,
             build_v2_product_evidence_profile,
         )
-
         run, assessment = _make_run_and_snapshot()
         context = derive_identity_state_v2(assessment)
         profile = build_v2_product_evidence_profile(
@@ -855,6 +854,7 @@ class TestUniversalServiceDecoupling:
             context=context,
             product_evidence=profile,
             context_provenances=frozenset(),
+            reviewed_target_context=None,
         )
         from product_intelligence.research import (
             AttemptOutcome,

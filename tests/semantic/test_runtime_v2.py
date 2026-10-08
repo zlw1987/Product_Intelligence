@@ -97,6 +97,7 @@ def _case(title="Has ABC-123 in the title"):
         context=context,
         product_evidence=profile,
         context_provenances=NO_CTX,
+        reviewed_target_context=None,
     )
 
 

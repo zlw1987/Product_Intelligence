@@ -149,6 +149,7 @@ def _case(mpn=None, sku=None, title="ABC-123 1TB NVMe Drive", provenances=None):
         context=context,
         product_evidence=profile,
         context_provenances=provenances,
+        reviewed_target_context=None,
     )
 
 
@@ -658,14 +659,34 @@ class TestV2Codec:
         self._round_trip(record)
 
     def test_the_exact_v2_input_is_stored(self) -> None:
+        # S2-C-FU1 (shape correction): the stored input carries the typed
+        # evidence sections (target / candidate product / candidate
+        # commercial) instead of the pre-FU1 free-text blobs.
         record = _build_record(
             decision=V2SemanticDecision.MATCH, confidence=V2Confidence.HIGH
         )
         payload = encode_v2_payload(record)
         case = payload["case"]
         assert case["target"]["mpn"] == "ABC-123"
-        assert case["target"]["description"] == "A test product"
+        assert case["target"]["description_raw_text"] == "A test product"
+        assert case["target"]["reviewed_context"] is None
         assert case["candidate"]["source_url"] == SOURCE_URL
+        assert case["candidate"]["mpn_field"] is None
+        assert case["candidate"]["product"]["raw_title_text"] == (
+            "ABC-123 1TB NVMe Drive"
+        )
+        assert case["candidate"]["product"]["capacity"] is None
+        assert case["candidate"]["commercial"]["price"] == {
+            "value": "100",
+            "source": "PUBLISHED_STRUCTURED_FIELD",
+        }
+        assert case["candidate"]["commercial"]["sales_unit"] == {
+            "state": "UNAVAILABLE",
+            "kind": None,
+            "quantity": None,
+            "raw_detail": None,
+            "source": None,
+        }
         assert case["deterministic_identity_context"]["identity_state"] == (
             "DETERMINISTIC_UNCERTAIN"
         )
@@ -865,9 +886,9 @@ def _build_v1_record() -> "SemanticDecisionRecordV1":
         ),
         context_provenances=case.context_provenances,
         case_id=case.case_id,
-        target_mpn=case.target_mpn,
-        target_description=case.target_description,
-        candidate_title=case.candidate_title or "",
+        target_mpn=case.target.mpn,
+        target_description=case.target.description_raw_text or "",
+        candidate_title=case.candidate_product.raw_title_text or "",
         candidate_mpn_field=case.candidate_mpn_field,
         candidate_sku=case.candidate_sku,
         candidate_specs=None,
@@ -1128,3 +1149,283 @@ def _raw_binding_record(binding):
         raw.authority_contract_version,
     ) = binding
     return raw
+# ===========================================================================
+# S2-C-FU1: the corrected input evidence codec (packaging channel,
+# reviewed target context, fail-closed on the pre-FU1 shape)
+# ===========================================================================
+
+
+def _fu1_observed_sales_unit(kind, quantity=None, raw_detail="observed"):
+    from product_intelligence.research import (
+        CandidateEvidenceSourceV2,
+        CandidateSalesUnitEvidenceV2,
+        PackagingEvidenceStateV2,
+    )
+
+    return CandidateSalesUnitEvidenceV2(
+        state=PackagingEvidenceStateV2.OBSERVED,
+        kind=kind,
+        quantity=quantity,
+        raw_detail=raw_detail,
+        source=CandidateEvidenceSourceV2.PUBLISHED_STRUCTURED_FIELD,
+    )
+
+
+def _fu1_case_with_sales_unit(sales_unit):
+    import dataclasses
+
+    case = _case()
+    return dataclasses.replace(
+        case,
+        candidate_commercial=dataclasses.replace(
+            case.candidate_commercial, sales_unit=sales_unit
+        ),
+    )
+
+
+def _fu1_reviewed_target_context():
+    from product_intelligence.research import (
+        ReviewedTargetContextV2,
+        TargetIdentifierRelationKindV2,
+    )
+
+    return ReviewedTargetContextV2(
+        manufacturer="Micron",
+        category="SSD",
+        matched_base_part_number="MTFDKCC3T8TGP-1BK1DABYY",
+        relation_kind=TargetIdentifierRelationKindV2.CUSTOMER_RETRIEVAL_ALIAS,
+        relation_family_part_numbers=(
+            "MTFDKCC3T8TGP-1BK1DABYY",
+            "MTFDKCC3T8TGP-1BK1DABYYT",
+        ),
+        source_name="Micron 7500 SSD catalog",
+        source_url="https://www.micron.com/catalog",
+        retrieved_at="2026-02-10T12:00:00Z",
+        evidence_body_sha256="cd" * 32,
+    )
+
+
+def _fu1_case_with_reviewed_context(reviewed_context):
+    import dataclasses
+
+    case = _case()
+    return dataclasses.replace(
+        case,
+        target=dataclasses.replace(case.target, reviewed_context=reviewed_context),
+    )
+
+
+class TestFU1InputEvidenceCodec:
+    def _round_trip(self, record):
+        payload = encode_v2_payload(record)
+        decoded = decode_semantic_decision_record(
+            payload, schema_version=SEMANTIC_DECISION_SCHEMA_VERSION
+        )
+        assert isinstance(decoded, SemanticDecisionRecordV2)
+        assert decoded == record
+        assert decoded.case == record.case
+        return decoded, payload
+
+    def test_observed_pack_quantity_sales_unit_round_trips(self) -> None:
+        from product_intelligence.research import SalesUnitKindV2
+
+        su = _fu1_observed_sales_unit(
+            SalesUnitKindV2.PACK_QUANTITY, quantity=2, raw_detail="2-pack"
+        )
+        record = _build_record(
+            case=_fu1_case_with_sales_unit(su),
+            decision=V2SemanticDecision.MATCH,
+            confidence=V2Confidence.HIGH,
+        )
+        decoded, payload = self._round_trip(record)
+        assert payload["case"]["candidate"]["commercial"]["sales_unit"] == {
+            "state": "OBSERVED",
+            "kind": "PACK_QUANTITY",
+            "quantity": 2,
+            "raw_detail": "2-pack",
+            "source": "PUBLISHED_STRUCTURED_FIELD",
+        }
+        assert decoded.case.candidate_commercial.sales_unit == su
+
+    def test_observed_single_unit_sales_unit_round_trips(self) -> None:
+        from product_intelligence.research import SalesUnitKindV2
+
+        su = _fu1_observed_sales_unit(SalesUnitKindV2.SINGLE_UNIT, raw_detail="1 each")
+        record = _build_record(
+            case=_fu1_case_with_sales_unit(su),
+            decision=V2SemanticDecision.MATCH,
+            confidence=V2Confidence.HIGH,
+        )
+        decoded, _ = self._round_trip(record)
+        assert decoded.case.candidate_commercial.sales_unit == su
+        assert decoded.case.candidate_commercial.sales_unit.quantity is None
+
+    def test_observed_tray_and_bundle_sales_units_round_trip(self) -> None:
+        from product_intelligence.research import SalesUnitKindV2
+
+        tray = _fu1_observed_sales_unit(
+            SalesUnitKindV2.TRAY_OR_FACTORY_PACK, raw_detail="tray"
+        )
+        bundle = _fu1_observed_sales_unit(
+            SalesUnitKindV2.BUNDLE, quantity=3, raw_detail="bundle of 3"
+        )
+        for su in (tray, bundle):
+            record = _build_record(
+                case=_fu1_case_with_sales_unit(su),
+                decision=V2SemanticDecision.MATCH,
+                confidence=V2Confidence.HIGH,
+            )
+            decoded, _ = self._round_trip(record)
+            assert decoded.case.candidate_commercial.sales_unit == su
+
+    def test_unavailable_sales_unit_is_the_default_explicit_state(self) -> None:
+        record = _build_record(
+            decision=V2SemanticDecision.MATCH, confidence=V2Confidence.HIGH
+        )
+        decoded, payload = self._round_trip(record)
+        assert (
+            payload["case"]["candidate"]["commercial"]["sales_unit"]["state"]
+            == "UNAVAILABLE"
+        )
+        assert decoded.case.candidate_commercial.sales_unit.state.value == (
+            "UNAVAILABLE"
+        )
+
+    def test_reviewed_target_context_round_trips(self) -> None:
+        ctx = _fu1_reviewed_target_context()
+        record = _build_record(
+            case=_fu1_case_with_reviewed_context(ctx),
+            decision=V2SemanticDecision.MATCH,
+            confidence=V2Confidence.HIGH,
+        )
+        decoded, payload = self._round_trip(record)
+        assert payload["case"]["target"]["reviewed_context"] == {
+            "manufacturer": "Micron",
+            "category": "SSD",
+            "matched_base_part_number": "MTFDKCC3T8TGP-1BK1DABYY",
+            "relation_kind": "CUSTOMER_RETRIEVAL_ALIAS",
+            "relation_family_part_numbers": [
+                "MTFDKCC3T8TGP-1BK1DABYY",
+                "MTFDKCC3T8TGP-1BK1DABYYT",
+            ],
+            "source_name": "Micron 7500 SSD catalog",
+            "source_url": "https://www.micron.com/catalog",
+            "retrieved_at": "2026-02-10T12:00:00Z",
+            "evidence_body_sha256": "cd" * 32,
+        }
+        assert decoded.case.target.reviewed_context == ctx
+
+    def test_the_corrected_input_replays_zero_live(self) -> None:
+        # The replay reconstructs the exact recorded input (reviewed
+        # context + UNAVAILABLE packaging) and re-proves the derived
+        # snapshots under the frozen S2-A module.
+        ctx = _fu1_reviewed_target_context()
+        record = _build_record(
+            case=_fu1_case_with_reviewed_context(ctx),
+            decision=V2SemanticDecision.MATCH,
+            confidence=V2Confidence.HIGH,
+        )
+        replay = replay_semantic_decision(record)
+        assert replay.case == record.case
+        assert replay.contract_binding == V2_CONTRACT_BINDING
+
+    def test_pre_fu1_shaped_payload_fails_closed(self) -> None:
+        # A payload encoded under the pre-FU1 input shape (free-text
+        # 'description' / 'title' / 'specs' / 'commercial_context') is
+        # never silently reinterpreted: strict decode fails closed.
+        import copy
+
+        record = _build_record(
+            decision=V2SemanticDecision.MATCH, confidence=V2Confidence.HIGH
+        )
+        payload = copy.deepcopy(encode_v2_payload(record))
+        payload["case"]["target"] = {
+            "mpn": "ABC-123",
+            "description": "A test product",
+        }
+        payload["case"]["candidate"] = {
+            "source_url": SOURCE_URL,
+            "title": "ABC-123 1TB NVMe Drive",
+            "mpn_field": None,
+            "sku": None,
+            "brand": None,
+            "condition": None,
+            "specs": None,
+            "commercial_context": "Price: 100 USD",
+            "evidence_source": "EXPLICIT_MPN_FIELD",
+        }
+        with pytest.raises(SemanticDecisionCodecError):
+            decode_semantic_decision_record(
+                payload, schema_version=SEMANTIC_DECISION_SCHEMA_VERSION
+            )
+
+    def test_legacy_candidate_specs_key_is_rejected(self) -> None:
+        # The misleading pre-FU1 'specs' key has no place in the
+        # corrected candidate section (extra keys fail closed).
+        import copy
+
+        record = _build_record(
+            decision=V2SemanticDecision.MATCH, confidence=V2Confidence.HIGH
+        )
+        payload = copy.deepcopy(encode_v2_payload(record))
+        payload["case"]["candidate"]["specs"] = "free text blob"
+        with pytest.raises(SemanticDecisionCodecError):
+            decode_semantic_decision_record(
+                payload, schema_version=SEMANTIC_DECISION_SCHEMA_VERSION
+            )
+
+    def test_single_unit_with_a_quantity_is_refused_at_decode(self) -> None:
+        # The bounded sales-unit cross-validation holds through the
+        # codec: SINGLE_UNIT carries no quantity.
+        import copy
+
+        from product_intelligence.research import SalesUnitKindV2
+
+        record = _build_record(
+            case=_fu1_case_with_sales_unit(
+                _fu1_observed_sales_unit(SalesUnitKindV2.SINGLE_UNIT, raw_detail="1 each")
+            ),
+            decision=V2SemanticDecision.MATCH,
+            confidence=V2Confidence.HIGH,
+        )
+        payload = copy.deepcopy(encode_v2_payload(record))
+        payload["case"]["candidate"]["commercial"]["sales_unit"]["quantity"] = 5
+        with pytest.raises(SemanticDecisionCodecError):
+            decode_semantic_decision_record(
+                payload, schema_version=SEMANTIC_DECISION_SCHEMA_VERSION
+            )
+
+    def test_unknown_reviewed_relation_kind_is_refused_at_decode(self) -> None:
+        import copy
+
+        record = _build_record(
+            case=_fu1_case_with_reviewed_context(_fu1_reviewed_target_context()),
+            decision=V2SemanticDecision.MATCH,
+            confidence=V2Confidence.HIGH,
+        )
+        payload = copy.deepcopy(encode_v2_payload(record))
+        payload["case"]["target"]["reviewed_context"]["relation_kind"] = (
+            "MANUFACTURER_STATED"
+        )
+        with pytest.raises(SemanticDecisionCodecError):
+            decode_semantic_decision_record(
+                payload, schema_version=SEMANTIC_DECISION_SCHEMA_VERSION
+            )
+
+    def test_unknown_evidence_source_is_refused_at_decode(self) -> None:
+        # The candidate-source vocabulary has no model-claim member: an
+        # invented source for a structured fact fails closed.
+        import copy
+
+        record = _build_record(
+            decision=V2SemanticDecision.MATCH, confidence=V2Confidence.HIGH
+        )
+        payload = copy.deepcopy(encode_v2_payload(record))
+        payload["case"]["candidate"]["product"]["capacity"] = {
+            "value": "1TB",
+            "source": "MODEL_CLAIM",
+        }
+        with pytest.raises(SemanticDecisionCodecError):
+            decode_semantic_decision_record(
+                payload, schema_version=SEMANTIC_DECISION_SCHEMA_VERSION
+            )

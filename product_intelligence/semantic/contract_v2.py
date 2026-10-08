@@ -1,8 +1,14 @@
-"""The FINAL Prompt V2 (S2-C).
+"""The FINAL Prompt V2 (S2-C, corrected in place by S2-C-FU1 before freeze).
 
 PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-S2-C freezes the exact prompt that
 Qualification V3 will use UNCHANGED unless an actual defect is discovered
-before qualification:
+before qualification. S2-C is REVIEWED but NOT APPROVED / NOT FROZEN and
+MUST NOT deploy, and no historical production V2 record exists anywhere
+(the semantic-decision ledger table is absent from the development
+database; V2 is persist-only and unqualified). FU1 therefore amends the
+PRE-FREEZE candidate prompt in place: the prompt version stays ``2.0``
+because 2.0 never shipped — the frozen 2.0 that Qualification V3
+qualifies against is the corrected text.
 
 * ``SEMANTIC_PROMPT_VERSION_V2 = "2.0"`` — the prompt version of the
   Semantic V2 contract (independent of the persistence envelope version,
@@ -12,8 +18,13 @@ before qualification:
   with the explicit rules it is NOT asked to do (no price estimation, no
   machine-verified decisions, no overriding deterministic HARD_CONFLICT,
   no inferring manufacturer authority, no turning customer aliases into
-  manufacturer equivalence, no market-aggregation decisions) and the
-  explicit behavioral rules (exact MPN equality is strong but not the only
+  manufacturer equivalence, no market-aggregation decisions), the
+  EVIDENCE CLASS rules (STRUCTURED FACT vs RAW OBSERVATION TEXT vs
+  COMMERCIAL / PACKAGING EVIDENCE vs REVIEWED TARGET CONTEXT vs
+  AUTHORITY-SIDE PRODUCT EVIDENCE; absence of packaging evidence is not
+  proof of equal sales unit; raw text never becomes manufacturer
+  authority; never manufacture a missing fact), and the explicit
+  behavioral rules (exact MPN equality is strong but not the only
   evidence; missing candidate MPN is not automatically NO_MATCH; title
   MPN may be compatibility/reference wording; careful SKU
   interpretation; near-miss identifiers are not automatically
@@ -43,8 +54,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Final
 
-from product_intelligence.research import ContextProvenance
+from product_intelligence.research import (
+    CandidateEvidenceSourceV2,
+    ContextProvenance,
+    PackagingEvidenceStateV2,
+    TargetIdentifierRelationKindV2,
+)
 from product_intelligence.research.semantic_v2 import (
+    CandidateObservationFactV2,
+    CandidateSalesUnitEvidenceV2,
     SemanticMatchCaseV2,
 )
 
@@ -64,7 +82,13 @@ Independent version axis: the persistence envelope version (1), the
 semantic contract version (V2), the prompt version (2.0), the input
 schema version (1), the output schema version (1), and the runtime route
 pin are all distinct axes. Drift-pinned by tests against the V2 adapter's
-mirrored constant."""
+mirrored constant.
+
+S2-C-FU1 versioning decision: S2-C is REVIEWED but NOT APPROVED / NOT
+FROZEN and MUST NOT deploy, and no historical production V2 record exists
+anywhere. FU1 amends the PRE-FREEZE candidate prompt in place; the
+version stays 2.0 because 2.0 never shipped. Bumping to a phantom 2.1
+would falsely claim a frozen 2.0 with live records."""
 
 
 SYSTEM_PROMPT_V2: Final[str] = """You are a product commercial-equivalence evaluation assistant.
@@ -72,7 +96,7 @@ SYSTEM_PROMPT_V2: Final[str] = """You are a product commercial-equivalence evalu
 TASK
 Your task is to determine the COMMERCIAL SEMANTIC EQUIVALENCE of a TARGET product and a CANDIDATE listing: does the candidate listing represent the same commercially comparable product as the target, and with what confidence?
 
-You are given a structured input with five sections: TARGET, CANDIDATE LISTING, DETERMINISTIC IDENTITY CONTEXT, CONTEXT PROVENANCE, and PRODUCT EVIDENCE. Use ONLY the evidence supplied in those sections. Do not rely on unstated specifications, catalog knowledge, or outside product knowledge.
+You are given a structured input with five sections: TARGET, CANDIDATE LISTING, DETERMINISTIC IDENTITY CONTEXT, CONTEXT PROVENANCE, and PRODUCT EVIDENCE. Use ONLY the evidence supplied in those sections. Do not rely on unstated specifications, catalog knowledge, or outside product knowledge. Every value in the input is labeled with its evidence class (STRUCTURED FACT with a source label, RAW OBSERVATION TEXT, COMMERCIAL / PACKAGING EVIDENCE, REVIEWED TARGET CONTEXT, or AUTHORITY-SIDE PRODUCT EVIDENCE); read every value in its class.
 
 WHAT YOU ARE NOT ASKED TO DO
 - Do not estimate, infer, or compare prices. Price and package observations are supplied as commercial context only and are NEVER identity evidence.
@@ -85,6 +109,14 @@ WHAT YOU SHOULD DETERMINE
 - Which bounded attributes match, which conflict, and which critical attributes are missing.
 - Whether material conflicts exist, classified using the structured conflict classes below (never free text).
 - Whether uncertainty remains, and what would resolve it.
+
+EVIDENCE CLASSES (how to read the input)
+- STRUCTURED FACT: a bounded value with an explicit source label (published structured field, listing title, specification text, or reviewed manufacturer product context). A structured fact is an OBSERVATION about one side of the comparison: it may support your reasoning, but it is not by itself a proof that the two sides agree. Equivalence between the sides is your semantic judgment.
+- RAW OBSERVATION TEXT: free text as published (the listing title, the requested description). Raw text may support semantic reasoning, but a token occurring in raw text is NOT a structured fact, and raw text NEVER becomes manufacturer authority. Absence of a structured fact does not erase the raw observation evidence; the absence of both is not a value.
+- COMMERCIAL / PACKAGING EVIDENCE: price, currency, availability, seller, condition, offer, and the sales-unit / packaging channel. Commercial evidence is NEVER identity evidence. The sales-unit channel is EXPLICIT: "UNAVAILABLE" means the listing published no packaging / sales-unit field. Absence of packaging evidence is NOT proof of equal sales unit and is never read as "single unit"; do not infer a packaging value from price or from any other commercial fact.
+- REVIEWED TARGET CONTEXT: when present, a structured/reviewed manufacturer context about the TARGET (never about the candidate). It may strengthen your understanding of the requested product. Its identifier relation, when present, is customer-retrieval-only: zero identity authority, never manufacturer equivalence.
+- AUTHORITY-SIDE PRODUCT EVIDENCE: the PRODUCT EVIDENCE section (deterministic/reviewed only). You may observe it; you must NOT create, upgrade, or assert new product evidence: your matched_attributes are conclusions about equivalence, not new authority-side facts.
+- NEVER MANUFACTURE A MISSING FACT: if a critical attribute is absent from ALL supplied evidence, name it in missing_critical_attributes. Do not fill a gap with a guess or with outside knowledge.
 
 IDENTIFIER EVIDENCE RULES
 - Exact MPN equality is strong evidence but is not the only evidence of commercial equivalence.
@@ -105,6 +137,7 @@ PHYSICAL PRODUCT vs COMMERCIAL SALES UNIT
 - Distinguish PHYSICAL-PRODUCT equivalence from COMMERCIAL SALES-UNIT / PACKAGING equivalence. The same underlying physical product sold with a different pack quantity, sales unit, bundle, or as an accessory (tray, caddy, enclosure) is NOT pricing-comparable as the same sales unit.
 - A candidate that is a tray/factory pack, a pack of N, or a bundle where the target is a retail single unit carries a PACKAGING_QUANTITY (and, where applicable, BUNDLE) conflict. "Same physical drive" never implies "same comparable price unit".
 - An accessory (tray, caddy, enclosure, heatsink, adapter, cable, standalone kit) instead of the actual requested product is a material ACCESSORY_RELATION / PRODUCT_ROLE conflict.
+- When the candidate's sales-unit / packaging channel is UNAVAILABLE, sales-unit equivalence is UNPROVEN: if the comparison otherwise supports MATCH and the sales unit is critical to commercial comparability, report PACKAGING_QUANTITY (and/or BUNDLE) in missing_critical_attributes and return UNCERTAIN with UNCERTAIN_MISSING_CRITICAL_ATTRIBUTES rather than guessing packaging equivalence.
 
 CONFLICT CLASSES (structured; use exactly these values)
 - ALWAYS HARD (different product / pricing-incomparable identity): MPN_IDENTITY, PRODUCT_FAMILY, GENERATION, CAPACITY, INTERFACE, FORM_FACTOR, PRODUCT_ROLE, ACCESSORY_RELATION, PACKAGING_QUANTITY, BUNDLE.
@@ -156,8 +189,66 @@ _PROVENANCE_LABELS: Final[dict[ContextProvenance, str]] = {
 }
 
 
+# Frozen rendering labels for the bounded evidence sources of a structured
+# fact. The wording is contract: a structured fact always renders with its
+# provenance label, and RAW observation text always renders under its raw-
+# text label (S2-C-FU1: the model must be able to tell structured from raw).
+_SOURCE_LABELS: Final[dict[CandidateEvidenceSourceV2, str]] = {
+    CandidateEvidenceSourceV2.PUBLISHED_STRUCTURED_FIELD: (
+        "published structured field"
+    ),
+    CandidateEvidenceSourceV2.LISTING_TITLE: "listing title",
+    CandidateEvidenceSourceV2.SPECIFICATION_TEXT: "specification text",
+    CandidateEvidenceSourceV2.REVIEWED_PRODUCT_CONTEXT: (
+        "reviewed manufacturer product context"
+    ),
+}
+
+#: Frozen rendering labels for the bounded reviewed-target identifier-
+#: relation kinds. The wording is contract: the customer-retrieval kind is
+#: rendered as retrieval-only, NEVER as manufacturer equivalence.
+_RELATION_KIND_LABELS: Final[dict[TargetIdentifierRelationKindV2, str]] = {
+    TargetIdentifierRelationKindV2.CUSTOMER_RETRIEVAL_ALIAS: (
+        "customer-defined retrieval relation; NOT manufacturer-stated; zero "
+        "identity authority"
+    ),
+}
+
+
 def _present(value: str | None, absent_label: str) -> str:
     return value if value else absent_label
+
+
+def _render_fact(fact: CandidateObservationFactV2 | None) -> str:
+    """One bounded observation fact with its source label, or the explicit
+    absence (never a guess)."""
+    if fact is None:
+        return "(none)"
+    return f'"{fact.value}" [{_SOURCE_LABELS[fact.source]}]'
+
+
+def _render_sales_unit(su: CandidateSalesUnitEvidenceV2) -> str:
+    """The explicit sales-unit / packaging channel rendering.
+
+    UNAVAILABLE renders as an explicit recorded absence with the
+    never-infer rule; OBSERVED renders the bounded kind, quantity (when
+    present), the published raw detail, and the source label."""
+    if not isinstance(su, CandidateSalesUnitEvidenceV2):
+        raise TypeError(
+            "sales unit evidence must be CandidateSalesUnitEvidenceV2, got "
+            f"{type(su).__name__}"
+        )
+    if su.state is PackagingEvidenceStateV2.UNAVAILABLE:
+        return (
+            "UNAVAILABLE — the listing published no packaging / sales-unit "
+            "field; absence is NOT proof of equal sales unit (do not infer "
+            "a single unit)"
+        )
+    parts = [f"OBSERVED — kind: {su.kind.value}"]
+    if su.quantity is not None:
+        parts.append(f"quantity: {su.quantity}")
+    parts.append(f'as published: "{su.raw_detail}" [{_SOURCE_LABELS[su.source]}]')
+    return "; ".join(parts)
 
 
 def _render_provenance_lines(
@@ -211,15 +302,46 @@ def render_v2_user_prompt(case: SemanticMatchCaseV2) -> str:
     lines.append(f"COMMERCIAL SEMANTIC EQUIVALENCE CASE {case.case_id}")
     lines.append("")
     lines.append("TARGET PRODUCT:")
-    lines.append(f"- Requested manufacturer part number (MPN): {case.target_mpn}")
     lines.append(
-        "- Requested description: "
-        + _present(case.target_description, "(not provided)")
+        "- Requested MPN (STRUCTURED; caller-published; the run's identity "
+        f"anchor): {case.target.mpn}"
     )
+    lines.append(
+        "- Requested description (RAW OBSERVATION TEXT; may support "
+        "reasoning; not a reviewed specification): "
+        + _present(case.target.description_raw_text, "(not provided)")
+    )
+    reviewed = case.target.reviewed_context
+    if reviewed is None:
+        lines.append(
+            "- Reviewed manufacturer target context: "
+            "(none carried by the execution flow)"
+        )
+    else:
+        lines.append(
+            "- Reviewed manufacturer target context (STRUCTURED/REVIEWED; "
+            "target-side only; zero identity authority):"
+        )
+        lines.append(f"  - Manufacturer: {reviewed.manufacturer}")
+        lines.append(f"  - Verified category: {reviewed.category}")
+        lines.append(
+            "  - Matched base part number (source-published): "
+            + reviewed.matched_base_part_number
+        )
+        lines.append(
+            f"  - Identifier relation to requested MPN: "
+            f"{reviewed.relation_kind.value} — "
+            f"{_RELATION_KIND_LABELS[reviewed.relation_kind]}; "
+            f"family part numbers other than the requested form: "
+            f"{', '.join(reviewed.relation_family_part_numbers)}"
+        )
+        lines.append(f"  - Source: {reviewed.source_name}")
+        lines.append(f"  - Source URL: {reviewed.source_url}")
+        lines.append(f"  - Retrieved at: {reviewed.retrieved_at}")
+        lines.append(f"  - Evidence body SHA-256: {reviewed.evidence_body_sha256}")
     lines.append("")
     lines.append("CANDIDATE LISTING:")
     lines.append(f"- Source URL: {case.candidate_source_url}")
-    lines.append("- Title: " + _present(case.candidate_title, "(not provided)"))
     lines.append(
         "- Published MPN field: "
         + _present(case.candidate_mpn_field, "(not published)")
@@ -227,26 +349,59 @@ def render_v2_user_prompt(case: SemanticMatchCaseV2) -> str:
     lines.append(
         "- Published SKU: " + _present(case.candidate_sku, "(not published)")
     )
+    lines.append(f"- Candidate evidence source: {case.candidate_evidence_source}")
+    lines.append("")
     lines.append(
-        "- Brand (separately observed): "
-        + _present(case.candidate_brand, "(not observed)")
+        "Structured product evidence (bounded facts with source labels; "
+        "absent = not observed, never a guess):"
+    )
+    product = case.candidate_product
+    lines.append(f"- product_family: {_render_fact(product.product_family)}")
+    lines.append(f"- generation: {_render_fact(product.generation)}")
+    lines.append(f"- capacity: {_render_fact(product.capacity)}")
+    lines.append(f"- interface: {_render_fact(product.interface)}")
+    lines.append(f"- form_factor: {_render_fact(product.form_factor)}")
+    lines.append(f"- product_role: {_render_fact(product.product_role)}")
+    lines.append(
+        f"- accessory_relation: {_render_fact(product.accessory_relation)}"
+    )
+    lines.append(f"- brand: {_render_fact(product.brand)}")
+    lines.append(
+        f"- revision_or_suffix: {_render_fact(product.revision_or_suffix)}"
+    )
+    lines.append("")
+    lines.append(
+        "Raw observation text (may support semantic reasoning; NOT "
+        "structured evidence; never manufacturer authority):"
     )
     lines.append(
-        "- Condition (separately observed): "
-        + _present(case.candidate_condition, "(not observed)")
-    )
-    lines.append(
-        "- Structured listing evidence: "
-        + _present(
-            case.candidate_specs, "(none beyond the fields above)"
+        "- Listing title: "
+        + (
+            f'"{product.raw_title_text}"'
+            if product.raw_title_text
+            else "(not provided)"
         )
     )
     lines.append(
-        "- Commercial context (price/package observations ONLY; NEVER "
-        "identity evidence): "
-        + _present(case.candidate_commercial_context, "(not observed)")
+        "- Specification text: "
+        + (
+            f'"{product.raw_specification_text}"'
+            if product.raw_specification_text
+            else "(none carried by the extractor)"
+        )
     )
-    lines.append(f"- Candidate evidence source: {case.candidate_evidence_source}")
+    lines.append("")
+    commercial = case.candidate_commercial
+    lines.append("Commercial / packaging evidence (NEVER identity evidence):")
+    lines.append(f"- condition: {_render_fact(commercial.condition)}")
+    lines.append(f"- price: {_render_fact(commercial.price)}")
+    lines.append(f"- currency: {_render_fact(commercial.currency)}")
+    lines.append(f"- availability: {_render_fact(commercial.availability)}")
+    lines.append(f"- seller: {_render_fact(commercial.seller)}")
+    lines.append(
+        "- Offer URL: " + _present(commercial.offer_url, "(not published)")
+    )
+    lines.append(f"- Sales unit / packaging: {_render_sales_unit(commercial.sales_unit)}")
     lines.append("")
     lines.append(
         "DETERMINISTIC IDENTITY CONTEXT (frozen deterministic layer output; "

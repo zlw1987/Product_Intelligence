@@ -405,6 +405,24 @@ def test_replay_module_is_exported_by_the_research_package() -> None:
         "parse_semantic_response_v2",
         "semantic_reason_code_rule",
         "validate_semantic_response_v2",
+        # S2-C-FU1: the corrected input evidence contract (bounded
+        # candidate product / commercial observation evidence, the
+        # explicit sales-unit channel, the reviewed target context, and
+        # the target evidence section).
+        "CandidateCommercialEvidenceV2",
+        "CandidateEvidenceSourceV2",
+        "CandidateObservationFactV2",
+        "CandidateProductDimensionV2",
+        "CandidateProductEvidenceV2",
+        "CandidateSalesUnitEvidenceV2",
+        "PackagingEvidenceStateV2",
+        "ReviewedTargetContextV2",
+        "SALES_UNIT_EVIDENCE_UNAVAILABLE",
+        "SalesUnitKindV2",
+        "TargetEvidenceV2",
+        "TargetIdentifierRelationKindV2",
+        "build_candidate_commercial_evidence_v2",
+        "build_candidate_product_evidence_v2",
     }
     assert expected <= set(research.__all__)
 

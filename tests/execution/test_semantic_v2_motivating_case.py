@@ -20,10 +20,19 @@ judgment under qualification). It proves the frozen architecture:
 2. the bounded near-miss logic classifies them into the appropriate
    uncertain semantic entry point (U5 / NM-1);
 3. V2 eligibility sends the candidate to Semantic V2;
-4. the V2 input carries enough structured context to evaluate product
-   family / capacity / interface / form factor (where available),
-   packaging/sales-unit context (where available), and relationship
-   provenance;
+4. the V2 input carries the corrected structured evidence contract:
+   the RAW candidate title reaches the model as labeled raw observation
+   text; truly structured candidate product facts are present ONLY where
+   the extraction layer actually produced them (the main-flow extractor
+   produces none of family / capacity / interface / form factor, so
+   those dimensions are explicit absences — NOT structured evidence
+   derived from title tokens); the packaging / sales-unit channel is
+   explicitly present (OBSERVED) or explicitly absent (UNAVAILABLE — the
+   fixture's only candidate commercial fact is a price, and a price is
+   never a packaging observation), and that absence is rendered with the
+   never-infer rule, not silently interpreted as equivalence; the
+   reviewed manufacturer target context (the ESTABLISHED 4D-D alias
+   acquisition) is carried target-side with zero identity authority;
 5. CUSTOMER_RETRIEVAL_RELATION alone establishes no identity authority;
 6. without reviewed manufacturer relationship authority the frozen
    relationship ceiling applies exactly as S2-A defines it;
@@ -53,8 +62,10 @@ from product_intelligence.research import (
     UncertainSubstateV2,
     AuthorityTier,
     ContextProvenance,
+    PackagingEvidenceStateV2,
     RelationshipAuthority,
     RelationshipRequirement,
+    TargetIdentifierRelationKindV2,
     V2Confidence,
     V2SemanticDecision,
     assess_listing_identity,
@@ -243,7 +254,30 @@ class TestDeterministicLayerAndEntry:
 
 
 class TestV2InputRichness:
-    def test_the_input_carries_the_structured_evaluation_context(self) -> None:
+    def test_the_input_carries_the_corrected_evidence_contract(self) -> None:
+        # S2-C-FU1 CORRECTION of the pre-FU1 test that claimed
+        # "structured family/capacity/interface/form factor" merely
+        # because those tokens occur in the candidate TITLE string. That
+        # claim was flawed: token occurrence in raw title text is not
+        # structured evidence. This test now proves accurately:
+        #
+        # A. the RAW candidate title evidence is available to the model
+        #    (labeled raw observation text);
+        # B. truly structured candidate product facts are present only
+        #    where the extraction layer actually produced them — the
+        #    main-flow extractor produces none of family / capacity /
+        #    interface / form factor, so those dimensions are explicit
+        #    absences despite the title tokens;
+        # C. packaging / sales-unit evidence is explicitly absent
+        #    (UNAVAILABLE): the fixture's only candidate commercial fact
+        #    is a price, and a price is never a packaging observation;
+        # D. that absence is rendered as an explicit recorded absence
+        #    with the never-infer rule — not silently interpreted as
+        #    equivalence.
+        #
+        # (E. customer relation retrieval-only, F. the U5/NM-1 ceiling,
+        # and G. no Machine Price contamination are proven by the
+        # adjacent test classes, unchanged.)
         assessment = _assessment()
         context = derive_identity_state_v2(assessment)
         profile = build_v2_product_evidence_profile(
@@ -258,24 +292,72 @@ class TestV2InputRichness:
             context=context,
             product_evidence=profile,
             context_provenances=CUSTOMER_CTX,
+            reviewed_target_context=None,
         )
-        # Product family / capacity / interface / form factor: present
-        # in the structured candidate evidence (title) for the model to
-        # evaluate.
         prompt = build_semantic_prompt_v2(case)
-        assert "Micron 7500 PRO 3840GB U.3 15mm SSD" in prompt.user_prompt
-        assert "3840GB" in prompt.user_prompt
-        assert "U.3" in prompt.user_prompt
-        assert "15mm" in prompt.user_prompt
-        # The normalized near-miss keys are explicit.
+
+        # A. The raw candidate title evidence reaches the model, labeled
+        #    as RAW observation text (not as structured evidence).
+        assert (
+            '- Listing title: "Micron 7500 PRO 3840GB U.3 15mm SSD '
+            + CANDIDATE_MPN + '"'
+        ) in prompt.user_prompt
+        assert "Raw observation text" in prompt.user_prompt
+
+        # B. The truly structured candidate product facts are exactly
+        #    what the extraction layer produced: NONE of the
+        #    family/capacity/interface/form-factor dimensions is
+        #    structured evidence merely because its token occurs in the
+        #    title. The published title is the raw channel; the
+        #    dimensions are explicit absences.
+        product = case.candidate_product
+        assert product.raw_title_text == (
+            "Micron 7500 PRO 3840GB U.3 15mm SSD " + CANDIDATE_MPN
+        )
+        assert product.product_family is None
+        assert product.generation is None
+        assert product.capacity is None
+        assert product.interface is None
+        assert product.form_factor is None
+        assert product.product_role is None
+        assert product.accessory_relation is None
+        assert product.brand is None
+        assert product.revision_or_suffix is None
+        assert product.raw_specification_text is None
+        for dimension in (
+            "product_family",
+            "capacity",
+            "interface",
+            "form_factor",
+        ):
+            assert f"- {dimension}: (none)" in prompt.user_prompt
+
+        # C. Packaging / sales-unit evidence is explicitly ABSENT: the
+        #    candidate commercial facts are price / currency /
+        #    availability / condition only, and the sales-unit channel
+        #    records the explicit UNAVAILABLE state (never inferred from
+        #    the price).
+        commercial = case.candidate_commercial
+        assert commercial.price.value == "2000"
+        assert commercial.currency.value == "USD"
+        assert commercial.sales_unit.state is PackagingEvidenceStateV2.UNAVAILABLE
+        assert commercial.sales_unit.kind is None
+        assert commercial.sales_unit.quantity is None
+        assert "- Sales unit / packaging: UNAVAILABLE" in prompt.user_prompt
+
+        # D. Absence is not silently interpreted as equivalence: the
+        #    recorded absence renders with the never-infer rule.
+        assert "absence is NOT proof of equal sales unit" in prompt.user_prompt
+        assert "do not infer a single unit" in prompt.user_prompt
+
+        # The normalized near-miss keys are explicit (unchanged).
         assert REQUESTED_MPN in prompt.user_prompt
         assert CANDIDATE_MPN in prompt.user_prompt
         assert "NEAR_MISS_TRUNCATION" in prompt.user_prompt
-        # Packaging / sales-unit context: the price/package observation
-        # is carried as commercial context (never identity evidence).
-        assert "Price: 2000 USD" in prompt.user_prompt
+        # Commercial evidence is labeled never-identity (unchanged).
         assert "NEVER identity evidence" in prompt.user_prompt
-        # The sales-unit distinction is part of the frozen prompt.
+        # The sales-unit distinction is part of the frozen prompt
+        # (unchanged).
         assert "PACKAGING_QUANTITY" in prompt.system_prompt
 
     def test_relationship_provenance_is_carried_and_labeled(self) -> None:
@@ -293,6 +375,7 @@ class TestV2InputRichness:
             context=context,
             product_evidence=profile,
             context_provenances=CUSTOMER_CTX,
+            reviewed_target_context=None,
         )
         prompt = build_semantic_prompt_v2(case)
         assert "CUSTOMER_RETRIEVAL_RELATION" in prompt.user_prompt
@@ -379,6 +462,7 @@ class TestCustomerRelationAndCeiling:
             REQUEST,
             (assessment,),
             context_provenances_by_assessment={assessment: CUSTOMER_CTX},
+            reviewed_target_context=None,
             runtime_v2=_v2_runtime(),
         )
         assert len(outcomes) == 1
@@ -562,3 +646,50 @@ class TestNoMachinePriceContamination:
         # Machine Verified remains deterministic only: the run's
         # verification status reflects the single deterministic bucket.
         assert result.price_buckets == 1
+
+    def test_the_recorded_input_carries_the_reviewed_target_context(self) -> None:
+        # S2-C-FU1: in the full motivating run the ESTABLISHED 4D-D alias
+        # acquisition carries the reviewed manufacturer TARGET context
+        # into the recorded V2 input — structured/reviewed, target-side
+        # only, zero identity authority (the relation kind is bounded to
+        # customer retrieval). The candidate-side packaging channel
+        # remains explicitly UNAVAILABLE: the reviewed catalog's box
+        # quantity is not carried into the main flow's candidate
+        # evidence, and the candidate listing publishes no packaging
+        # field (the only candidate commercial fact is a price).
+        result = self._execute_motivating_run()
+        records = list(SemanticDecisionRecordRow.objects.filter(run=result.run))
+        assert len(records) == 1
+        loaded = load_semantic_decision(result.run.id, records[0].assessment_index)
+        assert isinstance(loaded, SemanticDecisionRecordV2)
+        reviewed = loaded.case.target.reviewed_context
+        assert reviewed is not None
+        assert reviewed.manufacturer == "Micron"
+        assert reviewed.category == "SSD"
+        # The exact source-published base part number (the R-suffix form
+        # requested; the base is what the catalog row proves).
+        assert reviewed.matched_base_part_number == CANDIDATE_MPN
+        assert reviewed.relation_kind is (
+            TargetIdentifierRelationKindV2.CUSTOMER_RETRIEVAL_ALIAS
+        )
+        assert reviewed.relation_family_part_numbers == (
+            CANDIDATE_MPN,
+            CANDIDATE_MPN + "T",
+        )
+        assert reviewed.source_name == "Micron 7500 SSD catalog"
+        assert reviewed.source_url == MICRON_7500_REQUESTED_CATALOG_URL
+        assert reviewed.evidence_body_sha256  # 64-hex digest carried
+        # The reviewed context grants nothing: the derived snapshots are
+        # unchanged (customer retrieval only, frozen ceiling).
+        assert loaded.relationship_authority is RelationshipAuthority.NOT_ESTABLISHED
+        assert loaded.authority_tier is AuthorityTier.NEEDS_REVIEW
+        # Candidate-side packaging stays explicitly UNAVAILABLE.
+        assert (
+            loaded.case.candidate_commercial.sales_unit.state
+            is PackagingEvidenceStateV2.UNAVAILABLE
+        )
+        # The raw candidate title reaches the model; no product-dimension
+        # fact is derived from its tokens.
+        assert loaded.case.candidate_product.raw_title_text is not None
+        assert loaded.case.candidate_product.capacity is None
+        assert loaded.case.candidate_product.form_factor is None

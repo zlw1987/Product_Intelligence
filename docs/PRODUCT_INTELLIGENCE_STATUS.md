@@ -2,9 +2,236 @@
 
 ## Current state
 
+**PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-S2-C-FU1 (Semantic Authority V2 —
+Input Evidence Fidelity) — IMPLEMENTED / PENDING FINAL REVIEW**
+
+Bounded INPUT-EVIDENCE corrective follow-up on the pending S2-C
+candidate (canonical spec: PLAN §26.27; decision record: AD-071, amending
+AD-070 in part), on the authoritative starting SHA
+`a3127bca4bc4177b447ece8b20c33d83ec4ed415` (S2-C, PENDING FINAL REVIEW;
+baseline collection 6528). S2-C is REVIEWED but NOT APPROVED / NOT
+FROZEN. One review blocker was corrected before the Semantic V2 contract
+can be declared FINAL: the S2-C "FINAL" V2 input did not provide the
+structured product/commercial evidence the product goal requires —
+`candidate_specs` was a misleading free-text slot always `None`, the
+commercial context was a composed price/availability/seller/offer
+string, no packaging/sales-unit channel existed, and the motivating
+test claimed family/capacity/interface/form factor were "structured
+evidence" merely because the tokens occur in the candidate TITLE. FU1
+corrects the MODEL-OBSERVATION input contract so the model receives the
+best SAFE product and commercial evidence already available in the
+system, with explicit structure and provenance — while the AUTHORITY
+side (S2-A) is untouched and the model still cannot bootstrap authority
+from its own output.
+
+**Versioning decision (honest, pre-freeze).** S2-C MUST NOT deploy and
+NO historical production V2 record exists anywhere (verified: the
+`runs_semanticdecisionrecord` table is absent from the development
+database; V2 is persist-only, `V2_AUTHORITY_QUALIFIED = False`). FU1
+therefore amends the PRE-FREEZE candidate in place: the contract
+binding stays exactly `("V2", "2.0", 1, 1, "SEMANTIC_AUTHORITY_V2_S2A_FU2")`
+and the prompt version stays `2.0` — 2.0 never shipped, so the frozen
+2.0 that Qualification V3 will qualify against is the corrected text.
+Bumping would create phantom versions of unshipped artifacts. The
+anti-reinterpretation safety is unaffected: a pre-FU1-shaped payload
+strictly fails closed under the corrected codec (proved by test).
+
+**Extraction-capability audit (documented in `research/semantic_v2.py`).**
+WHAT EXISTS TODAY: 3A `ListingObservation` carries the page-published
+STRUCTURED fields (product title, MPN field, SKU, brand, price,
+currency, availability, condition, seller, offer URL; JSON-LD / product
+meta are the only offer mechanisms); the remaining JSON-LD material
+(description, GTIN, category, ...) stays in the OPAQUE `raw_reference`,
+which no business rule may parse (AD-040). 3B normalizes COMMERCIAL
+attributes only. 3C compares EXPLICIT MPN fields only (frozen 2A).
+The 6A/6B/6C specification framework and the 7A/7B comparable-research
+extraction exist ONLY in the comparable-research flow and require an
+ESTABLISHED identity — not available to main-flow listing candidates.
+The 4D-D Micron 7500 alias acquisition is the ONLY reviewed
+manufacturer TARGET context the main flow carries (ESTABLISHED =>
+manufacturer, verified SSD category, exact source-published base MPN,
+customer-defined R/T relation, bounded fetch provenance; no other
+catalog attributes — the box quantity is NOT carried and is NOT claimed
+as candidate packaging evidence). WHAT CAN BE SAFELY STRUCTURED:
+published-structured-field facts only (brand candidate-side; the
+commercial fields; the reviewed 4D-D target context). WHAT STAYS RAW:
+the published title (and the requested description) as labeled RAW
+OBSERVATION TEXT — no token is parsed into a structured fact. WHAT
+GRANTS AUTHORITY: unchanged — `ProductEvidenceFactV2` requires the
+frozen S2-A grounded-source vocabulary; the live main flow grounds
+ZERO matched facts (the audit proves why). WHAT THE MODEL MAY SEE BUT
+CANNOT GRANT AUTHORITY: everything in the observation sections
+(structured or raw), the commercial/packaging evidence, and the
+customer-retrieval relation.
+
+**The corrected V2 input contract.** `SemanticMatchCaseV2` (17 required
+top-level fields; no silent defaults; construction fails closed exactly
+as S2-C): A. TARGET — NEW `TargetEvidenceV2`: the structured
+caller-published MPN; the requested description as RAW OBSERVATION
+TEXT (explicit None when absent); and `ReviewedTargetContextV2 | None`
+(NEW — structured/reviewed target-side context: manufacturer, verified
+category, matched base part number, bounded relation kind — today only
+`CUSTOMER_RETRIEVAL_ALIAS` = zero identity authority, never
+manufacturer-stated — the relation's family part numbers other than
+the requested form, source name/URL, ISO-8601 UTC retrieval instant,
+64-hex evidence body digest; fail-closed). B. CANDIDATE LISTING —
+published identifier fields (MPN field / SKU), the frozen 3C evidence
+source, NEW `CandidateProductEvidenceV2` (nine bounded product
+dimensions — product family / generation / capacity / interface / form
+factor / product role / accessory relation / brand / revision-suffix —
+each a `CandidateObservationFactV2` (observed value + explicit
+`CandidateEvidenceSourceV2` provenance: PUBLISHED_STRUCTURED_FIELD /
+LISTING_TITLE / SPECIFICATION_TEXT / REVIEWED_PRODUCT_CONTEXT; NO
+model-claim member) or explicit None; plus raw_title_text /
+raw_specification_text RAW observation text) and NEW
+`CandidateCommercialEvidenceV2` (condition / price / currency /
+availability / seller as bounded facts, the published offer URL, and
+the REQUIRED NEW `CandidateSalesUnitEvidenceV2` packaging channel —
+ALWAYS explicit: UNAVAILABLE (all value fields None) or OBSERVED
+(bounded `SalesUnitKindV2` SINGLE_UNIT / PACK_QUANTITY /
+TRAY_OR_FACTORY_PACK / BUNDLE + published raw detail + provenance +
+bounded positive int quantity where the kind carries one; PACK_QUANTITY
+requires it, SINGLE_UNIT forbids it)). C / D / E — unchanged (the
+deterministic identity context, the context provenance, and the
+authority-side ProductEvidenceProfileV2). The misleading
+`candidate_specs` / `candidate_commercial_context` free-text slots and
+the loose top-level brand/condition/title fields are REMOVED (replaced
+by the typed sections).
+
+**Safe live builders (observation side).** NEW
+`build_candidate_product_evidence_v2` (fills ONLY published
+structured-field facts the extractor actually carries — brand; every
+other dimension explicit None; the title as raw text; no specification
+text — it stays in the opaque raw reference) and NEW
+`build_candidate_commercial_evidence_v2` (published commercial fields
+as bounded facts; the sales-unit channel ALWAYS the explicit
+UNAVAILABLE state — the extractor publishes no packaging field and
+nothing is inferred from price). `build_semantic_match_case_v2` gains
+the EXPLICIT `reviewed_target_context` keyword (no silent default).
+The SAFE authority-side builder `build_v2_product_evidence_profile` is
+UNCHANGED (frozen S2-A signature; the live path still passes
+matched_facts=frozenset(); the model's matched_attributes still cannot
+enter it — the no-model-output parameter proof stands).
+
+**4D-D target-context wiring.** NEW
+`reviewed_target_context_from_alias_result` in
+`execution/semantic_decision_v2_execution.py` (deterministic over the
+ESTABLISHED result's own re-verified fields; non-ESTABLISHED ->
+explicit None; an ESTABLISHED result missing a reviewed field fails
+closed — defense in depth, the result's self-validation already makes
+such a state unconstructible). The orchestration carries it into
+`evaluate_semantic_matches_v2` (new EXPLICIT keyword) for every
+V2-eligible candidate of the run. No 4D-D contract, codec, snapshot,
+or fetch behavior changes; the 4D-D firewall is untouched (the context
+is target-side observation evidence, zero identity authority).
+
+**Prompt V2 corrected (version stays 2.0 — see decision above).** The
+system prompt gains the EVIDENCE CLASSES rules: STRUCTURED FACT vs RAW
+OBSERVATION TEXT vs COMMERCIAL / PACKAGING EVIDENCE vs REVIEWED TARGET
+CONTEXT vs AUTHORITY-SIDE PRODUCT EVIDENCE; absence of packaging
+evidence is NOT proof of equal sales unit and is never read as
+"single unit"; no packaging value is inferred from price; a raw-text
+token is not a structured fact and raw text never becomes manufacturer
+authority; absence of a structured fact does not erase raw observation
+evidence; never manufacture a missing fact (absent from all evidence ->
+missing_critical_attributes); UNPROVEN sales unit + otherwise-matching
+evidence -> PACKAGING_QUANTITY / BUNDLE missing + UNCERTAIN. The user
+prompt renders the corrected sections (structured facts with source
+labels or explicit absence; raw text under the raw label; commercial
+facts + explicit sales-unit state; the reviewed target context labeled
+STRUCTURED/REVIEWED / target-side only / zero identity authority).
+
+**Persistence / replay.** The V2 codec's case section is corrected to
+the exact new shape (strict key sets; unknown enums, invented evidence
+sources, invalid sales-unit cross-states, and a tampered reviewed
+context all fail closed; a pre-FU1-shaped payload — free-text
+`description` / `title` / `specs` / `commercial_context` — is never
+silently reinterpreted). The V2 run-binding check reads the corrected
+target section. The V1 adapter, V1 payload bytes, V1 replay, the
+envelope, the row, the service, and migration 0012 are byte-untouched.
+NO migration.
+
+**Motivating Micron case corrected.** The flawed node
+`test_the_input_carries_the_structured_evaluation_context` is
+CORRECTED IN PLACE as
+`test_the_input_carries_the_corrected_evidence_contract`: it no longer
+proves "structured family/capacity/interface/form factor" by title
+tokens. It now proves accurately: (A) the raw candidate title evidence
+reaches the model labeled RAW observation text; (B) truly structured
+product facts are present only where the extraction layer produced
+them — all four dimensions are explicit absences despite the title
+tokens; (C) packaging/sales-unit evidence is explicitly ABSENT
+(UNAVAILABLE) — the fixture's only candidate commercial fact is a
+price, and a price is never a packaging observation; (D) the absence
+renders with the never-infer rule (not silently interpreted as
+equivalence). Unchanged adjacent nodes still prove: (E)
+CUSTOMER_RETRIEVAL_RELATION retrieval-only (zero identity authority);
+(F) the U5/NM-1 relationship ceiling (MATCH/HIGH + STRONG capped at
+NEEDS_REVIEW without reviewed relationship authority); (G) no Machine
+Price contamination (full orchestration). NEW full-orchestration node:
+the ESTABLISHED 4D-D acquisition carries the reviewed manufacturer
+TARGET context (Micron / SSD / base MPN / CUSTOMER_RETRIEVAL_ALIAS /
+family part numbers / provenance) into the recorded V2 input with zero
+identity authority, while the candidate-side packaging channel stays
+explicitly UNAVAILABLE and the derived snapshots are unchanged
+(NOT_ESTABLISHED / NEEDS_REVIEW).
+
+Test preservation: no test deleted, renamed, skipped, xfailed,
+deselected, ignored, or weakened merely to obtain green. The corrected
+motivating node preserves the safety property it was meant to check
+(the input reaches the model with honest evidence classes) while
+removing the flawed claim. S2-C test-helper call sites were mechanically
+updated to the corrected builder signature / case shape (the explicit
+`reviewed_target_context` keyword; the typed evidence sections); every
+safety assertion in those helpers is preserved. The package-export
+pins gain the FU1 surface (strengthened). New nodes: 47 — NEW file
+`tests/research/test_semantic_v2_input_evidence.py` (27: the 20
+mandated input-evidence properties + the reviewed-target-context
+contract incl. the 4D-D helper over the real recorded catalog fixture),
++8 prompt evidence-class nodes (`tests/semantic/test_contract_v2.py`),
++11 codec nodes (`tests/research/test_semantic_decision_v2.py` —
+packaging single-unit / pack-quantity / tray / bundle round-trips if
+observed; UNAVAILABLE default; reviewed-context round-trip + zero-live
+replay; pre-FU1-shape refusal; legacy `specs` key refusal; invalid
+cross-state / unknown-source / unknown-relation-kind refusal), +1
+full-orchestration motivating node (`tests/execution/test_semantic_
+v2_motivating_case.py`). No test file decreased; the known
+Windows/Python-3.14 subprocess flake allowlist NOT expanded.
+
+Validation (this session, candidate pass — final approval remains with
+independent review):
+
+* Collection baseline at `a3127bc`: **6528**; final: **6575** (+47 =
+  27 new-file nodes + 8 prompt nodes + 11 codec nodes + 1 motivating
+  node; no file decreased).
+* Focused S2-C + FU1 (contract 60, input evidence 27, prompt 41,
+  runtime 29, adapter 61, boundaries 32 + 50, execution 20, motivating
+  case 10): **330 passed, 0 failed**.
+* Focused S2-A + S2-B (authority contract + boundaries, record, codec,
+  replay, runs, persistence service): **347 passed, 0 failed**
+  (combined with the S2-C + FU1 batch: 677 passed, 0 failed).
+* Full suite: **6575 passed, 0 failed**, 39 subtests passed, 0 errors,
+  0 skipped, 0 xfailed, 0 deselected (~7 min; the known
+  Windows/Python-3.14 subprocess-boundary flake class did not manifest
+  in this run).
+* `python manage.py check`: System check identified no issues.
+* `python manage.py makemigrations --check --dry-run`: No changes
+  detected (no model change).
+* `python manage.py migrate --plan`: unchanged (final entry
+  `runs.0012_semantic_decision_record`).
+* `git diff --check`: clean.
+
+No deployment performed in this commit; production does not move until
+independently reviewed approval, and S2-C (and this FU1) explicitly
+MUST NOT deploy. Qualification V3 is NOT started.
+
 **PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-S2-C (Semantic Authority V2 —
 Final Semantic V2 Contract + Eligibility + Execution Wiring) —
-IMPLEMENTED / PENDING FINAL REVIEW**
+IMPLEMENTED / AMENDED IN PART BY S2-C-FU1 (PENDING FINAL REVIEW)**
+
+**PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-S2-C (Semantic Authority V2 —
+Final Semantic V2 Contract + Eligibility + Execution Wiring) —
+IMPLEMENTED / AMENDED IN PART BY S2-C-FU1 (PENDING FINAL REVIEW)**
 
 Bounded FINAL-CONTRACT + WIRING phase on the authoritative starting SHA
 `c6caa23c024e48962191a0c856230b684fb21c3c` (S2-B-FU1, PENDING FINAL

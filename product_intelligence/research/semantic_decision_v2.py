@@ -111,6 +111,7 @@ from product_intelligence.research.semantic_decision_record import (
     _dec_sorted_unique_str_list,
     _dec_str,
     _dec_str_enum,
+    _dec_str_list,
     _validate_binding_fields,
     _validate_digest,
     _validate_str,
@@ -118,11 +119,21 @@ from product_intelligence.research.semantic_decision_record import (
     canonical_sha256,
 )
 from product_intelligence.research.semantic_v2 import (
+    CandidateCommercialEvidenceV2,
+    CandidateEvidenceSourceV2,
+    CandidateObservationFactV2,
+    CandidateProductEvidenceV2,
+    CandidateSalesUnitEvidenceV2,
+    PackagingEvidenceStateV2,
+    ReviewedTargetContextV2,
+    SalesUnitKindV2,
     SemanticAttributeDimensionV2,
     SemanticAttributeV2,
     SemanticMatchCaseV2,
     SemanticMatchResponseV2,
     SemanticReasonCodeV2,
+    TargetEvidenceV2,
+    TargetIdentifierRelationKindV2,
 )
 
 __all__ = [
@@ -1152,20 +1163,69 @@ _V2_CASE_KEYS: Final[frozenset[str]] = frozenset(
     }
 )
 
-_V2_TARGET_KEYS: Final[frozenset[str]] = frozenset({"mpn", "description"})
+_V2_TARGET_KEYS: Final[frozenset[str]] = frozenset(
+    {"mpn", "description_raw_text", "reviewed_context"}
+)
+
+_V2_REVIEWED_TARGET_CONTEXT_KEYS: Final[frozenset[str]] = frozenset(
+    {
+        "manufacturer",
+        "category",
+        "matched_base_part_number",
+        "relation_kind",
+        "relation_family_part_numbers",
+        "source_name",
+        "source_url",
+        "retrieved_at",
+        "evidence_body_sha256",
+    }
+)
 
 _V2_CANDIDATE_KEYS: Final[frozenset[str]] = frozenset(
     {
         "source_url",
-        "title",
         "mpn_field",
         "sku",
-        "brand",
-        "condition",
-        "specs",
-        "commercial_context",
         "evidence_source",
+        "product",
+        "commercial",
     }
+)
+
+_V2_CANDIDATE_PRODUCT_KEYS: Final[frozenset[str]] = frozenset(
+    {
+        "product_family",
+        "generation",
+        "capacity",
+        "interface",
+        "form_factor",
+        "product_role",
+        "accessory_relation",
+        "brand",
+        "revision_or_suffix",
+        "raw_title_text",
+        "raw_specification_text",
+    }
+)
+
+_V2_CANDIDATE_COMMERCIAL_KEYS: Final[frozenset[str]] = frozenset(
+    {
+        "condition",
+        "price",
+        "currency",
+        "availability",
+        "seller",
+        "offer_url",
+        "sales_unit",
+    }
+)
+
+_V2_OBSERVATION_FACT_KEYS: Final[frozenset[str]] = frozenset(
+    {"value", "source"}
+)
+
+_V2_SALES_UNIT_KEYS: Final[frozenset[str]] = frozenset(
+    {"state", "kind", "quantity", "raw_detail", "source"}
 )
 
 _V2_IDENTITY_CONTEXT_KEYS: Final[frozenset[str]] = frozenset(
@@ -1394,6 +1454,124 @@ def _dec_v2_attribute_list(data: list[object], path: str) -> tuple[SemanticAttri
     return tuple(out)
 
 
+def _dec_v2_observation_fact(
+    data: object, path: str
+) -> CandidateObservationFactV2 | None:
+    """Decode one bounded candidate observation fact (absent = null)."""
+    if data is None:
+        return None
+    fact = _dec_mapping(data, path)
+    _check_keys(fact, _V2_OBSERVATION_FACT_KEYS, path)
+    value = _dec_str(
+        _dec_required(fact, "value", path), f"{path}.value", allow_empty=False
+    )
+    source = _dec_str_enum(
+        CandidateEvidenceSourceV2,
+        _dec_required(fact, "source", path),
+        f"{path}.source",
+    )
+    return CandidateObservationFactV2(value=value, source=source)
+
+
+def _dec_v2_sales_unit(data: object, path: str) -> CandidateSalesUnitEvidenceV2:
+    """Decode the bounded packaging / sales-unit channel (always present,
+    always an explicit state)."""
+    su = _dec_mapping(data, path)
+    _check_keys(su, _V2_SALES_UNIT_KEYS, path)
+    state = _dec_str_enum(
+        PackagingEvidenceStateV2,
+        _dec_required(su, "state", path),
+        f"{path}.state",
+    )
+    kind = _dec_optional_str_enum(
+        SalesUnitKindV2,
+        _dec_required(su, "kind", path),
+        f"{path}.kind",
+    )
+    quantity_raw = _dec_required(su, "quantity", path)
+    quantity = (
+        None
+        if quantity_raw is None
+        else _dec_int(quantity_raw, f"{path}.quantity")
+    )
+    raw_detail = _dec_optional_str(
+        _dec_required(su, "raw_detail", path), f"{path}.raw_detail"
+    )
+    source = _dec_optional_str_enum(
+        CandidateEvidenceSourceV2,
+        _dec_required(su, "source", path),
+        f"{path}.source",
+    )
+    return CandidateSalesUnitEvidenceV2(
+        state=state,
+        kind=kind,
+        quantity=quantity,
+        raw_detail=raw_detail,
+        source=source,
+    )
+
+
+def _dec_v2_reviewed_target_context(
+    data: object, path: str
+) -> ReviewedTargetContextV2 | None:
+    """Decode the reviewed manufacturer target context (absent = null)."""
+    if data is None:
+        return None
+    ctx = _dec_mapping(data, path)
+    _check_keys(ctx, _V2_REVIEWED_TARGET_CONTEXT_KEYS, path)
+    manufacturer = _dec_str(
+        _dec_required(ctx, "manufacturer", path),
+        f"{path}.manufacturer",
+        allow_empty=False,
+    )
+    category = _dec_str(
+        _dec_required(ctx, "category", path), f"{path}.category",
+        allow_empty=False,
+    )
+    matched_base_part_number = _dec_str(
+        _dec_required(ctx, "matched_base_part_number", path),
+        f"{path}.matched_base_part_number",
+        allow_empty=False,
+    )
+    relation_kind = _dec_str_enum(
+        TargetIdentifierRelationKindV2,
+        _dec_required(ctx, "relation_kind", path),
+        f"{path}.relation_kind",
+    )
+    relation_family_part_numbers = _dec_str_list(
+        _dec_required(ctx, "relation_family_part_numbers", path),
+        f"{path}.relation_family_part_numbers",
+    )
+    source_name = _dec_str(
+        _dec_required(ctx, "source_name", path), f"{path}.source_name",
+        allow_empty=False,
+    )
+    source_url = _dec_str(
+        _dec_required(ctx, "source_url", path), f"{path}.source_url",
+        allow_empty=False,
+    )
+    retrieved_at = _dec_str(
+        _dec_required(ctx, "retrieved_at", path), f"{path}.retrieved_at",
+        allow_empty=False,
+    )
+    evidence_body_sha256 = _dec_str(
+        _dec_required(ctx, "evidence_body_sha256", path),
+        f"{path}.evidence_body_sha256",
+        allow_empty=False,
+    )
+    return ReviewedTargetContextV2(
+        manufacturer=manufacturer,
+        category=category,
+        matched_base_part_number=matched_base_part_number,
+        relation_kind=relation_kind,
+        relation_family_part_numbers=relation_family_part_numbers,
+        source_name=source_name,
+        source_url=source_url,
+        retrieved_at=retrieved_at,
+        evidence_body_sha256=evidence_body_sha256,
+    )
+
+
 def _dec_v2_case(data: dict[str, object], path: str) -> SemanticMatchCaseV2:
     _check_keys(data, _V2_CASE_KEYS, path)
 
@@ -1408,9 +1586,13 @@ def _dec_v2_case(data: dict[str, object], path: str) -> SemanticMatchCaseV2:
         f"{path}.target.mpn",
         allow_empty=False,
     )
-    target_description = _dec_str(
-        _dec_required(target, "description", f"{path}.target"),
-        f"{path}.target.description",
+    target_description_raw_text = _dec_optional_str(
+        _dec_required(target, "description_raw_text", f"{path}.target"),
+        f"{path}.target.description_raw_text",
+    )
+    reviewed_target_context = _dec_v2_reviewed_target_context(
+        _dec_required(target, "reviewed_context", f"{path}.target"),
+        f"{path}.target.reviewed_context",
     )
 
     candidate = _dec_mapping(
@@ -1422,10 +1604,6 @@ def _dec_v2_case(data: dict[str, object], path: str) -> SemanticMatchCaseV2:
         f"{path}.candidate.source_url",
         allow_empty=False,
     )
-    candidate_title = _dec_optional_str(
-        _dec_required(candidate, "title", f"{path}.candidate"),
-        f"{path}.candidate.title",
-    )
     candidate_mpn_field = _dec_optional_str(
         _dec_required(candidate, "mpn_field", f"{path}.candidate"),
         f"{path}.candidate.mpn_field",
@@ -1434,27 +1612,76 @@ def _dec_v2_case(data: dict[str, object], path: str) -> SemanticMatchCaseV2:
         _dec_required(candidate, "sku", f"{path}.candidate"),
         f"{path}.candidate.sku",
     )
-    candidate_brand = _dec_optional_str(
-        _dec_required(candidate, "brand", f"{path}.candidate"),
-        f"{path}.candidate.brand",
-    )
-    candidate_condition = _dec_optional_str(
-        _dec_required(candidate, "condition", f"{path}.candidate"),
-        f"{path}.candidate.condition",
-    )
-    candidate_specs = _dec_optional_str(
-        _dec_required(candidate, "specs", f"{path}.candidate"),
-        f"{path}.candidate.specs",
-    )
-    candidate_commercial_context = _dec_optional_str(
-        _dec_required(candidate, "commercial_context", f"{path}.candidate"),
-        f"{path}.candidate.commercial_context",
-    )
     candidate_evidence_source = _dec_str(
         _dec_required(candidate, "evidence_source", f"{path}.candidate"),
         f"{path}.candidate.evidence_source",
         allow_empty=False,
     )
+
+    product_data = _dec_mapping(
+        _dec_required(candidate, "product", f"{path}.candidate"),
+        f"{path}.candidate.product",
+    )
+    _check_keys(
+        product_data, _V2_CANDIDATE_PRODUCT_KEYS, f"{path}.candidate.product"
+    )
+    product_dimension_fields = (
+        "product_family",
+        "generation",
+        "capacity",
+        "interface",
+        "form_factor",
+        "product_role",
+        "accessory_relation",
+        "brand",
+        "revision_or_suffix",
+    )
+    product_kwargs: dict[str, object] = {
+        field: _dec_v2_observation_fact(
+            _dec_required(product_data, field, f"{path}.candidate.product"),
+            f"{path}.candidate.product.{field}",
+        )
+        for field in product_dimension_fields
+    }
+    product_kwargs["raw_title_text"] = _dec_optional_str(
+        _dec_required(product_data, "raw_title_text", f"{path}.candidate.product"),
+        f"{path}.candidate.product.raw_title_text",
+    )
+    product_kwargs["raw_specification_text"] = _dec_optional_str(
+        _dec_required(
+            product_data, "raw_specification_text", f"{path}.candidate.product"
+        ),
+        f"{path}.candidate.product.raw_specification_text",
+    )
+    candidate_product = CandidateProductEvidenceV2(**product_kwargs)
+
+    commercial_data = _dec_mapping(
+        _dec_required(candidate, "commercial", f"{path}.candidate"),
+        f"{path}.candidate.commercial",
+    )
+    _check_keys(
+        commercial_data, _V2_CANDIDATE_COMMERCIAL_KEYS,
+        f"{path}.candidate.commercial",
+    )
+    commercial_fields = ("condition", "price", "currency", "availability", "seller")
+    commercial_kwargs: dict[str, object] = {
+        field: _dec_v2_observation_fact(
+            _dec_required(
+                commercial_data, field, f"{path}.candidate.commercial"
+            ),
+            f"{path}.candidate.commercial.{field}",
+        )
+        for field in commercial_fields
+    }
+    commercial_kwargs["offer_url"] = _dec_optional_str(
+        _dec_required(commercial_data, "offer_url", f"{path}.candidate.commercial"),
+        f"{path}.candidate.commercial.offer_url",
+    )
+    commercial_kwargs["sales_unit"] = _dec_v2_sales_unit(
+        _dec_required(commercial_data, "sales_unit", f"{path}.candidate.commercial"),
+        f"{path}.candidate.commercial.sales_unit",
+    )
+    candidate_commercial = CandidateCommercialEvidenceV2(**commercial_kwargs)
 
     identity_context = _dec_mapping(
         _dec_required(data, "deterministic_identity_context", path),
@@ -1553,17 +1780,17 @@ def _dec_v2_case(data: dict[str, object], path: str) -> SemanticMatchCaseV2:
     # error by the caller.
     return SemanticMatchCaseV2(
         case_id=case_id,
-        target_mpn=target_mpn,
-        target_description=target_description,
+        target=TargetEvidenceV2(
+            mpn=target_mpn,
+            description_raw_text=target_description_raw_text,
+            reviewed_context=reviewed_target_context,
+        ),
         candidate_source_url=candidate_source_url,
-        candidate_title=candidate_title,
         candidate_mpn_field=candidate_mpn_field,
         candidate_sku=candidate_sku,
-        candidate_brand=candidate_brand,
-        candidate_condition=candidate_condition,
-        candidate_specs=candidate_specs,
-        candidate_commercial_context=candidate_commercial_context,
         candidate_evidence_source=candidate_evidence_source,
+        candidate_product=candidate_product,
+        candidate_commercial=candidate_commercial,
         identity_state=identity_state,
         substate=substate,
         primary_relationship_signal=primary_relationship_signal,
@@ -2081,8 +2308,9 @@ def _v2_run_binding_violation(
             f"got {type(record).__name__}"
         )
     if (
-        record.case.target_mpn != request_mpn
-        or record.case.target_description != request_description
+        record.case.target.mpn != request_mpn
+        or (record.case.target.description_raw_text or "")
+        != (request_description or "")
     ):
         return (
             "the record's request identity does not match the run's "

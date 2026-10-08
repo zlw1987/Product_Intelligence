@@ -10,7 +10,12 @@ that Qualification V3 will use UNCHANGED:
 * the final **Semantic V2 input contract** (``SemanticMatchCaseV2``) — a
   versioned immutable value object with clearly separated sections for the
   TARGET, the CANDIDATE LISTING, the DETERMINISTIC IDENTITY CONTEXT, the
-  CONTEXT PROVENANCE, and the authority-side PRODUCT EVIDENCE;
+  CONTEXT PROVENANCE, and the authority-side PRODUCT EVIDENCE. The input
+  distinguishes four evidence classes with explicit provenance: STRUCTURED
+  FACT (bounded value + source label), RAW OBSERVATION TEXT (published free
+  text, labeled), COMMERCIAL / PACKAGING EVIDENCE (bounded, the sales-unit
+  channel always explicit), and AUTHORITY-SIDE PRODUCT EVIDENCE
+  (deterministic/reviewed only — the model can never create or upgrade it).
 * the SAFE **product-evidence builder** (``build_v2_product_evidence_
   profile``) — the bounded STRONG evidence bar can only be reached from
   facts whose candidate-side grounding is independently present in
@@ -54,23 +59,71 @@ What this module deliberately is NOT:
   predicate is a NEW, separate predicate with a wider (superset) reach:
   V2 additionally covers U4_NO_MPN and U5_NEAR_MISS_MPN.
 
-Documented limitation (product-evidence builder): the current main-flow
-deterministic extraction (3A ``ListingObservation``) contains no
-deterministic attribute extraction that proves exact bounded
-identity-dimension equality between the target and a listing candidate
-(that infrastructure exists only in the comparable-research
-specification flow). The live execution path therefore constructs the
-authority-side profile with ZERO matched facts: candidates remain at most
-LIMITED (usable title) or WEAK, and the frozen S2-A bar keeps them at
-NEEDS_REVIEW until future evidence infrastructure safely proves facts.
-No fact is ever fabricated, and no unsafe heuristic is introduced to
-increase recall.
+Extraction-capability audit (S2-C-FU1 — what evidence exists today, what
+is structured, what stays raw, and what may/may not grant authority):
+
+* 3A ``ListingObservation`` carries the page-published STRUCTURED fields:
+  product title, MPN field, SKU, brand, price, currency, availability,
+  condition, seller, offer URL (JSON-LD / product meta are the only offer
+  extraction mechanisms). The remaining JSON-LD material (description,
+  GTIN, category, ...) survives in the OPAQUE ``raw_reference``, which no
+  business rule may parse (AD-040).
+* 3B normalizes COMMERCIAL attributes only (price / availability /
+  condition / seller); it extracts no product attributes.
+* 3C compares EXPLICIT MPN fields only (the frozen 2A comparator); title
+  and SKU text never establish identity.
+* The 6A/6B/6C specification framework and the 7A/7B comparable-research
+  extraction exist ONLY in the comparable-research flow and require an
+  ESTABLISHED product identity plus manufacturer support pages with the
+  reviewed embedded structure — they are not available to main-flow
+  listing candidates.
+* 4D-D (the Micron 7500 packaging-alias acquisition) is the ONLY reviewed
+  manufacturer TARGET context the main execution flow carries: when
+  ESTABLISHED it proves the requested part's family-catalog membership
+  (manufacturer, verified SSD category, the exact source-published base
+  MPN) through a fail-closed deterministic parser over a reviewed origin.
+  Its R/T relation is CUSTOMER-DEFINED (retrieval only, zero identity
+  authority) and the result carries no other catalog attributes.
+
+Consequences for this input contract:
+
+* Candidate-side STRUCTURED product facts are filled ONLY from the
+  page-published structured fields the extractor actually carries (brand
+  today); every other product dimension remains explicit None (absent —
+  never a guessed value). NO token of the raw title is parsed into a
+  structured fact: token occurrence in the title is RAW observation
+  evidence, not bounded structured evidence.
+* The published title is carried as RAW observation text (labeled as
+  such); the main flow carries no specification text (it stays in the
+  opaque raw reference).
+* The COMMERCIAL section carries the published commercial fields as
+  bounded facts plus the bounded SALES-UNIT / PACKAGING channel whose
+  state is always explicit: the extractor publishes no packaging field,
+  so the live builder records ``UNAVAILABLE`` — never a value inferred
+  from price, never a silent absence. The channel's bounded vocabulary
+  represents single unit, pack quantity, tray/factory pack, and bundle.
+* TARGET-side structured/reviewed facts exist only when the main flow
+  carries a reviewed manufacturer target context (today: the ESTABLISHED
+  4D-D acquisition, as ``ReviewedTargetContextV2``); the requested
+  description is RAW observation text.
+* AUTHORITY SIDE (unchanged S2-A safety bar): a ``ProductEvidenceFactV2``
+  requires the frozen grounded-source vocabulary
+  (LISTING_PRODUCT_TITLE / REVIEWED_PRODUCT_CONTEXT — no model-claim
+  member). The main-flow extraction proves no exact bounded
+  identity-dimension equality for listing candidates, so the live path
+  passes ``matched_facts=frozenset()``: candidates remain at most LIMITED
+  (usable title) or WEAK, and the frozen S2-A bar keeps them at
+  NEEDS_REVIEW until future evidence infrastructure safely proves facts.
+  None of the MODEL-OBSERVATION evidence above (structured or raw) can
+  grant authority: observation is never equality proof, and the model
+  never bootstraps the authority-side profile from its own output.
 """
 
 from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from datetime import datetime
 from enum import Enum
 from typing import Final
 
@@ -100,7 +153,17 @@ from product_intelligence.research.listings import ListingObservation
 from product_intelligence.research.matching import ListingIdentityAssessment
 
 __all__ = [
+    "CandidateCommercialEvidenceV2",
+    "CandidateEvidenceSourceV2",
+    "CandidateObservationFactV2",
+    "CandidateProductDimensionV2",
+    "CandidateProductEvidenceV2",
+    "CandidateSalesUnitEvidenceV2",
+    "PackagingEvidenceStateV2",
     "REASON_CODE_RULES",
+    "ReviewedTargetContextV2",
+    "SALES_UNIT_EVIDENCE_UNAVAILABLE",
+    "SalesUnitKindV2",
     "SemanticAttributeDimensionV2",
     "SemanticAttributeV2",
     "SemanticMatchCaseV2",
@@ -108,6 +171,10 @@ __all__ = [
     "SemanticReasonCodeRuleV2",
     "SemanticReasonCodeV2",
     "SemanticV2ParseError",
+    "TargetEvidenceV2",
+    "TargetIdentifierRelationKindV2",
+    "build_candidate_commercial_evidence_v2",
+    "build_candidate_product_evidence_v2",
     "build_semantic_match_case_v2",
     "build_v2_product_evidence_profile",
     "is_v2_semantic_eligible",
@@ -159,22 +226,712 @@ def is_v2_semantic_eligible(assessment: ListingIdentityAssessment) -> bool:
 
 
 # ---------------------------------------------------------------------------
+# Bounded candidate-side observation evidence (S2-C-FU1)
+# ---------------------------------------------------------------------------
+# MODEL-OBSERVATION evidence only. Every value below is a published or
+# established fact with explicit provenance — never a model claim, never a
+# value inferred from raw text. None of it can grant authority: it cannot
+# become a ProductEvidenceFactV2 (the frozen S2-A candidate-source
+# vocabulary has no member for it) and a matching value is not a
+# deterministic equality proof (equivalence is the model's semantic
+# judgment under qualification).
+
+
+class CandidateEvidenceSourceV2(str, Enum):
+    """Bounded candidate-side provenance for one structured observation
+    fact.
+
+    Distinguishes WHERE the fact was published / established:
+
+    * PUBLISHED_STRUCTURED_FIELD — a field the page deliberately published
+      as structured data (JSON-LD / product meta) that the 3A extractor
+      carries as a named observation field;
+    * LISTING_TITLE — a deterministic title-published field (reserved:
+      the live main-flow builder emits no title-derived facts — token
+      occurrence in the raw title is not structured evidence);
+    * SPECIFICATION_TEXT — a published specification / description text
+      field (reserved: the main flow carries no specification text — the
+      remaining JSON-LD material stays in the opaque raw reference, which
+      no business rule may parse);
+    * REVIEWED_PRODUCT_CONTEXT — a reviewed manufacturer product context
+      carried by the main execution flow about the CANDIDATE (reserved:
+      today the main flow carries no reviewed candidate-side product
+      context).
+
+    No member is a model claim: the V2 model's matched_attributes can
+    never name a source for its own observations.
+    """
+
+    PUBLISHED_STRUCTURED_FIELD = "PUBLISHED_STRUCTURED_FIELD"
+    LISTING_TITLE = "LISTING_TITLE"
+    SPECIFICATION_TEXT = "SPECIFICATION_TEXT"
+    REVIEWED_PRODUCT_CONTEXT = "REVIEWED_PRODUCT_CONTEXT"
+
+
+@dataclass(frozen=True)
+class CandidateObservationFactV2:
+    """One bounded candidate observation fact (observed value + provenance).
+
+    MODEL-OBSERVATION evidence only: a published / established value, never
+    a value inferred from raw text and never a model claim. It may support
+    the model's semantic reasoning; it is NOT authority-side evidence — it
+    cannot become a ``ProductEvidenceFactV2`` and the value is not a
+    deterministic equality proof against the target.
+    """
+
+    value: str
+    source: CandidateEvidenceSourceV2
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.value, str) or not self.value:
+            raise ValueError(
+                "a candidate observation fact's value must be a non-empty "
+                "str preserved as published (an absent fact is None, "
+                "never an empty sentinel)"
+            )
+        if not isinstance(self.source, CandidateEvidenceSourceV2):
+            raise TypeError(
+                "source must be CandidateEvidenceSourceV2, "
+                f"got {type(self.source).__name__}"
+            )
+
+    def canonical(self) -> dict[str, object]:
+        return {"value": self.value, "source": self.source.value}
+
+
+def _canonical_fact(fact: CandidateObservationFactV2 | None) -> dict[str, object] | None:
+    return None if fact is None else fact.canonical()
+
+
+class CandidateProductDimensionV2(str, Enum):
+    """Bounded candidate product-dimension vocabulary of the structured
+    observation evidence (S2-C-FU1).
+
+    These are the OBSERVATION dimensions the candidate's structured product
+    evidence may carry a bounded fact for: product family, generation,
+    capacity, interface, form factor, product role, accessory relation,
+    brand, revision / suffix. They mirror the V2 output attribute
+    vocabulary's product dimensions. CONDITION, price, and packaging /
+    sales unit are COMMERCIAL dimensions (they live in
+    ``CandidateCommercialEvidenceV2``); MPN / SKU are IDENTIFIER fields
+    (they stay top-level published fields of the case). Each dimension is
+    either a bounded fact (value + provenance) or explicit None (absent —
+    never a guessed value).
+    """
+
+    PRODUCT_FAMILY = "PRODUCT_FAMILY"
+    GENERATION = "GENERATION"
+    CAPACITY = "CAPACITY"
+    INTERFACE = "INTERFACE"
+    FORM_FACTOR = "FORM_FACTOR"
+    PRODUCT_ROLE = "PRODUCT_ROLE"
+    ACCESSORY_RELATION = "ACCESSORY_RELATION"
+    BRAND = "BRAND"
+    REVISION_OR_SUFFIX = "REVISION_OR_SUFFIX"
+
+
+#: The fixed rendering / encoding order of the bounded product dimensions.
+_CANDIDATE_PRODUCT_DIMENSIONS: Final[tuple[CandidateProductDimensionV2, ...]] = (
+    CandidateProductDimensionV2.PRODUCT_FAMILY,
+    CandidateProductDimensionV2.GENERATION,
+    CandidateProductDimensionV2.CAPACITY,
+    CandidateProductDimensionV2.INTERFACE,
+    CandidateProductDimensionV2.FORM_FACTOR,
+    CandidateProductDimensionV2.PRODUCT_ROLE,
+    CandidateProductDimensionV2.ACCESSORY_RELATION,
+    CandidateProductDimensionV2.BRAND,
+    CandidateProductDimensionV2.REVISION_OR_SUFFIX,
+)
+
+
+@dataclass(frozen=True)
+class CandidateProductEvidenceV2:
+    """Structured candidate PRODUCT observation evidence (S2-C-FU1).
+
+    * The nine bounded product dimensions — each either a
+      ``CandidateObservationFactV2`` (observed value + explicit source)
+      or ``None`` (absent — never a guessed value; absence is not
+      equivalence and not non-equivalence);
+    * ``raw_title_text`` — the page-published listing title as RAW
+      observation text. It may support the model's semantic reasoning but
+      is NOT structured evidence and never becomes manufacturer authority:
+      a token occurring in it is not a bounded fact;
+    * ``raw_specification_text`` — RAW specification / description text
+      when the extractor carries it. The main flow carries none today
+      (the remaining JSON-LD material stays in the opaque raw reference,
+      which no business rule may parse) — the channel is explicit None.
+
+    This section is MODEL-OBSERVATION evidence. It is not, and cannot
+    become, the authority-side ``ProductEvidenceProfileV2`` (a separate
+    section of the case, derived only from the frozen S2-A evidence bar).
+    """
+
+    product_family: CandidateObservationFactV2 | None
+    generation: CandidateObservationFactV2 | None
+    capacity: CandidateObservationFactV2 | None
+    interface: CandidateObservationFactV2 | None
+    form_factor: CandidateObservationFactV2 | None
+    product_role: CandidateObservationFactV2 | None
+    accessory_relation: CandidateObservationFactV2 | None
+    brand: CandidateObservationFactV2 | None
+    revision_or_suffix: CandidateObservationFactV2 | None
+    raw_title_text: str | None
+    raw_specification_text: str | None
+
+    def __post_init__(self) -> None:
+        for dimension in _CANDIDATE_PRODUCT_DIMENSIONS:
+            value = getattr(self, dimension.value.lower())
+            if value is not None and not isinstance(
+                value, CandidateObservationFactV2
+            ):
+                raise TypeError(
+                    f"{dimension.value} must be CandidateObservationFactV2 "
+                    f"or None, got {type(value).__name__}"
+                )
+        for name in ("raw_title_text", "raw_specification_text"):
+            value = getattr(self, name)
+            if value is not None and not isinstance(value, str):
+                raise TypeError(
+                    f"{name} must be str or None, got {type(value).__name__}"
+                )
+
+    def canonical(self) -> dict[str, object]:
+        out: dict[str, object] = {
+            dimension.value.lower(): _canonical_fact(
+                getattr(self, dimension.value.lower())
+            )
+            for dimension in _CANDIDATE_PRODUCT_DIMENSIONS
+        }
+        out["raw_title_text"] = self.raw_title_text
+        out["raw_specification_text"] = self.raw_specification_text
+        return out
+
+
+class SalesUnitKindV2(str, Enum):
+    """Bounded sales-unit / packaging kinds the channel can represent when
+    actually observed (S2-C-FU1).
+
+    SINGLE_UNIT — one retail unit;
+    PACK_QUANTITY — a pack of N (the bounded positive quantity carries N);
+    TRAY_OR_FACTORY_PACK — a tray / factory pack (quantity optional when
+    published);
+    BUNDLE — a bundle (quantity optional when published).
+
+    A kind is never inferred from price, availability, or any other
+    commercial fact.
+    """
+
+    SINGLE_UNIT = "SINGLE_UNIT"
+    PACK_QUANTITY = "PACK_QUANTITY"
+    TRAY_OR_FACTORY_PACK = "TRAY_OR_FACTORY_PACK"
+    BUNDLE = "BUNDLE"
+
+
+class PackagingEvidenceStateV2(str, Enum):
+    """The explicit state of the candidate's sales-unit / packaging
+    channel (S2-C-FU1). The state is ALWAYS recorded — packaging absence
+    is an explicit, persisted state, never a silent omission.
+    """
+
+    UNAVAILABLE = "UNAVAILABLE"
+    """The listing published no packaging / sales-unit field. Absence is
+    recorded, not guessed: it is not 'single unit', it is not 'probably
+    fine', and it is never inferred from price or any other commercial
+    fact."""
+    OBSERVED = "OBSERVED"
+    """A bounded packaging / sales-unit observation is present (kind +
+    published raw detail + provenance, plus the bounded quantity where
+    the kind carries one)."""
+
+
+@dataclass(frozen=True)
+class CandidateSalesUnitEvidenceV2:
+    """The bounded candidate PACKAGING / SALES-UNIT evidence channel
+    (S2-C-FU1 — required before S2-C freeze).
+
+    The state is always explicit:
+
+    * ``UNAVAILABLE`` — the listing published no packaging / sales-unit
+      field (kind / quantity / raw_detail / source are all None). The
+      model may not read this as 'single unit' or as equivalence;
+    * ``OBSERVED`` — a bounded ``SalesUnitKindV2`` (single unit, pack
+      quantity, tray/factory pack, bundle), the published raw detail,
+      the provenance, and — for ``PACK_QUANTITY`` — the bounded positive
+      integer quantity (optional for tray / bundle, forbidden for single
+      unit).
+
+    This is COMMERCIAL evidence (NEVER identity evidence). It can carry a
+    PACKAGING_QUANTITY / BUNDLE CONFLICT conclusion for the model; it
+    grants no authority and grounds no ProductEvidenceFactV2.
+    """
+
+    state: PackagingEvidenceStateV2
+    kind: SalesUnitKindV2 | None
+    quantity: int | None
+    raw_detail: str | None
+    source: CandidateEvidenceSourceV2 | None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.state, PackagingEvidenceStateV2):
+            raise TypeError(
+                "state must be PackagingEvidenceStateV2, "
+                f"got {type(self.state).__name__}"
+            )
+        if self.kind is not None and not isinstance(self.kind, SalesUnitKindV2):
+            raise TypeError(
+                "kind must be SalesUnitKindV2 or None, "
+                f"got {type(self.kind).__name__}"
+            )
+        if self.source is not None and not isinstance(
+            self.source, CandidateEvidenceSourceV2
+        ):
+            raise TypeError(
+                "source must be CandidateEvidenceSourceV2 or None, "
+                f"got {type(self.source).__name__}"
+            )
+        if self.raw_detail is not None and not isinstance(self.raw_detail, str):
+            raise TypeError(
+                "raw_detail must be str or None, got "
+                f"{type(self.raw_detail).__name__}"
+            )
+        if self.state is PackagingEvidenceStateV2.UNAVAILABLE:
+            if (
+                self.kind is not None
+                or self.quantity is not None
+                or self.raw_detail is not None
+                or self.source is not None
+            ):
+                raise ValueError(
+                    "an UNAVAILABLE sales-unit channel carries no value: "
+                    "kind / quantity / raw_detail / source must all be None "
+                    "(packaging absence is recorded, never guessed)"
+                )
+            return
+        # OBSERVED: the bounded observation must be complete.
+        if self.kind is None:
+            raise ValueError(
+                "an OBSERVED sales-unit channel requires a bounded kind "
+                "(single unit / pack quantity / tray-factory pack / bundle)"
+            )
+        if self.raw_detail is None or not self.raw_detail:
+            raise ValueError(
+                "an OBSERVED sales-unit channel requires the published raw "
+                "detail (the observed value as published)"
+            )
+        if self.source is None:
+            raise ValueError(
+                "an OBSERVED sales-unit channel requires explicit provenance"
+            )
+        if self.quantity is not None:
+            if type(self.quantity) is not int or self.quantity < 1:
+                raise ValueError(
+                    "a sales-unit quantity must be a positive int "
+                    f"(got {self.quantity!r})"
+                )
+        if self.kind is SalesUnitKindV2.PACK_QUANTITY and self.quantity is None:
+            raise ValueError(
+                "a PACK_QUANTITY sales unit requires the bounded positive "
+                "quantity (a pack without a count is outside the contract)"
+            )
+        if self.kind is SalesUnitKindV2.SINGLE_UNIT and self.quantity is not None:
+            raise ValueError(
+                "a SINGLE_UNIT sales unit carries no quantity (the unit is "
+                "the bounded value)"
+            )
+
+    def canonical(self) -> dict[str, object]:
+        return {
+            "state": self.state.value,
+            "kind": self.kind.value if self.kind is not None else None,
+            "quantity": self.quantity,
+            "raw_detail": self.raw_detail,
+            "source": self.source.value if self.source is not None else None,
+        }
+
+
+#: The single canonical absence for the sales-unit / packaging channel.
+SALES_UNIT_EVIDENCE_UNAVAILABLE: Final[CandidateSalesUnitEvidenceV2] = (
+    CandidateSalesUnitEvidenceV2(
+        state=PackagingEvidenceStateV2.UNAVAILABLE,
+        kind=None,
+        quantity=None,
+        raw_detail=None,
+        source=None,
+    )
+)
+
+
+@dataclass(frozen=True)
+class CandidateCommercialEvidenceV2:
+    """Structured candidate COMMERCIAL observation evidence (S2-C-FU1).
+
+    NEVER identity evidence (the prompt labels the section; no authority
+    derivation consumes it). Each commercial field the page published
+    (condition, price, currency, availability, seller) becomes a bounded
+    ``CandidateObservationFactV2`` with its published-structured-field
+    provenance; absent fields are explicit None (never an empty sentinel).
+    ``offer_url`` is the published offer link (plain text, absent = None).
+    ``sales_unit`` is the bounded packaging / sales-unit channel — ALWAYS
+    present with an explicit state (``UNAVAILABLE`` or ``OBSERVED``).
+    """
+
+    condition: CandidateObservationFactV2 | None
+    price: CandidateObservationFactV2 | None
+    currency: CandidateObservationFactV2 | None
+    availability: CandidateObservationFactV2 | None
+    seller: CandidateObservationFactV2 | None
+    offer_url: str | None
+    sales_unit: CandidateSalesUnitEvidenceV2
+
+    def __post_init__(self) -> None:
+        for name in ("condition", "price", "currency", "availability", "seller"):
+            value = getattr(self, name)
+            if value is not None and not isinstance(
+                value, CandidateObservationFactV2
+            ):
+                raise TypeError(
+                    f"{name} must be CandidateObservationFactV2 or None, "
+                    f"got {type(value).__name__}"
+                )
+        if self.offer_url is not None and not isinstance(self.offer_url, str):
+            raise TypeError(
+                f"offer_url must be str or None, got {type(self.offer_url).__name__}"
+            )
+        if not isinstance(self.sales_unit, CandidateSalesUnitEvidenceV2):
+            raise TypeError(
+                "sales_unit must be CandidateSalesUnitEvidenceV2 (the "
+                "packaging channel is always explicit; a case without a "
+                f"sales_unit value is outside the contract), got "
+                f"{type(self.sales_unit).__name__}"
+            )
+
+    def canonical(self) -> dict[str, object]:
+        return {
+            "condition": _canonical_fact(self.condition),
+            "price": _canonical_fact(self.price),
+            "currency": _canonical_fact(self.currency),
+            "availability": _canonical_fact(self.availability),
+            "seller": _canonical_fact(self.seller),
+            "offer_url": self.offer_url,
+            "sales_unit": self.sales_unit.canonical(),
+        }
+
+
+# ---------------------------------------------------------------------------
+# Target-side evidence (S2-C-FU1)
+# ---------------------------------------------------------------------------
+
+
+class TargetIdentifierRelationKindV2(str, Enum):
+    """Bounded kinds of the identifier relation a reviewed target context
+    may record between the requested MPN and the reviewed base part.
+    """
+
+    CUSTOMER_RETRIEVAL_ALIAS = "CUSTOMER_RETRIEVAL_ALIAS"
+    """A customer-defined retrieval relation (today: the 4D-D R/T packaging
+    alias rule). ZERO identity authority: it is a retrieval hint about how
+    the requested MPN relates to the reviewed base part, never a
+    manufacturer-stated equivalence. (No other kind is wired; extending
+    the vocabulary is a future reviewed change.)"""
+
+
+def _validate_utc_instant(value: object, path: str) -> None:
+    """Strict ISO-8601 UTC 'Z' instant grammar (the same discipline the
+    persistence codec enforces on every recorded instant)."""
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"{path} must be a non-empty ISO-8601 UTC instant str")
+    if not value.endswith("Z"):
+        raise ValueError(
+            f"{path} must be an ISO-8601 UTC instant ending in 'Z', got {value!r}"
+        )
+    try:
+        parsed = datetime.fromisoformat(value[:-1] + "+00:00")
+    except ValueError:
+        raise ValueError(
+            f"{path}: not a valid ISO-8601 UTC instant: {value!r}"
+        ) from None
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise ValueError(f"{path}: must be a timezone-aware UTC instant")
+
+
+def _validate_sha256_hex(value: object, path: str) -> None:
+    """64-character lowercase hex SHA-256 digest (fail closed)."""
+    if not isinstance(value, str) or len(value) != 64:
+        raise ValueError(f"{path} must be a 64-character hex SHA-256 digest")
+    if any(ch not in "0123456789abcdef" for ch in value):
+        raise ValueError(f"{path} must be a lowercase hex SHA-256 digest")
+
+
+@dataclass(frozen=True)
+class ReviewedTargetContextV2:
+    """Reviewed manufacturer TARGET product context carried by the main
+    execution flow (S2-C-FU1).
+
+    STRUCTURED / REVIEWED observation evidence about the REQUESTED product
+    — target-side only:
+
+    * it NEVER grounds a candidate-side ``ProductEvidenceFactV2`` (the
+      frozen S2-A candidate-source vocabulary is unchanged; the reviewed
+      target context is not a candidate-side source);
+    * its identifier relation is bounded: today only
+      ``CUSTOMER_RETRIEVAL_ALIAS`` (zero identity authority, never
+      manufacturer-stated equivalence). ``relation_family_part_numbers``
+      are the customer-retrieval relation's family members OTHER than
+      the requested form (full source-form part numbers, deterministic
+      family order) — a retrieval shape, not a packaging claim;
+    * it grants no pricing authority (V2 outputs are persist-only until
+      Qualification V3).
+
+    Today the main flow carries this context only from the ESTABLISHED 4D-D
+    Micron 7500 alias acquisition (the reviewed family-catalog row matched
+    by the frozen 2A comparator, verified ``is-ssd``, fetched from the
+    reviewed origin; the acquisition is fail-closed and re-derives every
+    authority-bearing field at construction). The field set is generic —
+    a future reviewed source fills the same bounded shape. Absence is an
+    explicit None on ``TargetEvidenceV2.reviewed_context`` (the main flow
+    carries no other structured target facts today; the 6A/6C
+    specification infrastructure exists only in the comparable-research
+    flow and requires an established identity — nothing is fabricated).
+    """
+
+    manufacturer: str
+    category: str
+    matched_base_part_number: str
+    relation_kind: TargetIdentifierRelationKindV2
+    relation_family_part_numbers: tuple[str, ...]
+    source_name: str
+    source_url: str
+    retrieved_at: str
+    evidence_body_sha256: str
+
+    def __post_init__(self) -> None:
+        for name in (
+            "manufacturer",
+            "category",
+            "matched_base_part_number",
+            "source_name",
+            "source_url",
+        ):
+            value = getattr(self, name)
+            if not isinstance(value, str) or not value:
+                raise ValueError(f"{name} must be a non-empty str")
+        if not isinstance(self.relation_kind, TargetIdentifierRelationKindV2):
+            raise TypeError(
+                "relation_kind must be TargetIdentifierRelationKindV2, "
+                f"got {type(self.relation_kind).__name__}"
+            )
+        if (
+            not isinstance(self.relation_family_part_numbers, tuple)
+            or not self.relation_family_part_numbers
+        ):
+            raise ValueError(
+                "relation_family_part_numbers must be a non-empty tuple of "
+                "str (the customer-retrieval relation's family members "
+                "other than the requested form)"
+            )
+        for i, member in enumerate(self.relation_family_part_numbers):
+            if not isinstance(member, str) or not member:
+                raise ValueError(
+                    f"relation_family_part_numbers[{i}] must be a "
+                    "non-empty str"
+                )
+        if len(set(self.relation_family_part_numbers)) != len(
+            self.relation_family_part_numbers
+        ):
+            raise ValueError(
+                "relation_family_part_numbers must not contain duplicates"
+            )
+        _validate_utc_instant(self.retrieved_at, "retrieved_at")
+        _validate_sha256_hex(self.evidence_body_sha256, "evidence_body_sha256")
+
+    def canonical(self) -> dict[str, object]:
+        return {
+            "manufacturer": self.manufacturer,
+            "category": self.category,
+            "matched_base_part_number": self.matched_base_part_number,
+            "relation_kind": self.relation_kind.value,
+            "relation_family_part_numbers": list(
+                self.relation_family_part_numbers
+            ),
+            "source_name": self.source_name,
+            "source_url": self.source_url,
+            "retrieved_at": self.retrieved_at,
+            "evidence_body_sha256": self.evidence_body_sha256,
+        }
+
+
+@dataclass(frozen=True)
+class TargetEvidenceV2:
+    """Section A — TARGET-side evidence, with the evidence class explicit
+    (S2-C-FU1).
+
+    * ``mpn`` — STRUCTURED: the caller-published requested MPN (the run's
+      identity anchor; the case binds to it and the persistence run-binding
+      check verifies it against the run's canonical request);
+    * ``description_raw_text`` — RAW observation text: the caller-published
+      requested description. It may support semantic reasoning; it is not a
+      reviewed or structured specification, and a token occurring in it is
+      not structured evidence. Explicit None when the request carries no
+      description (absent, never an empty sentinel);
+    * ``reviewed_context`` — STRUCTURED / REVIEWED: present only when the
+      main execution flow carries a reviewed manufacturer target context
+      for this request; explicit None otherwise.
+    """
+
+    mpn: str
+    description_raw_text: str | None
+    reviewed_context: ReviewedTargetContextV2 | None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.mpn, str) or not self.mpn:
+            raise ValueError("mpn must be a non-empty str (the run's identity anchor)")
+        if self.description_raw_text is not None:
+            if (
+                not isinstance(self.description_raw_text, str)
+                or not self.description_raw_text
+            ):
+                raise ValueError(
+                    "description_raw_text must be a non-empty str or None "
+                    "(an absent description is explicit None, never an "
+                    "empty sentinel)"
+                )
+        if self.reviewed_context is not None and not isinstance(
+            self.reviewed_context, ReviewedTargetContextV2
+        ):
+            raise TypeError(
+                "reviewed_context must be ReviewedTargetContextV2 or None, "
+                f"got {type(self.reviewed_context).__name__}"
+            )
+
+    def canonical(self) -> dict[str, object]:
+        return {
+            "mpn": self.mpn,
+            "description_raw_text": self.description_raw_text,
+            "reviewed_context": (
+                self.reviewed_context.canonical()
+                if self.reviewed_context is not None
+                else None
+            ),
+        }
+
+
+def _published_fact(value: str | None) -> CandidateObservationFactV2 | None:
+    """A page-published structured field becomes a bounded fact with its
+    provenance; an absent / empty field is explicit None."""
+    if value is None:
+        return None
+    return CandidateObservationFactV2(
+        value=value,
+        source=CandidateEvidenceSourceV2.PUBLISHED_STRUCTURED_FIELD,
+    )
+
+
+def build_candidate_product_evidence_v2(
+    observation: ListingObservation,
+) -> CandidateProductEvidenceV2:
+    """The live main-flow structured candidate PRODUCT observation evidence
+    (S2-C-FU1).
+
+    Fills ONLY bounded published-structured-field facts the 3A extractor
+    actually carries: the page-published brand field. Every other product
+    dimension stays explicit None (absent): the main-flow extractor
+    normalizes no family / generation / capacity / interface / form factor
+    / product role / accessory relation / revision-or-suffix facts, and NO
+    token of the raw title is parsed into a structured fact — token
+    occurrence in the title is RAW observation evidence, not bounded
+    structured evidence (the flawed 'structured title evidence' claim
+    S2-C-FU1 corrects).
+
+    The published title is carried as ``raw_title_text`` (RAW observation
+    text, labeled as such in the prompt); the main flow carries no
+    specification text (``raw_specification_text`` is explicit None — the
+    remaining JSON-LD material stays in the opaque raw reference, which no
+    business rule may parse).
+    """
+    if not isinstance(observation, ListingObservation):
+        raise TypeError(
+            "observation must be ListingObservation, "
+            f"got {type(observation).__name__}"
+        )
+    return CandidateProductEvidenceV2(
+        product_family=None,
+        generation=None,
+        capacity=None,
+        interface=None,
+        form_factor=None,
+        product_role=None,
+        accessory_relation=None,
+        brand=_published_fact(observation.brand_text),
+        revision_or_suffix=None,
+        raw_title_text=observation.product_title or None,
+        raw_specification_text=None,
+    )
+
+
+def build_candidate_commercial_evidence_v2(
+    observation: ListingObservation,
+) -> CandidateCommercialEvidenceV2:
+    """The live main-flow structured candidate COMMERCIAL observation
+    evidence (S2-C-FU1).
+
+    The published commercial fields (condition, price, currency,
+    availability, seller, offer URL) become bounded facts with their
+    published-structured-field provenance; absent fields are explicit
+    None. These are NEVER identity evidence (the prompt labels the section;
+    no authority derivation consumes it).
+
+    The sales-unit / packaging channel is ALWAYS the explicit
+    ``UNAVAILABLE`` state from the main-flow extractor: it publishes no
+    packaging field, and no packaging value is inferred from price,
+    availability, or any other commercial fact. A future extractor- or
+    reviewed-source-provided packaging observation fills the same bounded
+    channel (``OBSERVED``) — the contract already represents single unit,
+    pack quantity, tray/factory pack, and bundle.
+    """
+    if not isinstance(observation, ListingObservation):
+        raise TypeError(
+            "observation must be ListingObservation, "
+            f"got {type(observation).__name__}"
+        )
+    return CandidateCommercialEvidenceV2(
+        condition=_published_fact(observation.condition_text),
+        price=_published_fact(observation.price_text),
+        currency=_published_fact(observation.currency_text),
+        availability=_published_fact(observation.availability_text),
+        seller=_published_fact(observation.seller_text),
+        offer_url=observation.offer_url_text,
+        sales_unit=SALES_UNIT_EVIDENCE_UNAVAILABLE,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Final Semantic V2 input contract
 # ---------------------------------------------------------------------------
 
 
 @dataclass(frozen=True)
 class SemanticMatchCaseV2:
-    """The final, versioned, immutable Semantic V2 input (S2-C).
+    """The final, versioned, immutable Semantic V2 input (S2-C, corrected
+    in place by S2-C-FU1 before freeze).
 
-    Everything the V2 prompt renders, in five clearly separated sections:
+    Everything the V2 prompt renders, in five clearly separated sections
+    with the evidence class of every value explicit:
 
-    * **A. TARGET** — ``case_id``, ``target_mpn``, ``target_description``.
-    * **B. CANDIDATE LISTING** — source URL, title, published MPN field,
-      published SKU, brand and condition when separately observed,
-      structured listing evidence already available (``candidate_specs``),
-      commercial price/package context (``candidate_commercial_context`` —
-      NEVER identity proof), and the frozen 3C evidence source.
+    * **A. TARGET** (``TargetEvidenceV2``) — the structured caller-
+      published requested MPN (the run's identity anchor), the requested
+      description as RAW observation text, and the reviewed manufacturer
+      target context when the main execution flow carries one (explicit
+      None otherwise). The case is identified by ``case_id``.
+    * **B. CANDIDATE LISTING** — source URL, the published identifier
+      fields (MPN field / SKU), the frozen 3C evidence source, the
+      STRUCTURED candidate product observation evidence
+      (``CandidateProductEvidenceV2`` — the nine bounded product
+      dimensions, each a bounded fact with explicit provenance or an
+      explicit absence, plus the raw title / specification observation
+      text), and the STRUCTURED candidate commercial observation evidence
+      (``CandidateCommercialEvidenceV2`` — the published commercial facts
+      and the explicit sales-unit / packaging channel; NEVER identity
+      evidence).
     * **C. DETERMINISTIC IDENTITY CONTEXT** — the frozen S2-A derived
       state (``identity_state`` / ``substate`` /
       ``primary_relationship_signal`` / all bounded
@@ -187,36 +944,34 @@ class SemanticMatchCaseV2:
       and carries zero identity authority; ``MANUFACTURER_PRODUCT_CONTEXT``
       is not ``MANUFACTURER_RELATION_AUTHORITY``.
     * **E. PRODUCT EVIDENCE** — the authority-side
-      ``ProductEvidenceProfileV2`` (deterministic/reviewed only). The model
-      may observe it and report semantic conclusions, but it can NEVER
-      create or upgrade the authority-side profile: no member of the
-      bounded candidate-source vocabulary is a model claim.
+      ``ProductEvidenceProfileV2`` (deterministic/reviewed only). The
+      model may observe it and report semantic conclusions, but it can
+      NEVER create or upgrade the authority-side profile: no member of the
+      bounded candidate-source vocabulary is a model claim, and no
+      model-observation evidence (section B, structured or raw) can ground
+      an authority fact.
 
     Construction is fail-closed: exact types, no silent defaults (every
-    field is required; absent candidate facts are explicit ``None``), the
-    recorded deterministic context must be a legitimate S2-A context, the
-    state must be ``DETERMINISTIC_UNCERTAIN`` (a semantic entry point —
-    anything else is outside the V2 input contract), the primary signal
-    and the relationship requirement must agree with the frozen tables,
-    and the product-evidence profile must be state-consistent and
-    supported by the recorded provenances.
+    field is required; absent evidence is explicit None / an explicit
+    channel state), the recorded deterministic context must be a
+    legitimate S2-A context, the state must be ``DETERMINISTIC_UNCERTAIN``
+    (a semantic entry point — anything else is outside the V2 input
+    contract), the primary signal and the relationship requirement must
+    agree with the frozen tables, and the product-evidence profile must be
+    state-consistent and supported by the recorded provenances.
     """
 
     # -- A. TARGET ---------------------------------------------------------
     case_id: str
-    target_mpn: str
-    target_description: str
+    target: TargetEvidenceV2
 
     # -- B. CANDIDATE LISTING ---------------------------------------------
     candidate_source_url: str
-    candidate_title: str | None
     candidate_mpn_field: str | None
     candidate_sku: str | None
-    candidate_brand: str | None
-    candidate_condition: str | None
-    candidate_specs: str | None
-    candidate_commercial_context: str | None
     candidate_evidence_source: str
+    candidate_product: CandidateProductEvidenceV2
+    candidate_commercial: CandidateCommercialEvidenceV2
 
     # -- C. DETERMINISTIC IDENTITY CONTEXT ---------------------------------
     identity_state: IdentityStateV2
@@ -242,8 +997,6 @@ class SemanticMatchCaseV2:
         # -- exact types (fail closed; no coercion, no defaults) ----------
         for name in (
             "case_id",
-            "target_mpn",
-            "target_description",
             "candidate_source_url",
             "candidate_evidence_source",
             "normalized_requested_part_number",
@@ -254,15 +1007,7 @@ class SemanticMatchCaseV2:
                 raise TypeError(
                     f"{name} must be str, got {type(value).__name__}"
                 )
-        for name in (
-            "candidate_title",
-            "candidate_mpn_field",
-            "candidate_sku",
-            "candidate_brand",
-            "candidate_condition",
-            "candidate_specs",
-            "candidate_commercial_context",
-        ):
+        for name in ("candidate_mpn_field", "candidate_sku"):
             value = getattr(self, name)
             if value is not None and not isinstance(value, str):
                 raise TypeError(
@@ -270,16 +1015,26 @@ class SemanticMatchCaseV2:
                 )
         if not self.case_id:
             raise ValueError("case_id must be non-empty")
-        if not self.target_mpn:
-            raise ValueError(
-                "target_mpn must be non-empty; a V2 semantic case always "
-                "carries the requested MPN (the no-target state is "
-                "unevaluable and never V2-eligible)"
-            )
         if not self.candidate_source_url:
             raise ValueError("candidate_source_url must be non-empty")
         if not self.candidate_evidence_source:
             raise ValueError("candidate_evidence_source must be non-empty")
+        if not isinstance(self.target, TargetEvidenceV2):
+            raise TypeError(
+                f"target must be TargetEvidenceV2, got {type(self.target).__name__}"
+            )
+        if not isinstance(self.candidate_product, CandidateProductEvidenceV2):
+            raise TypeError(
+                "candidate_product must be CandidateProductEvidenceV2, "
+                f"got {type(self.candidate_product).__name__}"
+            )
+        if not isinstance(
+            self.candidate_commercial, CandidateCommercialEvidenceV2
+        ):
+            raise TypeError(
+                "candidate_commercial must be CandidateCommercialEvidenceV2, "
+                f"got {type(self.candidate_commercial).__name__}"
+            )
         if not isinstance(self.identity_state, IdentityStateV2):
             raise TypeError(
                 "identity_state must be IdentityStateV2, "
@@ -400,20 +1155,14 @@ class SemanticMatchCaseV2:
         """
         return {
             "case_id": self.case_id,
-            "target": {
-                "mpn": self.target_mpn,
-                "description": self.target_description,
-            },
+            "target": self.target.canonical(),
             "candidate": {
                 "source_url": self.candidate_source_url,
-                "title": self.candidate_title,
                 "mpn_field": self.candidate_mpn_field,
                 "sku": self.candidate_sku,
-                "brand": self.candidate_brand,
-                "condition": self.candidate_condition,
-                "specs": self.candidate_specs,
-                "commercial_context": self.candidate_commercial_context,
                 "evidence_source": self.candidate_evidence_source,
+                "product": self.candidate_product.canonical(),
+                "commercial": self.candidate_commercial.canonical(),
             },
             "deterministic_identity_context": {
                 "identity_state": self.identity_state.value,
@@ -457,37 +1206,6 @@ class SemanticMatchCaseV2:
         }
 
 
-def _observation_field(value: str | None) -> str | None:
-    """Absent/empty observed text is recorded as explicit ``None`` (absent),
-    never as a defaulted sentinel string."""
-    if value is None:
-        return None
-    return value or None
-
-
-def _compose_commercial_context(observation: ListingObservation) -> str | None:
-    """The commercial price/package observations, rendered as CONTEXT ONLY.
-
-    These observations are NEVER identity evidence: the V2 prompt labels
-    the section accordingly, and no authority derivation consumes it.
-    """
-    parts: list[str] = []
-    if observation.price_text:
-        price = observation.price_text
-        if observation.currency_text:
-            price = f"{price} {observation.currency_text}"
-        parts.append(f"Price: {price}")
-    if observation.availability_text:
-        parts.append(f"Availability: {observation.availability_text}")
-    if observation.seller_text:
-        parts.append(f"Seller: {observation.seller_text}")
-    if observation.offer_url_text:
-        parts.append(f"Offer: {observation.offer_url_text}")
-    if not parts:
-        return None
-    return " | ".join(parts)
-
-
 def build_semantic_match_case_v2(
     *,
     case_id: str,
@@ -496,6 +1214,7 @@ def build_semantic_match_case_v2(
     context: IdentityStateAssessmentV2,
     product_evidence: ProductEvidenceProfileV2,
     context_provenances: frozenset[ContextProvenance],
+    reviewed_target_context: ReviewedTargetContextV2 | None,
 ) -> SemanticMatchCaseV2:
     """Safely construct the final V2 input for one V2-eligible candidate.
 
@@ -509,14 +1228,19 @@ def build_semantic_match_case_v2(
       assessment (the deterministic context is contract-derived, not
       caller-supplied);
     * the candidate section is read from the assessment's frozen
-      observation (absent facts are explicit ``None``);
+      observation through the bounded evidence builders (absent facts are
+      explicit None / an explicit channel state; the published title is
+      RAW observation text, never parsed into structured facts; the
+      sales-unit / packaging channel is the explicit UNAVAILABLE state —
+      the main-flow extractor publishes no packaging field and nothing is
+      inferred from price);
     * the authority-side ``product_evidence`` and
       ``context_provenances`` are the bounded evidence inputs (built by
       ``build_v2_product_evidence_profile`` in the live path);
-    * ``candidate_specs`` is ``None`` today: the main-flow deterministic
-      extraction carries no structured listing evidence beyond the
-      separately observed fields (the section is reserved for future
-      deterministic extraction; nothing is fabricated).
+    * ``reviewed_target_context`` is explicit: the reviewed manufacturer
+      TARGET context the main execution flow carries for this request
+      (today: the ESTABLISHED 4D-D alias acquisition), or explicit None
+      when the main flow carries none.
 
     The relationship requirement is NOT a parameter: the case constructor
     derives and validates it from the frozen table.
@@ -548,6 +1272,14 @@ def build_semantic_match_case_v2(
             "context_provenances must be a frozenset, "
             f"got {type(context_provenances).__name__}"
         )
+    if reviewed_target_context is not None and not isinstance(
+        reviewed_target_context, ReviewedTargetContextV2
+    ):
+        raise TypeError(
+            "reviewed_target_context must be ReviewedTargetContextV2 or "
+            f"None (explicit absence), got "
+            f"{type(reviewed_target_context).__name__}"
+        )
     if assessment.requested_part_number != request.manufacturer_part_number:
         raise ValueError(
             "the assessment's requested part number does not bind to the "
@@ -565,19 +1297,17 @@ def build_semantic_match_case_v2(
     observation = assessment.normalized_listing.observation
     return SemanticMatchCaseV2(
         case_id=case_id,
-        target_mpn=request.manufacturer_part_number,
-        target_description=request.description,
-        candidate_source_url=observation.source_url,
-        candidate_title=_observation_field(observation.product_title),
-        candidate_mpn_field=_observation_field(
-            observation.manufacturer_part_number_text
+        target=TargetEvidenceV2(
+            mpn=request.manufacturer_part_number,
+            description_raw_text=request.description or None,
+            reviewed_context=reviewed_target_context,
         ),
-        candidate_sku=_observation_field(observation.sku_text),
-        candidate_brand=_observation_field(observation.brand_text),
-        candidate_condition=_observation_field(observation.condition_text),
-        candidate_specs=None,
-        candidate_commercial_context=_compose_commercial_context(observation),
+        candidate_source_url=observation.source_url,
+        candidate_mpn_field=observation.manufacturer_part_number_text,
+        candidate_sku=observation.sku_text,
         candidate_evidence_source=assessment.candidate_evidence_source.value,
+        candidate_product=build_candidate_product_evidence_v2(observation),
+        candidate_commercial=build_candidate_commercial_evidence_v2(observation),
         identity_state=context.state,
         substate=context.substate,
         primary_relationship_signal=context.primary_relationship_signal,

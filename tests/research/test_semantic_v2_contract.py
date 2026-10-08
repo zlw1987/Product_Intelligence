@@ -54,13 +54,17 @@ from product_intelligence.research import (
     normalize_listing_observation,
 )
 from product_intelligence.research.semantic_v2 import (
+    CandidateCommercialEvidenceV2,
+    CandidateProductEvidenceV2,
     REASON_CODE_RULES,
+    SALES_UNIT_EVIDENCE_UNAVAILABLE,
     SemanticAttributeDimensionV2,
     SemanticAttributeV2,
     SemanticMatchCaseV2,
     SemanticMatchResponseV2,
     SemanticReasonCodeV2,
     SemanticV2ParseError,
+    TargetEvidenceV2,
     build_semantic_match_case_v2,
     build_v2_product_evidence_profile,
     is_v2_semantic_eligible,
@@ -124,6 +128,7 @@ def _case_for(
     provenances=NO_CTX,
     facts=frozenset(),
     case_id="candidate-test-0",
+    reviewed_target_context=None,
 ) -> SemanticMatchCaseV2:
     request = request or REQUEST
     context = derive_identity_state_v2(assessment)
@@ -139,6 +144,7 @@ def _case_for(
         context=context,
         product_evidence=profile,
         context_provenances=provenances,
+        reviewed_target_context=reviewed_target_context,
     )
 
 
@@ -303,22 +309,25 @@ class TestV2Eligibility:
 
 class TestInputV2:
     def test_exact_field_set(self) -> None:
+        # S2-C-FU1 (requirement correction): the pre-freeze 23-field
+        # candidate was corrected in place — the misleading free-text
+        # ``candidate_specs`` / ``candidate_commercial_context`` / loose
+        # brand-condition-title fields are replaced by the bounded typed
+        # evidence sections (target, candidate product, candidate
+        # commercial). The no-silent-defaults property is unchanged: every
+        # field is required.
         names = {field.name for field in dataclasses.fields(SemanticMatchCaseV2)}
         assert names == {
             # A. TARGET
             "case_id",
-            "target_mpn",
-            "target_description",
+            "target",
             # B. CANDIDATE LISTING
             "candidate_source_url",
-            "candidate_title",
             "candidate_mpn_field",
             "candidate_sku",
-            "candidate_brand",
-            "candidate_condition",
-            "candidate_specs",
-            "candidate_commercial_context",
             "candidate_evidence_source",
+            "candidate_product",
+            "candidate_commercial",
             # C. DETERMINISTIC IDENTITY CONTEXT
             "identity_state",
             "substate",
@@ -459,17 +468,37 @@ class TestInputV2:
         with pytest.raises(ValueError, match="relationship_requirement"):
             SemanticMatchCaseV2(
                 case_id="candidate-x",
-                target_mpn=REQUEST_MPN,
-                target_description="A test product",
+                target=TargetEvidenceV2(
+                    mpn=REQUEST_MPN,
+                    description_raw_text="A test product",
+                    reviewed_context=None,
+                ),
                 candidate_source_url="https://example.com/product",
-                candidate_title="Has ABC-123 in the title",
                 candidate_mpn_field=None,
                 candidate_sku=None,
-                candidate_brand=None,
-                candidate_condition=None,
-                candidate_specs=None,
-                candidate_commercial_context="Price: 100 USD | Availability: In stock",
                 candidate_evidence_source="TITLE_TEXT",
+                candidate_product=CandidateProductEvidenceV2(
+                    product_family=None,
+                    generation=None,
+                    capacity=None,
+                    interface=None,
+                    form_factor=None,
+                    product_role=None,
+                    accessory_relation=None,
+                    brand=None,
+                    revision_or_suffix=None,
+                    raw_title_text="Has ABC-123 in the title",
+                    raw_specification_text=None,
+                ),
+                candidate_commercial=CandidateCommercialEvidenceV2(
+                    condition=None,
+                    price=None,
+                    currency=None,
+                    availability=None,
+                    seller=None,
+                    offer_url=None,
+                    sales_unit=SALES_UNIT_EVIDENCE_UNAVAILABLE,
+                ),
                 identity_state=context.state,
                 substate=context.substate,
                 primary_relationship_signal=context.primary_relationship_signal,
@@ -509,6 +538,7 @@ class TestInputV2:
                     has_usable_product_title=True, matched_facts=frozenset()
                 ),
                 context_provenances=NO_CTX,
+                reviewed_target_context=None,
             )
 
     def test_builder_refuses_a_foreign_request(self) -> None:
@@ -527,6 +557,7 @@ class TestInputV2:
                 context=context,
                 product_evidence=profile,
                 context_provenances=NO_CTX,
+                reviewed_target_context=None,
             )
 
     def test_structured_product_evidence_present(self) -> None:
@@ -559,17 +590,37 @@ class TestInputV2:
         with pytest.raises(ValueError, match="semantic entry point"):
             SemanticMatchCaseV2(
                 case_id="candidate-x",
-                target_mpn=REQUEST_MPN,
-                target_description="A test product",
+                target=TargetEvidenceV2(
+                    mpn=REQUEST_MPN,
+                    description_raw_text="A test product",
+                    reviewed_context=None,
+                ),
                 candidate_source_url="https://example.com/product",
-                candidate_title="Test Product",
                 candidate_mpn_field=REQUEST_MPN,
                 candidate_sku=None,
-                candidate_brand=None,
-                candidate_condition=None,
-                candidate_specs=None,
-                candidate_commercial_context=None,
                 candidate_evidence_source="EXPLICIT_MPN_FIELD",
+                candidate_product=CandidateProductEvidenceV2(
+                    product_family=None,
+                    generation=None,
+                    capacity=None,
+                    interface=None,
+                    form_factor=None,
+                    product_role=None,
+                    accessory_relation=None,
+                    brand=None,
+                    revision_or_suffix=None,
+                    raw_title_text="Test Product",
+                    raw_specification_text=None,
+                ),
+                candidate_commercial=CandidateCommercialEvidenceV2(
+                    condition=None,
+                    price=None,
+                    currency=None,
+                    availability=None,
+                    seller=None,
+                    offer_url=None,
+                    sales_unit=SALES_UNIT_EVIDENCE_UNAVAILABLE,
+                ),
                 identity_state=context.state,
                 substate=context.substate,
                 primary_relationship_signal=context.primary_relationship_signal,
@@ -593,17 +644,37 @@ class TestInputV2:
         with pytest.raises(ValueError, match="usable"):
             SemanticMatchCaseV2(
                 case_id="candidate-x",
-                target_mpn=REQUEST_MPN,
-                target_description="A test product",
+                target=TargetEvidenceV2(
+                    mpn=REQUEST_MPN,
+                    description_raw_text="A test product",
+                    reviewed_context=None,
+                ),
                 candidate_source_url="https://example.com/product",
-                candidate_title="Usable title without any MPN",
                 candidate_mpn_field=None,
                 candidate_sku=None,
-                candidate_brand=None,
-                candidate_condition=None,
-                candidate_specs=None,
-                candidate_commercial_context=None,
                 candidate_evidence_source="NONE",
+                candidate_product=CandidateProductEvidenceV2(
+                    product_family=None,
+                    generation=None,
+                    capacity=None,
+                    interface=None,
+                    form_factor=None,
+                    product_role=None,
+                    accessory_relation=None,
+                    brand=None,
+                    revision_or_suffix=None,
+                    raw_title_text="Usable title without any MPN",
+                    raw_specification_text=None,
+                ),
+                candidate_commercial=CandidateCommercialEvidenceV2(
+                    condition=None,
+                    price=None,
+                    currency=None,
+                    availability=None,
+                    seller=None,
+                    offer_url=None,
+                    sales_unit=SALES_UNIT_EVIDENCE_UNAVAILABLE,
+                ),
                 identity_state=IdentityStateV2.DETERMINISTIC_UNCERTAIN,
                 substate=context.substate,
                 primary_relationship_signal=context.primary_relationship_signal,

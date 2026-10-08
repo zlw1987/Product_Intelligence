@@ -346,6 +346,7 @@ class TestV2OutcomesPersist:
             REQUEST,
             (assessment,),
             context_provenances_by_assessment={},
+            reviewed_target_context=None,
             runtime_v2=runtime,
         )
         published = aggregate_listing_prices(REQUEST, (assessment,)).assessments
@@ -482,7 +483,7 @@ class TestV2OutcomesPersist:
         record, _ = self._persist(run, assessment, _v2_runtime())
         loaded = load_semantic_decision(run.id, 0)
         assert loaded.case == record.case
-        assert loaded.case.target_mpn == "ABC-123"
+        assert loaded.case.target.mpn == "ABC-123"
         assert loaded.case.candidate_source_url == "https://example.com/u1"
         assert loaded.case.identity_state.value == "DETERMINISTIC_UNCERTAIN"
         assert loaded.case.substate.value == "U1_TITLE_MPN"
@@ -564,6 +565,7 @@ class TestV2OutcomesPersist:
             request,
             assessments,
             context_provenances_by_assessment={},
+            reviewed_target_context=None,
             runtime_v2=_v2_runtime(),
         )
         assert len(outcomes) == 2
@@ -802,6 +804,7 @@ class TestAliasRetrievalProvenance:
             request,
             (assessment,),
             context_provenances_by_assessment={assessment: provenances},
+            reviewed_target_context=None,
             runtime_v2=_v2_runtime(_v2_response("MATCH", "HIGH")),
         )
         assert len(outcomes) == 1
@@ -866,6 +869,7 @@ class TestV2ReplayThroughService:
             request,
             (assessment,),
             context_provenances_by_assessment={},
+            reviewed_target_context=None,
             runtime_v2=_v2_runtime(_v2_response("MATCH", "HIGH")),
         )
         records = build_semantic_decision_records_v2(
