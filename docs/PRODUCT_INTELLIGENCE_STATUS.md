@@ -5,11 +5,216 @@
 ## Current state
 
 
+**PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-Q3-B-FU1 (Semantic Authority V2 —
+
+Live Capture Security and Abort-Safety Correction)
+
+— IMPLEMENTED / PENDING FINAL REVIEW**
+
+Bounded LIVE-RUNNER corrective follow-up on the reviewed Q3-B
+candidate (AD-074; canonical spec §26.31), on the authoritative
+starting SHA `eee688e15085dafa7788eb17ac87ceec9732894f` (Q3-B
+endpoint; baseline collection 6912). Q3-B is recorded as REVIEWED /
+NOT APPROVED / NOT FROZEN: its review identified two independent
+defects in the live capture RUNNER, both corrected in this phase.
+This is a CODE-CORRECTION AND TEST-VALIDATION phase: NO live
+recapture was performed (the existing real primary capture and its
+manifest are preserved byte-for-byte and remain the evidence of
+record), NO deployment, and NO frozen production artifact changed:
+prompt 2.0, input / output schema, reason codes, eligibility,
+authority matrix, persistence adapter, runtime route, corpus labels,
+and the DRAFT policy are byte-untouched; the corpus digest is
+unchanged (`2c37ba088c317d8cefc6ad0dd7e0d73cfd085f6474ef43eb6953e3cf0170b549`);
+the REAL frozen system prompt digest is unchanged
+(`c0cc98bdd6d357e81d4692218f18d354351fc2833267b3062b7cd74b18445a84`);
+`V2_AUTHORITY_QUALIFIED = False` is unchanged; no migration; the
+frozen direct-capture schema v1 is unchanged (the capture document
+the runner writes is the same strict schema; the runner manifest
+sidecar - evidence only, never read by the evaluator - gains exactly
+one additive top-level key, `dispatch_states`). No production
+pricing authority; no new credentials or transport paths; the Q3-A
+evaluation->research exact allowlist remains EXACTLY THE SAME SIX
+FILES (the runner stays research-independent with its single lazy
+transport import).
+
+**Blocker 1 — unsafe exception disclosure (root cause +
+correction).** Root cause: the CLI's `main()` caught arbitrary
+`Exception` and printed its raw string (`error: {exc}`) - unexpected
+exception text may contain provider URLs, request details,
+credentials, or other sensitive information; additionally,
+`_interpret_outcome()` embedded the transport-provided `error_type`
+value into raised exceptions for out-of-vocabulary transport
+evidence (an unrecognized string code, or a non-string
+classification), and bounded configuration errors echoed
+operator-supplied values (rejected provider/model, run_id) and the
+transport factory echoed the unknown-provider name while retaining
+the raw cause chain. Correction (all in
+`product_intelligence/evaluation/semantic_v2/live_capture.py`):
+
+* `main()` now handles the approved bounded error types explicitly -
+  `LiveCaptureConfigError` / `LiveCaptureError` / `CorpusError` /
+  `DirectCaptureError` -> their bounded messages, exit 2; a bounded
+  run-level abort still exits 1 with the evidence preserved; success
+  / dry run exits 0. ANY other exception -> the fixed, non-sensitive
+  `UNEXPECTED_RUNNER_FAILURE` message (module constant; raw text /
+  type / traceback are never printed), exit 3.
+* Unexpected exceptions are never converted into a successful or
+  retryable capture outcome: they propagate out of the run
+  unconverted (same identity, no bounded status) and no capture
+document is written.
+* Out-of-vocabulary transport evidence no longer raises with the
+  value embedded: it is a bounded run-level ABORT recorded ONLY as
+  the new `LIVE_UNRECOGNIZED_TRANSPORT_CODE` marker - deliberately
+  outside the four frozen policy buckets (which stay exactly the
+  frozen vocabulary), manifest-only (no document record - the frozen
+  schema cannot represent it), the transport value never echoed,
+  and never retried. This also means the attempted evidence is no
+  longer silently omitted: such an abort writes the manifest
+  (bounded code; attempted + unattempted cases named).
+* Bounded config / transport errors no longer echo
+  operator-supplied values (only the frozen pinned identities,
+  validated numerics, and type names are named); `TypeError` from
+  config validation becomes a bounded `LiveCaptureConfigError`; the
+  transport-factory conversion retains no exception chain
+  (`from None` was already in place and is preserved).
+* A ghost `__all__` entry (`LiveCaptureAbortError` - named but never
+defined, found during the exception-path audit) was removed.
+
+**Blocker 2 — concurrency and run-level abort (root cause +
+correction).** Root cause: the concurrent runner submitted ALL
+eligible cases to the `ThreadPoolExecutor` before consuming any
+result, so an authentication / model-identity failure could be
+detected only after other requests had already started; the
+documented run-level abort boundary ("no further case is sent") was
+not enforced for already-queued work, and the evidence could not
+distinguish cancelled from never-attempted cases. Correction: a
+strict dispatch-stop bounded dispatcher (a simple bounded loop -
+correctness deliberately preferred over parallel speed):
+
+* at most `max_concurrency` cases in flight at any time (the bound
+  is preserved);
+* a new case is dispatched ONLY while no abort has been observed:
+  once an abort-class failure is recorded (the frozen abort
+  vocabulary, or the out-of-vocabulary marker), no further case is
+  submitted;
+* submitted-but-not-started work is CANCELLED at the abort: it is
+  never called and no model response is ever fabricated for it;
+* already in-flight work runs to completion and its REAL outcome is
+  preserved verbatim (executions, manifest attempt evidence, and -
+  when in-vocabulary - the capture document record);
+* the manifest distinguishes, for EVERY eligible case, the new
+  additive `dispatch_states` key: `completed` (an outcome was
+  preserved) / `cancelled` (submitted, not started, no model call)
+  / `never_attempted` (never dispatched, no model call); in-flight
+  cases are always collected before the manifest is written, so no
+  uncollected state survives into the evidence;
+* sequential mode is unchanged in behavior: an observed abort stops
+  the very next dispatch (sequential work is never submitted before
+  it starts, so `cancelled` cannot occur there).
+
+**Evidence integrity (preserved).** The primary's real capture
+(`q3b-20261009T010312Z-amax`) and its manifest are untouched,
+hash-verified in this session:
+`d94f1ed8ec4d254aa2a80e4ff58bd0bc55eb8c3744ad22f53f0b602ae9084d9f`
+(document, 38945 bytes) and
+`46f818bb02cc5838ab29aea9eb9d819108fa89c2f5a17349bb91e89544b99b79`
+(manifest, 20293 bytes). The primary's observed result stands
+unchanged: 43/43 valid responses; 0 false MATCH; 0 MATCH
+predictions; MATCH recall 0/11; qualification policy DRAFT; no model
+qualified. The fallback has not been captured. No ground-truth
+labels, thresholds, prompts, or expected decisions were changed to
+improve these results. NO live qualification rerun was performed
+during FU1.
+
+**Tests.** 16 NEW nodes in NEW
+`tests/evaluation/semantic_v2/test_q3b_fu1_live_capture_safety.py`
+(every model call is a scripted, recording test double; no live
+network call anywhere): adversarial exception redaction (an
+unexpected exception message carrying a synthetic API key, bearer
+token, URL with credentials, and request secret never reaches
+stdout/stderr - the CLI emits exactly the fixed non-sensitive
+message, exit 3, no artifact; an unexpected transport exception
+propagates unconverted with identical identity, one call, no
+artifact; an out-of-vocabulary code with a secret payload and a
+non-string classification both abort with the bounded marker - not
+retried, no echo, manifest-only; bounded config errors do not echo
+operator input, incl. the transport-factory path with no retained
+cause chain; the CLI bounded paths keep exit 2 with bounded
+messages - unpinned route, missing corpus, artifact collision);
+strict dispatch-stop on REAL worker threads (barrier + event
+synchronization, no timing-dependent sleeps: the abort case returns
+while the other dispatched case is still in flight; the in-flight
+outcome is preserved verbatim; nothing beyond the boundary is
+dispatched - any further call fails loudly; the concurrency bound
+holds; the tail is distinguished in the manifest; the capture
+replays fail-closed, never QUALIFIED); deterministic cancellation /
+preservation via a driven bounded-executor stand-in (REAL
+`concurrent.futures.Future` objects and the production `wait` /
+`cancel` semantics; tasks start and finish only when the test says
+so): a submitted-but-not-started case is cancelled - never called,
+never fabricated, distinguished from the `never_attempted` tail,
+with the dispatcher proven to submit EXACTLY the first batch
+(strict dispatch-stop); an already-running case is collected with
+its real outcome while the abort is observed; an out-of-vocabulary
+code stops the concurrent dispatch the same way; a sequential abort
+marks the tail `never_attempted`; a completed concurrent run marks
+all 43 `completed`; the manifest shape is pinned exactly (the Q3-B
+key set + the single new key; the per-case attempt-evidence key set
+unchanged; the dispatch vocabulary bounded to the three states).
+The two previously modified Q3-A guards were REVIEWED and their
+original assertions remain intact: `test_the_harness_modules_name_`
+`no_ai_surface` (pins `live_capture.py` as the ONE module that may
+reference the live transport surface) and
+`test_the_direct_modules_import_no_production_execution_surface`
+(pins its transport reference as exactly ONE lazy function-level
+import of the approved factory) - both pass unchanged against the
+corrected runner. No test deleted, renamed, skipped, xfailed,
+deselected, ignored, or weakened; no file decreased; the Windows
+subprocess flake allowlist NOT expanded. Collection 6912 -> 6928
+(+16 = new-file nodes; no auto-expanded parameterized scans - no new
+production file).
+
+**Validation (this session, candidate pass - final approval remains
+with independent review).**
+
+* Collection baseline at `eee688e`: **6912**; final: **6928** (+16
+  new-file nodes; no scan auto-expansion - no new production file).
+* Focused Q3-A + FU1 + Q3-B + FU1 (`tests/evaluation/semantic_v2/`):
+  **304 passed, 0 failed** (288 pre-existing + 16 new).
+* Focused boundary suites (evaluation / research identity /
+  providers / web / domain): **609 passed, 0 failed** (the
+  clean-interpreter subprocess guards all passed in this run).
+* Full suite (final, over the corrected code): **6928 collected;
+  6928 passed, 0 failed** - zero failures, zero collection errors,
+  and zero occurrences of the documented load-sensitive
+  clean-interpreter subprocess guard flake class in the final run
+  (nothing required isolation retry); the known flake allowlist was
+  NOT expanded.
+* Skipped / xfailed / deselected: **0 / 0 / 0** (full run: 6928
+  passed, no other outcomes).
+* `python manage.py check` / `makemigrations --check --dry-run`:
+  run in this session - no issues, no model change (the correction is
+  evaluation infrastructure only; recorded in the commit message).
+* Worktree preservation: the seven historical benchmark artifacts,
+  the pre-existing `tmp_collection.txt` modification, and the
+  existing untracked live capture evidence are untouched (the commit
+  stages only the phase files).
+
+No deployment performed. Q3-B-FU1 does NOT claim qualification or
+approval: Q3-B remains NOT APPROVED / NOT FROZEN pending review of
+this correction, the qualification policy remains DRAFT,
+`V2_AUTHORITY_QUALIFIED` remains False, the primary's live capture
+remains the evidence of record (unchanged), the fallback's live
+capture remains deferred, and NO live recapture was performed in
+this phase.
+
 
 **PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-Q3-B (Semantic Authority V2 —
 Controlled Live Direct-Model Capture)
 
-— IMPLEMENTED / PENDING FINAL REVIEW**
+— REVIEWED / NOT APPROVED / NOT FROZEN (the two review blockers are
+corrected in Q3-B-FU1; the phase awaits review of the corrected
+candidate)**
 
 Bounded LIVE-QUALIFICATION-EVIDENCE phase on the authoritative starting
 SHA `517ef25c7ce83bba364234dda46270b147c0c053` (Q3-A-FU1 endpoint;

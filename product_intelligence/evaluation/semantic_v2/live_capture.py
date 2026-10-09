@@ -55,7 +55,11 @@ Retry policy (FIXED before collection; documented and bounded):
   INVALID_REQUEST_CONFIGURATION, UNSUPPORTED_PARAMETER) or reports an
   unknown transport code aborts the run after recording the attempted
   case (bounded, in-vocabulary evidence only); no further case is
-  sent;
+  sent. Out-of-vocabulary transport evidence (an unrecognized code, or
+  a non-string classification) is recorded ONLY as the bounded
+  ``LIVE_UNRECOGNIZED_TRANSPORT_CODE`` marker: the transport-provided
+  value itself is never echoed into any message, manifest, or artifact
+  (it may contain URLs, request details, or credentials);
 * CASE_REJECTED (a content-policy rejection of the case's own
   content) is CASE-LOCAL per the frozen transport vocabulary: the run
   continues, the case is documented in the manifest sidecar, and no
@@ -64,7 +68,26 @@ Retry policy (FIXED before collection; documented and bounded):
   coverage shortfall, never a pass);
 * an unexpected exception raised by the transport is a programming
   defect: it propagates, is never converted into a bounded status, and
-  no capture document is written for the run.
+  no capture document is written for the run. The CLI reports it with
+  the fixed, non-sensitive ``UNEXPECTED_RUNNER_FAILURE`` message and a
+  nonzero exit - the raw exception text may contain provider URLs,
+  request details, or credentials, so it is never printed.
+
+Run-level abort boundary (concurrent mode):
+
+* the bounded dispatcher never exceeds ``max_concurrency`` in-flight
+  cases and dispatches a new case ONLY while no abort has been
+  observed (strict dispatch-stop: once an abort-class failure is
+  recorded, no further case is submitted);
+* on abort, submitted-but-not-started work is cancelled (it is never
+  called and never fabricated into a response); already in-flight work
+  runs to completion and its outcome is preserved verbatim;
+* the manifest distinguishes, per case: ``completed`` (an outcome was
+  preserved), ``cancelled`` (submitted, not started, no model call),
+  and ``never_attempted`` (never dispatched, no model call).
+  In-flight cases are always collected before the manifest is
+  written, so the manifest itself carries only ``completed`` /
+  ``cancelled`` / ``never_attempted`` states.
 
 Artifacts (stored separately from the corpus labels):
 
@@ -88,9 +111,8 @@ import math
 import re
 import subprocess
 import sys
-import threading
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -109,12 +131,14 @@ from product_intelligence.evaluation.semantic_v2.capture import (
 from product_intelligence.evaluation.semantic_v2.corpus import (
     CONTRACT_NEGATIVE_CASE_CLASS,
     CorpusBundle,
+    CorpusError,
     load_corpus,
 )
 from product_intelligence.evaluation.semantic_v2.direct_capture import (
     DIRECT_CAPTURE_MODE,
     DIRECT_CAPTURE_SCHEMA_VERSION,
     DIRECT_EXECUTION_STATUSES,
+    DirectCaptureError,
     load_direct_capture,
     verify_direct_capture_against_corpus,
 )
@@ -141,10 +165,11 @@ __all__ = [
     "LIVE_RETRYABLE_STATUSES",
     "LIVE_TEMPERATURE",
     "LIVE_TRANSPORT_ERROR_TO_STATUS",
-    "LiveCaptureAbortError",
+    "LIVE_UNRECOGNIZED_TRANSPORT_CODE",
     "LiveCaptureConfig",
     "LiveCaptureError",
     "LiveCaptureRunner",
+    "UNEXPECTED_RUNNER_FAILURE_MESSAGE",
     "build_live_transport",
     "main",
     "validate_live_capture_config",
@@ -263,6 +288,17 @@ LIVE_CASE_LOCAL_STATUSES: Final[frozenset[str]] = frozenset(
     {"CASE_REJECTED"}
 )
 
+#: A bounded run-level ABORT marker for transport evidence outside the
+#: classification vocabulary (an unrecognized string code, or a
+#: non-string classification): the attempted case is recorded in the
+#: manifest ONLY under this code (no capture document record - the
+#: frozen schema cannot represent it), the run aborts, and no further
+#: case is sent. The transport-provided value itself is never echoed
+#: into any message, manifest, or artifact (it may contain URLs,
+#: request details, or credentials). Deliberately outside the four
+#: policy buckets (which stay exactly the frozen vocabulary).
+LIVE_UNRECOGNIZED_TRANSPORT_CODE: Final[str] = "UNRECOGNIZED_TRANSPORT_CODE"
+
 _RUN_ID_PATTERN: Final[re.Pattern[str]] = re.compile(
     r"^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,126}[A-Za-z0-9])?$"
 )
@@ -324,7 +360,9 @@ def validate_live_capture_config(config: LiveCaptureConfig) -> None:
     with a bounded execution envelope (before any transport is built
     or called)."""
     if not isinstance(config, LiveCaptureConfig):
-        raise TypeError(
+        # Bounded: names only the expected and actual TYPE, never a
+        # value the caller supplied.
+        raise LiveCaptureConfigError(
             f"config must be LiveCaptureConfig, got {type(config).__name__}"
         )
     if (config.provider, config.model) == PRIMARY_ROUTE:
@@ -332,12 +370,16 @@ def validate_live_capture_config(config: LiveCaptureConfig) -> None:
     elif (config.provider, config.model) == FALLBACK_ROUTE:
         pass  # frozen fallback route identity
     else:
+        # Bounded: the rejected provider/model value is operator
+        # input and is NOT echoed (it may contain arbitrary text);
+        # only the frozen pinned identities are named.
         raise LiveCaptureConfigError(
-            f"target {config.provider!r}/{config.model!r} is not one of "
-            f"the frozen V2 pinned route identities "
-            f"{PRIMARY_ROUTE[0]!r}/{PRIMARY_ROUTE[1]!r} or "
-            f"{FALLBACK_ROUTE[0]!r}/{FALLBACK_ROUTE[1]!r}; no other "
-            "model may enter the frozen V2 qualification"
+            "the target provider/model is not one of the frozen V2 "
+            f"pinned route identities ({PRIMARY_ROUTE[0]!r}/"
+            f"{PRIMARY_ROUTE[1]!r} or {FALLBACK_ROUTE[0]!r}/"
+            f"{FALLBACK_ROUTE[1]!r}); no other model may enter the "
+            "frozen V2 qualification (the rejected value is not "
+            "echoed)"
         )
 
     timeout = config.request_timeout_seconds
@@ -376,10 +418,12 @@ def validate_live_capture_config(config: LiveCaptureConfig) -> None:
     if not isinstance(config.run_id, str) or not _RUN_ID_PATTERN.match(
         config.run_id
     ):
+        # Bounded: the rejected run_id value is operator input and is
+        # NOT echoed; only the accepted grammar is stated.
         raise LiveCaptureConfigError(
             "run_id must be 1..128 characters of [A-Za-z0-9._-] "
-            "starting and ending with an alphanumeric "
-            f"(got {config.run_id!r}); each live capture is a distinct "
+            "starting and ending with an alphanumeric (the rejected "
+            "value is not echoed); each live capture is a distinct "
             "run with its own provenance"
         )
 
@@ -414,10 +458,12 @@ def build_live_transport(
             request_timeout_seconds=request_timeout_seconds,
         )
     except ValueError:
+        # Bounded: the provider argument is operator input and is NOT
+        # echoed; no credential value or endpoint is named.
         raise LiveCaptureConfigError(
-            f"provider {provider!r} is not configured in the server "
-            "environment (its base URL / key are absent or unknown); "
-            "no live call was made and no artifact was written"
+            "the provider is not configured in the server environment "
+            "(its base URL / key are absent or unknown); no live call "
+            "was made and no artifact was written"
         ) from None
 
 
@@ -499,20 +545,18 @@ def _interpret_outcome(
     """
     error_type = getattr(outcome, "error_type", None)
     if error_type is not None:
-        if not isinstance(error_type, str):
-            raise LiveCaptureError(
-                "transport returned a non-string error classification; "
-                "this is outside the bounded transport vocabulary and "
-                "aborts the run (no capture document is written)"
-            )
-        status = LIVE_TRANSPORT_ERROR_TO_STATUS.get(error_type)
+        status = (
+            LIVE_TRANSPORT_ERROR_TO_STATUS.get(error_type)
+            if isinstance(error_type, str)
+            else None
+        )
         if status is None:
-            raise LiveCaptureError(
-                f"transport returned the unrecognized error code "
-                f"{error_type!r}; the bounded classification table does "
-                "not cover it, so the run aborts (no capture document "
-                "is written)"
-            )
+            # Out-of-vocabulary transport evidence (an unrecognized
+            # code, or a non-string classification): a bounded
+            # run-level ABORT. The transport-provided value is NEVER
+            # echoed into a message, manifest, or artifact - it may
+            # contain URLs, request details, or credentials.
+            return LIVE_UNRECOGNIZED_TRANSPORT_CODE, None
         return status, None
 
     reported = getattr(outcome, "provider_reported_model", None)
@@ -552,6 +596,11 @@ class _RunOutcome:
     abort: tuple[str, str] | None  # (case_id, bounded code)
     started_at: str
     finished_at: str
+    #: Every eligible case, in corpus order, classified as:
+    #: ``completed`` (an outcome was preserved), ``cancelled``
+    #: (submitted, not started, cancelled at abort - no model call),
+    #: or ``never_attempted`` (never dispatched - no model call).
+    dispatch_states: dict[str, str]
 
 
 class LiveCaptureRunner:
@@ -564,6 +613,14 @@ class LiveCaptureRunner:
     in COMPLETED (every eligible case attempted) or ABORTED_<code>
     (the run-level breakage; the attempted evidence is still
     preserved, the unattempted cases are named).
+
+    Run-level abort boundary: in sequential mode an observed abort
+    stops the very next dispatch. In concurrent mode the bounded
+    dispatcher holds at most ``max_concurrency`` cases in flight and
+    dispatches a new case ONLY while no abort has been observed;
+    once an abort is recorded, submitted-but-not-started work is
+    cancelled, already in-flight work is collected (its outcome is
+    preserved verbatim), and nothing further is dispatched.
     """
 
     def __init__(
@@ -630,8 +687,13 @@ class LiveCaptureRunner:
         config = self._config
         started_at = _utc_now_iso()
         executions: dict[str, _CaseExecution] = {}
+        dispatch_states: dict[str, str] = {}
         abort: tuple[str, str] | None = None
-        abort_flag = threading.Event()
+
+        def note_abort(entry: _CaseEntry, execution: _CaseExecution) -> None:
+            nonlocal abort
+            if abort is None and self._is_abort_status(execution.final_status):
+                abort = (entry.case_id, execution.final_status)
 
         def execute_one(entry: _CaseEntry) -> _CaseExecution:
             attempts = 0
@@ -673,32 +735,83 @@ class LiveCaptureRunner:
                 )
 
         if config.max_concurrency == 1:
+            # Sequential: one case at a time. An observed abort stops
+            # the very next dispatch; the remaining cases are never
+            # attempted (no model call).
             for entry in self._entries:
-                if abort_flag.is_set():
-                    break
+                if abort is not None:
+                    dispatch_states[entry.case_id] = "never_attempted"
+                    continue
                 execution = execute_one(entry)
                 executions[entry.case_id] = execution
-                if execution.final_status in LIVE_ABORT_STATUSES:
-                    abort = (entry.case_id, execution.final_status)
-                    abort_flag.set()
+                dispatch_states[entry.case_id] = "completed"
+                note_abort(entry, execution)
         else:
+            # Bounded concurrent dispatcher (strict dispatch-stop):
+            # at most ``max_concurrency`` cases in flight; a new case
+            # is submitted only while no abort has been observed. On
+            # abort: submitted-but-not-started work is cancelled (it
+            # is never called), already in-flight work runs to
+            # completion and its outcome is preserved, and nothing
+            # further is dispatched.
+            next_index = 0
+            in_flight: dict[Any, _CaseEntry] = {}
+
+            def collect(fut: Any) -> None:
+                entry = in_flight.pop(fut)
+                # An unexpected worker exception propagates (a
+                # programming defect is never converted into a
+                # bounded status); the run then fails with no
+                # capture document.
+                execution = fut.result()
+                executions[entry.case_id] = execution
+                dispatch_states[entry.case_id] = "completed"
+                note_abort(entry, execution)
+
             with ThreadPoolExecutor(
                 max_workers=config.max_concurrency
             ) as pool:
-                futures = {}
-                for entry in self._entries:
-                    if abort_flag.is_set():
+                while abort is None:
+                    if next_index >= len(self._entries):
+                        # All cases dispatched: drain to completion.
+                        while in_flight:
+                            done, _ = wait(
+                                list(in_flight),
+                                return_when=FIRST_COMPLETED,
+                            )
+                            for fut in done:
+                                collect(fut)
                         break
-                    futures[pool.submit(execute_one, entry)] = entry
-                for future, entry in futures.items():
-                    # An unknown-code / non-string classification
-                    # propagates (a programming defect is never
-                    # converted into a bounded status).
-                    execution = future.result()
-                    executions[entry.case_id] = execution
-                    if execution.final_status in LIVE_ABORT_STATUSES:
-                        abort = (entry.case_id, execution.final_status)
-                        abort_flag.set()
+                    while (
+                        next_index < len(self._entries)
+                        and len(in_flight) < config.max_concurrency
+                    ):
+                        entry = self._entries[next_index]
+                        next_index += 1
+                        in_flight[pool.submit(execute_one, entry)] = entry
+                    done, _ = wait(
+                        list(in_flight), return_when=FIRST_COMPLETED
+                    )
+                    for fut in done:
+                        collect(fut)
+                    if abort is not None:
+                        # Strict dispatch-stop: cancel work that has
+                        # not started (it is never called and never
+                        # fabricated into a response); preserve the
+                        # outcome of work already in flight.
+                        for fut in list(in_flight):
+                            entry = in_flight[fut]
+                            if fut.cancel():
+                                in_flight.pop(fut)
+                                dispatch_states[entry.case_id] = (
+                                    "cancelled"
+                                )
+                        if in_flight:
+                            done, _ = wait(list(in_flight))
+                            for fut in done:
+                                collect(fut)
+        for entry in self._entries:
+            dispatch_states.setdefault(entry.case_id, "never_attempted")
         return _RunOutcome(
             executions=executions,
             not_attempted_case_ids=tuple(
@@ -709,6 +822,16 @@ class LiveCaptureRunner:
             abort=abort,
             started_at=started_at,
             finished_at=_utc_now_iso(),
+            dispatch_states=dict(dispatch_states),
+        )
+
+    @staticmethod
+    def _is_abort_status(status: str) -> bool:
+        """True iff a bounded case outcome is a run-level abort
+        (the frozen abort vocabulary, or out-of-vocabulary transport
+        evidence reduced to its bounded marker)."""
+        return status in LIVE_ABORT_STATUSES or status == (
+            LIVE_UNRECOGNIZED_TRANSPORT_CODE
         )
 
     # -- artifacts ---------------------------------------------------------
@@ -829,6 +952,10 @@ class LiveCaptureRunner:
                 if entry.case_id in outcome.executions
             ],
             "not_attempted_case_ids": list(outcome.not_attempted_case_ids),
+            "dispatch_states": {
+                entry.case_id: outcome.dispatch_states[entry.case_id]
+                for entry in self._entries
+            },
             "undocumented_cases": {
                 case_id: case["final_status"]
                 for case_id, case in cases.items()
@@ -1061,13 +1188,48 @@ def _cmd_capture(args: argparse.Namespace) -> int:
     return 0
 
 
+#: The fixed, non-sensitive CLI message for an unexpected (non-bounded)
+#: exception. Raw exception text may contain provider URLs, request
+#: details, credentials, or other sensitive information, so it is
+#: NEVER reported; only this fixed code and text is.
+UNEXPECTED_RUNNER_FAILURE_MESSAGE: Final[str] = (
+    "error: UNEXPECTED_RUNNER_FAILURE - the live capture runner raised "
+    "an unexpected error. Its message is not reported because it may "
+    "contain sensitive information (provider URLs, request details, "
+    "credentials). The run failed with a nonzero exit; no capture "
+    "outcome is implied and no qualification result is granted."
+)
+
+
 def main(argv: list[str] | None = None) -> int:
+    """The bounded CLI surface.
+
+    Exit codes: 0 = success (COMPLETED or dry run); 1 = bounded run-
+    level abort (evidence preserved, unattempted cases named); 2 =
+    bounded preflight / configuration / loader failure (the approved
+    bounded error types, whose messages are bounded by construction);
+    3 = unexpected non-bounded failure (the fixed, non-sensitive
+    ``UNEXPECTED_RUNNER_FAILURE`` message only - never the raw
+    exception text).
+    """
     args = build_parser().parse_args(argv)
     try:
         return args.func(args)
-    except Exception as exc:  # bounded CLI surface: one clear failure
+    except LiveCaptureConfigError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
+    except LiveCaptureError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    except (CorpusError, DirectCaptureError) as exc:
+        # Approved bounded loader errors (strict schema contracts;
+        # bounded messages by construction).
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    except Exception:
+        # Never print a raw arbitrary exception message.
+        print(UNEXPECTED_RUNNER_FAILURE_MESSAGE, file=sys.stderr)
+        return 3
 
 
 if __name__ == "__main__":
