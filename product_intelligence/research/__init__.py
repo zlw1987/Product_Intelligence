@@ -457,6 +457,26 @@ from product_intelligence.research.semantic_decision_replay import (
     SUPPORTED_CONTRACT_BINDINGS,
     replay_semantic_decision,
 )
+from product_intelligence.research.semantic_authority_fu3 import (
+    AUTHORITY_CONTRACT_VERSION_V2_FU3,
+    AuthorityDecisionV2FU3,
+    AuthorityRuleV2FU3,
+    IDENTITY_RESOLUTION_BOUND_TABLE,
+    IdentityResolutionBoundV2,
+    KNOWN_AUTHORITY_CONTRACT_TOKENS,
+    SalesUnitAuthorityV2,
+    TargetSalesUnitEvidenceSourceV2,
+    TargetSalesUnitEvidenceV2,
+    TargetSalesUnitFormV2,
+    UnknownAuthorityContractTokenError,
+    derive_authority_tier_for_contract,
+    derive_authority_tier_fu3,
+    derive_identity_resolution_bound,
+    derive_sales_unit_authority,
+    identity_resolution_bound,
+    is_known_authority_contract_token,
+    sales_unit_authority_from_channel,
+)
 
 __all__ = [
     "ALWAYS_HARD_CONFLICT_CLASSES",
@@ -697,4 +717,27 @@ __all__ = [
     "normalize_listing_observations",
     "normalize_part_number",
     "resolve_specification",
+    # S2-A-FU3 (Q3-B4-FU1): the separately versioned identity-resolution
+    # and sales-unit firewall contract (token
+    # SEMANTIC_AUTHORITY_V2_S2A_FU3). Contract-only: unreachable from the
+    # live V2 runtime wiring; the frozen S2-A-FU2 derivation and all
+    # historical replay behavior are unchanged.
+    "AUTHORITY_CONTRACT_VERSION_V2_FU3",
+    "AuthorityDecisionV2FU3",
+    "AuthorityRuleV2FU3",
+    "IDENTITY_RESOLUTION_BOUND_TABLE",
+    "IdentityResolutionBoundV2",
+    "KNOWN_AUTHORITY_CONTRACT_TOKENS",
+    "SalesUnitAuthorityV2",
+    "TargetSalesUnitEvidenceSourceV2",
+    "TargetSalesUnitEvidenceV2",
+    "TargetSalesUnitFormV2",
+    "UnknownAuthorityContractTokenError",
+    "derive_authority_tier_for_contract",
+    "derive_authority_tier_fu3",
+    "derive_identity_resolution_bound",
+    "derive_sales_unit_authority",
+    "identity_resolution_bound",
+    "is_known_authority_contract_token",
+    "sales_unit_authority_from_channel",
 ]
