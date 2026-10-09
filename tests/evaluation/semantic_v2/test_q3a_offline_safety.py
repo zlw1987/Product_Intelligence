@@ -165,6 +165,17 @@ class TestNoAICalls:
         evaluate_for_model(corpus, full_capture, *primary_route())
 
     def test_the_harness_modules_name_no_ai_surface(self) -> None:
+        """Every OFFLINE harness module names no live AI surface.
+
+        Q3-B (bounded live capture runner): the ONE module that may
+        reference the live transport surface is the live runner itself
+        (``live_capture.py``) - it is the phase's controlled live
+        entry point. It is exempted here and pinned STRICTLY in the
+        FU1 AST test (``test_the_direct_modules_import_no_production_
+        execution_surface``): it may reference the transport only as a
+        LAZY function-level import of the approved factory, and no
+        other harness module may reach the live AI surface at all.
+        """
         package_root = (
             Path(__file__).resolve().parents[3]
             / "product_intelligence"
@@ -177,13 +188,24 @@ class TestNoAICalls:
             "SemanticRuntimeV2(",
             "from product_intelligence.semantic.runtime import",
         )
+        q3b_live_module = "live_capture.py"
         for path in sorted(package_root.glob("*.py")):
+            if path.name == q3b_live_module:
+                continue  # the Q3-B live runner, pinned separately
             text = path.read_text(encoding="utf-8")
             for token in forbidden:
                 assert token not in text, (
                     f"{path.name} references {token!r}; the offline "
                     "harness must not reach the live AI surface"
                 )
+        # The Q3-B exception is exactly ONE named module, it exists,
+        # and it is load-bearing: it actually reaches the approved
+        # transport factory (a vestigial exception would fail here).
+        live = package_root / q3b_live_module
+        assert live.is_file()
+        assert "get_openai_transport_for_provider" in live.read_text(
+            encoding="utf-8"
+        )
 
 
 # ===========================================================================

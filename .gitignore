@@ -20,6 +20,7 @@ db.sqlite3-journal
 /semantic_benchmark_runs/
 /semantic_reference_runs/
 /semantic_promotion_regression_runs/
+/semantic_v2_live_captures/
 
 # Tooling
 .pytest_cache/

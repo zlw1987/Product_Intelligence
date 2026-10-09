@@ -388,7 +388,16 @@ class TestOfflineBoundary:
     ) -> None:
         """AST scan: the direct-model path (and every harness module)
         imports no production execution / runs / web / providers /
-        transport surface - offline evaluation only."""
+        transport surface - offline evaluation only.
+
+        Q3-B (bounded live capture runner): ``live_capture.py`` is the
+        ONE module that may reference the live transport, and only as
+        a LAZY function-level import of the approved factory
+        (``get_openai_transport_for_provider``) inside transport
+        construction - never at module level, never the production
+        runtime module. The execution / runs / web / providers prefix
+        ban applies to it too.
+        """
         package_root = (
             Path(__file__).resolve().parents[3]
             / "product_intelligence"
@@ -405,6 +414,7 @@ class TestOfflineBoundary:
             "product_intelligence.semantic.transport",
             "product_intelligence.semantic.runtime",
         }
+        q3b_live = "live_capture.py"
         for path in sorted(package_root.glob("*.py")):
             tree = ast.parse(path.read_text(encoding="utf-8"))
             for node in ast.walk(tree):
@@ -419,9 +429,50 @@ class TestOfflineBoundary:
                         name.startswith(prefix)
                         for prefix in forbidden_prefixes
                     ), f"{path.name} imports {name}"
-                    assert name not in forbidden_modules, (
-                        f"{path.name} imports {name}"
-                    )
+                    if path.name != q3b_live:
+                        assert name not in forbidden_modules, (
+                            f"{path.name} imports {name}"
+                        )
+        # The Q3-B exception is exactly ONE named module, it exists,
+        # and its transport reference is precisely bounded: no
+        # module-level transport import; exactly ONE function-level
+        # import of the approved factory; the production runtime
+        # module is still forbidden for it.
+        live_path = package_root / q3b_live
+        assert live_path.is_file()
+        live_tree = ast.parse(live_path.read_text(encoding="utf-8"))
+        for node in live_tree.body:
+            if isinstance(node, ast.Import):
+                names = [alias.name for alias in node.names]
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                names = [node.module]
+            else:
+                continue
+            for name in names:
+                assert name not in forbidden_modules, (
+                    f"live_capture.py has a module-level import of "
+                    f"{name}; the transport must be imported lazily "
+                    "inside transport construction only"
+                )
+        transport_imports = [
+            node
+            for node in ast.walk(live_tree)
+            if isinstance(node, ast.ImportFrom)
+            and node.module == "product_intelligence.semantic.transport"
+        ]
+        assert len(transport_imports) == 1
+        assert {alias.name for alias in transport_imports[0].names} == {
+            "get_openai_transport_for_provider"
+        }
+        function_bodies = [
+            node
+            for node in ast.walk(live_tree)
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        ]
+        assert any(
+            transport_imports[0] in set(ast.walk(func))
+            for func in function_bodies
+        )
 
     def test_direct_reports_are_reproducible(self, corpus, tmp_path) -> None:
         """Two runs over the same direct capture produce the same

@@ -6,11 +6,275 @@
 
 
 
+**PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-Q3-B (Semantic Authority V2 —
+Controlled Live Direct-Model Capture)
+
+— IMPLEMENTED / PENDING FINAL REVIEW**
+
+Bounded LIVE-QUALIFICATION-EVIDENCE phase on the authoritative starting
+SHA `517ef25c7ce83bba364234dda46270b147c0c053` (Q3-A-FU1 endpoint;
+baseline collection 6828). Q3-A and Q3-A-FU1 are recorded as
+APPROVED / FROZEN per the Q3-B operator briefing (the sections below
+are flipped accordingly), so the frozen DIRECT_MODEL_QUALIFICATION
+capture schema and the independent offline evaluator / report path
+(AD-073) are the contract this phase executes against. **This phase
+collects evidence. It does NOT grant qualification or pricing
+authority.** NO frozen production artifact changed: prompt 2.0, input
+/ output schema, reason codes, eligibility, authority matrix,
+persistence adapter, runtime route, corpus labels, and the DRAFT
+policy are byte-untouched; the corpus digest is unchanged
+(`2c37ba088c317d8cefc6ad0dd7e0d73cfd085f6474ef43eb6953e3cf0170b549`);
+the REAL frozen system prompt is
+`c0cc98bdd6d357e81d4692218f18d354351fc2833267b3062b7cd74b18445a84`;
+`V2_AUTHORITY_QUALIFIED = False` is unchanged; the decision stays
+POLICY_PENDING under the DRAFT policy; no Machine Price, Reviewed
+Price, or human-review authority change; no migration; no deployment.
+
+**The bounded live capture runner (NEW
+`product_intelligence/evaluation/semantic_v2/live_capture.py`).** A
+benchmark-only live entry point, separate from production
+orchestration. It reuses, never recreates: (a) the frozen production
+V2 prompt builder (`semantic.contract_v2.build_semantic_prompt_v2`)
+over the REAL typed corpus case (`CorpusCase.build_semantic_case`) -
+every sent prompt is byte-exact frozen-builder output (proven by test
+against the recorded calls); (b) the approved Q3-A-FU1
+DIRECT_MODEL_QUALIFICATION capture schema (unchanged v1) - the written
+document self-verifies through `load_direct_capture` /
+`verify_direct_capture_against_corpus` after every run; (c) the frozen
+production V2 parser composition (`evaluator.classify_raw_response` =
+`parse_semantic_response_v2` + `validate_semantic_response_v2`,
+identity-first, the production runtime boundary discipline); (d) the
+approved provider transport / configuration mechanism
+(`semantic.transport.get_openai_transport_for_provider`, env
+`PI_SEMANTIC_<PROVIDER>_BASE_URL` / `_API_KEY`), imported LAZILY inside
+transport construction only - module import loads no network client;
+no `os.environ` read anywhere in the runner. It is RESEARCH-
+INDEPENDENT (frozen route / contract pins re-imported from the
+allowlisted `capture.py` / `direct_capture.py`), so the Q3-A
+evaluation->research exact-allowlist remains EXACTLY THE SAME SIX
+FILES. No production orchestration is imported or invoked (AST +
+module-state proven: no execution / runs / web / providers / framework
+surface); no general-purpose autonomous agent; the frozen Semantic V2
+runtime is unmodified.
+
+**Frozen model pinning (one run = one pinned model).** Each run
+targets EXACTLY ONE frozen identity: primary `amax / qwen3.8-27b` or
+fallback `vllm-262k / Qwen3.6-27B-262K` (unknown / mixed / whitespace
+identities fail closed before any call). The two models are captured
+INDEPENDENTLY - no primary-before-fallback routing, no simulated
+primary failure, no response transfer between identities. Generation
+parameters are the frozen pins (temperature exact float 0.0,
+max_tokens 32768 - not caller-configurable, drift-pinned to
+production). Bounded envelope: request timeout default 300.0 s, hard
+bound 3600.0 s (mirrors of the frozen runtime bounds, drift-pinned);
+concurrency default 1 (sequential, corpus order), hard bound 4;
+records stay in corpus order under concurrency; artifacts are
+append-only (existing paths are never overwritten); run id is
+validated (bounded grammar) and distinct per capture.
+
+**The FIXED retry policy (fixed before collection; no retry decision
+ever reads the label).** (1) RETRYABLE - no model output, transient
+transport condition, identical request, at most max_attempts=3 total
+(bounded 1..3): TIMEOUT / DNS_ERROR / TLS_ERROR / CONNECTION_ERROR /
+RATE_LIMITED / PROVIDER_UNAVAILABLE. (2) FINAL after exactly one call
+(never retried, never cherry-picked; the single real output is
+preserved verbatim): OK / HTTP_ERROR / EMPTY_RESPONSE / MALFORMED_JSON
+/ SCHEMA_INVALID / INVALID_RESPONSE / MODEL_IDENTITY_MISMATCH. (3)
+RUN-LEVEL ABORT after recording the attempted case (no further case
+sent; unattempted cases named): AUTHENTICATION_FAILED / MODEL_NOT_
+FOUND / INVALID_REQUEST_CONFIGURATION / UNSUPPORTED_PARAMETER /
+unrecognized transport code (out-of-vocabulary evidence goes to the
+manifest only - no document record that the frozen schema could not
+represent). (4) CASE-LOCAL: CASE_REJECTED (content-policy rejection of
+the case's own content) - run continues, manifest-documented, no
+document record, replays NOT_CAPTURED (a coverage shortfall, never a
+pass). A semantic disagreement with the ground truth is NEVER a retry
+reason (proven by test: a schema-valid but label-wrong answer is final
+after exactly one call and is scored as-is).
+
+**Capture discipline (no fabrication, no silent skips).** ALL 43
+eligible semantic cases are attempted per run; the 13
+CONTRACT_NEGATIVE cases are never rendered into a prompt, never sent,
+never recorded (proven by test). Every attempted case preserves: case
+id, exact model identity (bound to the document and each record's
+interpretation), frozen prompt/input identity (per-case prompt digest
++ REAL system-prompt digest in the manifest), bounded execution
+status, raw response iff OK, run id + timestamps, and failure
+classification. No expected label is modified from any model
+response; a missing or incomplete capture never becomes a pass.
+
+**Credentials / safety.** No key, base URL, Authorization header, or
+credential value is hardcoded, printed, or written to any artifact
+(sentinel-value proven by test; the manifest records key PRESENCE as a
+bare bool). An unconfigured provider fails closed BEFORE any network
+call (bounded error naming no secret; no artifact). Capture artifacts
+are stored separately from the corpus labels in
+`semantic_v2_live_captures/` (gitignore-protected, never committed
+alongside labels): the strict capture document + the runner manifest
+sidecar (evidence only - the offline evaluator never reads it).
+
+**CLI.** NEW
+`python -m product_intelligence.evaluation.semantic_v2.live_capture
+capture` (--provider/--model validated against the frozen pins;
+--corpus; --run-id/--captured-by/--notes; --max-attempts 1..3;
+--max-concurrency 1..4; --request-timeout bounded; --out-dir;
+--dry-run = full offline preflight with no transport, no call, no
+artifact). The offline `cli.py` (including `evaluate-direct`) is
+unchanged in behavior.
+
+**LIVE EXECUTION (this session, per the operator briefing).**
+
+* **Primary `amax/qwen3.8-27b` - CAPTURED (real responses).** Run
+  `q3b-20261009T010312Z-amax`, started 2026-10-09T01:03:12.810455Z,
+  finished 2026-10-09T01:23:39.955919Z (~20.5 min), git HEAD
+  `517ef25c` (the starting SHA - the runner code captured is exactly
+  the code under review), transport `OpenAISemanticTransport` (the
+  approved canonical transport; api key present in the server
+  environment, recorded only as a bool), timeout 300.0 s, concurrency
+  1, max_attempts 3, temperature 0.0, max_tokens 32768. Result:
+  **43/43 eligible cases attempted, 0 not attempted, 43/43 status OK,
+  0 runtime failures, 0 retries used** (no transient transport
+  condition occurred; the fixed policy was armed but never needed),
+  latency min/avg/max 7.6 s / 28.5 s / 120.5 s. The document loads
+  and verifies through the UNCHANGED frozen loader against the frozen
+  corpus.
+* **Fallback `vllm-262k/Qwen3.6-27B-262K` - NOT CAPTURED (endpoint
+  unavailable in this environment).** `PI_SEMANTIC_VLLM_262K_BASE_URL`
+  / `_API_KEY` are not set; the runner failed closed at preflight with
+  the bounded PROVIDER_NOT_CONFIGURED classification (exit 2: "no
+  live call was made and no artifact was written"). Per the operator
+  briefing, the bounded runner + tests are complete and this session
+  STOPS before claiming live qualification results for the fallback;
+  its live capture is deferred to a session where the endpoint is
+  configured.
+
+**OFFLINE REPLAY (approved evaluator, unchanged path).** The primary
+capture was replayed through `evaluate-direct` (report kind
+SEMANTIC_V2_DIRECT_MODEL_QUALIFICATION_OFFLINE; report digest
+`40340ce47d36d3b33b0dcf2a8dcce722abf0a34a399876ed174b6f558866f906`),
+bound to corpus digest `2c37ba08...0b549`, the REAL system-prompt
+digest `c0cc98bdd6d3...`, contract `("V2","2.0",1,1,
+"SEMANTIC_AUTHORITY_V2_S2A_FU2")`, provider/model
+`amax/qwen3.8-27b`, capture run `q3b-20261009T010312Z-amax`,
+evaluation timestamp 2026-10-09T01:25:12Z. Result for
+**amax/qwen3.8-27b**:
+
+* **Coverage:** 43/43 eligible evaluated; 0 not-captured; 0 runtime
+  failures; 0 invalid/capture-integrity failures; 0 contract
+  violations; completeness flag TRUE. Valid structured response rate
+  43/43 = 1.0.
+* **Decisions made:** 22 NO_MATCH, 21 UNCERTAIN, **0 MATCH**.
+* **Verdicts:** 24 CORRECT, 7 DEFENSIBLE (all 7 ambiguous cases
+  answered within their acceptable sets; 0 outside defensible),
+  11 ABSTAIN_ON_DEFINITE (every one of the 11 expected-MATCH cases),
+  1 FALSE_NO_MATCH (`V2Q-SSD-CONTRA-0037`: expected UNCERTAIN, model
+  NO_MATCH - severity REVIEW).
+* **MATCH precision:** UNAVAILABLE (denominator 0 - the model made no
+  MATCH prediction; reported unavailable, never 100%). **MATCH
+  recall:** 0/11 = 0.0. **NO_MATCH accuracy:** 20/20 = 1.0.
+* **Safety gates: ALL EIGHT PASS.** False-MATCH count 0
+  (HARD_CONFLICT 0, packaging 0, accessory/product-role 0, near-miss
+  0, sales-unit-safety 0). Severity counts: CRITICAL 0, HIGH 0,
+  MEDIUM 0, REVIEW 12. The motivating Micron case
+  (`V2Q-SSD-U5NM1-MICRON-0018`, expected UNCERTAIN +
+  commercial_sales_unit_safety) answered UNCERTAIN / LOW /
+  UNCERTAIN_IDENTIFIER_RELATION with REVISION_OR_SUFFIX - verdict
+  CORRECT.
+* **Per-substate:** U1 5/8 correct, U2 4/8, U3 2/3, U4 15/18 (the
+  single false NO_MATCH), U5 5/6. **Per-category:** enterprise_ssd
+  22/32 correct (incl. the one REVIEW false NO_MATCH), server_memory
+  2/4, processor 2/2, network_adapter 3/3, workstation_gpu 2/2.
+* **Decision: POLICY_PENDING** (coverage complete; the qualification
+  policy is DRAFT / not approved - the decision vocabulary grants no
+  QUALIFIED result; authority section `granted: false`,
+  `v2_authority_qualified: false`).
+* **Honest reading of the evidence (no qualification claimed):** the
+  captured model is SAFE on this corpus (zero false MATCH, all eight
+  hard gates pass, the critical sales-unit-safety Micron case is
+  handled correctly) but is OVERLY CONSERVATIVE: it made no MATCH
+  decision at all (recall 0.0 vs the DRAFT-proposed recall floor of
+  0.90). If the DRAFT policy were approved as written, this capture
+  would fall BELOW_THRESHOLD on match recall; as shipped (DRAFT), the
+  decision is POLICY_PENDING. No labels, thresholds, or policy were
+  moved to suit the result.
+
+**Tests.** 80 NEW nodes in NEW
+`tests/evaluation/semantic_v2/test_q3b_live_capture.py` (every model
+call is a scripted, recording test double; the full pipeline re-proven
+under a blocked socket): exact model pinning; frozen prompt fidelity;
+transport boundary; no credential leakage; timeout handling; bounded
+retry; no semantic-error retries; no best-of-N selection; no
+contract-negative model calls; complete eligible-case traversal;
+failure preservation; independent model capture; capture schema
+validation; offline replay fidelity; no production execution imports;
+no authority promotion; no pricing contamination; no network calls
+during ordinary unit tests; bounded concurrency. The Q3-A / Q3-A-FU1
+guards are STRENGTHENED in place (strictly additive): the offline
+names-no-AI-surface guard now pins `live_capture.py` as the ONE module
+that may reference the live transport surface (load-bearing
+asserted); the direct-model AST guard pins its transport reference as
+exactly ONE lazy function-level import of the approved factory (no
+module-level transport import; the production runtime module still
+forbidden). No test deleted, renamed, skipped, xfailed, deselected,
+ignored, or weakened; no file decreased; the Windows subprocess flake
+allowlist NOT expanded. Collection 6828 -> 6912 (+84 = 80 new-file
+nodes + 4 auto-expanded parameterized scans for `live_capture.py`
+[vendor-token +1, stdlib-imports +1, web inner-layer +1, providers
+INNER_ROOTS +1]; no file decreased).
+
+**Validation (this session, candidate pass - final approval remains
+with independent review).**
+
+* Collection baseline at `517ef25`: **6828**; final: **6912** (+84 as
+  accounted above).
+* Focused Q3-A + FU1 + Q3-B (`tests/evaluation/semantic_v2/`):
+  **288 passed, 0 failed** (208 Q3-A/FU1 + 80 Q3-B).
+* Focused research identity boundaries + semantic: all passed apart
+  from the recorded load-sensitive clean-interpreter subprocess guard
+  flake class (re-passed on isolated retry).
+* Full suite (final, over the committed code): **6912 collected;
+  6910 passed, 2 failed** - both failures are the documented load-
+  sensitive clean-interpreter subprocess guard class (fail at Popen
+  with `OSError [WinError 6/50]` BEFORE any project code runs; zero
+  assertion failures, zero collection errors) and both re-passed on
+  isolated one-node-per-process retry (2/2, exit 0): `test_domain_
+  boundaries::test_domain_imports_without_django_network_or_llm_
+  dependencies`, `test_evaluation_boundaries::test_loading_the_corpus_
+  imports_no_framework_or_provider`. (An earlier full run over the
+  same code, while the live capture was still finishing, showed 11
+  failures - the complete fixed eleven-node allowlist of the same
+  class, every one re-passed on isolated retry 11/11.) The known
+  flake allowlist was NOT expanded; no non-flake node failed.
+* Skipped / xfailed / deselected: **0 / 0 / 0**.
+* `python manage.py check`: System check identified no issues (0
+  silenced). `python manage.py makemigrations --check --dry-run`: No
+  changes detected (no model change; the runner + artifacts are
+  evaluation infrastructure only).
+* `git diff --check`: clean.
+* Worktree preservation: the seven historical benchmark artifacts
+  (`b2_b3_full.txt`, `b2_b3_full_junit.xml`, `nemotron_full_
+  evaluation.json`, `nemotron_full_manifest.json`, `nemotron_full_
+  responses.jsonl`, `qwen38_run1_responses.jsonl`, `qwen38_run2_
+  responses.jsonl`) and the pre-existing `tmp_collection.txt`
+  line-ending modification are untouched (the commit stages only the
+  phase files). The new live-capture directory is
+  gitignore-protected; live artifacts remain untracked session
+  evidence (the historical convention).
+
+No deployment performed. Q3-B does NOT claim qualification or
+approval: the qualification policy remains DRAFT,
+`V2_AUTHORITY_QUALIFIED` remains False, the primary's live capture is
+evidence recorded in the report above, the fallback's live capture is
+deferred (endpoint not configured in this session), and the
+qualification decision (Q3-C) is explicitly out of scope.
+
+
 **PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-Q3-A-FU1 (Semantic Authority V2 —
 
 Independent Model Qualification Capture)
 
-— IMPLEMENTED / PENDING FINAL REVIEW**
+— IMPLEMENTED / APPROVED / FROZEN (approval recorded at the start of
+Q3-B per the operator briefing)**
 
 
 
@@ -279,8 +543,9 @@ AUTHORITY_QUALIFIED` remains False, and live capture is Q3-B.
 
 Qualification V3: Independent Corpus, Harness and Offline Qualification)
 
-— IMPLEMENTED / REVIEWED / NOT APPROVED / NOT FROZEN (capture
-architecture corrected in part by Q3-A-FU1)**
+— IMPLEMENTED / APPROVED / FROZEN (reviewed; the capture-architecture
+defect corrected by Q3-A-FU1; approval recorded at the start of Q3-B
+per the operator briefing)**
 
 
 
