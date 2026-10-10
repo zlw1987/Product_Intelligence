@@ -39,6 +39,22 @@ separately versioned authority contract ``SEMANTIC_AUTHORITY_V2_S2A_FU3``
    False; the live V2 execution derives under the frozen token; the FU3
    module is research-pure (imports, no I/O, no clock, no vendor/caller
    tokens, no mutable globals).
+* F7. Q3-B4-FU2 CORRECTION (this session) — the two safety defects found
+   during independent review of the Q3-B4-FU1 candidate, demonstrated
+   against the corrected contract: (a) matching TRAY/BUNDLE forms with
+   the material quantity unverified on one or both sides now derive
+   UNPROVEN (never PROVEN_EQUIVALENT) — equal published counts with the
+   recorded provenance on both sides prove, unequal published counts
+   contradict, UNAVAILABLE stays UNPROVEN for every target shape;
+   (b) a recorded, independently derived sales-unit contradiction never
+   results in automatic pricing eligibility (CONTRADICTED -> never
+   AI_ASSISTED_COMPARABLE) via the separately versioned restrict-only
+   CEILING_SALES_UNIT_CONTRADICTED rule — for MATCH + HIGH + STRONG +
+   clean, any identifier substate, reviewed manufacturer relation
+   authority, any confidence, and any model-provided conflict classes
+   (including the empty set) — while the FU2 old-token replay is
+   unchanged and the FU3 path stays disconnected from the live runtime
+   and pricing.
 
 Every case is a recorded-input construction through the REAL frozen 3C
 chain (``normalize_listing_observation`` + ``assess_listing_identity`` +
@@ -77,6 +93,7 @@ from product_intelligence.research import (
     ProductEvidenceFactV2,
     ProductEvidenceProfileV2,
     ProductEvidenceQuality,
+    PRICING_ELIGIBLE_TIERS,
     RelationshipAuthority,
     RelationshipRequirement,
     SALES_UNIT_EVIDENCE_UNAVAILABLE,
@@ -839,21 +856,28 @@ class TestSalesUnitAuthority:
         assert sales_unit_authority_from_channel(bundle) is (
             SalesUnitAuthorityV2.CONTRADICTED
         )
-        # Matching established kind: PROVEN (quantities agree when both
-        # are published).
+        # Matching established form with the count recorded on BOTH
+        # sides, equal: PROVEN (the complete commercial unit is
+        # established by the independently verified, bounded equivalence
+        # fact).
         assert sales_unit_authority_from_channel(
             tray, _target(TargetSalesUnitFormV2.TRAY_OR_FACTORY_PACK, quantity=20)
         ) is SalesUnitAuthorityV2.PROVEN_EQUIVALENT
+        # Matching established form, count missing on ONE side: UNPROVEN
+        # (Q3-B4-FU2: the quantity is material and unverified; form
+        # match alone never establishes commercial-unit equivalence).
         assert sales_unit_authority_from_channel(
             tray, _target(TargetSalesUnitFormV2.TRAY_OR_FACTORY_PACK)
-        ) is SalesUnitAuthorityV2.PROVEN_EQUIVALENT
+        ) is SalesUnitAuthorityV2.UNPROVEN
         assert sales_unit_authority_from_channel(
             _channel(SalesUnitKindV2.TRAY_OR_FACTORY_PACK),
             _target(TargetSalesUnitFormV2.TRAY_OR_FACTORY_PACK, quantity=20),
-        ) is SalesUnitAuthorityV2.PROVEN_EQUIVALENT
+        ) is SalesUnitAuthorityV2.UNPROVEN
+        # Matching established form, count missing on BOTH sides:
+        # UNPROVEN.
         assert sales_unit_authority_from_channel(
             bundle, _target(TargetSalesUnitFormV2.BUNDLE)
-        ) is SalesUnitAuthorityV2.PROVEN_EQUIVALENT
+        ) is SalesUnitAuthorityV2.UNPROVEN
         # Published quantity disagreement: CONTRADICTED.
         assert sales_unit_authority_from_channel(
             tray, _target(TargetSalesUnitFormV2.TRAY_OR_FACTORY_PACK, quantity=10)
@@ -1257,11 +1281,16 @@ class TestRestrictOnlyCeiling:
             assert AuthorityRuleV2FU3.CEILING_SALES_UNIT_NOT_PROVEN not in decision.fired_rules
 
     def test_contradicted_unit_does_not_fire_the_ceiling(self) -> None:
-        """The ceiling is UNPROVEN-only: a model that violates the
-        absolute rule (MATCH with no conflict class on published
-        incompatible packaging) is a decision-level contract violation for
-        qualification to catch — the derivation records CONTRADICTED and
-        applies the frozen tier, never inventing a conflict."""
+        """The CEILING_SALES_UNIT_NOT_PROVEN rule is UNPROVEN-only: a
+        model that violates the absolute rule (MATCH with no conflict
+        class on published incompatible packaging) is a decision-level
+        contract violation for qualification to catch — the derivation
+        records CONTRADICTED and never invents a model conflict class
+        (no HARD_CONFLICT supersession rule) — but the Q3-B4-FU2
+        invariant holds: the recorded contradiction caps the automatic
+        tier at NEEDS_REVIEW through the separately versioned restrict-
+        only CEILING_SALES_UNIT_CONTRADICTED rule, so it never
+        auto-prices."""
         u1 = _v2(title=f"Has {REQUEST_MPN} in the title")
         old = derive_authority_tier(u1, _match(), NO_CTX, _strong_profile())
         assert old.tier is AuthorityTier.AI_ASSISTED_COMPARABLE
@@ -1273,8 +1302,13 @@ class TestRestrictOnlyCeiling:
             _strong_profile(),
         )
         assert decision.sales_unit_authority is SalesUnitAuthorityV2.CONTRADICTED
-        assert decision.tier is AuthorityTier.AI_ASSISTED_COMPARABLE
+        assert decision.tier is AuthorityTier.NEEDS_REVIEW
         assert AuthorityRuleV2FU3.CEILING_SALES_UNIT_NOT_PROVEN not in decision.fired_rules
+        assert AuthorityRuleV2FU3.CEILING_SALES_UNIT_CONTRADICTED in decision.fired_rules
+        # No fabricated model conflict: the frozen supersession did not
+        # run, and the audit trail is otherwise exactly the frozen one.
+        assert AuthorityRuleV2FU3.HARD_CONFLICT_SUPERSEDES not in decision.fired_rules
+        assert decision.frozen_fired_rules == old.fired_rules
 
     # -- Human confirmation: explicit, auditable, above the ceiling ------
 
@@ -1345,7 +1379,10 @@ class TestRestrictOnlyCeiling:
         evaluation shape, every provenance class, every channel state, and
         every human overlay: the FU3 tier is EXACTLY the frozen tier,
         except that a frozen AI_ASSISTED_COMPARABLE with an UNPROVEN unit
-        becomes NEEDS_REVIEW (with the fired ceiling rule). Nothing is
+        becomes NEEDS_REVIEW (with the fired CEILING_SALES_UNIT_NOT_
+        PROVEN rule) and a frozen AI_ASSISTED_COMPARABLE with a
+        CONTRADICTED unit becomes NEEDS_REVIEW (with the fired
+        CEILING_SALES_UNIT_CONTRADICTED rule — Q3-B4-FU2). Nothing is
         ever lifted; no other rule is ever added or removed."""
         states = {
             "u1": _v2(title=f"Has {REQUEST_MPN} in the title"),
@@ -1380,6 +1417,7 @@ class TestRestrictOnlyCeiling:
             _channel(SalesUnitKindV2.SINGLE_UNIT),
             _channel(SalesUnitKindV2.PACK_QUANTITY, quantity=4),
             _channel(SalesUnitKindV2.TRAY_OR_FACTORY_PACK, quantity=20),
+            _channel(SalesUnitKindV2.BUNDLE),
         )
         humans = (None, HumanReviewStateV2.CONFIRMED, HumanReviewStateV2.REJECTED)
         checked = 0
@@ -1405,16 +1443,21 @@ class TestRestrictOnlyCeiling:
                                 AuthorityRuleV2FU3(rule.value)
                                 for rule in frozen.fired_rules
                             )
-                            if (
-                                frozen.tier is AuthorityTier.AI_ASSISTED_COMPARABLE
-                                and unit is SalesUnitAuthorityV2.UNPROVEN
-                            ):
-                                expected_tier = AuthorityTier.NEEDS_REVIEW
-                                expected_rules = expected_rules | frozenset(
-                                    {
-                                        AuthorityRuleV2FU3.CEILING_SALES_UNIT_NOT_PROVEN
-                                    }
-                                )
+                            if frozen.tier is AuthorityTier.AI_ASSISTED_COMPARABLE:
+                                if unit is SalesUnitAuthorityV2.UNPROVEN:
+                                    expected_tier = AuthorityTier.NEEDS_REVIEW
+                                    expected_rules = expected_rules | frozenset(
+                                        {
+                                            AuthorityRuleV2FU3.CEILING_SALES_UNIT_NOT_PROVEN
+                                        }
+                                    )
+                                elif unit is SalesUnitAuthorityV2.CONTRADICTED:
+                                    expected_tier = AuthorityTier.NEEDS_REVIEW
+                                    expected_rules = expected_rules | frozenset(
+                                        {
+                                            AuthorityRuleV2FU3.CEILING_SALES_UNIT_CONTRADICTED
+                                        }
+                                    )
                             assert fu3_decision.tier is expected_tier, (
                                 name,
                                 evaluation,
@@ -1427,11 +1470,15 @@ class TestRestrictOnlyCeiling:
                                 frozenset(
                                     AuthorityRuleV2(rule.value)
                                     for rule in fu3_decision.fired_rules
-                                    if rule is not AuthorityRuleV2FU3.CEILING_SALES_UNIT_NOT_PROVEN
+                                    if rule
+                                    not in (
+                                        AuthorityRuleV2FU3.CEILING_SALES_UNIT_NOT_PROVEN,
+                                        AuthorityRuleV2FU3.CEILING_SALES_UNIT_CONTRADICTED,
+                                    )
                                 )
                             )
                             checked += 1
-        assert checked == 8 * 8 * 4 * 4 * 3
+        assert checked == 8 * 8 * 4 * 5 * 3
 
     def test_the_ceiling_never_touches_the_deterministic_tiers(self) -> None:
         """MACHINE_VERIFIED (verified states) and HARD_CONFLICT /
@@ -1498,11 +1545,29 @@ class TestRestrictOnlyCeiling:
 
 
 class TestFu3DecisionDataContract:
-    def test_the_rule_vocabulary_is_the_frozen_set_plus_exactly_one(self) -> None:
+    def test_the_rule_vocabulary_is_the_frozen_set_plus_exactly_two_restrict_only_rules(
+        self,
+    ) -> None:
+        """Q3-B4-FU2: the FU3 rule vocabulary is the frozen set plus
+        EXACTLY the two restrict-only sales-unit firewall rules (the
+        UNPROVEN ceiling and the CONTRADICTED contradiction rule) — no
+        other FU3-only rule may exist; the frozen vocabulary stands
+        unchanged (F1)."""
         frozen_values = {rule.value for rule in AuthorityRuleV2}
         fu3_values = {rule.value for rule in AuthorityRuleV2FU3}
-        assert fu3_values == frozen_values | {"CEILING_SALES_UNIT_NOT_PROVEN"}
-        assert len(AuthorityRuleV2FU3) == len(AuthorityRuleV2) + 1
+        assert fu3_values == frozen_values | {
+            "CEILING_SALES_UNIT_NOT_PROVEN",
+            "CEILING_SALES_UNIT_CONTRADICTED",
+        }
+        assert len(AuthorityRuleV2FU3) == len(AuthorityRuleV2) + 2
+        # The two additions are exactly the restrict-only firewall rules
+        # (mutually exclusive: a unit is exactly one state).
+        assert AuthorityRuleV2FU3.CEILING_SALES_UNIT_NOT_PROVEN.value == (
+            "CEILING_SALES_UNIT_NOT_PROVEN"
+        )
+        assert AuthorityRuleV2FU3.CEILING_SALES_UNIT_CONTRADICTED.value == (
+            "CEILING_SALES_UNIT_CONTRADICTED"
+        )
 
     def test_the_decision_is_immutable_and_fail_closed(self) -> None:
         u1 = _v2(title=f"Has {REQUEST_MPN} in the title")
@@ -1605,6 +1670,7 @@ class TestReachabilityIsolation:
             "IdentityResolutionBoundV2",
             "SalesUnitAuthorityV2",
             "CEILING_SALES_UNIT_NOT_PROVEN",
+            "CEILING_SALES_UNIT_CONTRADICTED",
             "S2A_FU3",
         )
         allowed_paths = {FU3_MODULE_PATH, PACKAGE_ROOT / "research" / "__init__.py"}
@@ -1729,3 +1795,409 @@ class TestReachabilityIsolation:
         source = FU3_MODULE_PATH.read_text(encoding="utf-8")
         assert not _find_tokens(source, VENDOR_TOKENS)
         assert not _find_tokens(source, CALLER_TOKENS)
+
+
+# ===========================================================================
+# F7. Q3-B4-FU2 MANDATED ADVERSARIAL CORRECTION TESTS
+# (the two review defects of Q3-B4-FU1, demonstrated against the
+#  corrected contract — adversarial cases 1-12 of the Q3-B4-FU2 briefing)
+# ===========================================================================
+
+
+class TestQ3B4FU2SalesUnitEquivalenceCorrection:
+    """Adversarial cases 1-6 (Blocker 1): matching TRAY/BUNDLE forms
+    alone established commercial-unit equivalence in the reviewed
+    Q3-B4-FU1 candidate even when the material quantity was unknown.
+    The corrected contract: form match + the count recorded on BOTH
+    sides, equal -> PROVEN; the count missing on either side ->
+    UNPROVEN; published unequal counts -> CONTRADICTED; UNAVAILABLE ->
+    UNPROVEN for every target shape. The exact shapes that returned
+    PROVEN_EQUIVALENT under the reviewed candidate are pinned below.
+    """
+
+    def test_tray_vs_tray_both_quantities_unknown_is_unproven(self) -> None:
+        """Adversarial case 1 (the FU1 defect): tray vs tray, neither
+        side publishes the count — the reviewed candidate derived
+        PROVEN_EQUIVALENT here; the corrected contract fails closed."""
+        assert sales_unit_authority_from_channel(
+            _channel(SalesUnitKindV2.TRAY_OR_FACTORY_PACK),
+            _target(TargetSalesUnitFormV2.TRAY_OR_FACTORY_PACK),
+        ) is SalesUnitAuthorityV2.UNPROVEN
+
+    def test_bundle_vs_bundle_both_quantities_unknown_is_unproven(self) -> None:
+        """Adversarial case 2 (the FU1 defect): bundle vs bundle, no
+        published count on either side."""
+        assert sales_unit_authority_from_channel(
+            _channel(SalesUnitKindV2.BUNDLE),
+            _target(TargetSalesUnitFormV2.BUNDLE),
+        ) is SalesUnitAuthorityV2.UNPROVEN
+
+    def test_same_form_quantity_known_on_only_one_side_is_unproven(self) -> None:
+        """Adversarial case 3 (the FU1 defect): matching form with the
+        material count published on exactly one side — known-on-one-side
+        is not equivalence, in either direction."""
+        # Count on the candidate side only.
+        assert sales_unit_authority_from_channel(
+            _channel(SalesUnitKindV2.TRAY_OR_FACTORY_PACK, quantity=20),
+            _target(TargetSalesUnitFormV2.TRAY_OR_FACTORY_PACK),
+        ) is SalesUnitAuthorityV2.UNPROVEN
+        assert sales_unit_authority_from_channel(
+            _channel(SalesUnitKindV2.BUNDLE, quantity=2),
+            _target(TargetSalesUnitFormV2.BUNDLE),
+        ) is SalesUnitAuthorityV2.UNPROVEN
+        # Count on the target side only.
+        assert sales_unit_authority_from_channel(
+            _channel(SalesUnitKindV2.TRAY_OR_FACTORY_PACK),
+            _target(TargetSalesUnitFormV2.TRAY_OR_FACTORY_PACK, quantity=20),
+        ) is SalesUnitAuthorityV2.UNPROVEN
+        assert sales_unit_authority_from_channel(
+            _channel(SalesUnitKindV2.BUNDLE),
+            _target(TargetSalesUnitFormV2.BUNDLE, quantity=2),
+        ) is SalesUnitAuthorityV2.UNPROVEN
+        # The REQUEST_DESCRIPTION provenance class behaves the same
+        # (provenance does not substitute for the missing count).
+        assert sales_unit_authority_from_channel(
+            _channel(SalesUnitKindV2.TRAY_OR_FACTORY_PACK, quantity=20),
+            _target(
+                TargetSalesUnitFormV2.TRAY_OR_FACTORY_PACK,
+                source=TargetSalesUnitEvidenceSourceV2.REQUEST_DESCRIPTION,
+            ),
+        ) is SalesUnitAuthorityV2.UNPROVEN
+
+    def test_same_form_equal_verified_quantities_is_proven(self) -> None:
+        """Adversarial case 4: matching form with the complete commercial
+        unit — form + count — recorded on BOTH sides (each with its
+        bounded provenance): equal published quantities establish the
+        equivalence (the independently verified, bounded fact).
+        """
+        assert sales_unit_authority_from_channel(
+            _channel(SalesUnitKindV2.TRAY_OR_FACTORY_PACK, quantity=20),
+            _target(TargetSalesUnitFormV2.TRAY_OR_FACTORY_PACK, quantity=20),
+        ) is SalesUnitAuthorityV2.PROVEN_EQUIVALENT
+        assert sales_unit_authority_from_channel(
+            _channel(SalesUnitKindV2.BUNDLE, quantity=2),
+            _target(TargetSalesUnitFormV2.BUNDLE, quantity=2),
+        ) is SalesUnitAuthorityV2.PROVEN_EQUIVALENT
+        # The proven path still reaches the automatic tier (restrict
+        # only: the firewall does not touch a proven unit).
+        u1 = _v2(title=f"Has {REQUEST_MPN} in the title")
+        decision = derive_authority_tier_fu3(
+            u1,
+            _channel(SalesUnitKindV2.TRAY_OR_FACTORY_PACK, quantity=20),
+            _match(),
+            NO_CTX,
+            _strong_profile(),
+            target_unit_evidence=_target(
+                TargetSalesUnitFormV2.TRAY_OR_FACTORY_PACK, quantity=20
+            ),
+        )
+        assert decision.sales_unit_authority is SalesUnitAuthorityV2.PROVEN_EQUIVALENT
+        assert decision.tier is AuthorityTier.AI_ASSISTED_COMPARABLE
+
+    def test_same_form_different_verified_quantities_is_contradicted(self) -> None:
+        """Adversarial case 5: published unequal quantities remain
+        CONTRADICTED (packaging-conflict semantics preserved, not
+        weakened)."""
+        assert sales_unit_authority_from_channel(
+            _channel(SalesUnitKindV2.TRAY_OR_FACTORY_PACK, quantity=20),
+            _target(TargetSalesUnitFormV2.TRAY_OR_FACTORY_PACK, quantity=10),
+        ) is SalesUnitAuthorityV2.CONTRADICTED
+        assert sales_unit_authority_from_channel(
+            _channel(SalesUnitKindV2.BUNDLE, quantity=2),
+            _target(TargetSalesUnitFormV2.BUNDLE, quantity=3),
+        ) is SalesUnitAuthorityV2.CONTRADICTED
+        assert sales_unit_authority_from_channel(
+            _channel(SalesUnitKindV2.PACK_QUANTITY, quantity=4),
+            _target(TargetSalesUnitFormV2.PACK_QUANTITY, quantity=2),
+        ) is SalesUnitAuthorityV2.CONTRADICTED
+
+    def test_unavailable_candidate_unit_is_unproven_for_every_target(self) -> None:
+        """Adversarial case 6: candidate sales unit UNAVAILABLE is
+        UNPROVEN for every target-side shape — recorded absence never
+        becomes proven equivalence, including against an explicit
+        same-form target record (no inference from missing evidence).
+        """
+        targets = (
+            None,
+            _target(TargetSalesUnitFormV2.SINGLE_UNIT),
+            _target(TargetSalesUnitFormV2.PACK_QUANTITY, quantity=4),
+            _target(TargetSalesUnitFormV2.TRAY_OR_FACTORY_PACK, quantity=20),
+            _target(TargetSalesUnitFormV2.BUNDLE, quantity=2),
+        )
+        for target in targets:
+            assert sales_unit_authority_from_channel(UNAVAILABLE, target) is (
+                SalesUnitAuthorityV2.UNPROVEN
+            )
+
+
+class TestQ3B4FU2ContradictedFailClosed:
+    """Adversarial cases 7-10 (Blocker 2): a recorded, independently
+    derived sales-unit contradiction must not result in automatic
+    pricing eligibility merely because the model returned MATCH.
+    Invariant: ``SalesUnitAuthorityV2.CONTRADICTED`` -> never
+    ``AI_ASSISTED_COMPARABLE`` — enforced by the separately versioned,
+    restrict-only ``CEILING_SALES_UNIT_CONTRADICTED`` rule (behind the
+    FU3 token only) and at construction of ``AuthorityDecisionV2FU3``.
+    """
+
+    def test_contradicted_match_high_strong_clean_never_auto_prices(self) -> None:
+        """Adversarial case 7: published incompatible unit (pack of 4
+        against the default single-unit target) + model MATCH + HIGH +
+        STRONG + clean conflict classes (the EMPTY SET). The reviewed
+        candidate derived AI_ASSISTED_COMPARABLE here; the corrected FU3
+        derivation fails closed at NEEDS_REVIEW without fabricating a
+        model conflict class. The invariant is then re-proven across
+        ANY model confidence and ANY model-provided conflict classes
+        (including the empty set) for every contradicted channel shape.
+        """
+        u1 = _v2(title=f"Has {REQUEST_MPN} in the title")
+        old = derive_authority_tier(u1, _match(), NO_CTX, _strong_profile())
+        assert old.tier is AuthorityTier.AI_ASSISTED_COMPARABLE  # the FU2 exposure
+        decision = derive_authority_tier_fu3(
+            u1,
+            _channel(SalesUnitKindV2.PACK_QUANTITY, quantity=4),
+            _match(),
+            NO_CTX,
+            _strong_profile(),
+        )
+        assert decision.sales_unit_authority is SalesUnitAuthorityV2.CONTRADICTED
+        assert decision.tier is AuthorityTier.NEEDS_REVIEW
+        assert AuthorityRuleV2FU3.CEILING_SALES_UNIT_CONTRADICTED in decision.fired_rules
+        assert AuthorityRuleV2FU3.CEILING_SALES_UNIT_NOT_PROVEN not in decision.fired_rules
+        assert AuthorityRuleV2FU3.HARD_CONFLICT_SUPERSEDES not in decision.fired_rules
+        # Restrict only: the audit trail is otherwise the frozen one.
+        assert decision.frozen_fired_rules == old.fired_rules
+        assert AuthorityTier.NEEDS_REVIEW not in PRICING_ELIGIBLE_TIERS
+
+        contradicted_channels = (
+            _channel(SalesUnitKindV2.PACK_QUANTITY, quantity=4),
+            _channel(SalesUnitKindV2.TRAY_OR_FACTORY_PACK, quantity=20),
+            _channel(SalesUnitKindV2.TRAY_OR_FACTORY_PACK),
+            _channel(SalesUnitKindV2.BUNDLE),
+        )
+        conflict_shapes = (
+            frozenset(),
+            frozenset({ConflictClass.BRAND}),
+            frozenset({ConflictClass.REVISION_OR_SUFFIX}),
+            frozenset({ConflictClass.OTHER_MATERIAL_CONFLICT}),
+        )
+        for channel in contradicted_channels:
+            for confidence in (
+                V2Confidence.HIGH,
+                V2Confidence.MEDIUM,
+                V2Confidence.LOW,
+            ):
+                for conflicts in conflict_shapes:
+                    d = derive_authority_tier_fu3(
+                        u1,
+                        channel,
+                        _eval(V2SemanticDecision.MATCH, confidence, conflicts),
+                        NO_CTX,
+                        _strong_profile(),
+                    )
+                    assert d.sales_unit_authority is SalesUnitAuthorityV2.CONTRADICTED
+                    assert d.tier is not AuthorityTier.AI_ASSISTED_COMPARABLE
+
+    def test_contradicted_with_reviewed_manufacturer_relation_never_auto_prices(
+        self,
+    ) -> None:
+        """Adversarial case 8: the reviewed manufacturer relationship
+        authority clears the FROZEN identifier-relationship requirement
+        (the old token auto-prices) but confers zero commercial-unit
+        equivalence: the recorded contradiction still fails closed on
+        every identifier substate that can reach the automatic tier.
+        """
+        for name, assessment_v2 in (
+            ("u1", _v2(title=f"Has {REQUEST_MPN} in the title")),
+            ("u2e", _v2(sku=REQUEST_MPN)),
+            ("u4", _v2(title="Usable title without any MPN")),
+            ("u2n", _v2(sku="RETAIL-SKU-1")),
+            ("u3", _v2(mpn="ABC")),
+            ("u5_nm1", _v2(mpn=f"{REQUEST_MPN}X")),
+            ("u5_nm2", _v2(mpn="ABC-124")),
+        ):
+            old = derive_authority_tier(
+                assessment_v2, _match(), RELATION_CTX, _strong_profile()
+            )
+            assert old.tier is AuthorityTier.AI_ASSISTED_COMPARABLE, name
+            decision = derive_authority_tier_fu3(
+                assessment_v2,
+                _channel(SalesUnitKindV2.TRAY_OR_FACTORY_PACK, quantity=20),
+                _match(),
+                RELATION_CTX,
+                _strong_profile(),
+            )
+            assert decision.sales_unit_authority is SalesUnitAuthorityV2.CONTRADICTED, name
+            assert decision.tier is AuthorityTier.NEEDS_REVIEW, name
+            assert (
+                AuthorityRuleV2FU3.CEILING_SALES_UNIT_CONTRADICTED
+                in decision.fired_rules
+            ), name
+
+    def test_contradicted_with_human_confirmed_preserves_frozen_precedence(self) -> None:
+        """Adversarial case 9: (a) explicit human CONFIRMED on a
+        clean-MATCH contradicted candidate — the frozen overlay applies
+        above the automatic tier and produces HUMAN_CONFIRMED (NOT
+        AI_ASSISTED_COMPARABLE: the invariant holds, and the explicit,
+        auditable human path is unchanged); (b) the model applies the
+        absolute rule (NO_MATCH + the ALWAYS_HARD packaging class) — the
+        frozen HARD_CONFLICT supersession outranks the human CONFIRMED
+        exactly as before (HARD_CONFLICT > HUMAN_CONFIRMED > AI). No
+        frozen human-review semantics are weakened.
+        """
+        u1 = _v2(title=f"Has {REQUEST_MPN} in the title")
+        channel = _channel(SalesUnitKindV2.PACK_QUANTITY, quantity=4)
+        # (a) MATCH + clean + human CONFIRMED: the overlay stands above
+        # the automatic tier (the contradiction rule has no automatic
+        # tier left to cap — no redundant rule).
+        confirmed = derive_authority_tier_fu3(
+            u1,
+            channel,
+            _match(),
+            NO_CTX,
+            _strong_profile(),
+            HumanReviewStateV2.CONFIRMED,
+        )
+        assert confirmed.sales_unit_authority is SalesUnitAuthorityV2.CONTRADICTED
+        assert confirmed.tier is AuthorityTier.HUMAN_CONFIRMED
+        assert confirmed.tier is not AuthorityTier.AI_ASSISTED_COMPARABLE
+        assert AuthorityRuleV2FU3.HUMAN_CONFIRMED_APPLIED in confirmed.fired_rules
+        assert (
+            AuthorityRuleV2FU3.CEILING_SALES_UNIT_CONTRADICTED
+            not in confirmed.fired_rules
+        )
+        # (b) NO_MATCH + ALWAYS_HARD packaging class + human CONFIRMED:
+        # the frozen supersession stands (HARD_CONFLICT > HUMAN_
+        # CONFIRMED > AI), and the firewall rule does not fire on a
+        # frozen-hard-conflict tier.
+        hard = _eval(
+            V2SemanticDecision.NO_MATCH,
+            V2Confidence.HIGH,
+            frozenset({ConflictClass.PACKAGING_QUANTITY}),
+        )
+        superseded = derive_authority_tier_fu3(
+            u1, channel, hard, NO_CTX, None, HumanReviewStateV2.CONFIRMED
+        )
+        assert superseded.tier is AuthorityTier.HARD_CONFLICT
+        assert AuthorityRuleV2FU3.HARD_CONFLICT_SUPERSEDES in superseded.fired_rules
+        assert (
+            AuthorityRuleV2FU3.HARD_CONFLICT_SUPERSEDES_HUMAN
+            in superseded.fired_rules
+        )
+        assert (
+            AuthorityRuleV2FU3.CEILING_SALES_UNIT_CONTRADICTED
+            not in superseded.fired_rules
+        )
+
+    def test_unproven_with_human_confirmed_preserves_frozen_precedence(self) -> None:
+        """Adversarial case 10: UNPROVEN (recorded absence) + explicit
+        human CONFIRMED — the overlay applies above the UNPROVEN ceiling
+        exactly as under the reviewed FU1 contract (HUMAN_CONFIRMED; the
+        ceiling rule does not redundantly fire)."""
+        u1 = _v2(title=f"Has {REQUEST_MPN} in the title")
+        confirmed = derive_authority_tier_fu3(
+            u1,
+            UNAVAILABLE,
+            _match(),
+            NO_CTX,
+            _strong_profile(),
+            HumanReviewStateV2.CONFIRMED,
+        )
+        assert confirmed.sales_unit_authority is SalesUnitAuthorityV2.UNPROVEN
+        assert confirmed.tier is AuthorityTier.HUMAN_CONFIRMED
+        assert confirmed.tier is not AuthorityTier.AI_ASSISTED_COMPARABLE
+        assert (
+            AuthorityRuleV2FU3.CEILING_SALES_UNIT_NOT_PROVEN
+            not in confirmed.fired_rules
+        )
+
+    def test_the_contradicted_auto_tier_is_unconstructible(self) -> None:
+        """The invariant is enforced at construction as well as
+        derivation: an AuthorityDecisionV2FU3 cannot express
+        AI_ASSISTED_COMPARABLE with a CONTRADICTED unit, and the
+        contradiction rule may only accompany a CONTRADICTED unit on a
+        NEEDS_REVIEW tier (restrict only; never fires elsewhere).
+        """
+        with pytest.raises(ValueError, match="contradicted"):
+            AuthorityDecisionV2FU3(
+                tier=AuthorityTier.AI_ASSISTED_COMPARABLE,
+                fired_rules=frozenset({AuthorityRuleV2FU3.SEMANTIC_OUTCOME_MATRIX}),
+                product_evidence_quality=ProductEvidenceQuality.STRONG,
+                relationship_authority=RelationshipAuthority.NOT_ESTABLISHED,
+                identity_resolution_bound=IdentityResolutionBoundV2.PART_NUMBER,
+                sales_unit_authority=SalesUnitAuthorityV2.CONTRADICTED,
+            )
+        with pytest.raises(ValueError, match="contradiction ceiling"):
+            AuthorityDecisionV2FU3(
+                tier=AuthorityTier.NEEDS_REVIEW,
+                fired_rules=frozenset(
+                    {
+                        AuthorityRuleV2FU3.SEMANTIC_OUTCOME_MATRIX,
+                        AuthorityRuleV2FU3.CEILING_SALES_UNIT_CONTRADICTED,
+                    }
+                ),
+                product_evidence_quality=ProductEvidenceQuality.STRONG,
+                relationship_authority=RelationshipAuthority.NOT_ESTABLISHED,
+                identity_resolution_bound=IdentityResolutionBoundV2.PART_NUMBER,
+                sales_unit_authority=SalesUnitAuthorityV2.UNPROVEN,
+            )
+
+
+class TestQ3B4FU2TokenReplayAndIsolation:
+    """Adversarial cases 11-12: the historical FU2 token replay is
+    unchanged (the firewall exists only behind the FU3 token), and the
+    new FU3 path remains disconnected from the live runtime and pricing.
+    """
+
+    def test_fu2_token_replay_is_unchanged_by_the_firewall(self) -> None:
+        """Adversarial case 11: the reviewed exposure under the OLD
+        binding is behavior-identical — the frozen derivation (and the
+        FU2 dispatch) still returns AI_ASSISTED_COMPARABLE for
+        MATCH + HIGH + STRONG + clean; the frozen module digest pin
+        (F1) is load-bearing. The old token cannot even take the
+        sales-unit input (contract misuse fails closed): the firewall
+        is never silently applied to old-binding records.
+        """
+        u1 = _v2(title=f"Has {REQUEST_MPN} in the title")
+        frozen = derive_authority_tier(u1, _match(), NO_CTX, _strong_profile())
+        assert frozen.tier is AuthorityTier.AI_ASSISTED_COMPARABLE
+        dispatched = derive_authority_tier_for_contract(
+            AUTHORITY_CONTRACT_VERSION_V2, u1, _match(), NO_CTX, _strong_profile()
+        )
+        assert type(dispatched) is type(frozen)
+        assert not isinstance(dispatched, AuthorityDecisionV2FU3)
+        assert dispatched == frozen
+        with pytest.raises(ValueError, match="no sales-unit input"):
+            derive_authority_tier_for_contract(
+                AUTHORITY_CONTRACT_VERSION_V2,
+                u1,
+                _match(),
+                NO_CTX,
+                _strong_profile(),
+                sales_unit_channel=_channel(SalesUnitKindV2.PACK_QUANTITY, quantity=4),
+            )
+
+    def test_fu3_path_remains_disconnected_from_live_and_pricing(self) -> None:
+        """Adversarial case 12: no live runtime / pricing / persistence
+        path reaches the FU3 derivation or the new rule; the V2
+        qualification marker stays False in both pinned locations; the
+        cap tier (NEEDS_REVIEW) is not pricing-eligible while the tier
+        the firewall removes (AI_ASSISTED_COMPARABLE) is — the
+        invariant is load-bearing at the frozen summary contract.
+        """
+        from product_intelligence.research.semantic_decision_v2 import (
+            V2_AUTHORITY_QUALIFIED,
+        )
+        from product_intelligence.semantic import runtime_v2
+
+        assert V2_AUTHORITY_QUALIFIED is False
+        assert runtime_v2.V2_AUTHORITY_QUALIFIED is False
+        assert runtime_v2.SEMANTIC_PROMPT_VERSION_V2 == "2.0"
+        assert AuthorityTier.NEEDS_REVIEW not in PRICING_ELIGIBLE_TIERS
+        assert AuthorityTier.AI_ASSISTED_COMPARABLE in PRICING_ELIGIBLE_TIERS
+        # The new rule lives only in the separately versioned FU3
+        # vocabulary: the frozen rule set is unchanged (F1) and no live
+        # module names the FU3 surface (F6 lexical scan).
+        assert "CEILING_SALES_UNIT_CONTRADICTED" not in {
+            rule.value for rule in AuthorityRuleV2
+        }

@@ -25,19 +25,32 @@ that token ONLY:
    default is UNPROVEN: a recorded absence (channel UNAVAILABLE) never
    becomes proven equivalence, and model-generated attribute claims have no
    path into this derivation (the inputs are the recorded channel and the
-   explicit target-side evidence only).
-3. **``CEILING_SALES_UNIT_NOT_PROVEN``** — a restrict-only ceiling on the
-   AUTOMATIC tier: a would-be ``AI_ASSISTED_COMPARABLE`` with an UNPROVEN
-   unit is capped at ``NEEDS_REVIEW``. It never lifts, it never touches
-   ``MACHINE_VERIFIED`` (the deterministic path never consults the
-   semantic layer), it never overrides ``HARD_CONFLICT`` supersession
-   (which stays last), and the human overlay precedence
-   (HARD_CONFLICT > HUMAN_CONFIRMED > AI) is unchanged: a human may
-   confirm a ceiling-capped candidate (explicit, run-scoped, persisted,
-   auditable). A published incompatible unit is CONTRADICTED, not
-   UNPROVEN: the absolute rule decides at the decision level and the
-   frozen HARD_CONFLICT supersession excludes it (frozen semantics,
-   unchanged).
+   explicit target-side evidence only). Matching TRAY_OR_FACTORY_PACK /
+   BUNDLE form alone NEVER establishes commercial-unit equivalence when
+   the material quantity is unverified on one or both sides (the Q3-B4-FU2
+   correction of the reviewed Q3-B4-FU1 candidate): the complete commercial
+   unit — form + count — must be recorded on both sides, with equal
+   published counts, for PROVEN_EQUIVALENT.
+3. **``CEILING_SALES_UNIT_NOT_PROVEN``** and
+   **``CEILING_SALES_UNIT_CONTRADICTED``** — the two restrict-only rules
+   on the AUTOMATIC tier (the Q3-B4-FU2 sales-unit firewall): a would-be
+   ``AI_ASSISTED_COMPARABLE`` with an UNPROVEN unit is capped at
+   ``NEEDS_REVIEW`` by the first, and one with a CONTRADICTED (published
+   incompatible) unit by the second. The enforced invariant: a recorded,
+   independently derived sales-unit contradiction never results in
+   automatic pricing eligibility (``SalesUnitAuthorityV2.CONTRADICTED`` ->
+   never ``AI_ASSISTED_COMPARABLE``), regardless of model decision,
+   confidence, identifier substate, reviewed relationship authority, or
+   model-provided conflict classes (including the empty set). Neither rule
+   ever lifts, neither touches ``MACHINE_VERIFIED`` (the deterministic
+   path never consults the semantic layer), neither overrides
+   ``HARD_CONFLICT`` supersession (which stays last when the MODEL reports
+   an ALWAYS_HARD conflict class), neither fabricates a model conflict
+   class, and the human overlay precedence (HARD_CONFLICT > HUMAN_
+   CONFIRMED > AI) is unchanged: a human may confirm a firewall-capped
+   candidate (explicit, run-scoped, persisted, auditable — the overlay
+   produces the ``HUMAN_CONFIRMED`` tier, which the invariant does not
+   reach).
 4. **Per-binding dispatch** (``derive_authority_tier_for_contract``): the
    recorded authority token selects the derivation. The old token
    (``SEMANTIC_AUTHORITY_V2_S2A_FU2``) dispatches to the UNCHANGED frozen
@@ -69,8 +82,12 @@ Q3-B4 document, section 3.6 / AD-Q3B4-4): under THIS token only, the
 S2-A-FU1/FU2 auto-authority behaviors (U1 / U2 + SKU_EQUALS_TARGET /
 U4: MATCH + HIGH + STRONG + clean => ``AI_ASSISTED_COMPARABLE``) become
 CONDITIONAL on ``SalesUnitAuthorityV2 == PROVEN_EQUIVALENT``; while the
-unit is UNPROVEN the automatic tier is capped at ``NEEDS_REVIEW``. The
-old token's semantics, records, tests, and replays are unchanged.
+unit is UNPROVEN the automatic tier is capped at ``NEEDS_REVIEW``
+(``CEILING_SALES_UNIT_NOT_PROVEN``), and a CONTRADICTED unit can never
+hold the automatic tier at all (capped at ``NEEDS_REVIEW`` by
+``CEILING_SALES_UNIT_CONTRADICTED``, the separately versioned restrict-
+only rule introduced by the Q3-B4-FU2 correction). The old token's
+semantics, records, tests, and replays are unchanged.
 
 Pure research-layer contract: stdlib + the research package's public
 surface + the frozen S2-C input-contract module (the recorded channel).
@@ -445,7 +462,10 @@ class SalesUnitAuthorityV2(str, Enum):
     UNPROVEN = "UNPROVEN"
     """The fail-closed default: the recorded absence (channel
     UNAVAILABLE — "do not infer a single unit") or any recorded shape the
-    bounded derivation does not prove equivalent. An UNPROVEN unit never
+    bounded derivation does not prove equivalent — including a matching
+    TRAY_OR_FACTORY_PACK / BUNDLE form where the material quantity is
+    unverified on one or both sides (Q3-B4-FU2: form match alone never
+    establishes commercial-unit equivalence). An UNPROVEN unit never
     becomes proven equivalence; it caps the automatic tier at
     NEEDS_REVIEW (CEILING_SALES_UNIT_NOT_PROVEN) and is admissible to a
     price statistic only through the explicit human-confirmed path (the
@@ -454,12 +474,21 @@ class SalesUnitAuthorityV2(str, Enum):
     CONTRADICTED = "CONTRADICTED"
     """The recorded published channel is incompatible with the target's
     commercial unit (e.g. target single unit, candidate a pack of 4 / a
-    tray / a bundle). At the decision level the frozen absolute rule
-    applies (NO_MATCH + PACKAGING_QUANTITY / BUNDLE); at the tier level
-    the frozen HARD_CONFLICT supersession excludes the candidate —
-    including against human confirmation (frozen semantics, unchanged).
-    The restrict-only ceiling does NOT fire for CONTRADICTED: the
-    absolute rule, not the unit ceiling, owns this shape."""
+    tray / a bundle; or a matching form with published unequal
+    quantities). At the decision level the frozen absolute rule applies
+    (NO_MATCH + PACKAGING_QUANTITY / BUNDLE), and when the MODEL reports
+    an ALWAYS_HARD conflict class the frozen HARD_CONFLICT supersession
+    excludes the candidate — including against human confirmation (frozen
+    semantics, unchanged). At the tier level, when the model does NOT
+    report the conflict (a decision-level contract violation for
+    qualification to catch), the separately versioned restrict-only rule
+    CEILING_SALES_UNIT_CONTRADICTED caps the AUTOMATIC tier at
+    NEEDS_REVIEW: a recorded contradiction never results in
+    AI_ASSISTED_COMPARABLE (the Q3-B4-FU2 invariant) without fabricating
+    a model conflict class or touching the human overlay (HUMAN_CONFIRMED
+    is explicit, auditable, and outside the automatic tier). The
+    UNPROVEN-only rule CEILING_SALES_UNIT_NOT_PROVEN does NOT fire for
+    CONTRADICTED."""
 
 
 class TargetSalesUnitFormV2(str, Enum):
@@ -479,10 +508,16 @@ class TargetSalesUnitFormV2(str, Enum):
     """A pack of N — the bounded positive quantity is required."""
 
     TRAY_OR_FACTORY_PACK = "TRAY_OR_FACTORY_PACK"
-    """A tray / factory pack — quantity optional when published."""
+    """A tray / factory pack — the record's quantity is optional when
+    published, but the count is MATERIAL to commercial-unit equivalence:
+    matching this form on both sides proves nothing until the count is
+    recorded on both sides (Q3-B4-FU2)."""
 
     BUNDLE = "BUNDLE"
-    """A bundle — quantity optional when published."""
+    """A bundle — the record's quantity is optional when published, but
+    the count is MATERIAL to commercial-unit equivalence: matching this
+    form on both sides proves nothing until the count is recorded on both
+    sides (Q3-B4-FU2)."""
 
 
 class TargetSalesUnitEvidenceSourceV2(str, Enum):
@@ -568,7 +603,7 @@ def sales_unit_authority_from_channel(
 ) -> SalesUnitAuthorityV2:
     """Derive the sales-unit authority state from the RECORDED candidate
     sales-unit channel and the OPTIONAL explicit target-side unit
-    evidence (S2-A-FU3, Task B).
+    evidence (S2-A-FU3, Task B; Q3-B4-FU2 corrected contract).
 
     Pure, deterministic, zero-live, replayable:
 
@@ -576,24 +611,43 @@ def sales_unit_authority_from_channel(
       requested part (the Q1(a) contract default); ``target_evidence``
       may explicitly establish a different form (pack quantity / tray /
       bundle) with its bounded provenance.
-    * Channel ``UNAVAILABLE`` -> UNPROVEN, for EVERY target-side shape:
+
+    Behavior by recorded channel form (the target form is the explicit
+    target-side evidence, or the default SINGLE_UNIT):
+
+    * ``SINGLE_UNIT`` — the single retail unit IS the bounded value: the
+      complete commercial unit is established by the form alone on both
+      sides (no quantity field exists and none is material). Against the
+      default single-unit target, or an explicit SINGLE_UNIT record:
+      PROVEN_EQUIVALENT. Against an established pack / tray / bundle
+      target: CONTRADICTED (published incompatible commercial units).
+    * ``PACK_QUANTITY`` — the constructors require the bounded positive
+      count on both sides of a pack comparison, so no unproven pack
+      shape exists. PROVEN_EQUIVALENT only against a target-side
+      PACK_QUANTITY record publishing the SAME count; any other target
+      form (the default single unit included) or a different published
+      count: CONTRADICTED.
+    * ``TRAY_OR_FACTORY_PACK`` / ``BUNDLE`` — the count of the commercial
+      unit is MATERIAL (a 20-unit tray is not a 10-unit tray), and
+      matching form alone NEVER establishes commercial-unit equivalence
+      (the Q3-B4-FU2 correction). Against the default single-unit target
+      or a mismatching target form: CONTRADICTED. With a matching target
+      form: the count published on BOTH sides — equal counts
+      PROVEN_EQUIVALENT (the independently verified, bounded equivalence
+      fact: matching established forms with equal published quantities,
+      each side carrying its recorded provenance, explicitly establishes
+      the complete commercial unit); unequal published counts
+      CONTRADICTED; the count missing on EITHER side UNPROVEN (quantity
+      material and unverified).
+    * Channel ``UNAVAILABLE`` — UNPROVEN, for EVERY target-side shape:
       absence is a recorded absence, never "single unit", never
       equivalence (the fail-closed default).
-    * Channel ``OBSERVED SINGLE_UNIT`` -> PROVEN_EQUIVALENT against the
-      single-unit target (default or explicit); CONTRADICTED when the
-      target-side evidence establishes a pack / tray / bundle.
-    * Channel ``OBSERVED PACK_QUANTITY n`` -> PROVEN_EQUIVALENT only when
-      the target-side evidence establishes the SAME pack n; otherwise
-      CONTRADICTED (a published multi-pack against a single-unit target
-      is the absolute rule's derivation-level twin).
-    * Channel ``OBSERVED TRAY_OR_FACTORY_PACK`` / ``BUNDLE`` ->
-      CONTRADICTED against the default single-unit target;
-      PROVEN_EQUIVALENT only with the matching target-side established
-      kind (and matching quantity when both sides publish one).
-    * Never an input: model confidence, model matched/conflicting/
-      missing-critical attributes (a model claim of "packaging matched"
-      is not independent verification), price, availability, or any other
-      commercial fact.
+
+    Never an input, and never inferred: model confidence, model
+    matched/conflicting/missing-critical attributes (a model claim of
+    "packaging matched" is not independent verification), product title
+    similarity, price, availability, or any other commercial fact — and
+    no quantity is ever inferred from a missing value on either side.
 
     Fails closed: ``TypeError`` on a foreign channel / target-evidence
     input.
@@ -617,16 +671,25 @@ def sales_unit_authority_from_channel(
 
     # OBSERVED: the channel constructor guarantees kind + raw detail +
     # explicit provenance (and the bounded quantity where the kind
-    # carries one).
+    # requires one).
     kind = channel.kind
     target_form = (
         target_evidence.form if target_evidence is not None else TargetSalesUnitFormV2.SINGLE_UNIT
     )
     if kind is SalesUnitKindV2.SINGLE_UNIT:
+        # The single retail unit IS the bounded value: the complete
+        # commercial unit is established by the form alone on both sides
+        # (no quantity field exists; none is material).
         if target_form is TargetSalesUnitFormV2.SINGLE_UNIT:
             return SalesUnitAuthorityV2.PROVEN_EQUIVALENT
+        # A published single unit against an established pack / tray /
+        # bundle target: incompatible commercial units.
         return SalesUnitAuthorityV2.CONTRADICTED
     if kind is SalesUnitKindV2.PACK_QUANTITY:
+        # Both sides of a pack comparison always publish their count
+        # (the constructors require it), so no unproven pack shape
+        # exists: the same established count proves, anything else
+        # contradicts (the default single-unit target included).
         if (
             target_evidence is not None
             and target_form is TargetSalesUnitFormV2.PACK_QUANTITY
@@ -634,17 +697,27 @@ def sales_unit_authority_from_channel(
         ):
             return SalesUnitAuthorityV2.PROVEN_EQUIVALENT
         return SalesUnitAuthorityV2.CONTRADICTED
-    # TRAY_OR_FACTORY_PACK / BUNDLE: proven only with the matching
-    # established kind (and matching quantity when both are published).
+    # TRAY_OR_FACTORY_PACK / BUNDLE: the count of the commercial unit is
+    # MATERIAL, and matching form alone never establishes equivalence
+    # (Q3-B4-FU2).
     if target_form is not TargetSalesUnitFormV2(kind.value):
+        # Default single-unit target, or a mismatching established form
+        # (e.g. tray vs bundle): published incompatible commercial unit.
         return SalesUnitAuthorityV2.CONTRADICTED
-    if (
-        channel.quantity is not None
-        and target_evidence is not None
-        and target_evidence.quantity is not None
-        and channel.quantity != target_evidence.quantity
-    ):
+    # Matching established form (target_evidence is present here by
+    # construction): the complete commercial unit must be recorded on
+    # BOTH sides.
+    if channel.quantity is None or target_evidence.quantity is None:
+        # One or both sides lack the material quantity evidence: fail
+        # closed. It is never inferred from the form, a model response,
+        # title similarity, price, or absence.
+        return SalesUnitAuthorityV2.UNPROVEN
+    if channel.quantity != target_evidence.quantity:
+        # Published unequal quantities: incompatible commercial units.
         return SalesUnitAuthorityV2.CONTRADICTED
+    # Matching form + equal published quantities, each side with its
+    # recorded provenance: the independently verified, bounded
+    # equivalence fact establishes the complete commercial unit.
     return SalesUnitAuthorityV2.PROVEN_EQUIVALENT
 
 
@@ -680,9 +753,10 @@ def derive_sales_unit_authority(
 class AuthorityRuleV2FU3(str, Enum):
     """The S2-A-FU3 audit-rule vocabulary: the frozen S2-A rule values
     (mirrored by value, so a FU3 decision's rule trail projects exactly
-    onto the frozen vocabulary) plus EXACTLY ONE new restrict-only rule.
-    Import-self-checked to be the frozen set + the ceiling — nothing else
-    may appear in a FU3 audit trail.
+    onto the frozen vocabulary) plus EXACTLY TWO new restrict-only rules
+    — the two sales-unit firewall rules (Q3-B4-FU2). Import-self-checked
+    to be the frozen set + those two — nothing else may appear in a FU3
+    audit trail.
     """
 
     STATE_POLICY_DETERMINISTIC = "STATE_POLICY_DETERMINISTIC"
@@ -702,9 +776,29 @@ class AuthorityRuleV2FU3(str, Enum):
     NEEDS_REVIEW. It fires ONLY on the automatic AI tier, NEVER lifts a
     more-restrictive outcome, never touches MACHINE_VERIFIED /
     HARD_CONFLICT / the human overlay, and a CONTRADICTED unit does not
-    fire it (the frozen absolute rule + HARD_CONFLICT supersession own
-    that shape). Human confirmation remains the explicit, auditable path
-    above the ceiling."""
+    fire it (CEILING_SALES_UNIT_CONTRADICTED owns that shape; the frozen
+    absolute rule + HARD_CONFLICT supersession own the model-reported
+    ALWAYS_HARD-conflict shape). Human confirmation remains the explicit,
+    auditable path above the ceiling."""
+    CEILING_SALES_UNIT_CONTRADICTED = "CEILING_SALES_UNIT_CONTRADICTED"
+    """The restrict-only sales-unit contradiction rule (S2-A-FU3,
+    Q3-B4-FU2): a would-be AI_ASSISTED_COMPARABLE with a CONTRADICTED
+    (published incompatible) sales unit is capped at NEEDS_REVIEW. It
+    fires ONLY on the automatic AI tier, NEVER lifts, never touches
+    MACHINE_VERIFIED / HARD_CONFLICT / the human overlay, and never
+    fabricates a model conflict class (no HARD_CONFLICT supersession is
+    derived from the recorded channel; the frozen supersession runs only
+    on the MODEL's reported ALWAYS_HARD classes, and stays last). The
+    enforced invariant: a recorded, independently derived sales-unit
+    contradiction never results in automatic pricing eligibility
+    (CONTRADICTED -> never AI_ASSISTED_COMPARABLE), whatever the model's
+    decision, confidence, identifier substate, reviewed relationship
+    authority, or model-provided conflict classes (including the empty
+    set). Mutually exclusive with CEILING_SALES_UNIT_NOT_PROVEN (a unit
+    is exactly one of PROVEN / UNPROVEN / CONTRADICTED). Human
+    confirmation remains the explicit, auditable path above the rule
+    (the overlay produces HUMAN_CONFIRMED, which the invariant does not
+    reach)."""
     HARD_CONFLICT_SUPERSEDES = "HARD_CONFLICT_SUPERSEDES"
     HUMAN_CONFIRMED_APPLIED = "HUMAN_CONFIRMED_APPLIED"
     HUMAN_REJECTED_APPLIED = "HUMAN_REJECTED_APPLIED"
@@ -727,16 +821,17 @@ class AuthorityDecisionV2FU3:
     (Task A — the maximum identity resolution the recorded evidence
     supports) and ``sales_unit_authority`` (Task B — the recorded
     commercial sales-unit state). ``fired_rules`` is the FU3 audit trail
-    (the frozen rules projected by value, plus the ceiling rule when it
+    (the frozen rules projected by value, plus a firewall rule when it
     fired); ``frozen_fired_rules`` projects the trail back onto the
-    frozen vocabulary (the ceiling rule has no frozen counterpart and is
-    excluded).
+    frozen vocabulary (the two FU3-only firewall rules have no frozen
+    counterpart and are excluded).
 
-    Construction fails closed on the firewall invariant itself: an
-    ``AI_ASSISTED_COMPARABLE`` tier with an UNPROVEN unit is
-    un-constructible under FU3 (the restrict-only ceiling must have
-    fired), and the ceiling rule may only appear with an UNPROVEN unit
-    on a NEEDS_REVIEW tier.
+    Construction fails closed on the firewall invariants themselves: an
+    ``AI_ASSISTED_COMPARABLE`` tier with an UNPROVEN or a CONTRADICTED
+    unit is un-constructible under FU3 (the restrict-only ceiling must
+    have fired), the ceiling rule may only appear with an UNPROVEN unit
+    on a NEEDS_REVIEW tier, and the contradiction rule may only appear
+    with a CONTRADICTED unit on a NEEDS_REVIEW tier.
     """
 
     tier: AuthorityTier
@@ -788,9 +883,9 @@ class AuthorityDecisionV2FU3:
                 "sales_unit_authority must be SalesUnitAuthorityV2, "
                 f"got {type(self.sales_unit_authority).__name__}"
             )
-        # The firewall invariant, enforced at construction: the
-        # unproven-unit exposure is un-constructible, not merely
-        # un-derivable.
+        # The firewall invariants, enforced at construction: the
+        # unproven-unit and contradicted-unit exposures are
+        # un-constructible, not merely un-derivable.
         if (
             self.tier is AuthorityTier.AI_ASSISTED_COMPARABLE
             and self.sales_unit_authority is SalesUnitAuthorityV2.UNPROVEN
@@ -800,6 +895,16 @@ class AuthorityDecisionV2FU3:
                 "comparable tier under the FU3 contract; the "
                 "restrict-only ceiling must have capped it at "
                 "NEEDS_REVIEW"
+            )
+        if (
+            self.tier is AuthorityTier.AI_ASSISTED_COMPARABLE
+            and self.sales_unit_authority is SalesUnitAuthorityV2.CONTRADICTED
+        ):
+            raise ValueError(
+                "a contradicted (published incompatible) sales unit can "
+                "never hold the automatic comparable tier under the FU3 "
+                "contract; the restrict-only contradiction ceiling must "
+                "have capped it at NEEDS_REVIEW"
             )
         if AuthorityRuleV2FU3.CEILING_SALES_UNIT_NOT_PROVEN in self.fired_rules:
             if (
@@ -811,17 +916,36 @@ class AuthorityDecisionV2FU3:
                     "UNPROVEN unit on a NEEDS_REVIEW tier (restrict "
                     "only; never lifts, never fires elsewhere)"
                 )
+        if (
+            AuthorityRuleV2FU3.CEILING_SALES_UNIT_CONTRADICTED
+            in self.fired_rules
+        ):
+            if (
+                self.sales_unit_authority
+                is not SalesUnitAuthorityV2.CONTRADICTED
+                or self.tier is not AuthorityTier.NEEDS_REVIEW
+            ):
+                raise ValueError(
+                    "the sales-unit contradiction ceiling rule fires "
+                    "only for a CONTRADICTED unit on a NEEDS_REVIEW "
+                    "tier (restrict only; never lifts, never fires "
+                    "elsewhere)"
+                )
 
     @property
     def frozen_fired_rules(self) -> frozenset[AuthorityRuleV2]:
         """The FU3 audit trail projected onto the frozen rule vocabulary
-        (the ceiling rule — which has no frozen counterpart — is
-        excluded). When the ceiling did not fire this equals the frozen
-        derivation's rule trail exactly."""
+        (the two FU3-only firewall rules — which have no frozen
+        counterpart — are excluded). When neither FU3-only rule fired
+        this equals the frozen derivation's rule trail exactly."""
         return frozenset(
             AuthorityRuleV2(rule.value)
             for rule in self.fired_rules
-            if rule is not AuthorityRuleV2FU3.CEILING_SALES_UNIT_NOT_PROVEN
+            if rule
+            not in (
+                AuthorityRuleV2FU3.CEILING_SALES_UNIT_NOT_PROVEN,
+                AuthorityRuleV2FU3.CEILING_SALES_UNIT_CONTRADICTED,
+            )
         )
 
 
@@ -855,23 +979,35 @@ def derive_authority_tier_fu3(
        reviewed provenances; no model input) and ``sales_unit_authority``
        (from the recorded channel + optional explicit target-side
        evidence; no model input).
-    3. The restrict-only ceiling: when — and only when — the frozen
-       result is ``AI_ASSISTED_COMPARABLE`` and the unit is UNPROVEN, the
-       tier is capped at ``NEEDS_REVIEW`` and
-       ``CEILING_SALES_UNIT_NOT_PROVEN`` is recorded. Interaction with
-       the frozen ceilings is by the frozen "restrict only, never lift"
-       order: a tier already capped (requirement ceiling, NM-2 ceiling,
+    3. The restrict-only sales-unit firewall (Q3-B4-FU2): when — and
+       only when — the frozen result is ``AI_ASSISTED_COMPARABLE`` and
+       the unit is UNPROVEN, the tier is capped at ``NEEDS_REVIEW`` and
+       ``CEILING_SALES_UNIT_NOT_PROVEN`` is recorded; when the unit is
+       CONTRADICTED, the tier is capped at ``NEEDS_REVIEW`` and
+       ``CEILING_SALES_UNIT_CONTRADICTED`` is recorded. The enforced
+       invariant: a recorded, independently derived sales-unit
+       contradiction never results in automatic pricing eligibility
+       (CONTRADICTED -> never AI_ASSISTED_COMPARABLE), whatever the
+       model's decision, confidence, identifier substate, reviewed
+       relationship authority, or model-provided conflict classes
+       (including the empty set). Interaction with the frozen ceilings
+       is by the frozen "restrict only, never lift" order: a tier
+       already capped (requirement ceiling, NM-2 ceiling,
        reviewable-conflict ceiling) is unchanged and gets no redundant
        rule; HARD_CONFLICT supersession stays last (it ran inside the
-       frozen derivation); the human overlay precedence (HARD_CONFLICT >
-       HUMAN_CONFIRMED > AI) is unchanged and applies above the AI path,
-       exactly as with the NM-2 ceiling — a human may confirm a
-       ceiling-capped candidate (explicit, auditable), and a generic
+       frozen derivation, on the MODEL's reported ALWAYS_HARD classes
+       only — the firewall never fabricates a model conflict class);
+       the human overlay precedence (HARD_CONFLICT > HUMAN_CONFIRMED >
+       AI) is unchanged and applies above the AI path, exactly as with
+       the NM-2 ceiling — a human may confirm a firewall-capped
+       candidate (the overlay produces HUMAN_CONFIRMED, which the
+       invariant does not reach; explicit, auditable), and a generic
        semantic MATCH never infers unit confirmation.
 
-    The ceiling NEVER lifts, NEVER touches MACHINE_VERIFIED (the
-    deterministic path), and does NOT fire for CONTRADICTED units (the
-    frozen absolute rule + HARD_CONFLICT supersession own that shape).
+    Neither rule ever lifts, neither touches MACHINE_VERIFIED (the
+    deterministic path), and a PROVEN_EQUIVALENT unit leaves the
+    automatic tier standing (the complete commercial unit is recorded on
+    both sides).
 
     ``TypeError`` / ``ValueError`` on foreign inputs (fail closed); the
     frozen derivation's own state-consistency failures propagate
@@ -912,17 +1048,23 @@ def derive_authority_tier_fu3(
     unit = sales_unit_authority_from_channel(
         sales_unit_channel, target_unit_evidence
     )
-    # 3. The restrict-only ceiling (never lifts; automatic tier only).
+    # 3. The restrict-only sales-unit firewall (never lifts; automatic
+    #    tier only; a unit is exactly one of the three states).
     tier = frozen_decision.tier
     rules = frozenset(_to_fu3_rule(rule) for rule in frozen_decision.fired_rules)
-    if (
-        tier is AuthorityTier.AI_ASSISTED_COMPARABLE
-        and unit is SalesUnitAuthorityV2.UNPROVEN
-    ):
-        tier = AuthorityTier.NEEDS_REVIEW
-        rules = rules | frozenset(
-            {AuthorityRuleV2FU3.CEILING_SALES_UNIT_NOT_PROVEN}
-        )
+    if tier is AuthorityTier.AI_ASSISTED_COMPARABLE:
+        if unit is SalesUnitAuthorityV2.UNPROVEN:
+            tier = AuthorityTier.NEEDS_REVIEW
+            rules = rules | frozenset(
+                {AuthorityRuleV2FU3.CEILING_SALES_UNIT_NOT_PROVEN}
+            )
+        elif unit is SalesUnitAuthorityV2.CONTRADICTED:
+            tier = AuthorityTier.NEEDS_REVIEW
+            rules = rules | frozenset(
+                {AuthorityRuleV2FU3.CEILING_SALES_UNIT_CONTRADICTED}
+            )
+        # PROVEN_EQUIVALENT: the automatic tier stands (the complete
+        # commercial unit is recorded on both sides).
 
     return AuthorityDecisionV2FU3(
         tier=tier,
@@ -1048,11 +1190,19 @@ if (
     )
 if (
     {rule.value for rule in AuthorityRuleV2FU3}
-    != {rule.value for rule in AuthorityRuleV2} | {"CEILING_SALES_UNIT_NOT_PROVEN"}
+    != {
+        rule.value
+        for rule in AuthorityRuleV2
+    }
+    | {
+        "CEILING_SALES_UNIT_NOT_PROVEN",
+        "CEILING_SALES_UNIT_CONTRADICTED",
+    }
 ):
     raise RuntimeError(
         "the FU3 rule vocabulary must be exactly the frozen S2-A rule "
-        "values plus CEILING_SALES_UNIT_NOT_PROVEN (S2-A-FU3)"
+        "values plus the two restrict-only sales-unit firewall rules "
+        "(S2-A-FU3)"
     )
 if {form.value for form in TargetSalesUnitFormV2} != {
     kind.value for kind in SalesUnitKindV2
