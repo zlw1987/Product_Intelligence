@@ -42,6 +42,7 @@ def write_direct_capture(
     missing: tuple[str, ...] = (),
     invalid: dict[str, str] | None = None,
     raw_overrides: dict[str, str] | None = None,
+    prompt_version: str | None = None,
     capture_run_id: str = "Q3A-FU1-TEST-FIXTURE",
     captured_at: str = "2026-10-08T12:00:00Z",
     captured_by: str = "Q3-A-FU1 test fixture (not a model response)",
@@ -59,7 +60,11 @@ def write_direct_capture(
     carries no raw output); ``missing`` is a tuple of case ids to omit
     from the capture (they surface as NOT_CAPTURED); ``invalid`` maps
     case_id -> raw string that fails the production parser;
-    ``raw_overrides`` maps case_id -> exact raw response.
+    ``raw_overrides`` maps case_id -> exact raw response;
+    ``prompt_version`` names the capture's prompt axis (default: the
+    prompt axis of the corpus's contract binding - for the committed
+    1.0.0 corpus this writes "2.0", byte-identical to the pre-2.1
+    helper; a 1.1.0 corpus writes "2.1").
     """
     target = target or PRIMARY_ROUTE
     decisions = decisions or {}
@@ -109,7 +114,11 @@ def write_direct_capture(
         "corpus_version": corpus.corpus_version,
         "corpus_digest": corpus.corpus_digest,
         "semantic_contract": SEMANTIC_CONTRACT,
-        "prompt_version": PROMPT_VERSION,
+        "prompt_version": (
+            prompt_version
+            if prompt_version is not None
+            else corpus.semantic_contract_binding[1]
+        ),
         "capture_run_id": capture_run_id,
         "captured_at": captured_at,
         "captured_by": captured_by,

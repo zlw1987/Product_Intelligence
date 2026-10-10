@@ -53,6 +53,7 @@ from product_intelligence.evaluation.semantic_v2.capture import (
     FALLBACK_ROUTE,
     PRIMARY_ROUTE,
     PROMPT_VERSION_V2,
+    PROMPT_VERSION_V2_1,
     SEMANTIC_CONTRACT_VERSION_V2,
 )
 from product_intelligence.evaluation.semantic_v2.corpus import (
@@ -64,6 +65,7 @@ __all__ = [
     "DIRECT_CAPTURE_MODE",
     "DIRECT_CAPTURE_SCHEMA_VERSION",
     "DIRECT_EXECUTION_STATUSES",
+    "DIRECT_KNOWN_PROMPT_VERSIONS",
     "DirectCaptureDocument",
     "DirectCaptureError",
     "DirectCaptureIntegrityError",
@@ -76,6 +78,19 @@ CAPTURE_MODE_PRODUCTION_ROUTE: Final[str] = "PRODUCTION_ROUTE"
 DIRECT_CAPTURE_MODE: Final[str] = "DIRECT_MODEL_QUALIFICATION"
 
 DIRECT_CAPTURE_SCHEMA_VERSION: Final[int] = 1
+
+#: The prompt versions a DIRECT_MODEL_QUALIFICATION capture may name:
+#: the frozen 2.0 prompt (corpus 1.0.0, the Q3-A/Q3-B context) and the
+#: separately versioned 2.1 prompt (corpus 1.1.0, the Q3-B5-P1
+#: requalification context). The capture's prompt axis must agree with
+#: the prompt axis of the bound corpus's contract binding
+#: (``verify_direct_capture_against_corpus``); a mismatch is a
+#: cross-version reinterpretation and fails closed. The
+#: PRODUCTION_ROUTE capture schema (``capture.py``) stays 2.0-only: it
+#: mirrors the live runtime, which executes the frozen 2.0 builder.
+DIRECT_KNOWN_PROMPT_VERSIONS: Final[frozenset[str]] = frozenset(
+    {PROMPT_VERSION_V2, PROMPT_VERSION_V2_1}
+)
 
 #: Bounded direct-model execution statuses: OK plus the frozen
 #: runtime's execution-failure vocabulary (mirror of
@@ -286,10 +301,14 @@ def load_direct_capture(path: str | Path) -> DirectCaptureDocument:
             f"direct capture semantic_contract {raw['semantic_contract']!r} "
             f"is not the frozen {SEMANTIC_CONTRACT_VERSION_V2!r}"
         )
-    if raw["prompt_version"] != PROMPT_VERSION_V2:
+    if raw["prompt_version"] not in DIRECT_KNOWN_PROMPT_VERSIONS:
         raise DirectCaptureIntegrityError(
             f"direct capture prompt_version {raw['prompt_version']!r} is "
-            f"not the frozen {PROMPT_VERSION_V2!r}"
+            f"not one of the known V2 prompt versions "
+            f"{sorted(DIRECT_KNOWN_PROMPT_VERSIONS)!r}; any other prompt "
+            "axis is outside the frozen V2 qualification (the prompt "
+            "axis must then be verified against the bound corpus's "
+            "contract binding)"
         )
     if (
         not isinstance(raw["corpus_digest"], str)
@@ -342,7 +361,15 @@ def verify_direct_capture_against_corpus(
     """Bind a direct capture to the exact corpus (fail closed on any
     mismatch or bypass). Missing semantic cases are NOT a load error:
     they surface as NOT_CAPTURED at evaluation (coverage shortfall,
-    never a pass)."""
+    never a pass).
+
+    Cross-version replay isolation (Q3-B5-P1): the capture's prompt
+    axis must equal the prompt axis of the corpus's contract binding.
+    A 2.0 capture is only interpretable against the corpus sealed under
+    the 2.0 binding, and a 2.1 capture only against the corpus sealed
+    under the 2.1 binding - a capture never follows a corpus version
+    move, and a corpus never reinterprets a capture of a different
+    prompt version."""
     if (
         capture.corpus_id != corpus.corpus_id
         or capture.corpus_version != corpus.corpus_version
@@ -357,6 +384,16 @@ def verify_direct_capture_against_corpus(
             f"{capture.corpus_digest[:12]}...; captures are only "
             "interpretable against the exact corpus they were produced "
             "for"
+        )
+    bound_axis = corpus.semantic_contract_binding[1]
+    if capture.prompt_version != bound_axis:
+        raise DirectCaptureIntegrityError(
+            "direct capture prompt axis "
+            f"{capture.prompt_version!r} does not match the bound "
+            f"corpus's contract binding prompt axis {bound_axis!r}; "
+            "a capture of one prompt version is never reinterpreted "
+            "against a corpus sealed under another (cross-version "
+            "replay refusal)"
         )
     by_id = {case.case_id: case for case in corpus.cases}
     for record in capture.records:

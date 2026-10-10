@@ -8,9 +8,15 @@ enter the qualification) and writes the approved Q3-A-FU1
 
 What it reuses (never recreates):
 
-* the frozen production V2 prompt builder
-  (``semantic.contract_v2.build_semantic_prompt_v2``) over the REAL
-  typed corpus case (``CorpusCase.build_semantic_case``);
+* the production V2 prompt builder for the BOUND prompt version over
+  the REAL typed corpus case (``CorpusCase.build_semantic_case``):
+  corpus 1.0.0 (the frozen 2.0 binding) ->
+  ``semantic.contract_v2.build_semantic_prompt_v2``; corpus 1.1.0
+  (the separately versioned 2.1 binding) ->
+  ``semantic.contract_v2_1.build_semantic_prompt_v2_1`` - every sent
+  prompt is byte-exact output of that version's builder, and the
+  corpus's binding selects the version (a capture of one prompt
+  version can never be rendered from the other corpus);
 * the approved direct-capture schema (``direct_capture.py``) - the
   written document loads and verifies through the unchanged
   ``load_direct_capture`` / ``verify_direct_capture_against_corpus``;
@@ -126,6 +132,7 @@ from product_intelligence.evaluation.semantic_v2.capture import (
     FALLBACK_ROUTE,
     PRIMARY_ROUTE,
     PROMPT_VERSION_V2,
+    PROMPT_VERSION_V2_1,
     SEMANTIC_CONTRACT_VERSION_V2,
 )
 from product_intelligence.evaluation.semantic_v2.corpus import (
@@ -149,6 +156,11 @@ from product_intelligence.semantic.contract_v2 import (
     SEMANTIC_PROMPT_VERSION_V2,
     SYSTEM_PROMPT_V2,
     build_semantic_prompt_v2,
+)
+from product_intelligence.semantic.contract_v2_1 import (
+    SEMANTIC_PROMPT_VERSION_V2_1,
+    SYSTEM_PROMPT_V2_1,
+    build_semantic_prompt_v2_1,
 )
 
 __all__ = [
@@ -490,27 +502,58 @@ def _utc_now_iso() -> str:
     return instant
 
 
-def _build_case_entries(corpus: CorpusBundle) -> tuple[_CaseEntry, ...]:
-    """Pre-build the EXACT frozen V2 prompt for every eligible semantic
-    case (fail closed before any network call if any case cannot be
-    rendered - a corpus/contract violation is never sent to a model).
+def _build_case_entries(
+    corpus: CorpusBundle,
+) -> tuple[tuple[_CaseEntry, ...], str, str]:
+    """Pre-build the EXACT production prompt for every eligible
+    semantic case (fail closed before any network call if any case
+    cannot be rendered - a corpus/contract violation is never sent to
+    a model).
+
+    The prompt version is selected by the corpus's contract binding
+    (Q3-B5-P1): corpus 1.0.0 (the frozen 2.0 binding) renders with
+    the frozen 2.0 builder; corpus 1.1.0 (the separately versioned
+    2.1 binding) renders with the separately versioned 2.1 builder.
+    A binding whose prompt axis is neither known version fails
+    closed (the loader already refuses such a corpus; this is
+    defense in depth). Returns ``(entries, prompt_version,
+    system_prompt)``.
 
     The 13 contract-negative cases are NEVER constructed into a prompt
     and NEVER sent: they cannot build a typed V2 case by definition,
     and a model response for one is a schema-bypass attack.
     """
-    if SEMANTIC_PROMPT_VERSION_V2 != PROMPT_VERSION_V2:
+    axis = corpus.semantic_contract_binding[1]
+    if axis == PROMPT_VERSION_V2:
+        if SEMANTIC_PROMPT_VERSION_V2 != PROMPT_VERSION_V2:
+            raise LiveCaptureConfigError(
+                "the frozen prompt version drifted from the direct-capture "
+                "pin; the capture cannot proceed on an inconsistent "
+                "contract"
+            )
+        builder = build_semantic_prompt_v2
+        system_prompt = SYSTEM_PROMPT_V2
+    elif axis == PROMPT_VERSION_V2_1:
+        if SEMANTIC_PROMPT_VERSION_V2_1 != PROMPT_VERSION_V2_1:
+            raise LiveCaptureConfigError(
+                "the separately versioned 2.1 prompt version drifted from "
+                "the direct-capture pin; the capture cannot proceed on an "
+                "inconsistent contract"
+            )
+        builder = build_semantic_prompt_v2_1
+        system_prompt = SYSTEM_PROMPT_V2_1
+    else:
         raise LiveCaptureConfigError(
-            "the frozen prompt version drifted from the direct-capture "
-            "pin; the capture cannot proceed on an inconsistent "
-            "contract"
+            "the bound corpus's contract binding names an unknown "
+            f"prompt axis {axis!r}; the runner renders only the "
+            "known production prompt versions"
         )
     entries: list[_CaseEntry] = []
     for case in corpus.cases:
         if case.case_class == CONTRACT_NEGATIVE_CASE_CLASS:
             continue  # never rendered into a prompt, never sent
         typed = case.build_semantic_case()
-        prompt = build_semantic_prompt_v2(typed)
+        prompt = builder(typed)
         entries.append(
             _CaseEntry(
                 case_id=case.case_id,
@@ -525,7 +568,7 @@ def _build_case_entries(corpus: CorpusBundle) -> tuple[_CaseEntry, ...]:
                 ),
             )
         )
-    return tuple(entries)
+    return tuple(entries), axis, system_prompt
 
 
 def _interpret_outcome(
@@ -634,9 +677,13 @@ class LiveCaptureRunner:
         self._config = config
         self._corpus = corpus
         self._dry_run = dry_run
-        # Prompt preflight: the exact frozen V2 prompt for every
-        # eligible case, before any network call.
-        self._entries = _build_case_entries(corpus)
+        # Prompt preflight: the exact production prompt for the bound
+        # prompt version (2.0 or 2.1, selected by the corpus's
+        # contract binding) for every eligible case, before any
+        # network call.
+        self._entries, self._prompt_version, self._system_prompt = (
+            _build_case_entries(corpus)
+        )
         # Artifact paths are reserved up front: an existing artifact
         # is never overwritten (evidence is append-only).
         stem = self.artifact_stem
@@ -858,7 +905,7 @@ class LiveCaptureRunner:
             "corpus_version": self._corpus.corpus_version,
             "corpus_digest": self._corpus.corpus_digest,
             "semantic_contract": SEMANTIC_CONTRACT_VERSION_V2,
-            "prompt_version": PROMPT_VERSION_V2,
+            "prompt_version": self._prompt_version,
             "capture_run_id": self._config.run_id,
             "captured_at": outcome.finished_at,
             "captured_by": self._config.captured_by,
@@ -917,9 +964,9 @@ class LiveCaptureRunner:
             "corpus_version": self._corpus.corpus_version,
             "corpus_digest": self._corpus.corpus_digest,
             "semantic_contract": SEMANTIC_CONTRACT_VERSION_V2,
-            "prompt_version": PROMPT_VERSION_V2,
+            "prompt_version": self._prompt_version,
             "system_prompt_sha256": canonical_sha256(
-                {"text": SYSTEM_PROMPT_V2}
+                {"text": self._system_prompt}
             ),
             "generation_parameters": {
                 "temperature": repr(LIVE_TEMPERATURE),
@@ -1147,9 +1194,10 @@ def _cmd_capture(args: argparse.Namespace) -> int:
         print(f"  corpus: {corpus.corpus_id} v{corpus.corpus_version} "
               f"@{corpus.corpus_digest[:12]}...")
         print(f"  eligible semantic cases: {len(entries)}")
+        print(f"  prompt version (bound by the corpus): {runner._prompt_version}")
         print(
             "  system prompt digest: "
-            f"{canonical_sha256({'text': SYSTEM_PROMPT_V2})[:12]}..."
+            f"{canonical_sha256({'text': runner._system_prompt})[:12]}..."
         )
         print(
             "  retry policy: max_attempts="

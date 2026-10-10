@@ -16,10 +16,18 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 CORPUS_DIR = REPO_ROOT / "evaluation" / "semantic_v2_qualification"
 CORPUS_PATH = CORPUS_DIR / "corpus_v1.json"
 MANIFEST_PATH = CORPUS_DIR / "manifest_v1.json"
+# Q3-B5-P1: the corpus 1.1.0 binding-only re-seal (the separately
+# versioned 2.1 binding) and its reproducible manifest; both versions
+# coexist, 1.0.0 stays bound to the 2.0 binding for historical evidence.
+CORPUS_2_1_PATH = CORPUS_DIR / "corpus_2_1.json"
+MANIFEST_2_1_PATH = CORPUS_DIR / "manifest_2_1.json"
 POLICY_PATH = (
     CORPUS_DIR / "policy" / "qualification_policy_draft_1.json"
 )
 BASELINE_REPORT_DIR = CORPUS_DIR / "reports" / "q3a_baseline"
+# The 2.1 no-capture baseline reports (both pinned route candidates),
+# committed alongside the re-seal; reproducible byte-for-byte by test.
+BASELINE_2_1_REPORT_DIR = CORPUS_DIR / "reports" / "q3b5_baseline_2_1"
 
 from product_intelligence.evaluation.semantic_v2.capture import (  # noqa: E402
     FALLBACK_ROUTE,

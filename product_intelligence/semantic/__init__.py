@@ -62,6 +62,14 @@ from product_intelligence.semantic.contract_v2 import (
     build_semantic_prompt_v2,
     render_v2_user_prompt,
 )
+from product_intelligence.semantic.contract_v2_1 import (
+    SEMANTIC_PROMPT_VERSION_V2_1,
+    SYSTEM_PROMPT_V2_1,
+    SemanticPromptV2_1,
+    V2_1_CONTRACT_BINDING,
+    build_semantic_prompt_v2_1,
+    render_v2_1_user_prompt,
+)
 from product_intelligence.semantic.runtime import (
     FALLBACK_MODEL,
     FALLBACK_PROVIDER,
@@ -139,6 +147,18 @@ __all__ = [
     "SemanticPromptV2",
     "build_semantic_prompt_v2",
     "render_v2_user_prompt",
+    # Separately versioned Prompt 2.1 (Q3-B5-P1; the approved Q3-B3-FU2
+    # design, revision 2). The frozen 2.0 surface above is byte-untouched;
+    # the 2.1 binding carries the separately versioned FU3 authority
+    # token (Q3-B4 AD-Q3B4-5) and is qualification-record identity only -
+    # the live runtime and the live V2 persistence adapter remain pinned
+    # to the frozen 2.0 binding.
+    "SEMANTIC_PROMPT_VERSION_V2_1",
+    "SYSTEM_PROMPT_V2_1",
+    "SemanticPromptV2_1",
+    "V2_1_CONTRACT_BINDING",
+    "build_semantic_prompt_v2_1",
+    "render_v2_1_user_prompt",
     "PRIMARY_PROVIDER_V2",
     "PRIMARY_MODEL_V2",
     "FALLBACK_PROVIDER_V2",

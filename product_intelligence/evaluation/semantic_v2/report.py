@@ -6,11 +6,16 @@ The report binds to the EXACT identity of everything it evaluates:
   associated with their corpus even if the corpus is later revised
   (a revised corpus is a different digest; ``verify_report`` then
   fails against the old report);
-* the frozen production contract (semantic contract V2, prompt 2.0,
-  input/output schema 1, authority contract SEMANTIC_AUTHORITY_V2_S2A_FU2);
-* the frozen system prompt (by digest of the REAL prompt text — the
-  harness renders with ``build_semantic_prompt_v2``, it never carries
-  a copy);
+* the production contract binding the corpus is sealed under (the
+  frozen 2.0 binding - semantic contract V2, prompt 2.0, input /
+  output schema 1, authority contract SEMANTIC_AUTHORITY_V2_S2A_FU2
+  - or, for the corpus 1.1.0 re-seal, the separately versioned 2.1
+  binding with the separately versioned FU3 authority token; the
+  two bindings are never mixed, and a report is only verifiable
+  against the corpus version it was produced from);
+* the production system prompt (by digest of the REAL prompt text for
+  the bound prompt version — the harness renders with the real
+  builders, it never carries a copy);
 * the runtime configuration identity (pinned routes, temperature,
   max_tokens, the V2_AUTHORITY_QUALIFIED marker);
 * the capture artifact (run id, instant, model).
@@ -38,11 +43,18 @@ from product_intelligence.research import (
     SEMANTIC_INPUT_SCHEMA_VERSION_V2,
     SEMANTIC_OUTPUT_SCHEMA_VERSION_V2,
     AUTHORITY_CONTRACT_VERSION_V2,
+    AUTHORITY_CONTRACT_VERSION_V2_FU3,
     V2_AUTHORITY_QUALIFIED,
+    V2_CONTRACT_BINDING,
 )
 from product_intelligence.semantic.contract_v2 import (
     SEMANTIC_PROMPT_VERSION_V2,
     SYSTEM_PROMPT_V2,
+)
+from product_intelligence.semantic.contract_v2_1 import (
+    SEMANTIC_PROMPT_VERSION_V2_1,
+    SYSTEM_PROMPT_V2_1,
+    V2_1_CONTRACT_BINDING,
 )
 from product_intelligence.semantic.runtime_v2 import (
     SEMANTIC_MAX_TOKENS_V2,
@@ -73,6 +85,7 @@ from product_intelligence.evaluation.semantic_v2.gates import (
 )
 from product_intelligence.evaluation.semantic_v2.policy import (
     PolicyDocument,
+    policy_applies_to,
 )
 
 __all__ = [
@@ -101,21 +114,38 @@ class ReportError(Exception):
     """Bounded report failure (verification)."""
 
 
-def _contract_section() -> dict[str, Any]:
+def _contract_section(
+    binding: tuple[str, str, int, int, str],
+) -> dict[str, Any]:
+    """The contract identity section for one known production binding.
+
+    2.0 context (the frozen binding): byte-identical to the pre-2.1
+    section. 2.1 context (the separately versioned 2.1 binding): the
+    same section shape with the prompt axis, the authority axis, and
+    the REAL 2.1 system-prompt digest. Unknown bindings fail closed
+    (the corpus loader already refuses them; this is defense in
+    depth)."""
+    if tuple(binding) == tuple(V2_CONTRACT_BINDING):
+        prompt_version = PROMPT_VERSION_V2
+        authority = AUTHORITY_CONTRACT_VERSION_V2
+        system_prompt_digest = _system_prompt_digest()
+    elif tuple(binding) == tuple(V2_1_CONTRACT_BINDING):
+        prompt_version = SEMANTIC_PROMPT_VERSION_V2_1
+        authority = AUTHORITY_CONTRACT_VERSION_V2_FU3
+        system_prompt_digest = _system_prompt_digest_v2_1()
+    else:
+        raise ReportError(
+            f"unknown production binding {list(binding)!r}; the report "
+            "cannot bind to the contract (fail closed)"
+        )
     return {
         "semantic_contract_version": SEMANTIC_CONTRACT_VERSION_V2,
-        "prompt_version": PROMPT_VERSION_V2,
+        "prompt_version": prompt_version,
         "input_schema_version": SEMANTIC_INPUT_SCHEMA_VERSION_V2,
         "output_schema_version": SEMANTIC_OUTPUT_SCHEMA_VERSION_V2,
-        "authority_contract_version": AUTHORITY_CONTRACT_VERSION_V2,
-        "semantic_contract_binding": [
-            SEMANTIC_CONTRACT_VERSION_V2,
-            PROMPT_VERSION_V2,
-            SEMANTIC_INPUT_SCHEMA_VERSION_V2,
-            SEMANTIC_OUTPUT_SCHEMA_VERSION_V2,
-            AUTHORITY_CONTRACT_VERSION_V2,
-        ],
-        "system_prompt_digest": _system_prompt_digest(),
+        "authority_contract_version": authority,
+        "semantic_contract_binding": list(binding),
+        "system_prompt_digest": system_prompt_digest,
         "runtime_config_identity": {
             "primary": {
                 "provider": PRIMARY_PROVIDER_V2,
@@ -142,6 +172,18 @@ def _system_prompt_digest() -> str:
             "the report cannot bind to the contract"
         )
     return canonical_sha256({"text": SYSTEM_PROMPT_V2})
+
+
+def _system_prompt_digest_v2_1() -> str:
+    """The digest of the REAL separately versioned 2.1 system prompt
+    text (drift-checked against the 2.1 binding; the 2.1 digest is
+    new recorded evidence, never a copy of the frozen 2.0 digest)."""
+    if SEMANTIC_PROMPT_VERSION_V2_1 != V2_1_CONTRACT_BINDING[1]:
+        raise ReportError(
+            "the 2.1 prompt version drifted from the 2.1 binding; "
+            "the report cannot bind to the contract"
+        )
+    return canonical_sha256({"text": SYSTEM_PROMPT_V2_1})
 
 
 def _corpus_input_digest(corpus: CorpusBundle) -> str:
@@ -235,7 +277,7 @@ def build_report(
         "report_kind": PRODUCTION_REPORT_KIND,
         "generated_utc": generated_utc,
         "corpus": _corpus_section(corpus, counts),
-        "contract": _contract_section(),
+        "contract": _contract_section(corpus.semantic_contract_binding),
         "model": {
             "provider": result.provider,
             "model": result.model,
@@ -258,7 +300,14 @@ def build_report(
         "safety_gates": {
             name: gates[name].to_report_dict() for name in gates
         },
-        "policy": _policy_section(policy, threshold_evaluation),
+        "policy": (
+            _policy_section(policy, threshold_evaluation)
+            if policy is not None
+            and policy_applies_to(
+                policy, corpus.corpus_id, corpus.corpus_version
+            )
+            else None
+        ),
         "decision": decision,
         "decision_rationale": list(rationale),
         "authority": _authority_section(),
@@ -330,13 +379,9 @@ def _verify_report_binding(
     if bound_corpus.get("corpus_version") != corpus.corpus_version:
         raise ReportError("report corpus version mismatch")
     contract = report.get("contract", {})
-    if contract.get("semantic_contract_binding") != [
-        "V2",
-        "2.0",
-        1,
-        1,
-        "SEMANTIC_AUTHORITY_V2_S2A_FU2",
-    ]:
+    if contract.get("semantic_contract_binding") != list(
+        corpus.semantic_contract_binding
+    ):
         raise ReportError("report contract binding mismatch")
     # Per-case label snapshot: every case in the report must still carry
     # the same expected decision / acceptable set in the corpus.
@@ -428,7 +473,7 @@ def build_direct_report(
         "capture_schema_version": DIRECT_CAPTURE_SCHEMA_VERSION,
         "generated_utc": generated_utc,
         "corpus": _corpus_section(corpus, counts),
-        "contract": _contract_section(),
+        "contract": _contract_section(corpus.semantic_contract_binding),
         "model": {
             "provider": result.provider,
             "model": result.model,
@@ -450,7 +495,14 @@ def build_direct_report(
         "safety_gates": {
             name: gates[name].to_report_dict() for name in gates
         },
-        "policy": _policy_section(policy, threshold_evaluation),
+        "policy": (
+            _policy_section(policy, threshold_evaluation)
+            if policy is not None
+            and policy_applies_to(
+                policy, corpus.corpus_id, corpus.corpus_version
+            )
+            else None
+        ),
         "decision": decision,
         "decision_rationale": list(rationale),
         "authority": _authority_section(),

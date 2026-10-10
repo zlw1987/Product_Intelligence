@@ -84,6 +84,9 @@ from product_intelligence.research.semantic_v2 import (
     TargetEvidenceV2,
     TargetIdentifierRelationKindV2,
 )
+from product_intelligence.semantic.contract_v2_1 import (
+    V2_1_CONTRACT_BINDING,
+)
 
 __all__ = [
     "CASES",
@@ -91,7 +94,9 @@ __all__ = [
     "CORPUS_ID",
     "CORPUS_LABEL",
     "CORPUS_VERSION",
+    "CORPUS_VERSION_2_1",
     "MICRON_CATALOG_FIXTURE_BODY_SHA256",
+    "build_corpus_2_1_document",
     "build_corpus_document",
     "build_corpus_state",
     "build_manifest_document",
@@ -105,6 +110,17 @@ __all__ = [
 CORPUS_ID: Final[str] = "PI-SEMANTIC-V2-QUALIFICATION"
 CORPUS_VERSION: Final[str] = "1.0.0"
 CORPUS_LABEL: Final[str] = "q3a-independent-v2-qualification"
+
+#: The corpus version sealed under the separately versioned 2.1
+#: contract binding (Q3-B5-P1, the approved Q3-B3-FU2 design section
+#: 9.1 + Q3-B4 AD-Q3B4-5). The 1.1.0 document is a BINDING-ONLY
+#: re-seal of 1.0.0: every per-case document (payload, expected
+#: outcome, label, digests) is byte-identical; only the authorized
+#: contract binding / version metadata moves (corpus_version and
+#: semantic_contract_binding), and the corpus digest is recomputed
+#: over the re-sealed state. ``label_revisions`` stays empty - no
+#: label moved.
+CORPUS_VERSION_2_1: Final[str] = "1.1.0"
 
 #: The declared creation instant of corpus 1.0.0 (deterministic constant;
 #: the corpus is a versioned artifact, not a runtime observation).
@@ -2913,6 +2929,40 @@ def build_corpus_document() -> dict[str, Any]:
         **state,
         "label_revisions": [],
     }
+    doc["corpus_digest"] = canonical_sha256(state)
+    return doc
+
+
+def build_corpus_2_1_document() -> dict[str, Any]:
+    """The corpus 1.1.0 BINDING-ONLY re-seal (Q3-B5-P1).
+
+    Derived from the sealed 1.0.0 document by moving EXACTLY the
+    authorized contract binding / version metadata:
+
+    * ``corpus_version`` -> ``1.1.0``;
+    * ``semantic_contract_binding`` -> the separately versioned 2.1
+      binding (the Q3-B4 AD-Q3B4-5 ordering decision: the 2.1
+      qualification records carry the separately versioned FU3
+      authority token);
+    * ``corpus_digest`` -> recomputed over the re-sealed state.
+
+    Every per-case document - payload, expected outcome, label,
+    challenge metadata, and the sealed per-case ``case_digest`` - is
+    byte-identical to 1.0.0 (mechanical proof of label / payload
+    invariance), and ``label_revisions`` stays empty. Both versions
+    coexist; 1.0.0 remains bound to the 2.0 binding for historical
+    evidence. Regenerating from the source must reproduce the
+    committed re-seal byte-for-byte (proven by test).
+    """
+    base = build_corpus_document()
+    state = {
+        k: v
+        for k, v in base.items()
+        if k not in ("label_revisions", "corpus_digest")
+    }
+    state["corpus_version"] = CORPUS_VERSION_2_1
+    state["semantic_contract_binding"] = list(V2_1_CONTRACT_BINDING)
+    doc = {**state, "label_revisions": []}
     doc["corpus_digest"] = canonical_sha256(state)
     return doc
 

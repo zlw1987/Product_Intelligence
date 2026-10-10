@@ -74,6 +74,10 @@ from product_intelligence.evaluation.semantic_v2.corpus import (
     CONTRACT_NEGATIVE_CASE_CLASS,
     CorpusBundle,
 )
+from product_intelligence.semantic.contract_v2_1 import (
+    SEMANTIC_PROMPT_VERSION_V2_1,
+    V2_1_CONTRACT_BINDING,
+)
 
 __all__ = [
     "CAPTURE_SCHEMA_VERSION",
@@ -85,6 +89,8 @@ __all__ = [
     "CaptureRoute",
     "CAPTURE_STATUS_TO_FALLBACK_REASON",
     "FALLBACK_ELIGIBLE_STATUSES",
+    "PROMPT_VERSION_V2_1",
+    "V2_1_CONTRACT_BINDING",
     "load_capture",
     "verify_capture_against_corpus",
 ]
@@ -94,6 +100,18 @@ CAPTURE_SCHEMA_VERSION: Final[int] = 1
 #: The capture mode of this schema (paired with DIRECT_CAPTURE_MODE in
 #: ``direct_capture.py``; reports identify the mode explicitly).
 CAPTURE_MODE: Final[str] = "PRODUCTION_ROUTE"
+
+#: The separately versioned Prompt 2.1 identity (Q3-B5-P1): the prompt
+#: version axis and the immutable 2.1 contract binding (the Q3-B4
+#: AD-Q3B4-5 ordering decision put the separately versioned FU3
+#: authority token on the 2.1 binding's authority axis). Re-exported
+#: from the semantic layer's Prompt 2.1 owner so the direct-capture /
+#: live-runner pins never carry a literal copy (drift-pinned by test).
+#: The PRODUCTION_ROUTE capture schema of THIS module stays frozen on
+#: the 2.0 prompt: the live runtime executes the frozen 2.0 builder, so
+#: a production-route capture naming any other prompt version is
+#: outside the contract (fail closed).
+PROMPT_VERSION_V2_1: Final[str] = SEMANTIC_PROMPT_VERSION_V2_1
 
 #: The frozen V2 pinned route identities (mirror of the contract data).
 CaptureRoute = tuple[str, str]
@@ -446,7 +464,16 @@ def verify_capture_against_corpus(
     capture: CaptureDocument, corpus: CorpusBundle
 ) -> None:
     """Bind a capture to the exact corpus (fail closed on any mismatch
-    or bypass)."""
+    or bypass).
+
+    Cross-version replay isolation (Q3-B5-P1): the production-route
+    capture's prompt axis (the frozen 2.0 prompt - the live runtime's
+    builder) must equal the prompt axis of the corpus's contract
+    binding. A 2.0 capture is only interpretable against the corpus
+    sealed under the 2.0 binding; it is never reinterpreted against a
+    corpus sealed under another prompt version (and a 2.1-prompt
+    capture cannot exist in this mode at all - the loader refuses it).
+    """
     if (
         capture.corpus_id != corpus.corpus_id
         or capture.corpus_version != corpus.corpus_version
@@ -460,6 +487,16 @@ def verify_capture_against_corpus(
             f"{capture.corpus_digest[:12]}...; captures are only "
             "interpretable against the exact corpus they were produced "
             "for"
+        )
+    bound_axis = corpus.semantic_contract_binding[1]
+    if capture.prompt_version != bound_axis:
+        raise CaptureIntegrityError(
+            "capture prompt axis "
+            f"{capture.prompt_version!r} does not match the bound "
+            f"corpus's contract binding prompt axis {bound_axis!r}; "
+            "a capture of one prompt version is never reinterpreted "
+            "against a corpus sealed under another (cross-version "
+            "replay refusal)"
         )
     by_id = {case.case_id: case for case in corpus.cases}
     for record in capture.records:

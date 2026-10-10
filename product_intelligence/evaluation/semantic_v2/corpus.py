@@ -64,6 +64,8 @@ from product_intelligence.evaluation.semantic_v2.fixtures import (
     CHALLENGE_TAGS,
     CONFLICT_CLASSES,
     CORPUS_ID,
+    CORPUS_VERSION,
+    CORPUS_VERSION_2_1,
     DECISIONS,
     EVIDENCE_KINDS,
     FORBIDDEN_EVIDENCE_TOKENS,
@@ -88,10 +90,14 @@ from product_intelligence.research.semantic_v2 import (
     TargetEvidenceV2,
     TargetIdentifierRelationKindV2,
 )
+from product_intelligence.semantic.contract_v2_1 import (
+    V2_1_CONTRACT_BINDING,
+)
 
 __all__ = [
     "AMBIGUOUS_CASE_CLASS",
     "AUTHORITATIVE_CASE_CLASS",
+    "BINDING_CORPUS_VERSIONS",
     "CONTRACT_NEGATIVE_CASE_CLASS",
     "CORPUS_SCHEMA_VERSION",
     "CorpusCase",
@@ -100,6 +106,7 @@ __all__ = [
     "CorpusIntegrityError",
     "CorpusInputRejectionError",
     "CorpusSchemaError",
+    "KNOWN_PRODUCTION_BINDINGS",
     "REJECTION_CLASSES",
     "build_manifest_document",
     "decode_match_case",
@@ -111,6 +118,27 @@ __all__ = [
 CORPUS_SCHEMA_VERSION: Final[int] = 1
 """Corpus schema version 1. Any other value fails closed (unknown
 corpus versions are never best-effort interpreted)."""
+
+#: The known production contract bindings and the corpus version each
+#: is sealed under (Q3-B5-P1: the corpus versions coexist, each bound
+#: to its own production binding - 1.0.0 to the frozen 2.0 binding for
+#: historical evidence, 1.1.0 to the separately versioned 2.1 binding
+#: with the separately versioned FU3 authority token). A corpus
+#: document's binding must be one of these EXACTLY, and its declared
+#: corpus version must be the version sealed under that binding; any
+#: other combination fails closed (a version move is never a silent
+#: reinterpretation).
+BINDING_CORPUS_VERSIONS: Final[dict[tuple[str, str, int, int, str], str]] = {
+    tuple(V2_CONTRACT_BINDING): CORPUS_VERSION,
+    tuple(V2_1_CONTRACT_BINDING): CORPUS_VERSION_2_1,
+}
+
+#: The known production bindings (the harness qualifies exactly these;
+#: drift-pinned to the research export and the semantic layer's 2.1
+#: owner, never literal-copied).
+KNOWN_PRODUCTION_BINDINGS: Final[frozenset[tuple[str, str, int, int, str]]] = (
+    frozenset(BINDING_CORPUS_VERSIONS)
+)
 
 AUTHORITATIVE_CASE_CLASS: Final[str] = "AUTHORITATIVE"
 AMBIGUOUS_CASE_CLASS: Final[str] = "AMBIGUOUS"
@@ -1099,12 +1127,14 @@ def _decode_case(raw: dict[str, Any], index: int) -> CorpusCase:
             "mutated after sealing)"
         )
     # A REAL_MARKET evidence kind is reserved for independently
-    # retrieved market sources; corpus 1.0.0 ships none.
+    # retrieved market sources; the shipped qualification corpus
+    # versions (1.0.0 and its 1.1.0 binding-only re-seal) ship none.
     if raw["evidence_kind"] == "REAL_MARKET":
         raise CorpusSchemaError(
             f"case {case_id}: evidence_kind REAL_MARKET requires an "
             "independently retrieved market source with URL and "
-            "retrieval instant; corpus 1.0.0 ships no real-market cases"
+            "retrieval instant; the shipped qualification corpus "
+            "versions carry no real-market cases"
         )
     return CorpusCase(
         case_id=raw["case_id"],
@@ -1128,9 +1158,13 @@ def load_corpus(path: str | Path) -> CorpusBundle:
     Raises ``CorpusSchemaError`` (unknown version / bad shape),
     ``CorpusIntegrityError`` (digest mismatch), or ``CorpusError``
     (unrecoverable document problem). A corpus whose declared
-    ``semantic_contract_binding`` differs from the frozen production
-    binding raises ``CorpusIntegrityError``: the harness only qualifies
-    the exact frozen contract, never a lookalike.
+    ``semantic_contract_binding`` is not one of the known production
+    bindings raises ``CorpusIntegrityError``: the harness only
+    qualifies the exact production contracts, never a lookalike. The
+    declared ``corpus_version`` must be the version sealed under that
+    binding (1.0.0 under the frozen 2.0 binding; 1.1.0 under the
+    separately versioned 2.1 binding) - a version/binding disagreement
+    fails closed the same way (cross-version replay isolation).
     """
     file = Path(path)
     if not file.is_file():
@@ -1171,14 +1205,26 @@ def load_corpus(path: str | Path) -> CorpusBundle:
     _doc_utc_instant(document["created_utc"], "corpus document: created_utc")
 
     binding = document["semantic_contract_binding"]
-    if (
-        not isinstance(binding, list)
-        or tuple(binding) != tuple(V2_CONTRACT_BINDING)
-    ):
+    if not isinstance(binding, list):
         raise CorpusIntegrityError(
-            f"corpus semantic_contract_binding {binding!r} differs from "
-            f"the frozen production binding {list(V2_CONTRACT_BINDING)!r}; "
-            "the harness only qualifies the exact frozen contract"
+            "corpus semantic_contract_binding must be a list (the "
+            "five-axis contract identity)"
+        )
+    binding_key = tuple(binding)
+    if binding_key not in KNOWN_PRODUCTION_BINDINGS:
+        raise CorpusIntegrityError(
+            f"corpus semantic_contract_binding {list(binding)!r} is not "
+            f"one of the known production bindings {sorted(KNOWN_PRODUCTION_BINDINGS)}; "
+            "the harness only qualifies the exact production contracts"
+        )
+    sealed_version = BINDING_CORPUS_VERSIONS[binding_key]
+    if document["corpus_version"] != sealed_version:
+        raise CorpusIntegrityError(
+            f"corpus version {document['corpus_version']!r} is not the "
+            f"version sealed under binding {list(binding)!r} "
+            f"({sealed_version!r}); a corpus version is only "
+            "interpretable under the production binding it was sealed "
+            "with (cross-version replay refusal)"
         )
 
     raw_cases = document["cases"]

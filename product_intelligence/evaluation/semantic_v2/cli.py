@@ -23,6 +23,14 @@ Usage (all commands are OFFLINE - no network, no model calls):
     python -m product_intelligence.evaluation.semantic_v2.cli verify-report \
         --report <report.json> --corpus <corpus.json>
 
+``corpus-build`` regenerates BOTH sealed corpus versions from the
+auditable source: the frozen 1.0.0 document bound to the 2.0
+production binding (``corpus_v1.json``) and the Q3-B5-P1 1.1.0
+BINDING-ONLY re-seal bound to the separately versioned 2.1 binding
+(``corpus_2_1.json`` - every per-case document byte-identical, only
+the authorized contract binding / version metadata moved, new
+corpus digest), plus the reproducible manifest for each.
+
 ``evaluate`` with no ``--capture`` produces the explicit no-capture
 baseline for BOTH pinned route candidates (every eligible case is
 NOT_CAPTURED; the decision is POLICY_PENDING - never a pass). With
@@ -65,6 +73,7 @@ def _cmd_corpus_build(args: argparse.Namespace) -> int:
         build_manifest_document,
     )
     from product_intelligence.evaluation.semantic_v2.fixtures import (
+        build_corpus_2_1_document,
         build_corpus_document,
     )
 
@@ -76,6 +85,16 @@ def _cmd_corpus_build(args: argparse.Namespace) -> int:
     print(f"corpus digest: {corpus_doc['corpus_digest']}")
     print(f"manifest digest: {manifest['manifest_digest']}")
     print(f"cases: {len(corpus_doc['cases'])}")
+
+    # The Q3-B5-P1 1.1.0 binding-only re-seal (labels / payloads /
+    # per-case digests byte-identical; only the authorized contract
+    # binding / version metadata moved). Both versions coexist.
+    corpus_2_1_doc = build_corpus_2_1_document()
+    _write_json(out_dir / "corpus_2_1.json", corpus_2_1_doc)
+    manifest_2_1 = build_manifest_document(corpus_2_1_doc)
+    _write_json(out_dir / "manifest_2_1.json", manifest_2_1)
+    print(f"corpus 2.1 digest: {corpus_2_1_doc['corpus_digest']}")
+    print(f"corpus 2.1 manifest digest: {manifest_2_1['manifest_digest']}")
     return 0
 
 

@@ -25,9 +25,13 @@ Established by **PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-Q3-A**.
 
 ```text
 evaluation/semantic_v2_qualification/
-  corpus_v1.json                          the sealed corpus (56 cases)
-  manifest_v1.json                        reproducible per-case manifest
-  policy/qualification_policy_draft_1.json  DRAFT thresholds (not approved)
+  corpus_v1.json                          the sealed corpus 1.0.0 (56 cases, the frozen 2.0 binding)
+  manifest_v1.json                        reproducible per-case manifest (1.0.0)
+  corpus_2_1.json                         the corpus 1.1.0 binding-only re-seal (Q3-B5-P1; the separately versioned 2.1 binding with the separately versioned FU3 authority token)
+  manifest_2_1.json                       reproducible per-case manifest (1.1.0)
+  policy/qualification_policy_draft_1.json  DRAFT thresholds (not approved; binds the 1.0.0 corpus identity - byte-unchanged)
+  reports/q3a_baseline/                   the 2.0 no-capture baseline reports (both pinned candidates; byte-identical regression)
+  reports/q3b5_baseline_2_1/              the 2.1 no-capture baseline reports (both pinned candidates; reproducible by test)
   README.md                               this file
 ```
 
@@ -39,6 +43,31 @@ assess_listing_identity -> derive_identity_state_v2 ->
 build_semantic_match_case_v2`). Regenerating from the source must
 reproduce `corpus_v1.json` byte-for-byte (proven by test); the sealed
 JSON is the artifact the harness measures.
+
+## Corpus versions (binding-only re-seal)
+
+The corpus is versioned alongside the separately versioned prompt
+line. The two shipped versions coexist:
+
+* **1.0.0** (`corpus_v1.json`) — the Q3-A corpus, sealed under the
+  frozen 2.0 production binding
+  (`("V2", "2.0", 1, 1, "SEMANTIC_AUTHORITY_V2_S2A_FU2")`). It stays
+  exactly as shipped: historical captures and reports remain bound to
+  it for the evidence of record.
+* **1.1.0** (`corpus_2_1.json`) — the Q3-B5-P1 binding-only re-seal
+  under the separately versioned 2.1 binding (the prompt axis moves
+  to 2.1 and the authority axis to the separately versioned FU3 token
+  per the Q3-B4 AD-Q3B4-5 ordering decision). EVERY per-case document
+  (payload, expected outcome, label, challenge metadata, sealed
+  per-case digest) is byte-identical to 1.0.0; only the authorized
+  contract binding / version metadata moved and the corpus digest was
+  recomputed. `label_revisions` is empty: NO corpus label changed.
+
+The harness loads each version against its own binding and refuses
+every cross-version combination (a capture or report of one prompt
+version is never reinterpreted against the corpus sealed under
+another). Regenerating from the source must reproduce BOTH sealed
+documents byte-for-byte (proven by test).
 
 ## Case taxonomy
 

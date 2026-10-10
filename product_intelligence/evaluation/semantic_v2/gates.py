@@ -34,7 +34,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Final
 
-from product_intelligence.research import V2_CONTRACT_BINDING
+from product_intelligence.research import (
+    AUTHORITY_CONTRACT_VERSION_V2_FU3,
+    V2_CONTRACT_BINDING,
+)
+from product_intelligence.evaluation.semantic_v2.corpus import (
+    KNOWN_PRODUCTION_BINDINGS,
+)
 from product_intelligence.evaluation.semantic_v2.evaluator import (
     EvaluationResult,
 )
@@ -152,11 +158,30 @@ def evaluate_safety_gates(result: EvaluationResult) -> dict[str, GateResult]:
 
     # Contract-version mismatch: structurally verified at load/verify
     # time (the evaluation would be void before scoring); the gate
-    # re-states the binding agreement against the frozen production
-    # constant (no literal copy: drift-pinned to the research export).
-    binding_ok = tuple(result.semantic_contract_binding) == tuple(
-        V2_CONTRACT_BINDING
-    )
+    # re-states the binding agreement against the known production
+    # bindings (no literal copy: drift-pinned to the research export
+    # and the semantic layer's 2.1 owner). Q3-B5-P1: in the 2.0
+    # context the gate pins the frozen 2.0 production binding (the
+    # detail text is byte-identical to the pre-2.1 gate); in the 2.1
+    # context it pins the separately versioned 2.1 production binding
+    # (the separately versioned FU3 authority token) - the only
+    # allowed delta. The eight gate names and their fail-closed
+    # semantics are unchanged.
+    binding_key = tuple(result.semantic_contract_binding)
+    binding_ok = binding_key in KNOWN_PRODUCTION_BINDINGS
+    if binding_key == tuple(V2_CONTRACT_BINDING):
+        binding_detail = "corpus binds to the exact frozen production contract"
+    elif binding_key in KNOWN_PRODUCTION_BINDINGS:
+        binding_detail = (
+            f"corpus binds to the exact 2.1 production contract "
+            f"(prompt {result.semantic_contract_binding[1]}, "
+            f"authority {AUTHORITY_CONTRACT_VERSION_V2_FU3})"
+        )
+    else:
+        binding_detail = (
+            f"corpus binding {list(binding_key)!r} is not one of the "
+            f"known production bindings"
+        )
 
     # Every corpus case has exactly one outcome with an explicit
     # state; nothing is silently dropped.
@@ -233,7 +258,7 @@ def evaluate_safety_gates(result: EvaluationResult) -> dict[str, GateResult]:
     gates[HARD_SAFETY_GATES[6]] = GateResult(
         name=HARD_SAFETY_GATES[6],
         passed=binding_ok,
-        detail="corpus binds to the exact frozen production contract",
+        detail=binding_detail,
     )
     gates[HARD_SAFETY_GATES[7]] = GateResult(
         name=HARD_SAFETY_GATES[7],
