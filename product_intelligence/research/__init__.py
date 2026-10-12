@@ -477,6 +477,20 @@ from product_intelligence.research.semantic_authority_fu3 import (
     is_known_authority_contract_token,
     sales_unit_authority_from_channel,
 )
+from product_intelligence.research.sales_unit_extraction import (
+    SALES_UNIT_EXTRACTION_SCHEMA_VERSION,
+    SalesUnitCueDisposition,
+    SalesUnitCueField,
+    SalesUnitCueReason,
+    SalesUnitCueV1,
+    SalesUnitExtractionIntegrityError,
+    SalesUnitExtractionResult,
+    SalesUnitExtractionState,
+    SalesUnitIdentifierFieldNoteV1,
+    extract_and_map_sales_unit_evidence,
+    extract_sales_unit_evidence,
+    sales_unit_channel_from_extraction,
+)
 
 __all__ = [
     "ALWAYS_HARD_CONFLICT_CLASSES",
@@ -740,4 +754,16 @@ __all__ = [
     "identity_resolution_bound",
     "is_known_authority_contract_token",
     "sales_unit_authority_from_channel",
+    "SALES_UNIT_EXTRACTION_SCHEMA_VERSION",
+    "SalesUnitCueDisposition",
+    "SalesUnitCueField",
+    "SalesUnitCueReason",
+    "SalesUnitCueV1",
+    "SalesUnitExtractionIntegrityError",
+    "SalesUnitExtractionResult",
+    "SalesUnitExtractionState",
+    "SalesUnitIdentifierFieldNoteV1",
+    "extract_and_map_sales_unit_evidence",
+    "extract_sales_unit_evidence",
+    "sales_unit_channel_from_extraction",
 ]

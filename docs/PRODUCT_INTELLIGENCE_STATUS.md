@@ -5,6 +5,456 @@
 ## Current state
 
 
+**PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-Q3-B5-P2 (Semantic Authority V2 —
+
+Bounded Sales-Unit Evidence Extraction)
+
+— IMPLEMENTED / PENDING FINAL REVIEW**
+
+Bounded EXTRACTION-LAYER phase on the authoritative starting SHA
+`4033f21385a70b9e138e86b8ddf27e69de914595` (Q3-B5-P1-AUDIT endpoint;
+collection baseline 7142, independently re-verified this session). This is
+the Q3-B4 decision's roadmap row **P2** ("packaging extraction": the
+extractor publishes the bounded packaging field with source provenance; the
+OBSERVED channel fills on live pages; the absolute rule catches published
+incompatible units at the decision level) — implemented HERE as the **pure
+extraction and validation layer only**: no live input construction change,
+no live integration activation, no V2 authority activation, no connection
+to pricing aggregation, no corpus label change, no deployment, no model
+call. The independently approved Q3-B4-FU2 (the separately versioned
+firewall contract) and Q3-B5-P1 (prompt 2.1) are the contracts of record
+(sections below; the documentation catch-up for the Q3-B3-FU2 design and
+the Q3-B4 decision / FU1 / FU2 / P1 lineage — audit finding F-3 — is
+recorded with this update).
+
+**The bounded extraction component (NEW
+`product_intelligence/research/sales_unit_extraction.py`, exported through
+the research package surface).** A pure, deterministic, research-layer
+module (stdlib + the frozen 3A observation contract + the frozen S2-C-FU1
+channel / provenance vocabulary; no Django, no I/O, no clock, no network,
+no LLM, no mutable global state — import-self-checked): the versioned,
+immutable, self-verifying `SalesUnitExtractionResult` (**extraction schema
+v1**) distinguishes, with explicit provenance for every cue, the four
+bounded states — `OBSERVED_UNAMBIGUOUS` / `CONTRADICTED_CUES` /
+`AMBIGUOUS_CUE` / `NO_PACKAGING_PUBLISHED`. Input is ONE
+`ListingObservation` (one offer) plus, when a source publishes one, the
+explicit page-published structured packaging field value (plain text as
+published) — the ONLY fields the extractor may read. The identifier fields
+(MPN / SKU) are examined ONLY to record that a packaging-like token in them
+was set aside (never packaging evidence); the opaque `raw_reference` is
+never read or parsed (AD-040); no price / availability / condition /
+seller / description text and no model output is an input (the examined-
+field vocabulary has exactly two members, neither a model claim).
+
+**The frozen cue table (schema v1; false-positive resistance).** A bounded,
+test-pinned phrase table requiring an explicit packaging word: single retail
+unit ("single unit" / "single-unit" / "1 unit" / "1-unit"), pack of N
+("pack of N" / "N-pack" / "N pack"), tray / factory pack ("tray" / "tray
+of N" / "N-unit tray" / "factory pack" / "factory pack of N" / "N-unit
+factory pack" / "oem pack" / "oem pack of N" / "N-unit oem pack" / "oem
+tray" / "oem tray of N" / "N-unit oem tray"), bundle ("bundle of N" /
+"N-unit bundle" / "bundle: contents" / "bundle (contents)"). Specification
+quantities are NOT sales quantities: `4 TB` capacity, `2U` / `1U` chassis
+height, `Dual-Port`, `8-channel`, `PCIe 4.0 x4`, `1 DWPD`, and product
+revision numbers carry no packaging word and never match. A count must be
+canonical (1..99999, no leading zero, no decimal); a count attached to a
+capacity unit ("pack of 4TB" / "pack of 4TiB") is a specification quantity
+(`CAPACITY_ATTACHED_QUANTITY`); a bare `pack` word is `PACK_WITHOUT_COUNT`;
+a bare `bundle` is `BUNDLE_WITHOUT_CONTENTS` (the approved 2.1 design's P6
+shape: unclear wording is unproven evidence, never an established
+conflict); a structured field without packaging vocabulary is
+`NO_PACKAGING_VOCABULARY`. Unbounded words (`kit`, `case`, `multipack`,
+`Packard`, `Packing`, glued `4pack`) are not cues at all.
+
+**State resolution (fail-closed).** No established cue ->
+`NO_PACKAGING_PUBLISHED` (the recorded absence — the only state a silent
+multi-pack can have) or `AMBIGUOUS_CUE`. Established cues of >1 kind, or of
+one kind with >1 published quantity (incl. title vs structured field) ->
+`CONTRADICTED_CUES` (EVERY side recorded with its full provenance).
+Otherwise one established claim: `OBSERVED_UNAMBIGUOUS`, UNLESS an
+unclassifiable cue of a different kind (or a vocabulary-less structured
+field) is present, which blocks the claim -> `AMBIGUOUS_CUE`. A same-kind
+ambiguous cue (e.g. "4-Pack (pack)") is subsumed and still recorded. The
+constructor is the validator: every state / cue / established-unit
+inconsistency (incl. a cue text its field never published, a foreign /
+model-claim provenance source, a non-canonical digest, an unknown schema
+version) fails closed.
+
+**The provenance contract.** Each cue records: the examined field
+(`PRODUCT_TITLE` / `STRUCTURED_PACKAGING_FIELD`), the bounded provenance
+source (exactly the frozen `CandidateEvidenceSourceV2` members
+`LISTING_TITLE` / `PUBLISHED_STRUCTURED_FIELD` — no member is a model
+claim; the other two vocabulary members are rejected at construction), the
+full field value as published, the verbatim cue text with its span
+(verified as an exact substring), the kind, the published quantity where
+the phrase carries one (never salvaged from an ambiguous phrase), the
+disposition, and the bounded reason for ambiguous cues. The result is bound
+to the exact examined input by an `input_digest` (SHA-256 over the
+canonical document of the named 3A fields — `raw_reference` deliberately
+excluded; two observations identical in every named field are the same
+extraction input) and self-verifies by a `result_digest` (SHA-256 over the
+canonical result minus the digest). Deterministic: equal inputs produce
+byte-equal results.
+
+**The fail-closed mapping onto the frozen channel (no contract change).**
+`sales_unit_channel_from_extraction` re-verifies the presented result's
+integrity FIRST (a hand-forged or tampered result produces no channel —
+`SalesUnitExtractionIntegrityError`), then maps: `OBSERVED_UNAMBIGUOUS` ->
+the frozen channel's `OBSERVED` state (established kind; published quantity
+where the phrase carries one; the PRIMARY established cue's exact published
+text as `raw_detail` — the structured-field cue when one is established,
+else the first title cue in span order; that cue's recorded source; the
+channel's own constructor re-validates). EVERY other state -> the canonical
+`UNAVAILABLE`: the frozen channel has no ambiguous or contradicted state,
+and recording either side of a contradiction as `OBSERVED` would present
+one published claim as THE recorded unit (an unsafe workaround the schema
+refuses). The full cue record stays in the versioned result for audit; the
+FU3 derivation over the mapped channel then yields UNPROVEN (never
+PROVEN_EQUIVALENT, never CONTRADICTED) for absence / ambiguity /
+contradiction. A future versioned input schema may add explicit channel
+conflict states — a separately approval-gated decision, NOT made here.
+
+**Bounded scope (what this phase deliberately does NOT do).** The frozen
+live input construction (S2-C-FU1) is byte- and behavior-unchanged:
+`build_candidate_commercial_evidence_v2` still hard-wires the explicit
+`UNAVAILABLE` state (test-pinned, incl. over a title with a loud cue), and
+`build_semantic_match_case_v2` still records it — the frozen
+live-UNAVAILABLE contract is NOT silently replaced. No live module
+(semantic / execution / runs / web / providers) references the extractor
+(AST-pinned); the separately versioned firewall derivation module remains
+unreachable from live wiring (the FU3 lexical guard passes unchanged). No
+persistence (no model, no migration, no codec registration — the result's
+own future storage is its own versioned decision); no corpus label change
+(both corpus digests re-pinned); no threshold / policy change; no V2
+authority activation (`V2_AUTHORITY_QUALIFIED` stays False in both pinned
+locations); no Machine Price / Reviewed Price change; no deployment; no
+live capture.
+
+**The smallest separately gated integration (PROPOSED, not activated).**
+If and when an explicit versioned compatibility decision approves it, the
+smallest integration is: a versioned successor of the live commercial
+evidence builder (the frozen 2.0 builder stays as-is for 2.0-bound records)
+that calls `extract_and_map_sales_unit_evidence(observation)` and records
+the mapped channel in the recorded V2 input — everything else in the case
+remains the frozen builder's. The offline gated shape is proven here
+(`dataclasses.replace` of ONLY the channel over a real frozen-chain case;
+FU3 case-level derivation reads exactly that channel). Activation requires
+that decision; none was made in this phase.
+
+**Tests.** 101 NEW nodes in TWO NEW files, all offline (no network, no
+model call): `tests/research/test_sales_unit_extraction.py` (94) and
+`tests/research/test_sales_unit_extraction_recorded_pages.py` (7, over the
+REAL recorded listing fixtures through the real 3A extractor — the
+samsung / oempcworld / exxactcorp / directmacro pages publish no packaging
+evidence: capacity, chassis height, lane / channel counts, and
+"Dual-Port" are specification quantities, never sales quantities; the
+newegg / fusionww pages publish no observations and none is fabricated).
+The mandated adversarial matrix is covered in full: silent multi-pack with
+exact MPN (recorded absence -> UNPROVEN; old token's replay unchanged
+AI_ASSISTED vs the firewall's NEEDS_REVIEW cap — the §4.1 row 1 invariant
+over the extractor's channel); explicit pack-of-four (observed, CONTRADICTED
+vs the default single-unit target, PROVEN against a target-side pack of the
+same count); capacity mistaken for quantity (4 TB / 3.84TB / 960GB; plus
+"pack of 4TB" / "pack of 4TiB" / "pack of 3.84" / "pack of 04" /
+"pack of 100000" / "014-pack" -> ambiguous, never established); tray with
+unknown quantity (observed TRAY, quantity None, never invented —
+CONTRADICTED vs single target, UNPROVEN vs a tray target lacking the
+count); bundle with unknown contents (bare "bundle" -> ambiguous;
+"bundle: 2x RAM + 1x CPU" -> observed BUNDLE with the published contents
+verbatim in the cue); conflicting title and structured packaging (both
+sides recorded with provenance; the channel is the fail-closed UNAVAILABLE,
+never either side); product revision number mistaken for quantity (no cue);
+seller SKU with a quantity-like token ("4PACK-SSD-001" / "2-BUNDLE-001" /
+"FACTORY-PACK-9" -> recorded set-aside, never evidence); multiple offers
+with different units (one observation = one offer; independent results,
+distinct input digests, no cross-contamination); manufacturer vs retailer
+packaging (the tray / factory-pack forms are distinct kinds; a published
+"4-Pack / Tray of 10" is CONTRADICTED — different unit claims; consistent
+repetition "Tray of 10 / Factory Pack of 10" is observed); missing
+packaging (the recorded absence, never SINGLE_UNIT); forged or
+model-generated packaging evidence (no input member is a model claim —
+signature-pinned; a cue cannot carry a foreign / non-extractor provenance
+source; a cue cannot claim text its field never published; the
+`raw_reference` is never read and never bound to the digest; a tampered /
+hand-forged result fails self-verification and produces no channel;
+inconsistent forged results are un-constructible); historical Prompt 2.0
+replay (the frozen live builder still records UNAVAILABLE over a loud
+title; the old token's derivation has no sales-unit input — passing one is
+contract misuse; both committed corpus artifacts and the frozen 2.0 /
+1.0.0 + 2.1 / 1.1.0 bindings re-pinned by digest); and the FU3
+PROVEN / UNPROVEN / CONTRADICTED interaction (every mapped channel through
+`sales_unit_authority_from_channel` and the tier derivation over
+MATCH + HIGH + STRONG, incl. the case-level recorded-input shape). Both
+false-positive resistance (no cue -> no channel value; never inferred from
+absence / MPN / price / image / raw reference / identifier fields / model
+claims) and preservation of valid observations (every unambiguous published
+cue -> the exact OBSERVED channel with its provenance) are demonstrated.
+No test deleted, renamed, skipped, xfailed, deselected, ignored, or
+weakened; no existing test file changed; the Windows subprocess flake
+allowlist NOT expanded.
+
+**Validation (this session; candidate pass — final approval remains with
+independent review).**
+
+* Collection baseline at `4033f21`: **7142**; final: **7251** (+109 = 101
+  new-file nodes + 8 auto-expanded parameterized boundary scans for the new
+  research file [research-core per-file x4, domain +1, providers +1, runs
+  +1, web +1]). Node-level diff against the starting SHA (independent
+  linked worktree, removed after use): **0 nodes removed / renamed;**
+  exactly the 109 additions above; no existing test file changed its node
+  count.
+* Focused new tests: **101 passed, 0 failed**.
+* Focused `tests/research/`: **all passed** apart from the documented
+  load-sensitive clean-interpreter subprocess guard flake class (see full
+  suite; every one re-passed isolated).
+* Focused `tests/semantic/` + `tests/evaluation/semantic_v2/` (frozen
+  replay): **780 passed, 0 failed**.
+* Focused `tests/execution/`: **858 passed, 0 failed**.
+* Focused `tests/domain/` + `tests/providers/` + `tests/runs/` +
+  `tests/web/`: all passed apart from the same flake class (re-passed
+  isolated, spaced).
+* Full suite (final, over the committed code): **7251 collected; 7240
+  passed, 11 failed** — the 11 failures are EXACTLY the members of the
+  documented load-sensitive clean-interpreter subprocess guard flake class
+  (the fixed eleven-node allowlist; every one `OSError: [WinError 6] The
+  handle is invalid` at `subprocess.py:1431` (`_winapi.DuplicateHandle`
+  inside `Popen.__init__ → _get_handles → _make_inheritable`) BEFORE any
+  project code runs; zero assertion failures, zero collection errors).
+  Isolated one-node-per-process re-runs: over the first full run 8/11
+  re-passed on the first attempt, the remaining 3 re-passed on spaced
+  retry; over the FINAL full run (after the last cue-table refinement)
+  ALL 11/11 re-passed on the first spaced isolated attempt (sustained
+  handle pressure from the back-to-back full runs — the same multi-
+  attempt behavior the Q3-B5-P1 audit recorded). No non-flake node
+  failed anywhere. The known flake allowlist was NOT expanded.
+* Skipped / xfailed / deselected: **0 / 0 / 0**.
+* `python manage.py check`: System check identified no issues (0 silenced).
+  `python manage.py makemigrations --check --dry-run`: No changes detected
+  (no model change; the component is pure research layer).
+* Worktree preservation: the pre-existing `tmp_collection.txt`
+  modification and ALL untracked session / evidence artifacts (the seven
+  historical benchmark artifacts, the three untracked Prompt 2.1 design
+  lineage documents, the tmp_* collection files) are untouched; the commit
+  stages only the phase files. The temporary linked worktree used for the
+  node-level diff was removed after use; the unrelated
+  `Product_Intelligence_recall_fix` worktree is preserved.
+
+No deployment performed. Q3-B5-P2 does NOT activate V2 authority, does
+NOT connect V2 to pricing aggregation, and does NOT change the frozen
+live-UNAVAILABLE contract: the extractor is the independently sourced,
+deterministic observability layer of the approved Option D firewall; its
+integration into the recorded input construction is the separately gated
+proposal above.
+
+
+**PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-Q3-B5-P1 (Semantic Authority V2 —
+Prompt 2.1 Versioned Implementation)
+
+— IMPLEMENTED / APPROVED / FROZEN (independently approved; the independent
+audit `docs/PRODUCT_INTEL_Q3B5_P1_INDEPENDENT_AUDIT.md` recorded at commit
+`4033f21` is a PASS with no required corrections; the documentation
+catch-up finding F-3 of that audit is addressed by this update)**
+
+Bounded PROMPT-2.1-CONTRACT phase on the authoritative starting SHA
+`e53d28c54840d296457dc586105cd3d1d545d394` (Q3-B4-FU2 endpoint; baseline
+collection 7034). Implements the approved Q3-B3-FU2 design (Revision 2):
+NEW `product_intelligence/semantic/contract_v2_1.py` (separately versioned
+owner: `SEMANTIC_PROMPT_VERSION_V2_1 = "2.1"`, the real 2.1
+system-prompt digest `e2949e7544d26228ac6f5555ae8ebd28019076e1de88ace25e
+79a5d942d818fc`, the 2.1 user-prompt renderer over the frozen 2.0
+rendering + the two approved annotation lines, fail-closed on 2.0 drift);
+the 2.1 production binding registered as
+`("V2", "2.1", 1, 1, "SEMANTIC_AUTHORITY_V2_S2A_FU3")` — the separately
+versioned FU3 authority token per the Q3-B4 decision §6.2 /
+AD-Q3B4-5 (the approved correction of the design's §9.1 text); the
+corpus **1.1.0 binding-only re-seal** (`corpus_2_1.json` +
+`manifest_2_1.json`: 56/56 per-case documents byte-identical to 1.0.0,
+`label_revisions` empty, exactly `{corpus_version, semantic_contract_
+binding, corpus_digest}` moved; digest `14396eae884841e20063cb4da0d4424c
+e8f05ff8745f2c787fc395d250ea8dcd`); the harness pin extensions (corpus /
+capture / direct_capture / live_capture / gates / report / cli accept
+exactly the two known production bindings; the PRODUCTION_ROUTE loader
+stays 2.0-only; unknown / cross-version / forged axes fail closed); the
+committed 2.1 no-capture baseline reports for both pinned candidates.
+NO recapture, NO deployment, NO authority promotion, NO corpus label
+change; the frozen 2.0 contract (`contract_v2.py`, digest
+`c0cc98bdd6d357e81d4692218f18d354351fc2833267b3062b7cd74b18445a84`),
+corpus 1.0.0, the DRAFT policy, the FU3 module, and
+`V2_AUTHORITY_QUALIFIED = False` (both pinned locations) are
+byte-unchanged (independently verified by the audit). Tests: 108 NEW
+nodes in four new files (`tests/semantic/test_contract_v2_1.py` 49,
+`tests/evaluation/semantic_v2/test_q3b5_p1_corpus_2_1.py` 20,
+`test_q3b5_p1_binding_replay.py` 20, `test_q3b5_p1_adversarial.py` 19).
+Collection 7034 -> 7142 (+108; no auto-expanded scan — the only new
+production file sits in `semantic/`, which no per-file research boundary
+scan parameterizes over). The independent audit (commit `4033f21`,
+document-only): PASS; test preservation exact (0 removed / 0 renamed /
++108); the re-seal verified field-by-field with independently recomputed
+digests; every forged-binding / forged-token / cross-version / tampered-
+report negative case executed against the actual code and refused; the
+prompt verified line-faithful to the approved design (one disclosed,
+authorized deviation accounted for — the RESPONSE FORMAT sentence keeps
+the frozen 2.0 wording, the design's own marker; finding F-1, no impact);
+findings F-4 (the DRAFT policy is scoped to corpus 1.0.0, so 2.1 /
+1.1.0 evaluations can only decide POLICY_PENDING until Q3-C's policy-
+governance step) and F-6 (the report seals but does not recompute the
+system-prompt digest — a carried pre-P1 property) recorded for Q3-C. The
+Q3-B5-P2 operator briefing and this update record the approval.
+
+
+**PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-Q3-B4-FU2 (Semantic Authority V2 —
+Sales-Unit Authority Firewall Correction)
+
+— IMPLEMENTED / APPROVED / FROZEN (independently approved; the approval is
+recorded by the Q3-B5-P1 and Q3-B5-P2 operator briefings and by this
+update; the Q3-B5-P1 binding and the Q3-B5-P2 extraction layer execute
+exactly against the corrected contract)**
+
+Bounded CONTRACT-CORRECTION phase on the reviewed Q3-B4-FU1 candidate
+(starting SHA `d70b137c4a95a5044fc421768ee8eab4bbb2325c`; baseline
+collection 7021), correcting the two independent review defects of the
+FU1 candidate. The frozen S2-A module (token
+`SEMANTIC_AUTHORITY_V2_S2A_FU2`) is byte-unchanged (file-level digest pin
+passes); the old token's derivation, records, tests, and replays are
+unchanged; `V2_AUTHORITY_QUALIFIED` stays False in both pinned locations;
+the corpus digest is unchanged; no deployment. **Blocker 1 — complete-
+unit equivalence:** the reviewed candidate returned PROVEN_EQUIVALENT for
+matching TRAY_OR_FACTORY_PACK / BUNDLE forms with the material quantity
+unknown on one or both sides. Corrected contract (the separately versioned
+`SEMANTIC_AUTHORITY_V2_S2A_FU3` derivation only): SINGLE_UNIT proves
+against the default / explicit single-unit target (CONTRADICTED against
+an established pack / tray / bundle target); PACK_QUANTITY proves only
+with the same published count on both sides; matching TRAY / BUNDLE form
+alone NEVER establishes equivalence — equal published counts on BOTH
+sides PROVEN_EQUIVALENT, unequal published counts CONTRADICTED, the count
+missing on EITHER side UNPROVEN; UNAVAILABLE -> UNPROVEN for every target
+shape. **Blocker 2 — CONTRADICTED fails closed independently of the
+model:** a recorded, independently derived sales-unit contradiction could
+yield the automatic pricing-eligible tier whenever the model returned
+MATCH (even MATCH + HIGH + STRONG + clean, empty conflict classes).
+Corrected by the new separately versioned restrict-only rule
+`AuthorityRuleV2FU3.CEILING_SALES_UNIT_CONTRADICTED`: a would-be
+AI_ASSISTED_COMPARABLE with a CONTRADICTED unit is capped at NEEDS_REVIEW
+(the invariant `CONTRADICTED -> never AI_ASSISTED_COMPARABLE` is also
+enforced at `AuthorityDecisionV2FU3` construction; the rule never lifts,
+never touches MACHINE_VERIFIED, never fabricates a model conflict class,
+and is mutually exclusive with the UNPROVEN-only ceiling; the frozen human-
+overlay precedence HARD_CONFLICT > HUMAN_CONFIRMED > AI is unchanged).
+Tests: 13 NEW mandated adversarial nodes in
+`tests/research/test_semantic_authority_v2_fu3.py` (seven of them failing
+against the pre-correction module — defect demonstrated); existing nodes
+corrected ONLY where they asserted the reviewed defective contract
+(documented in the commit); one test renamed with its pin updated to the
+corrected contract (the briefing-authorized vocabulary extension from one
+to exactly two restrict-only rules). Collection 7021 -> 7034 (+13). Full
+suite at the FU2 endpoint: 7034 collected, 7034 passed (the two preceding
+runs each showed 2 failures of the documented subprocess flake class,
+every one re-passed isolated; allowlist not expanded).
+
+
+**PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-Q3-B4-FU1 (Semantic Authority V2 —
+Contract Firewall Foundation)
+
+— IMPLEMENTED / APPROVED (AS CORRECTED BY Q3-B4-FU2) / FROZEN (reviewed
+with two independent blockers, both corrected in Q3-B4-FU2, recorded
+above; this phase is the foundation of record for the separately
+versioned firewall contract)**
+
+Bounded CONTRACT-ONLY phase on the Q3-B4 decision (starting SHA
+`4b2ed6c5ef368dd75b8ae2f86fc1e1ae58c21550`; baseline collection 6928):
+NEW `product_intelligence/research/semantic_authority_fu3.py` — the
+separately versioned authority contract token
+`SEMANTIC_AUTHORITY_V2_S2A_FU3` behind which live ONLY: (1)
+`IdentityResolutionBoundV2` (PART_NUMBER / FAMILY_DESCRIPTION /
+DESCRIPTION / NONE) — the frozen 14-row bound table over the recorded
+deterministic state + reviewed provenances (the model never sets it);
+(2) `SalesUnitAuthorityV2` (PROVEN_EQUIVALENT / UNPROVEN /
+CONTRADICTED) — the recorded-channel derivation (default single-unit
+target; explicit target-side evidence with bounded provenance; fail-
+closed UNPROVEN default); (3) the restrict-only
+`CEILING_SALES_UNIT_NOT_PROVEN` rule on the automatic tier; (4) per-
+binding dispatch (`derive_authority_tier_for_contract`: the old token
+replays through the UNCHANGED frozen derivation; unknown tokens fail
+closed). The frozen S2-A module is byte- and behavior-unchanged; nothing
+live references the new token (import-scanned); no production record can
+carry it; `V2_AUTHORITY_QUALIFIED` stays False. Tests: 85 NEW nodes in
+`tests/research/test_semantic_authority_v2_fu3.py` (+ the research
+package export surface, strictly additive). Collection 6928 -> 7021
+(+93 = 85 new-file nodes + 8 auto-expanded boundary scans).
+
+
+**PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-Q3-B4 (Semantic Authority V2 —
+Semantic MATCH Authority Boundary Decision)
+
+— APPROVED (decision document of record;
+`docs/PRODUCT_INTEL_SEMANTIC_V2_Q3B4_AUTHORITY_BOUNDARY_DECISION.md`,
+committed design-only on the Q3-B3-FU2 endpoint, baseline collection
+6928; its six decisions AD-Q3B4-1..6 are ratified — the defect record,
+Task A Option B (the independently derived
+`IdentityResolutionBoundV2` at the separately versioned S2-A-FU3
+boundary), Task B Option D (the combined firewall: FU3 restrict-only
+derivation ceiling + mandatory atomic fail-closed consumer guard at the
+first V2 pricing wiring + P2 extraction as the independent observability
+phase), the AD-066 ratification, the 2.1 binding ordering (FU3 token),
+and the Q3-C conditioning — by the subsequent separately approved
+phases that execute exactly per them: Q3-B4-FU1 / Q3-B4-FU2 (the FU3
+contract) and Q3-B5-P1 (the 2.1 binding under the FU3 token, verified by
+the independent audit))**
+
+The decision document resolves the two remaining Prompt 2.1 blockers as a
+bounded decision proposal: Task A (executable MATCH semantics — the
+frozen derivation consumes only decision / confidence / conflict classes,
+so the within-MATCH identity resolutions are unenforceable downstream;
+Option C rejected with its recorded conflicts) and Task B (the structural
+sales-unit blindness of the frozen derivation — the §4.1 invariant: a
+fully qualified semantic MATCH must never auto-price on an unproven or
+contradicted commercial sales unit), with the exact bounded derivation
+tables, the adversarial acceptance matrix (rows 1-11), the phase plan
+(FU3 / P1 / P2 / P3 / Q3-C / W1), and the explicit ordering constraints
+(consumer guard atomic with the first V2 pricing wiring; Q3-C conditioned
+on the FU3 disposition; P3's production effect conditioned on the
+firewall; P2 independent). This phase is CONTRACT DESIGN ONLY: no code,
+no test, no capture, no deployment.
+
+
+**PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-Q3-B3-FU2 (Semantic Authority V2 —
+Prompt 2.1 Design: Identity Sufficiency and Sales-Unit Safety Correction)
+
+— APPROVED (design document of record;
+`docs/PRODUCT_INTEL_SEMANTIC_V2_PROMPT_2_1_DESIGN_Q3B3_FU2.md`, Revision
+2, committed design-only on the Q3-B-FU1 endpoint, baseline collection
+6928; approved by the Q3-B4 decision's lineage and implemented exactly by
+Q3-B5-P1 — the independent P1 audit verified the implemented prompt line-
+faithful against this revision and names it the approved design; the
+earlier revisions (original + FU1 revision 1) remain untracked session
+documents, not part of the committed record)**
+
+Bounded DESIGN-CORRECTION-ONLY follow-up on the Prompt 2.1 design
+(revision 1). Blocker A — product identity vs specification alignment:
+the six evidence classes and the IDENTITY RESOLUTION vocabulary
+(part-number / family+description / description) become explicit contract
+language; a G2/G3 MATCH asserts equivalence at the stated resolution and
+never part-number identity or unique product identification (alignment is
+not uniqueness); the eleven-case audit shows 11/11 expected-MATCH labels
+SUPPORTABLE at the stated resolution (zero corpus-contract conflicts; no
+label moved). Blocker B — sales-unit unknown and future authority: the
+six-way separation (physical identity / sales-unit equivalence / price
+comparability / semantic decision / derived tier / actual pricing
+eligibility); the sales-unit outcome table P1-P6 (known / equal; known /
+different -> the absolute rule NO_MATCH; unavailable non-critical;
+unavailable critical / entangled U5 -> UNCERTAIN, MATCH blocked;
+ambiguous raw cue -> UNCERTAIN naming PACKAGING_QUANTITY / BUNDLE, never
+MATCH or NO_MATCH on the cue alone); the UNPROVEN sales-unit
+non-criticality rule; the raw-cue evidence base for the absolute rule
+(required because the live channel is ALWAYS UNAVAILABLE — the recorded
+R1 / R2 residual); and the explicit note that extraction (P2) is the
+independent observability phase that grounds P2 / P6 deterministically.
+NO implementation, NO live capture, NO deployment, NO authority
+promotion, NO corpus label change, NO model call. The Q3-B4 decision
+recorded the two remaining blockers this revision resolves (Task A /
+Task B) as decision proposals.
+
+
 **PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-Q3-B-FU1 (Semantic Authority V2 —
 
 Live Capture Security and Abort-Safety Correction)
