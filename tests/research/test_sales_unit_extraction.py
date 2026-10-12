@@ -7,10 +7,15 @@ Q3-B4 decision's Option D observability phase (roadmap row P2):
 
 * P1. UNAMBIGUOUS RECOGNITION (preservation of valid observations) — the
   single retail unit, a pack of N, an N-unit factory pack, a tray with an
-  established quantity, and a bundle with established contents / quantity
-  are recorded as bounded cues with their full provenance, and the
-  fail-closed mapping fills the frozen S2-C-FU1 channel's OBSERVED state
-  (kind + quantity + the exact published text + the cue's source).
+  established quantity, and a bundle with PUBLISHED CONTENTS are recorded
+  as bounded cues with their full provenance (a bundle count WITHOUT
+  published contents is ambiguous, never established — the Q3-B5-P2-FU1
+  correction), and the fail-closed mapping fills the frozen S2-C-FU1
+  channel's OBSERVED state (kind + quantity + the exact published text +
+  the cue's source). An independently unresolved ambiguous cue — of ANY
+  kind, including the established kind — blocks OBSERVED_UNAMBIGUOUS;
+  only a genuine duplicate / subsumed cue deterministically proven by the
+  exact published spans is admitted (the documented subsumption rule).
 * P2. SPECIFICATION QUANTITIES ARE NOT SALES QUANTITIES (false-positive
   resistance) — capacity values (4 TB / 3.84TB), chassis height (2U / 1U),
   dual-port networking, channel / lane counts (8-channel, PCIe 4.0 x4,
@@ -340,11 +345,24 @@ class TestUnambiguousRecognition:
         assert channel.quantity == quantity
 
     def test_bundle_with_established_contents_and_quantity(self) -> None:
+        # Q3-B5-P2-FU1 corrected contract (this node previously asserted
+        # the reviewed defective contract): "bundle of 3" publishes the
+        # bundle form + a count but NOT the composition. A published
+        # count alone is not the complete identity of a bundle, so the
+        # cue is ambiguous (BUNDLE_WITHOUT_CONTENTS), never established;
+        # the count stays verbatim in the cue text and is never bound to
+        # a quantity.
         result = _extract("bundle of 3 drives")
-        assert result.state is OBS
-        assert result.established_kind is SalesUnitKindV2.BUNDLE
-        assert result.established_quantity == 3
-        _cue_state(result, [(SalesUnitKindV2.BUNDLE, 3, EST, None)])
+        assert result.state is AMB
+        assert result.established_kind is None
+        assert result.established_quantity is None
+        _cue_state(
+            result,
+            [(SalesUnitKindV2.BUNDLE, None, AMBD, REASON.BUNDLE_WITHOUT_CONTENTS)],
+        )
+        assert result.cues[0].cue_text == "bundle of 3"
+        channel = sui.sales_unit_channel_from_extraction(result)
+        assert channel.state is PackagingEvidenceStateV2.UNAVAILABLE
 
     def test_bundle_contents_marker_records_the_published_contents(self) -> None:
         title = "bundle: 2x RAM + 1x CPU"
@@ -362,10 +380,21 @@ class TestUnambiguousRecognition:
         assert channel.raw_detail == "bundle: 2x RAM + 1x CPU"
 
     def test_n_unit_bundle_phrases_are_observed(self) -> None:
+        # Q3-B5-P2-FU1 corrected contract (this node previously asserted
+        # the reviewed defective contract): "3-Unit Bundle" publishes a
+        # bundle count WITHOUT the composition — ambiguous (observed
+        # bundle form/count; composition unverified), never established.
         result = _extract("3-Unit Bundle")
-        assert result.state is OBS
-        assert result.established_kind is SalesUnitKindV2.BUNDLE
-        assert result.established_quantity == 3
+        assert result.state is AMB
+        assert result.established_kind is None
+        assert result.established_quantity is None
+        _cue_state(
+            result,
+            [(SalesUnitKindV2.BUNDLE, None, AMBD, REASON.BUNDLE_WITHOUT_CONTENTS)],
+        )
+        assert result.cues[0].cue_text == "3-Unit Bundle"
+        channel = sui.sales_unit_channel_from_extraction(result)
+        assert channel.state is PackagingEvidenceStateV2.UNAVAILABLE
 
     def test_structured_field_cue_is_observed_with_its_provenance(self) -> None:
         result = _extract("Plain SSD title", structured="Pack of 4")
@@ -822,12 +851,19 @@ class TestContradictionAndAmbiguityRepresentation:
     def test_same_kind_ambiguous_cue_is_subsumed_by_the_established_claim(
         self,
     ) -> None:
-        # "4-Pack (pack)": the bare second "pack" word is the same kind as
-        # the established claim — subsumed, still recorded.
+        # Q3-B5-P2-FU1 corrected contract (this node previously asserted
+        # the reviewed defective contract): "4-Pack (pack)" — the bare
+        # second "pack" word is an INDEPENDENT, unresolved ambiguous cue
+        # of the established kind. Matching packaging kinds alone never
+        # prove that it describes the same commercial unit (it could be
+        # a further, nested pack), so it blocks the established claim.
+        # Genuine subsumed duplicates are admitted only when their
+        # relationship is deterministically proven by the exact published
+        # spans (TestQ3B5P2FU1PackagingAmbiguityAndBundleIdentity).
         result = _extract("4-Pack (pack)")
-        assert result.state is OBS
-        assert result.established_kind is SalesUnitKindV2.PACK_QUANTITY
-        assert result.established_quantity == 4
+        assert result.state is AMB
+        assert result.established_kind is None
+        assert result.established_quantity is None
         _cue_state(
             result,
             [
@@ -835,8 +871,11 @@ class TestContradictionAndAmbiguityRepresentation:
                 (SalesUnitKindV2.PACK_QUANTITY, None, AMBD, REASON.PACK_WITHOUT_COUNT),
             ],
         )
+        # Every cue (established and ambiguous) is preserved with its
+        # full provenance in the blocked result.
+        assert len(result.cues) == 2
         channel = sui.sales_unit_channel_from_extraction(result)
-        assert channel.quantity == 4
+        assert channel.state is PackagingEvidenceStateV2.UNAVAILABLE
 
     def test_state_vocabulary_is_bounded_to_exactly_four_states(self) -> None:
         assert {s.value for s in sui.SalesUnitExtractionState} == {
@@ -1204,11 +1243,24 @@ class TestFu3Interaction:
             )
             is SalesUnitAuthorityV2.PROVEN_EQUIVALENT
         )
+        # Q3-B5-P2-FU1 corrected contract (this node previously asserted
+        # the reviewed defective contract, where "bundle of 3" mapped to
+        # an OBSERVED BUNDLE quantity-3 channel and PROVED equivalence
+        # against a target-side bundle of the same count): a count-only
+        # bundle publishes no established unit (the composition is
+        # unverified), so its mapped channel is the recorded absence —
+        # UNPROVEN for EVERY target shape, including a target-side
+        # bundle of the same count.
+        assert bundle_3.state is PackagingEvidenceStateV2.UNAVAILABLE
+        assert (
+            sales_unit_authority_from_channel(bundle_3)
+            is SalesUnitAuthorityV2.UNPROVEN
+        )
         assert (
             sales_unit_authority_from_channel(
                 bundle_3, _target(TargetSalesUnitFormV2.BUNDLE, 3)
             )
-            is SalesUnitAuthorityV2.PROVEN_EQUIVALENT
+            is SalesUnitAuthorityV2.UNPROVEN
         )
         # The material quantity unverified on one side: unproven.
         assert (
@@ -1231,8 +1283,15 @@ class TestFu3Interaction:
             ("pack", None),  # ambiguous
             ("Tray of 10 (bundle)", None),  # blocked ambiguous
             ("pack of 4", "Single Unit"),  # contradicted
+            ("bundle of 3", None),  # count-only bundle: composition unverified
         ],
-        ids=["missing", "ambiguous", "blocked-ambiguous", "contradicted"],
+        ids=[
+            "missing",
+            "ambiguous",
+            "blocked-ambiguous",
+            "contradicted",
+            "count-only-bundle",
+        ],
     )
     def test_non_observed_states_are_never_proven_for_any_target(
         self, title, structured
@@ -1424,6 +1483,559 @@ class TestFu3Interaction:
         assert channel.source in (
             CandidateEvidenceSourceV2.LISTING_TITLE,
             CandidateEvidenceSourceV2.PUBLISHED_STRUCTURED_FIELD,
+        )
+
+
+# ===========================================================================
+# P7-FU1. Q3-B5-P2-FU1 — Packaging ambiguity and bundle identity
+# correction (mandated regression matrix over the independent source
+# review)
+# ===========================================================================
+
+
+class TestQ3B5P2FU1PackagingAmbiguityAndBundleIdentity:
+    """The Q3-B5-P2-FU1 corrected contract:
+
+    * an independently unresolved ambiguous cue — of ANY kind, including
+      the established kind — prevents OBSERVED_UNAMBIGUOUS (matching
+      packaging kinds alone never prove that the ambiguous cue describes
+      the same commercial unit);
+    * a genuine duplicate / subsumed cue is admitted only when its
+      relationship is deterministically proven by the exact published
+      spans (the documented subsumption rule), enforced identically by
+      the state resolution and the result constructor;
+    * a published bundle count is NOT the complete identity of a bundle
+      (observed form/count vs verified composition): a count-only bundle
+      is ambiguous, never established, and the frozen FU3 derivation is
+      never PROVEN for it — including against a target-side bundle of
+      the same count.
+    """
+
+    # -- Blocker 1: ambiguous cues must prevent OBSERVED_UNAMBIGUOUS ----
+
+    def test_pack_of_four_plus_unresolved_pack_blocks_observed(self) -> None:
+        """Mandated regression 1: an established "pack of 4" plus an
+        unresolved bare "pack" of the same kind. The independent bare
+        pack is not proven to describe the same commercial unit — the
+        established claim is blocked, every cue is preserved with its
+        full provenance, and the channel fails closed to the recorded
+        absence (FU3: UNPROVEN for every target shape)."""
+        result = _extract("1.92TB M.2 SSD, pack of 4 (pack)")
+        assert result.state is AMB
+        assert result.established_kind is None
+        assert result.established_quantity is None
+        _cue_state(
+            result,
+            [
+                (SalesUnitKindV2.PACK_QUANTITY, 4, EST, None),
+                (SalesUnitKindV2.PACK_QUANTITY, None, AMBD, REASON.PACK_WITHOUT_COUNT),
+            ],
+        )
+        channel = sui.sales_unit_channel_from_extraction(result)
+        assert channel.state is PackagingEvidenceStateV2.UNAVAILABLE
+        for target in (
+            None,
+            _target(TargetSalesUnitFormV2.PACK_QUANTITY, 4),
+            _target(TargetSalesUnitFormV2.SINGLE_UNIT),
+        ):
+            assert (
+                sales_unit_authority_from_channel(channel, target)
+                is SalesUnitAuthorityV2.UNPROVEN
+            ), target
+
+    def test_pack_of_four_plus_pack_of_eight_is_contradicted(self) -> None:
+        """Mandated regression 2: two established cues of the same kind
+        publish incompatible counts — every side is recorded with its
+        full provenance; the channel is the fail-closed recorded absence
+        (a candidate-internal contradiction stays UNPROVEN, never
+        CONTRADICTED at the derivation level, never proven)."""
+        result = _extract("SSD pack of 4 ... pack of 8")
+        assert result.state is CON
+        assert result.established_kind is None
+        assert result.established_quantity is None
+        _cue_state(
+            result,
+            [
+                (SalesUnitKindV2.PACK_QUANTITY, 4, EST, None),
+                (SalesUnitKindV2.PACK_QUANTITY, 8, EST, None),
+            ],
+        )
+        channel = sui.sales_unit_channel_from_extraction(result)
+        assert channel.state is PackagingEvidenceStateV2.UNAVAILABLE
+        for target in (
+            None,
+            _target(TargetSalesUnitFormV2.PACK_QUANTITY, 4),
+            _target(TargetSalesUnitFormV2.PACK_QUANTITY, 8),
+        ):
+            assert (
+                sales_unit_authority_from_channel(channel, target)
+                is SalesUnitAuthorityV2.UNPROVEN
+            ), target
+
+    def test_exact_duplicate_pack_of_four_cues_are_observed(self) -> None:
+        """Mandated regression 3: the exact repeated publication of the
+        same established claim ("pack of 4" twice) is a consistent
+        repetition — still OBSERVED_UNAMBIGUOUS with both cues recorded,
+        the channel is OBSERVED, and FU3 proves it against a target-side
+        pack of the same count (contradicts a different one)."""
+        result = _extract("pack of 4, pack of 4")
+        assert result.state is OBS
+        assert result.established_kind is SalesUnitKindV2.PACK_QUANTITY
+        assert result.established_quantity == 4
+        _cue_state(
+            result,
+            [
+                (SalesUnitKindV2.PACK_QUANTITY, 4, EST, None),
+                (SalesUnitKindV2.PACK_QUANTITY, 4, EST, None),
+            ],
+        )
+        channel = sui.sales_unit_channel_from_extraction(result)
+        assert channel.state is PackagingEvidenceStateV2.OBSERVED
+        assert channel.quantity == 4
+        assert (
+            sales_unit_authority_from_channel(
+                channel, _target(TargetSalesUnitFormV2.PACK_QUANTITY, 4)
+            )
+            is SalesUnitAuthorityV2.PROVEN_EQUIVALENT
+        )
+        assert (
+            sales_unit_authority_from_channel(
+                channel, _target(TargetSalesUnitFormV2.PACK_QUANTITY, 8)
+            )
+            is SalesUnitAuthorityV2.CONTRADICTED
+        )
+
+    def test_structured_packaging_conflicting_with_title_reverse_roles(
+        self,
+    ) -> None:
+        """Mandated regression 4 (reverse roles over the existing
+        title-contradiction node): the structured field says pack of
+        four, the title says single unit. Both sides are recorded with
+        their own provenance; the channel is the fail-closed recorded
+        absence, never either side."""
+        result = _extract("ABC-123 SSD single unit", structured="pack of 4")
+        assert result.state is CON
+        assert result.established_kind is None
+        assert result.established_quantity is None
+        by_field = {c.field: c for c in result.cues}
+        assert set(by_field) == {
+            FIELD.STRUCTURED_PACKAGING_FIELD,
+            FIELD.PRODUCT_TITLE,
+        }
+        structured_cue = by_field[FIELD.STRUCTURED_PACKAGING_FIELD]
+        title_cue = by_field[FIELD.PRODUCT_TITLE]
+        assert structured_cue.kind is SalesUnitKindV2.PACK_QUANTITY
+        assert structured_cue.quantity == 4
+        assert structured_cue.source is (
+            CandidateEvidenceSourceV2.PUBLISHED_STRUCTURED_FIELD
+        )
+        assert title_cue.kind is SalesUnitKindV2.SINGLE_UNIT
+        assert title_cue.source is CandidateEvidenceSourceV2.LISTING_TITLE
+        channel = sui.sales_unit_channel_from_extraction(result)
+        assert channel.state is PackagingEvidenceStateV2.UNAVAILABLE
+        assert (
+            sales_unit_authority_from_channel(channel)
+            is SalesUnitAuthorityV2.UNPROVEN
+        )
+
+    def test_same_kind_noncanonical_quantity_cue_blocks_observed(self) -> None:
+        # The Blocker-1 rule is not pack-specific: an independent
+        # non-canonical quantity cue of the established kind also blocks
+        # the established claim (matching packaging kinds never prove
+        # the ambiguous cue describes the same commercial unit).
+        result = _extract("Tray of 10, tray of 10.5")
+        assert result.state is AMB
+        assert result.established_kind is None
+        assert result.established_quantity is None
+        _cue_state(
+            result,
+            [
+                (SalesUnitKindV2.TRAY_OR_FACTORY_PACK, 10, EST, None),
+                (
+                    SalesUnitKindV2.TRAY_OR_FACTORY_PACK,
+                    None,
+                    AMBD,
+                    REASON.NON_CANONICAL_QUANTITY,
+                ),
+            ],
+        )
+        channel = sui.sales_unit_channel_from_extraction(result)
+        assert channel.state is PackagingEvidenceStateV2.UNAVAILABLE
+
+    # -- The documented subsumed-duplicate rule --------------------------
+
+    @staticmethod
+    def _hand_cue(
+        raw: str,
+        start: int,
+        end: int,
+        kind: SalesUnitKindV2,
+        quantity: int | None,
+        disposition: sui.SalesUnitCueDisposition,
+        reason: sui.SalesUnitCueReason | None = None,
+        field: sui.SalesUnitCueField = FIELD.PRODUCT_TITLE,
+    ) -> sui.SalesUnitCueV1:
+        source = (
+            CandidateEvidenceSourceV2.LISTING_TITLE
+            if field is FIELD.PRODUCT_TITLE
+            else CandidateEvidenceSourceV2.PUBLISHED_STRUCTURED_FIELD
+        )
+        return sui.SalesUnitCueV1(
+            field=field,
+            source=source,
+            raw_field_value=raw,
+            cue_text=raw[start:end],
+            cue_start=start,
+            cue_end=end,
+            kind=kind,
+            quantity=quantity,
+            disposition=disposition,
+            reason=reason,
+        )
+
+    def _hand_result(
+        self,
+        state: sui.SalesUnitExtractionState,
+        cues: list[sui.SalesUnitCueV1],
+        kind: SalesUnitKindV2 | None = None,
+        quantity: int | None = None,
+    ) -> sui.SalesUnitExtractionResult:
+        """A hand-built result with the correct result digest over the
+        canonical (sorted) cue order — proves the constructor-level
+        safety rule directly, independent of the scan engine."""
+        ordered = tuple(
+            sorted(
+                cues,
+                key=lambda c: (
+                    list(FIELD).index(c.field),
+                    c.cue_start,
+                    c.cue_end,
+                ),
+            )
+        )
+        input_digest = "0" * 64
+        return sui.SalesUnitExtractionResult(
+            schema_version=1,
+            state=state,
+            cues=ordered,
+            identifier_field_notes=(),
+            established_kind=kind,
+            established_quantity=quantity,
+            input_digest=input_digest,
+            result_digest=sui._result_digest(
+                1, state, ordered, (), kind, quantity, input_digest
+            ),
+        )
+
+    def test_constructor_rejects_independent_same_kind_ambiguous_cue(
+        self,
+    ) -> None:
+        # The result constructor validates the SAME safety rule as state
+        # resolution: a hand-built OBSERVED result whose ambiguous cue is
+        # an independent published occurrence (a separate span) of the
+        # established kind is un-constructible.
+        raw = "4-Pack (pack)"
+        est = self._hand_cue(
+            raw, 0, 6, SalesUnitKindV2.PACK_QUANTITY, 4, EST
+        )
+        ind = self._hand_cue(
+            raw,
+            8,
+            12,
+            SalesUnitKindV2.PACK_QUANTITY,
+            None,
+            AMBD,
+            REASON.PACK_WITHOUT_COUNT,
+        )
+        with pytest.raises(ValueError, match="subsumed-duplicate"):
+            self._hand_result(OBS, [est, ind], SalesUnitKindV2.PACK_QUANTITY, 4)
+        # The same cues ARE constructible under AMBIGUOUS_CUE (blocked,
+        # every side recorded) — provenance is preserved, never dropped.
+        result = self._hand_result(AMB, [est, ind])
+        assert len(result.cues) == 2
+
+    def test_constructor_admits_exact_span_proven_subsumed_cue(self) -> None:
+        # The documented subsumption rule: an ambiguous cue is a genuine
+        # duplicate / subsumed cue of the established claim only when its
+        # relationship is deterministically proven by the exact published
+        # spans (same examined field, span contained in the established
+        # cue's span, same kind — a fragment of the same published
+        # phrase). The constructor admits exactly that shape.
+        raw = "bundle: 2x RAM + 1x CPU"
+        est = self._hand_cue(raw, 0, len(raw), SalesUnitKindV2.BUNDLE, None, EST)
+        sub = self._hand_cue(
+            raw,
+            0,
+            6,
+            SalesUnitKindV2.BUNDLE,
+            None,
+            AMBD,
+            REASON.BUNDLE_WITHOUT_CONTENTS,
+        )
+        result = self._hand_result(OBS, [est, sub], SalesUnitKindV2.BUNDLE, None)
+        assert result.state is OBS
+        assert len(result.cues) == 2
+        # The scan engine's ordered alternatives never emit an
+        # overlapping pair, so no extracted result depends on this path:
+        # it is the documented, deterministically proven rule only.
+
+    @pytest.mark.parametrize(
+        ("start", "end", "field", "kind"),
+        [
+            (17, 23, FIELD.PRODUCT_TITLE, SalesUnitKindV2.BUNDLE),
+            (0, 6, FIELD.STRUCTURED_PACKAGING_FIELD, SalesUnitKindV2.BUNDLE),
+            (0, 6, FIELD.PRODUCT_TITLE, SalesUnitKindV2.PACK_QUANTITY),
+        ],
+        ids=["non-contained-span", "different-field", "different-kind"],
+    )
+    def test_constructor_rejects_unproven_subsumption_shapes(
+        self, start, end, field, kind
+    ) -> None:
+        # Subsumption is proven ONLY by the exact published spans: a
+        # non-contained span, a different examined field, or a different
+        # kind is never a subsumed duplicate — the OBSERVED result is
+        # un-constructible.
+        raw = "bundle: 2x RAM. bundle"
+        est = self._hand_cue(raw, 0, 14, SalesUnitKindV2.BUNDLE, None, EST)
+        bad = self._hand_cue(
+            raw, start, end, kind, None, AMBD, REASON.BUNDLE_WITHOUT_CONTENTS,
+            field=field,
+        )
+        with pytest.raises((ValueError, TypeError)):
+            self._hand_result(OBS, [est, bad], SalesUnitKindV2.BUNDLE, None)
+
+    # -- Blocker 2: bundle form/count vs verified composition -----------
+
+    def test_bundle_of_three_without_contents(self) -> None:
+        """Mandated regression 5: "bundle of 3" — a published count, no
+        published contents. The observed bundle form/count is not the
+        verified bundle composition: the cue is ambiguous (never
+        established), the count is never bound to a quantity, the
+        channel is the recorded absence, and the frozen FU3 derivation
+        is UNPROVEN for every target shape — including a target-side
+        bundle of the same count."""
+        result = _extract("bundle of 3")
+        assert result.state is AMB
+        assert result.established_kind is None
+        assert result.established_quantity is None
+        _cue_state(
+            result,
+            [(SalesUnitKindV2.BUNDLE, None, AMBD, REASON.BUNDLE_WITHOUT_CONTENTS)],
+        )
+        # The published count stays verbatim in the cue text.
+        assert result.cues[0].cue_text == "bundle of 3"
+        channel = sui.sales_unit_channel_from_extraction(result)
+        assert channel.state is PackagingEvidenceStateV2.UNAVAILABLE
+        targets = [
+            None,
+            _target(TargetSalesUnitFormV2.SINGLE_UNIT),
+            _target(TargetSalesUnitFormV2.PACK_QUANTITY, 4),
+            _target(TargetSalesUnitFormV2.TRAY_OR_FACTORY_PACK, 10),
+            _target(TargetSalesUnitFormV2.BUNDLE, 3),
+            _target(TargetSalesUnitFormV2.BUNDLE),
+        ]
+        for target in targets:
+            assert (
+                sales_unit_authority_from_channel(channel, target)
+                is SalesUnitAuthorityV2.UNPROVEN
+            ), target
+
+    def test_two_bundles_with_equal_counts_but_different_contents(self) -> None:
+        """Mandated regression 6: two bundles with equal counts but
+        different contents are not commercially equivalent. Under the
+        frozen contract, no extraction-derived bundle channel proves
+        equivalence against a target-side bundle of the same count:
+        the count-only bundle publishes the recorded absence, and the
+        composition-verified bundle publishes a quantity-None channel
+        (the material count unverified on that side)."""
+        count_only = _channel("bundle of 3")
+        assert count_only.state is PackagingEvidenceStateV2.UNAVAILABLE
+        assert (
+            sales_unit_authority_from_channel(
+                count_only, _target(TargetSalesUnitFormV2.BUNDLE, 3)
+            )
+            is SalesUnitAuthorityV2.UNPROVEN
+        )
+        verified = _channel("bundle: 2x RAM + 1x CPU")
+        assert verified.state is PackagingEvidenceStateV2.OBSERVED
+        assert verified.kind is SalesUnitKindV2.BUNDLE
+        assert verified.quantity is None
+        assert verified.raw_detail == "bundle: 2x RAM + 1x CPU"
+        # Contents verified on the candidate side, count-only target:
+        # never proven (the count is material and unverified on the
+        # candidate side).
+        assert (
+            sales_unit_authority_from_channel(
+                verified, _target(TargetSalesUnitFormV2.BUNDLE, 3)
+            )
+            is SalesUnitAuthorityV2.UNPROVEN
+        )
+        assert (
+            sales_unit_authority_from_channel(
+                verified, _target(TargetSalesUnitFormV2.BUNDLE)
+            )
+            is SalesUnitAuthorityV2.UNPROVEN
+        )
+        # Against the default single-unit target the published bundle is
+        # a published incompatible unit (contradicted, never proven).
+        assert (
+            sales_unit_authority_from_channel(verified)
+            is SalesUnitAuthorityV2.CONTRADICTED
+        )
+
+    def test_bundle_contents_known_on_only_one_side(self) -> None:
+        """Mandated regression 7: the composition is verified on only
+        the candidate side ("bundle: 2x RAM + 1x CPU"); the frozen
+        target-side record carries a form + optional count, no
+        composition field. The material count is unverified on the
+        candidate side -> UNPROVEN (the frozen channel cannot prove
+        composition equivalence from one side's record)."""
+        verified = _channel("bundle: 2x RAM + 1x CPU")
+        assert (
+            sales_unit_authority_from_channel(
+                verified, _target(TargetSalesUnitFormV2.BUNDLE, 3)
+            )
+            is SalesUnitAuthorityV2.UNPROVEN
+        )
+        assert (
+            sales_unit_authority_from_channel(
+                verified, _target(TargetSalesUnitFormV2.BUNDLE)
+            )
+            is SalesUnitAuthorityV2.UNPROVEN
+        )
+        # And the count-only candidate against a target-side bundle
+        # record (contents known on only one side is not representable
+        # in the frozen target record): the recorded absence.
+        count_only = _channel("bundle of 3")
+        assert (
+            sales_unit_authority_from_channel(
+                count_only, _target(TargetSalesUnitFormV2.BUNDLE, 3)
+            )
+            is SalesUnitAuthorityV2.UNPROVEN
+        )
+
+    def test_two_identical_independently_verified_bundle_compositions(self) -> None:
+        """Mandated regression 8: two identical, independently verified
+        bundle compositions. The extraction layer establishes each one
+        (OBSERVED BUNDLE, the contents verbatim in the cue and the
+        channel raw detail, quantity None — the count is never salvaged
+        from the composition); the frozen FU3 derivation still cannot
+        prove equivalence (the frozen channel carries no composition
+        fact and the derivation reads form + count only) -> UNPROVEN,
+        never PROVEN. The exact versioned contract amendment that WOULD
+        represent composition equivalence is reported (separately
+        approval-gated; the frozen FU3 implementation and acceptance
+        criteria are unchanged)."""
+        result_a = _extract("bundle: 2x RAM + 1x CPU")
+        result_b = _extract("bundle: 2x RAM + 1x CPU", sku="OTHER-OFFER-SKU")
+        assert result_a.state is OBS
+        assert result_b.state is OBS
+        assert result_a.established_kind is SalesUnitKindV2.BUNDLE
+        assert result_b.established_kind is SalesUnitKindV2.BUNDLE
+        assert result_a.established_quantity is None
+        assert result_b.established_quantity is None
+        assert result_a.cues[0].cue_text == "bundle: 2x RAM + 1x CPU"
+        assert result_b.cues[0].cue_text == "bundle: 2x RAM + 1x CPU"
+        # Independent offers: distinct input bindings.
+        assert result_a.input_digest != result_b.input_digest
+        channel_a = sui.sales_unit_channel_from_extraction(result_a)
+        channel_b = sui.sales_unit_channel_from_extraction(result_b)
+        assert channel_a.raw_detail == channel_b.raw_detail
+        assert channel_a.quantity is None and channel_b.quantity is None
+        assert (
+            sales_unit_authority_from_channel(
+                channel_a, _target(TargetSalesUnitFormV2.BUNDLE)
+            )
+            is SalesUnitAuthorityV2.UNPROVEN
+        )
+        assert (
+            sales_unit_authority_from_channel(
+                channel_a, _target(TargetSalesUnitFormV2.BUNDLE, 3)
+            )
+            is SalesUnitAuthorityV2.UNPROVEN
+        )
+        assert (
+            sales_unit_authority_from_channel(
+                channel_b, _target(TargetSalesUnitFormV2.BUNDLE)
+            )
+            is SalesUnitAuthorityV2.UNPROVEN
+        )
+
+    def test_tray_quantity_missing_on_one_side(self) -> None:
+        """Mandated regression 9: a tray count is MATERIAL — missing on
+        either side is UNPROVEN (a 20-unit tray is not a 10-unit tray;
+        a bare tray never proves against a counted one); equal published
+        counts prove, unequal published counts contradict."""
+        tray_10 = _channel("Tray of 10")
+        tray_bare = _channel("(tray)")
+        assert (
+            sales_unit_authority_from_channel(
+                tray_10, _target(TargetSalesUnitFormV2.TRAY_OR_FACTORY_PACK, 10)
+            )
+            is SalesUnitAuthorityV2.PROVEN_EQUIVALENT
+        )
+        assert (
+            sales_unit_authority_from_channel(
+                tray_10, _target(TargetSalesUnitFormV2.TRAY_OR_FACTORY_PACK)
+            )
+            is SalesUnitAuthorityV2.UNPROVEN
+        )
+        assert (
+            sales_unit_authority_from_channel(
+                tray_bare, _target(TargetSalesUnitFormV2.TRAY_OR_FACTORY_PACK, 10)
+            )
+            is SalesUnitAuthorityV2.UNPROVEN
+        )
+        assert (
+            sales_unit_authority_from_channel(
+                tray_bare, _target(TargetSalesUnitFormV2.TRAY_OR_FACTORY_PACK)
+            )
+            is SalesUnitAuthorityV2.UNPROVEN
+        )
+        assert (
+            sales_unit_authority_from_channel(
+                tray_10, _target(TargetSalesUnitFormV2.TRAY_OR_FACTORY_PACK, 20)
+            )
+            is SalesUnitAuthorityV2.CONTRADICTED
+        )
+
+    def test_fu3_pricing_ceiling_match_high_strong_over_corrected_bundle_shapes(
+        self,
+    ) -> None:
+        """Mandated regression 12: under MATCH + HIGH + STRONG (the fully
+        qualified semantic shape), the corrected bundle shapes never
+        reach the automatic pricing tier: the count-only bundle is
+        UNPROVEN (capped at NEEDS_REVIEW by
+        CEILING_SALES_UNIT_NOT_PROVEN), and the composition-verified
+        bundle against the default single-unit target is CONTRADICTED
+        (capped at NEEDS_REVIEW by CEILING_SALES_UNIT_CONTRADICTED)."""
+        assessment_v2 = _u1_v2()
+        count_only = derive_authority_tier_for_contract(
+            AUTHORITY_CONTRACT_VERSION_V2_FU3,
+            assessment_v2,
+            _match(),
+            frozenset(),
+            _strong_profile(),
+            sales_unit_channel=_channel("bundle of 3"),
+        )
+        assert count_only.tier is AuthorityTier.NEEDS_REVIEW
+        assert count_only.sales_unit_authority is SalesUnitAuthorityV2.UNPROVEN
+        assert AuthorityRuleV2FU3.CEILING_SALES_UNIT_NOT_PROVEN in count_only.fired_rules
+        assert AuthorityRuleV2FU3.CEILING_SALES_UNIT_CONTRADICTED not in (
+            count_only.fired_rules
+        )
+        verified = derive_authority_tier_for_contract(
+            AUTHORITY_CONTRACT_VERSION_V2_FU3,
+            assessment_v2,
+            _match(),
+            frozenset(),
+            _strong_profile(),
+            sales_unit_channel=_channel("bundle: 2x RAM + 1x CPU"),
+        )
+        assert verified.tier is AuthorityTier.NEEDS_REVIEW
+        assert verified.sales_unit_authority is SalesUnitAuthorityV2.CONTRADICTED
+        assert AuthorityRuleV2FU3.CEILING_SALES_UNIT_CONTRADICTED in (
+            verified.fired_rules
         )
 
 

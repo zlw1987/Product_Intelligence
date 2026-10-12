@@ -28,15 +28,22 @@ deliberately bounded:
   explicit provenance for every cue:
 
   - ``OBSERVED_UNAMBIGUOUS`` — the published cues establish exactly one
-    bounded commercial unit (kind + quantity where published);
+    bounded commercial unit (kind + quantity where published) and no
+    independently unresolved ambiguous cue of ANY kind is present (a
+    same-kind ambiguous cue is admitted only as a genuine duplicate /
+    subsumed cue deterministically proven by the exact published spans
+    — the documented subsumption rule of the Q3-B5-P2-FU1 correction);
   - ``CONTRADICTED_CUES`` — two or more published cues establish
     incompatible units (different kinds, or different published
     quantities within a kind); every side is recorded with provenance;
   - ``AMBIGUOUS_CUE`` — a packaging cue is present but cannot be bound to
     a bounded observation (a pack without a count, a bundle without
-    contents or count, a non-canonical / capacity-attached number, a
-    structured field with no packaging vocabulary, or an established
-    claim blocked by an unclassifiable cue of a different kind);
+    published contents — a bare bundle word or a bundle count alone,
+    since a published count is not the complete identity of a bundle —
+    a non-canonical / capacity-attached number, a structured field with
+    no packaging vocabulary, or an established claim blocked by an
+    independently unresolved ambiguous cue of any kind, including the
+    established kind);
   - ``NO_PACKAGING_PUBLISHED`` — no packaging cue is present in any
     examined published field (the recorded absence).
 
@@ -65,8 +72,12 @@ deliberately bounded:
   ``Dual-Port`` networking, ``8-channel`` memory, ``PCIe 4.0 x4``, ``1 DWPD``,
   and product revision numbers never match. A quantity token attached to a
   capacity unit (``pack of 4TB``), a non-canonical number (``pack of 3.84``,
-  ``pack of 04``, ``pack of 100000``), or a bare ``pack`` / ``bundle`` word
-  is an AMBIGUOUS cue (recorded, never established).
+  ``pack of 04``, ``pack of 100000``), a bare ``pack`` / ``bundle`` word,
+  or a bundle count without published contents (``bundle of N`` /
+  ``N-unit bundle`` — a published count is not the complete identity of
+  a bundle; its composition is unverified) is an AMBIGUOUS cue (recorded,
+  never established; the count stays verbatim in the cue text and is
+  never bound to a quantity).
 * **Provenance** — every cue records the examined field, its bounded
   provenance source (the frozen ``CandidateEvidenceSourceV2`` members
   ``LISTING_TITLE`` / ``PUBLISHED_STRUCTURED_FIELD`` — no member is a model
@@ -152,19 +163,26 @@ class SalesUnitExtractionState(str, Enum):
 
     OBSERVED_UNAMBIGUOUS = "OBSERVED_UNAMBIGUOUS"
     """The published cues establish exactly one bounded commercial unit:
-    a single kind, at most one published quantity, no unclassifiable cue
-    of a different kind present. Maps to the frozen channel's ``OBSERVED``
+    a single kind, at most one published quantity, and no independently
+    unresolved ambiguous cue of ANY kind present (Q3-B5-P2-FU1: matching
+    packaging kinds alone never prove that an ambiguous cue describes the
+    same commercial unit). A same-kind ambiguous cue is admitted only as
+    a genuine duplicate / subsumed cue, deterministically proven by the
+    exact published spans (the documented subsumption rule: same
+    examined field, the ambiguous cue's span contained in the established
+    cue's span, same kind). Maps to the frozen channel's ``OBSERVED``
     state with the cue's recorded provenance."""
 
     AMBIGUOUS_CUE = "AMBIGUOUS_CUE"
     """A packaging cue is present but cannot be bound to a bounded
-    observation (pack without count, bundle without contents or count,
-    non-canonical / capacity-attached quantity, structured field with no
-    packaging vocabulary, or an established claim blocked by a cue of a
-    different kind). Every such cue is recorded with its reason. Maps to
-    the frozen channel's ``UNAVAILABLE`` (fail closed: the channel cannot
-    represent ambiguity, and guessing a value from it would be an
-    inference)."""
+    observation (pack without count, bundle without published contents
+    — a bare bundle word or a bundle count alone — non-canonical /
+    capacity-attached quantity, structured field with no packaging
+    vocabulary, or an established claim blocked by an independently
+    unresolved ambiguous cue of any kind, including the established
+    kind). Every such cue is recorded with its reason. Maps to the frozen
+    channel's ``UNAVAILABLE`` (fail closed: the channel cannot represent
+    ambiguity, and guessing a value from it would be an inference)."""
 
     CONTRADICTED_CUES = "CONTRADICTED_CUES"
     """Two or more published cues establish incompatible commercial units
@@ -216,10 +234,15 @@ class SalesUnitCueReason(str, Enum):
     outside the frozen channel contract)."""
 
     BUNDLE_WITHOUT_CONTENTS = "BUNDLE_WITHOUT_CONTENTS"
-    """A ``bundle`` word with no published count and no contents marker
-    (contents unclear; the approved 2.1 design's P6 shape: unclear
-    wording is unproven packaging evidence, never an established
-    conflict)."""
+    """The bundle's composition is not published: a bare ``bundle`` word,
+    or a bundle with a published count but no contents (``bundle of N`` /
+    ``N-unit bundle``). A published count alone is not the complete
+    identity of a bundle (the bundle's commercial unit is its composition,
+    never just its count — two bundles with equal counts and different
+    contents are not commercially equivalent; Q3-B5-P2-FU1). The approved
+    2.1 design's P6 shape: unclear wording is unproven packaging
+    evidence, never an established conflict. The count stays verbatim in
+    the cue text and is never bound to a quantity."""
 
     NON_CANONICAL_QUANTITY = "NON_CANONICAL_QUANTITY"
     """The number after the packaging word is not a canonical count
@@ -285,11 +308,14 @@ _CAPACITY_ATTACHED = re.compile(r"(?i)^(TB|TiB|GB|GiB|PB|PiB|MB|MiB)(?![A-Za-z])
 #: revision digit) can never match, because no packaging word is present.
 _CUE_MASTER = re.compile(
     r"(?xi)"
-    # 1. N-unit compounds: "10-unit factory pack", "3-unit bundle",
-    #    "4 unit pack", ... (the count + the complete kind phrase, so
-    #    "1-unit bundle" is a bundle, never the single-unit phrase
-    #    "1 unit"; a bare "1 unit SSD" still reaches the single-unit
-    #    alternative because no kind word follows).
+    # 1. N-unit compounds: "10-unit factory pack", "4 unit pack", ...
+    #    (the count + the complete kind phrase, so "1-unit bundle" is a
+    #    bundle, never the single-unit phrase "1 unit"; a bare "1 unit
+    #    SSD" still reaches the single-unit alternative because no kind
+    #    word follows). A "N-unit bundle" publishes a count WITHOUT the
+    #    composition: the bundle's identity is its contents, never just
+    #    its count, so the cue is ambiguous (BUNDLE_WITHOUT_CONTENTS),
+    #    never established (Q3-B5-P2-FU1).
     r"(?P<nu_q>" + _QUANTITY + r")\s*[- ]\s*unit\s+"
     r"(?P<nu_kind>factory\s+pack|oem\s+pack|oem\s+tray|tray|bundle|pack)\b"
     r"|"
@@ -305,7 +331,11 @@ _CUE_MASTER = re.compile(
     # 4. "pack of N" / "tray of N" / "bundle of N" (N captured for the
     #    canonical check: decimal / leading-zero / oversized numbers are
     #    NON_CANONICAL, attached capacity units are CAPACITY_ATTACHED;
-    #    a sentence-final period is not part of the number).
+    #    a sentence-final period is not part of the number). A
+    #    "bundle of N" publishes a count WITHOUT the composition:
+    #    ambiguous (BUNDLE_WITHOUT_CONTENTS), never established
+    #    (Q3-B5-P2-FU1 — a published count is not the complete identity
+    #    of a bundle).
     r"\b(?P<of_kind>pack|tray|bundle)\s+of\s+(?P<of_num>[0-9][0-9.]*(?<![.]))"
     r"|"
     # 5. "N-pack" / "N pack" (retail pack of N; the count is canonical by
@@ -678,12 +708,26 @@ class SalesUnitExtractionResult:
                 raise ValueError(
                     "an established SINGLE_UNIT carries no quantity"
                 )
-            if any(c.kind is not self.established_kind for c in ambiguous):
+            # The same safety rule as state resolution (Q3-B5-P2-FU1):
+            # an independently unresolved ambiguous cue — of ANY kind,
+            # including the established kind — blocks the established
+            # claim; matching packaging kinds alone never prove that the
+            # ambiguous cue describes the same commercial unit. An
+            # ambiguous cue is admitted only as a genuine duplicate /
+            # subsumed cue, deterministically proven by the exact
+            # published spans (same field, span contained in an
+            # established cue's span, same kind).
+            if any(
+                not _is_subsumed_by_established(c, established)
+                for c in ambiguous
+            ):
                 raise ValueError(
-                    "OBSERVED_UNAMBIGUOUS allows ambiguous cues only of "
-                    "the established kind (subsumed); an unclassifiable "
-                    "cue of another kind blocks the established claim "
-                    "(AMBIGUOUS_CUE)"
+                    "OBSERVED_UNAMBIGUOUS admits an ambiguous cue only "
+                    "when its relationship to an established cue is "
+                    "deterministically proven by the exact published "
+                    "spans (the documented subsumed-duplicate rule); an "
+                    "independently unresolved ambiguous cue of any kind "
+                    "blocks the established claim (AMBIGUOUS_CUE)"
                 )
         # The established unit fields exist only in the OBSERVED state.
         if self.state is not SalesUnitExtractionState.OBSERVED_UNAMBIGUOUS:
@@ -847,13 +891,27 @@ def _scan_field(
                 kind = SalesUnitKindV2.BUNDLE
             else:  # "pack"
                 kind = SalesUnitKindV2.PACK_QUANTITY
-            _add(
-                match.span(),
-                kind,
-                int(match.group("nu_q")),
-                SalesUnitCueDisposition.ESTABLISHED,
-                None,
-            )
+            if kind is SalesUnitKindV2.BUNDLE:
+                # Q3-B5-P2-FU1: a bundle count without published contents
+                # is NOT the complete commercial unit (observed bundle
+                # form + count; composition unverified): ambiguous,
+                # never established. The published count stays verbatim
+                # in the cue text and is never bound to a quantity.
+                _add(
+                    match.span(),
+                    kind,
+                    None,
+                    SalesUnitCueDisposition.AMBIGUOUS,
+                    SalesUnitCueReason.BUNDLE_WITHOUT_CONTENTS,
+                )
+            else:
+                _add(
+                    match.span(),
+                    kind,
+                    int(match.group("nu_q")),
+                    SalesUnitCueDisposition.ESTABLISHED,
+                    None,
+                )
         elif match.group("fo_num") is not None:
             kind = SalesUnitKindV2.TRAY_OR_FACTORY_PACK
             num = match.group("fo_num")
@@ -920,6 +978,21 @@ def _scan_field(
                         None,
                         SalesUnitCueDisposition.AMBIGUOUS,
                         SalesUnitCueReason.NON_CANONICAL_QUANTITY,
+                    )
+                elif kind is SalesUnitKindV2.BUNDLE:
+                    # Q3-B5-P2-FU1: "bundle of N" — a published count
+                    # alone is not the complete identity of a bundle
+                    # (the composition is unverified; two bundles with
+                    # equal counts and different contents are not
+                    # commercially equivalent): ambiguous, never
+                    # established. The count stays verbatim in the cue
+                    # text and is never bound to a quantity.
+                    _add(
+                        (start, end),
+                        kind,
+                        None,
+                        SalesUnitCueDisposition.AMBIGUOUS,
+                        SalesUnitCueReason.BUNDLE_WITHOUT_CONTENTS,
                     )
                 else:
                     _add(
@@ -1057,6 +1130,31 @@ def _identifier_notes(observation: ListingObservation) -> tuple[SalesUnitIdentif
     return tuple(notes)
 
 
+def _is_subsumed_by_established(
+    cue: SalesUnitCueV1,
+    established: "tuple[SalesUnitCueV1, ...] | list[SalesUnitCueV1]",
+) -> bool:
+    """The documented subsumed-duplicate rule (Q3-B5-P2-FU1): a recorded
+    ambiguous cue is a GENUINE duplicate / subsumed cue of an established
+    claim only when its relationship is deterministically proven by the
+    EXACT PUBLISHED SPANS: the ambiguous cue sits in the SAME examined
+    field, its ``[cue_start, cue_end)`` span lies inside the established
+    cue's published span, and it carries the same kind. The ambiguous
+    reading is then a fragment of the established published phrase (one
+    published claim read two ways), not an independent claim. Matching
+    packaging kinds alone never prove the relationship: a second
+    published occurrence of the same kind (a separate span) is an
+    independent, unresolved cue. Applied identically by state resolution
+    (``_resolve_state``) and by the result constructor (fail closed)."""
+    return any(
+        e.field is cue.field
+        and e.kind is cue.kind
+        and e.cue_start <= cue.cue_start
+        and cue.cue_end <= e.cue_end
+        for e in established
+    )
+
+
 def _resolve_state(
     cues: tuple[SalesUnitCueV1, ...],
 ) -> tuple[SalesUnitExtractionState, SalesUnitKindV2 | None, int | None]:
@@ -1081,10 +1179,15 @@ def _resolve_state(
     if len(quantities) > 1:
         return SalesUnitExtractionState.CONTRADICTED_CUES, None, None
     quantity = next(iter(quantities)) if quantities else None
-    # An unclassifiable cue of another kind (including a structured field
-    # with no vocabulary, whose kind is None) blocks the established
-    # claim: the published unit is not unambiguously established.
-    if any(c.kind is not kind for c in ambiguous):
+    # Q3-B5-P2-FU1: an independently unresolved ambiguous cue — of ANY
+    # kind, INCLUDING the established kind — blocks the established claim:
+    # matching packaging kinds alone never prove that the ambiguous cue
+    # describes the same commercial unit. An ambiguous cue is admitted as
+    # a genuine duplicate / subsumed cue only when its relationship to an
+    # established cue is deterministically proven by the exact published
+    # spans (the documented subsumption rule). Every cue stays recorded
+    # with its full provenance in the AMBIGUOUS_CUE result.
+    if any(not _is_subsumed_by_established(c, established) for c in ambiguous):
         return SalesUnitExtractionState.AMBIGUOUS_CUE, None, None
     return SalesUnitExtractionState.OBSERVED_UNAMBIGUOUS, kind, quantity
 

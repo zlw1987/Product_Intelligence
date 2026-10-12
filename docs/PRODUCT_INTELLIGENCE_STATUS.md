@@ -5,11 +5,177 @@
 ## Current state
 
 
+**PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-Q3-B5-P2-FU1 (Semantic Authority V2 —
+
+Packaging Ambiguity and Bundle Identity Correction)
+
+— IMPLEMENTED / PENDING INDEPENDENT REVIEW**
+
+Bounded CONTRACT-CORRECTION phase on the reviewed Q3-B5-P2 candidate
+(starting SHA `aa7401fc32c268316891ddaa7230b79f9c6f3e45`; baseline
+collection 7251, re-verified this session), correcting the two safety
+defects identified by the independent GitHub source review of
+Q3-B5-P2. This is a bounded correction, not a new feature phase.
+CONTRACT CORRECTION ONLY: NO live integration, NO V2 authority
+activation, NO pricing change, NO corpus label change, NO benchmark
+capture, NO deployment, NO model call, NO migration. The frozen FU3
+module (`research/semantic_authority_fu3.py`), the frozen S2-C-FU1
+channel (`research/semantic_v2.py`), the frozen 2.0 / 2.1 contracts,
+and the live runtime are byte- and behavior-unchanged (the FU3 file-
+level pins and the frozen-module digest pin pass; the only production
+file touched is the P2-owned pending-review module `research/
+sales_unit_extraction.py`). `V2_AUTHORITY_QUALIFIED` stays False in
+both pinned locations; both committed corpus digests stay pinned by
+the unchanged tests.
+
+**Blocker 1 — ambiguous cues silently subsumed.** The reviewed
+`_resolve_state` (and the result constructor's OBSERVED branch) could
+accept an established claim while ignoring an ambiguous cue of the
+SAME kind (e.g. "4-Pack (pack)" or "Tray of 10, tray of 10.5" ->
+OBSERVED_UNAMBIGUOUS) — i.e. it treated matching packaging kinds as
+proof that the ambiguous cue describes the same commercial unit.
+Corrected (the P2-owned extraction contract only): an INDEPENDENTLY
+unresolved ambiguous cue — of ANY kind, including the established
+kind — now prevents OBSERVED_UNAMBIGUOUS (state AMBIGUOUS_CUE; every
+cue preserved with its full provenance; the mapped channel is the
+fail-closed recorded absence -> FU3 UNPROVEN for every target shape).
+A genuine duplicate / subsumed cue is admitted ONLY when its
+relationship is deterministically proven by the EXACT PUBLISHED SPANS
+— the documented subsumption rule: same examined field, the ambiguous
+cue's `[start, end)` span contained in an established cue's published
+span, same kind (a fragment of the same published phrase, never a
+second occurrence). The rule is applied IDENTICALLY by state
+resolution (`_resolve_state` via the shared
+`_is_subsumed_by_established`) and by the result constructor (a hand-
+built OBSERVED result with an unproven ambiguous cue is un-
+constructible; the scan engine's ordered alternatives never emit an
+overlapping pair, so no extracted result depends on the subsumption
+path). Unknown quantities stay fail-closed (a count is never bound to
+an ambiguous cue).
+
+**Blocker 2 — bundle contents and equivalence.** The reviewed cue
+table established "bundle of N" / "N-unit bundle" as BUNDLE units
+carrying the published count, so a count-only bundle mapped to an
+OBSERVED channel that the frozen FU3 derivation treats as
+PROVEN_EQUIVALENT against a target-side bundle of the same count — a
+published count alone was accepted as the complete identity of a
+bundle. Corrected: the extraction layer now distinguishes OBSERVED
+BUNDLE FORM/COUNT from VERIFIED BUNDLE COMPOSITION. "bundle of N" /
+"N-unit bundle" is ambiguous (BUNDLE_WITHOUT_CONTENTS; the count stays
+verbatim in the cue text and is never bound to a quantity) -> the
+mapped channel is the recorded absence -> FU3 UNPROVEN for EVERY
+target shape, including a target-side bundle of the same count.
+"bundle: contents" / "bundle (contents)" remains established (the
+published composition verbatim in the cue span, quantity None — the
+count is never salvaged from the composition).
+
+**FU3 interaction review (the mandated STOP check).** The frozen
+S2-C-FU1 channel carries no composition fact (its `raw_detail` free
+text is not read by the derivation), and the frozen FU3 BUNDLE rule
+equates matching form + equal published counts — so the frozen
+channel / FU3 contract CANNOT represent verified-composition
+equivalence: two identical, independently verified compositions
+derive UNPROVEN (conservative, safe), and no count-only bundle can
+ever derive PROVEN. The exact versioned contract amendment required
+to represent the distinction (PROPOSED, NOT implemented — separately
+approval-gated; the frozen FU3 implementation and acceptance criteria
+are unchanged): a NEW separately versioned authority token
+`SEMANTIC_AUTHORITY_V2_S2A_FU4` (per-binding discipline; the frozen
+FU2 / FU3 tokens, records, and replays byte- and behavior-unchanged)
+with (1) a versioned successor of the S2-C-FU1 recorded channel
+gaining a bounded `composition` fact (the verbatim published contents
+clause; required for an established count-bearing BUNDLE shape, absent
+for a count-only one), (2) the target-side evidence record gaining the
+same bounded `composition` field, and (3) the FU4 BUNDLE rule:
+matching BUNDLE form -> PROVEN_EQUIVALENT only with composition
+published on BOTH sides and byte-identical verbatim contents clauses
+(and equal published counts where both sides publish one); composition
+present but differing -> CONTRADICTED; composition missing on either
+side -> UNPROVEN. Until that amendment is approved and separately
+versioned, bundle equivalence under the frozen contract stays fail-
+closed UNPROVEN.
+
+**Tests.** The four existing nodes that asserted the reviewed
+defective contract were corrected in place (documented; names
+preserved — the Q3-B4-FU2 precedent): `test_bundle_with_established_
+contents_and_quantity` ("bundle of 3 drives" now AMB /
+BUNDLE_WITHOUT_CONTENTS / no bound quantity / UNAVAILABLE channel,
+was OBS qty 3), `test_n_unit_bundle_phrases_are_observed` ("3-Unit
+Bundle" now AMB / UNAVAILABLE, was OBS qty 3),
+`test_same_kind_ambiguous_cue_is_subsumed_by_the_established_claim`
+("4-Pack (pack)" now AMB / UNAVAILABLE, was OBS qty 4), and
+`test_extracted_tray_and_bundle_forms` (the bundle-of-3 assertions now
+UNAVAILABLE / UNPROVEN for every target shape, was OBSERVED / PROVEN
+against a target-side bundle of 3). 17 NEW nodes (16 in the NEW class
+`TestQ3B5P2FU1PackagingAmbiguityAndBundleIdentity` + 1 new
+parametrize member `count-only-bundle` on the existing never-proven
+node) cover the mandated regression matrix: (1) pack of 4 +
+unresolved pack -> AMB, UNPROVEN for every target; (2) pack of 4 +
+pack of 8 -> CONTRADICTED, every side preserved, UNPROVEN; (3) exact
+duplicate pack-of-4 cues -> OBSERVED, PROVEN vs a target-side pack of
+4, CONTRADICTED vs a different count; (4) structured packaging
+conflicting with title (reverse roles over the existing node) ->
+CONTRADICTED, fail-closed recorded absence; (5) bundle of 3 without
+contents -> AMB, count never bound, UNPROVEN for every target;
+(6) two bundles with equal counts but different contents -> never
+PROVEN (count-only -> recorded absence; composition-verified ->
+UNPROVEN; default single-unit target -> CONTRADICTED); (7) bundle
+contents known on only one side -> UNPROVEN (the frozen target record
+carries no composition field); (8) two identical, independently
+verified bundle compositions -> both OBSERVED in the extraction layer
+(composition verbatim, quantity None, distinct input bindings) but
+UNPROVEN under the frozen FU3 contract (the channel carries no
+composition fact — the reported amendment, not an implementation);
+(9) tray quantity missing on one side -> UNPROVEN (equal published
+counts PROVEN, unequal CONTRADICTED); (10) previously valid single-
+unit and explicit pack-of-N cases (the unchanged recognition suite);
+(11) frozen Prompt 2.0 replay (the unchanged old-token / corpus /
+binding pins); (12) FU3 pricing ceiling with MATCH / HIGH / STRONG
+over the corrected bundle shapes (count-only -> NEEDS_REVIEW via
+CEILING_SALES_UNIT_NOT_PROVEN; composition-verified vs the default
+target -> NEEDS_REVIEW via CEILING_SALES_UNIT_CONTRADICTED). The
+constructor-level subsumption rule is pinned directly (hand-built
+OBSERVED results: independent same-kind ambiguous cue rejected;
+exact-span-proven subsumed cue admitted; non-contained span /
+different field / different kind rejected). No test deleted, renamed,
+skipped, xfailed, deselected, ignored, or weakened; no existing test
+file other than the two P2-owned files touched; the Windows
+subprocess flake allowlist NOT expanded.
+
+**Validation.** Collection 7251 -> 7268 (+17, all in
+`tests/research/test_sales_unit_extraction.py`, 94 -> 111 nodes; the
+recorded-pages file unchanged at 7). Focused P2 files: 118 passed, 0
+failed. Focused `tests/research/`: 3068 passed, 0 failed (incl. the
+98-node frozen FU3 suite and its pins). Full suite: 7268 collected;
+7257 passed, 11 failed — the 11 failures are EXACTLY the fixed
+eleven-node load-sensitive clean-interpreter subprocess guard flake
+allowlist (every one `OSError [WinError 6 x2 / WinError 50 x9]` at
+`subprocess.Popen -> _winapi.DuplicateHandle` BEFORE any project code
+runs; zero assertion failures). Isolated one-node-per-process re-runs:
+9/11 re-passed on the first attempt; the remaining 2 re-passed on
+spaced retry (the same multi-attempt behavior the Q3-B5-P1 audit and
+the Q3-B5-P2 validation recorded under sustained handle pressure after
+back-to-back full runs). No non-flake node failed anywhere. `python
+manage.py check`: no issues (0 silenced); `python manage.py
+makemigrations --check --dry-run`: no changes detected.
+
+No deployment performed. Q3-B5-P2-FU1 does NOT activate V2 authority,
+does NOT connect V2 to pricing aggregation, and does NOT change the
+frozen FU3 contract, the frozen live-UNAVAILABLE contract, or the
+corpus: it corrects the pending-review P2 extraction layer so that
+the separately gated integration inherits the corrected fail-closed
+semantics.
+
+
 **PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-Q3-B5-P2 (Semantic Authority V2 —
 
 Bounded Sales-Unit Evidence Extraction)
 
-— IMPLEMENTED / PENDING FINAL REVIEW**
+— IMPLEMENTED / CORRECTED BY Q3-B5-P2-FU1 (SAFETY DEFECTS) / PENDING
+FINAL REVIEW (the independent GitHub source review identified two
+safety defects — ambiguous same-kind cues silently subsumed, and a
+bundle count accepted as the complete bundle identity; both corrected
+in Q3-B5-P2-FU1, recorded above)**
 
 Bounded EXTRACTION-LAYER phase on the authoritative starting SHA
 `4033f21385a70b9e138e86b8ddf27e69de914595` (Q3-B5-P1-AUDIT endpoint;
