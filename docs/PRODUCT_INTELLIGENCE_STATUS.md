@@ -5,11 +5,276 @@
 ## Current state
 
 
+**PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-Q3-B5-P4-FU2 (Semantic Authority V2 —
+
+Extraction Evidence Association Closure, S2-A-FU4 correction)
+
+— IMPLEMENTED / PENDING INDEPENDENT REVIEW**
+
+Bounded SAFETY-CORRECTION phase on the authoritative starting SHA
+`7791a65405094f5ddb30d5d5b1d904f05affe1bb` (the Q3-B5-P4-FU1
+correction endpoint; baseline collection 7487, re-verified this
+session), closing the remaining EXTRACTION_RESULT_V1 evidence-
+association gap identified by ChatGPT's independent GitHub source
+review of Q3-B5-P4-FU1. This is a bounded correction, not a new
+feature phase. CONTRACT CORRECTION ONLY: NO live integration, NO V2
+authority activation, NO pricing change, NO corpus label change, NO
+benchmark capture, NO deployment, NO model call, NO migration
+(`makemigrations --check --dry-run`: no changes detected). The frozen
+inputs — the FU2 / FU3 modules, the S2-C-FU1 channel,
+`sales_unit_extraction.py` (schema v1), the Prompt 2.0 / 2.1
+contracts, the codec / replay / harness registries — are byte-
+unchanged (the A1 digest pins pass; the only production file touched
+is the FU4-owned pending-review module `research/
+semantic_authority_fu4.py`, plus its test file and the two design /
+status documents). `V2_AUTHORITY_QUALIFIED` stays False in both
+pinned locations; the production codec still refuses an FU4-bound
+payload; the FU3 / FU2 dispatch arms delegate to the frozen
+derivations byte-identically (the A2 delegation-identity pins pass
+unchanged).
+
+**The gap — the channel content binds the projection, not the result.**
+The version-2 `channel_content_digest` correctly binds the MAPPED
+CHANNEL, but the frozen S2-C channel is a LOSSY projection of the
+extraction result: it carries only the primary established cue's
+published text (`raw_detail`), never the full result's additional
+cues, its contradiction state, or the continuation completeness
+marker that may sit in the recorded field text BEYOND `raw_detail`
+(the frozen cue engine's colon-form span stops at the first comma /
+semicolon / closing paren). The version-2 gate therefore verified
+only the record's primary clause against the presented channel's
+`raw_detail` (primary-clause-only validation): a self-consistent,
+hand-forged EXTRACTION-basis record could carry an ESTABLISHED
+composition (a completeness attestation the presented publication
+never made) or a CONTRADICTED_PUBLISHED state with additional
+clauses (cue facts the presented publication never published)
+whenever its primary clause and the channel content agreed — its
+`extraction_result_digest` / `extraction_input_digest` were
+unverified self-claims. Demonstrated over the starting-SHA v2 code:
+the gate derived PROVEN_EQUIVALENT for a marker-free publication
+presented with a forged self-consistent EST record over an
+attested-equal target (false PROVEN; the restrict-only ceiling never
+fired).
+
+**The correction — the smallest versioned amendment (the design's T5
+/ T9 discipline: any change is a new version, never a silent edit;
+the frozen S2-C channel is byte-frozen and cannot carry the back-
+reference, so the association is expressed on the FU4 record's side,
+as in FU1; the derivation / dispatch / case-level SIGNATURES are
+UNCHANGED — no new derivation input: the association travels with
+the record, pinned by the unchanged C8 / F1 signature nodes):** the
+versioned bundle-composition evidence schema moves to **v3**
+(`BUNDLE_COMPOSITION_EVIDENCE_VERSION_FU4 = 3`; v2 records are
+un-constructible — a superseded schema version is never silently
+reinterpreted). The EXTRACTION_RESULT_V1 candidate record gains ONE
+field, `extraction_result` — the EXACT original
+`SalesUnitExtractionResult` (frozen schema v1) it was constructed
+from: the bounded proof carrying ALL authority-relevant extraction
+facts (every recorded cue with its full provenance — field / source
+/ verbatim field text / span / kind / disposition / reason — the
+result's state, its established unit, and both of its self-verifying
+digests), embedded inside the record's `evidence_digest` (a tampered
+embedding breaks the record's own verification). The RECORDED_
+CHANNEL record carries exactly None. The constructor is the
+validator (fail closed): an EXTRACTION record whose original result
+is missing is un-constructible; the stored anchors must equal the
+embedded result's own digests (a forged anchor is an integrity
+error); the embedded result must pass its OWN integrity
+verification; it must be OBSERVED BUNDLE; `channel_quantity` must be
+its `established_quantity`. The derivation's presentation gate re-
+proves the association INDEPENDENTLY at derivation time over the
+embedded original — **never a fallback to primary-clause-only
+validation**, and **no self-consistent, caller-reconstructed digest
+in place of trusted recorded evidence provenance**: (1) the embedded
+result's OWN integrity (BOTH stored digests recomputed — a tampered
+or altered original is refused); (2) the record's stored extraction
+digest anchors equal the embedded result's digests; (3) the FROZEN
+P2 mapping `sales_unit_channel_from_extraction` of that exact result
+EQUALS the presented channel (full channel equality — a wrong
+extraction result, whose mapping is not the presented publication, is
+refused); (4) the candidate composition RECOMPUTED from that exact
+result equals the COMPLETE presented record — state, clauses,
+attestations, and provenance (a hand-forged or altered record is
+refused even when self-consistent). **The RECORDED_CHANNEL
+validation is INTACT** (the exact-construction + channel-content-
+binding checks stand; the source / quantity / provenance checks and
+the attestation verifications all stand; the version-2
+`channel_content_digest` binding is preserved inside the record).
+Full published provenance is preserved — the new field is inside the
+record's digest; missing provenance is never invented or
+reconstructed.
+
+**Documented bound (the frozen channel's granularity).** The channel
+association is proven over the channel CONTENT (state / kind /
+quantity / raw_detail / source): two distinct publications whose
+recorded channels are content-identical (differing only beyond the
+primary cue's span — e.g. a continuation marker, or a secondary cue)
+are indistinguishable at the frozen channel level (the S2-C channel
+cannot carry the input identity, and the frozen channel is not
+modified). Over that bound, every authority-relevant fact of the
+record is proven to be exactly the fact of its embedded, self-
+consistent original result; the dangerous direction (a record
+claiming facts its embedded original does not support — a forged
+attestation, a swapped / dropped secondary cue) is closed. The bound
+is pinned by the B12 rows.
+
+**Recorded test-file corrections (the P2-FU1 / Q3-B4-FU2 / FU1
+precedent — in place, documented, names preserved, intent preserved;
+no test deleted, renamed, skipped, xfailed, deselected, ignored, or
+weakened).** (1) The schema-version pin (A2
+`test_the_fu4_token_is_separately_versioned`) moves 2 → 3 and the
+unknown-version node (B9
+`test_a_unknown_schema_version_is_unconstructible`) moves its unknown
+value 3 → 4 — the mechanical consequence of the versioned amendment
+(the same category as the FU1 / Q3-B4-FU2 pin updates). (2) The two
+direct positional record constructions (B4
+`test_candidate_record_refuses_non_extractor_sources`, B5
+`test_construction_reverifies_the_digest`) gain the one new field
+(None — the RECORDED_CHANNEL basis). (3) The record helper
+`_make_candidate_record` gains the `extraction_result` mirror
+parameter (default None; inside the mirrored canonical document).
+(4) **The B11 hand-forged EXTRACTION record row is aligned to the
+corrected binding** (`test_a_handforged_extraction_record_cannot_
+claim_a_foreign_clause`): a v3 hand-forged EXTRACTION record must
+embed a real self-consistent result, so the fixture now embeds the
+actual result whose FROZEN P2 mapping equals the presented channel
+(the strongest possible forgery — every version-2 check passes,
+including its own digests and anchors), while still claiming a clause
+/ state the embedded original never determined; the name, the
+asserted refusal, and the intent are preserved — the refusal now
+fires at the v3 re-composition check ("not the exact construction")
+instead of the superseded primary-clause check. Every other node
+keeps its name, its asserted unit / tier / rule expectations, and its
+intent — all 211 baseline nodes pass unchanged over the v3 schema.
+
+**Tests.** 13 NEW nodes in the NEW class
+`TestB12ExtractionResultAssociationFU2` (in
+`tests/research/test_semantic_authority_v2_fu4.py`) implement the
+mandated adversarial matrix over the corrected gate: the extraction
+record embeds the exact original result (anchor + proof inside the
+evidence digest; an out-of-band field tamper of the embedding breaks
+the record's own verification); identical primary clause but
+different secondary cues (the genuine CONTRADICTED_PUBLISHED record
+stands over its own mapped channel — UNPROVEN over every bundle
+target, the form rule over non-bundle — a forged swapped secondary
+cue over listing B's content-identical channel is refused, a forged
+dropped-cue record is refused, and the frozen-channel content bound
+is pinned: a GENUINE record from one content-identical publication
+stands over the other's channel and still fails closed); conflicting
+title / structured clauses (the genuine record stands over its own
+mapped channel — the channel presents only the primary clause, the
+title clause is the embedded original's additional cue — a forged
+dropped-side record and a forged side-swapped record are both
+refused); continuation completeness marker present vs absent (the
+genuine EST record stands over its own mapped channel — PROVEN over
+the attested-equal target — a forged self-consistent EST record
+embedding the marker-FREE original, claiming an attestation the
+publication never made, is REFUSED — the version-2 gate derived
+PROVEN_EQUIVALENT over exactly this shape, the false-PROVEN defect —
+and the marker-free record derives UNPROVEN); missing extraction
+result (un-constructible at the type level; an out-of-band removal of
+the embedding is refused at the gate); wrong extraction result with a
+matching mapped channel (the strongest wrong-result forgery —
+claiming ESTABLISHED + attestation, or claiming an additional clause
+the embedded original never published — refused at the re-composition
+over the exact result); wrong extraction result with a mismatched
+mapping (a self-consistent record whose embedded original maps to a
+different channel, its content digest forged to the presented
+channel's — the explicit frozen-P2-mapping check fires); tampered
+extraction result (a stored result_digest tamper NOT covered by the
+embedding's canonical — the record's own evidence digest still
+verifies — is caught by the gate's own re-verification of the
+embedded original's integrity; a field tamper is caught by the
+record's own digest; the constructor refuses a tampered result);
+forged extraction digest (a self-consistent record whose stored
+anchors do not match the embedded original's own digests is un-
+constructible — a forged anchor is an integrity error; the gate-side
+out-of-band anchor tamper stands refused); valid same-result replay
+(the byte-equal re-extraction constructs the byte-equal record; the
+association stands over the mapped channel and over a separately
+constructed content-equal channel — full equality by value; the
+same presentation re-derives the same unit); superseded-v2 un-
+constructibility (a v2 record — no embedded original — is un-
+constructible); the RECORDED_CHANNEL validation intact (the exact-
+construction refusal stands; a RECORDED record carries no embedding;
+the basis coherence is un-constructible); and FU2 / FU3 unchanged +
+the FU4 tier ceilings unchanged over v3 (the historical dispatch
+arms still refuse a v3 composition input as contract misuse — the
+delegation identity pins stand — attested-equal stands at
+AI_ASSISTED_COMPARABLE, the unattested twin is capped at
+NEEDS_REVIEW with CEILING_SALES_UNIT_NOT_PROVEN). Every case is an
+OFFLINE recorded-input construction — no live call, no model
+capture, no network.
+
+**Validation.** Focused new file: 224 passed, 0 failed (211 baseline
++ 13 new). Focused preservation: the 98-node FU3 suite + the 111 +
+7-node P2 / P2-FU1 extraction suites — 216 passed, 0 failed (the A1
+frozen-file pins pass — every frozen input byte-identical to the
+starting SHA). Focused `tests/research/`: 3296 nodes — 3293 passed,
+3 failed; the 3 failures are EXACTLY the documented load-sensitive
+clean-interpreter subprocess guard flake class (every one
+`OSError: [WinError 6]` at `subprocess.Popen` BEFORE any project code
+runs; zero assertion failures), all re-passed isolated one-node-per-
+process. Focused `tests/semantic/` + `tests/evaluation/`: 1336
+nodes — 1336 passed, 0 failed. Full suite (run 1): 7500 collected —
+7489 passed, 11 failed — the 11 failures are EXACTLY the fixed
+eleven-node load-sensitive clean-interpreter subprocess guard flake
+allowlist (every one `OSError: [WinError 6]` ×2 / `[WinError 50]` ×9
+at `subprocess.Popen -> _winapi.DuplicateHandle` BEFORE any project
+code runs; zero assertion failures), all 11 re-passed isolated
+one-node-per-process on the first attempt. Full suite (run 2):
+7500 collected — 7498 passed, 2 failed — both the same flake class
+(`OSError: [WinError 6]` at Popen; zero assertion failures), both
+re-passed isolated on the first attempt. Full suite (run 3 — FINAL,
+over the exact committed code): 7500 collected — 7489 passed, 11
+failed — again EXACTLY the same fixed eleven-node flake allowlist
+(`OSError: [WinError 50]` ×9 / `[WinError 6]` ×2 at Popen; zero
+assertion failures), all 11 re-passed isolated one-node-per-process
+on the first attempt; no non-flake node failed in any run (the flake
+class is the documented multi-attempt behavior under sustained handle
+pressure after back-to-back full runs — Q3-B5-P2-FU1). Collection
+accounting:
+7487 → 7500 (+13 — the B12 class; node-level diff against the
+starting SHA: **0 nodes removed / 0 renamed** — the only changed
+file is the FU4 test file, 211 → 224). Skipped / xfailed /
+deselected: **0 / 0 / 0**. `python manage.py check`: System check
+identified no issues (0 silenced). `python manage.py
+makemigrations --check --dry-run`: No changes detected (no model
+change — the correction is pure research layer + tests + documents).
+
+**Production runtime and pricing remain unchanged (evidence).** The
+frozen files are digest-pinned by the unchanged A1 nodes (FU2 / FU3
+/ P2 extraction / S2-C / decision / codec / replay / 2.0 / 2.1 /
+runtime / harness modules, the corpus artifacts, the DRAFT policy —
+byte-identical to the starting SHA); the production codec registry
+still knows exactly the V1 + 2.0/FU2 bindings and refuses an FU4-
+bound payload; the replay registry is the same union; the harness
+knows exactly the two production bindings and no corpus 1.2.0
+artifact exists; the live record type still pins the FU2 token;
+`V2_AUTHORITY_QUALIFIED` is False in both pinned locations; no live
+module references the FU4 surface (the unchanged A4 AST + lexical
+scan passes); the pricing-eligible tier set is unchanged and the
+cap tier remains non-pricing-eligible; the derivation / dispatch /
+case-level signatures are unchanged (the C8 / F1 signature pins
+pass). Nothing in the phase registers, re-seals, activates, or
+wires; the separately gated FU4 registration step (design §7.3)
+remains unexecuted — it will register the v3 schema, not the
+superseded v1 / v2.
+
+No deployment performed.
+
+
 **PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-Q3-B5-P4-FU1 (Semantic Authority V2 —
 
 Candidate Evidence Binding Integrity, S2-A-FU4 correction)
 
-— IMPLEMENTED / PENDING INDEPENDENT REVIEW**
+— IMPLEMENTED / CORRECTED BY Q3-B5-P4-FU2 (EXTRACTION EVIDENCE
+ASSOCIATION CLOSURE) / PENDING FINAL REVIEW (the independent GitHub
+source review identified the remaining EXTRACTION_RESULT_V1 evidence-
+association gap — the channel-content digest binds the mapped channel
+but does not prove the full extraction result's additional cues,
+contradiction state, or continuation completeness marker; corrected
+in Q3-B5-P4-FU2, recorded above)**
 
 Bounded SAFETY-CORRECTION phase on the authoritative starting SHA
 `7deb22e7261dad0f086645084dd311608059e48b` (the Q3-B5-P4 contract-

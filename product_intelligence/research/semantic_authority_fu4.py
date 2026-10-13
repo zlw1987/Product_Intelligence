@@ -1,10 +1,71 @@
 """Semantic Authority Contract V2, S2-A-FU4 — separately versioned
 bundle-composition authority (CONTRACT ONLY).
 
+PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-Q3-B5-P4-FU2 (this module) closes
+the remaining EXTRACTION_RESULT_V1 evidence-association gap found by
+the independent GitHub source review of Q3-B5-P4-FU1: the version-2
+``channel_content_digest`` correctly binds the MAPPED CHANNEL, but the
+frozen S2-C channel is a LOSSY projection of the extraction result —
+it carries only the primary established cue's published text
+(``raw_detail``), not the full result's additional cues, its
+contradiction state, or the continuation completeness marker that may
+sit in the recorded field text BEYOND ``raw_detail``. The version-2
+gate verified only the record's primary clause against the presented
+channel's ``raw_detail`` (primary-clause-only validation) — a
+self-consistent, hand-forged EXTRACTION-basis record could therefore
+carry an ESTABLISHED composition (a completeness attestation the
+presented publication never made) or a CONTRADICTED_PUBLISHED state
+with additional clauses (cue facts the presented publication never
+published) whenever its primary clause and the channel content agreed,
+and its ``extraction_result_digest`` /
+``extraction_input_digest`` were unverified self-claims (a self-
+consistent, caller-reconstructed digest was substituting for trusted
+recorded evidence provenance). Corrected by the smallest versioned
+amendment — the versioned bundle-composition evidence schema moves to
+v3 (``BUNDLE_COMPOSITION_EVIDENCE_VERSION_FU4 = 3``; v2 records are
+un-constructible — a superseded schema version is never silently
+reinterpreted): the EXTRACTION_RESULT_V1 candidate record gains ONE
+field, ``extraction_result`` — the EXACT original
+``SalesUnitExtractionResult`` (frozen schema v1) it was constructed
+from: the bounded proof carrying ALL authority-relevant extraction
+facts (every recorded cue with its full provenance, the state, the
+established unit, and both of its self-verifying digests), embedded
+inside the record's ``evidence_digest``. The derivation's presentation
+gate re-proves the association INDEPENDENTLY at derivation time over
+the embedded original (no fallback to primary-clause-only validation):
+(1) the embedded result passes its OWN integrity verification (both
+stored digests — ``input_digest`` + ``result_digest`` — recomputed);
+(2) the record's stored extraction digest anchors equal the embedded
+result's digests (a forged anchor is refused); (3) the FROZEN P2
+mapping ``sales_unit_channel_from_extraction`` of that exact result
+equals the presented channel (full channel equality — the wrong
+result, whose mapping is not the presented publication, is refused);
+(4) the candidate composition RECOMPUTED from that exact result
+equals the complete presented record — state, clauses, attestations,
+and provenance (a hand-forged or altered record is refused even when
+self-consistent). An EXTRACTION record whose original result is
+missing is un-constructible (the constructor is the validator); one
+whose original result is tampered or altered is refused at the gate
+(``BundleCompositionEvidenceIntegrityError`` — no unit is derived).
+The RECORDED_CHANNEL validation is INTACT (the exact-construction +
+channel-content-binding checks are unchanged); the derivation /
+dispatch / case-level signatures are UNCHANGED (the association now
+travels WITH the record — no new derivation input); the frozen S2-C
+channel is UNCHANGED. Documented bound (the frozen channel's
+granularity): the channel association is proven over the channel
+CONTENT (state / kind / quantity / raw_detail / source) — two
+distinct publications whose recorded channels are content-identical
+are indistinguishable at the frozen channel level (the S2-C channel is
+byte-frozen and cannot carry the input identity); over that bound,
+every authority-relevant fact of the record is proven to be exactly
+the fact of its embedded, self-consistent original result.
+
 PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-Q3-B5-P4 (this module) implements the
 approved Q3-B5-P3-FU1 bundle-composition authority design. Corrected in
 place by PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-Q3-B5-P4-FU1 (two safety
-defects found by the independent GitHub source review of Q3-B5-P4):
+defects found by the independent GitHub source review of Q3-B5-P4), and
+by PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-Q3-B5-P4-FU2 (the remaining
+EXTRACTION_RESULT_V1 association gap — above):
 
 * **Blocker 1 — cross-listing composition evidence substitution.** The
   derivation's presentation gate checked only the record's source class
@@ -61,9 +122,11 @@ completeness) as an isolated, deterministic, versioned research contract.
 It introduces the separately versioned authority contract token
 ``SEMANTIC_AUTHORITY_V2_S2A_FU4`` and, behind that token ONLY:
 
-1. **The versioned bundle-composition evidence schema (v2 — the FU1
+1. **The versioned bundle-composition evidence schema (v3 — the FU1
    amendment over v1: the candidate record's ``channel_content_digest``
-   binding, nothing else)** — the
+   binding; the FU2 amendment over v2: the EXTRACTION_RESULT_V1
+   candidate record's ``extraction_result`` embedding — the exact
+   original result, nothing else)** — the
    five-way ``BundleCompositionStateV2FU4`` vocabulary
    (``SYNTACTICALLY_VALID`` / ``ESTABLISHED`` / ``PARTIAL`` / ``ABSENT`` /
    ``CONTRADICTED_PUBLISHED``), the candidate-side record
@@ -159,6 +222,7 @@ from product_intelligence.research import (
 from product_intelligence.research.sales_unit_extraction import (
     SalesUnitCueDisposition,
     SalesUnitCueField,
+    SalesUnitExtractionIntegrityError,
     SalesUnitExtractionResult,
     SalesUnitExtractionState,
     sales_unit_channel_from_extraction,
@@ -255,11 +319,11 @@ def is_known_authority_contract_token_fu4(token: object) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# The versioned bundle-composition evidence schema (v1)
+# The versioned bundle-composition evidence schema (v3)
 # ---------------------------------------------------------------------------
 
 
-BUNDLE_COMPOSITION_EVIDENCE_VERSION_FU4: Final[int] = 2
+BUNDLE_COMPOSITION_EVIDENCE_VERSION_FU4: Final[int] = 3
 """The version of the FU4 bundle-composition evidence schema: it covers
 the clause extraction grammar, the textual-closure classification, the
 incompleteness-marker list, the completeness-marker list + the bounded
@@ -269,11 +333,21 @@ the Q3-B5-P4-FU1 amendment) the candidate record's
 ``channel_content_digest`` binding (the record's SHA-256 over the
 canonical document of the exact channel content it was constructed
 from — the cross-listing substitution defense; the presentation gate
-re-verifies the association at derivation time). Version 1 records are
-un-constructible (an unknown / superseded schema version is never
-silently reinterpreted — the constructor fails closed on any version
-other than 2). Any change is a NEW version (or a new authority token) —
-never a silent edit (design T5 / T9)."""
+re-verifies the association at derivation time), AND (version 3 — the
+Q3-B5-P4-FU2 amendment) the EXTRACTION_RESULT_V1 candidate record's
+``extraction_result`` embedding (the EXACT original
+``SalesUnitExtractionResult`` the record was constructed from — the
+bounded proof carrying all authority-relevant extraction facts; the
+presentation gate re-proves the association at derivation time: the
+embedded result's own integrity (both stored digests), the record's
+extraction digest anchors, the frozen P2 mapping of the embedded result
+against the presented channel, and the RECOMPUTED candidate composition
+against the complete record — never a fallback to primary-clause-only
+validation). Versions 1 and 2 records are un-constructible (an unknown
+/ superseded schema version is never silently reinterpreted — the
+constructor fails closed on any version other than 3). Any change is a
+NEW version (or a new authority token) — never a silent edit (design
+T5 / T9)."""
 
 
 class BundleCompositionEvidenceIntegrityError(ValueError):
@@ -739,7 +813,7 @@ def _clause_is_textually_valid(clause: str) -> bool:
 @dataclass(frozen=True)
 class CandidateBundleCompositionEvidenceV2FU4:
     """The bounded candidate-side bundle-composition evidence record
-    (S2-A-FU4, schema v1).
+    (S2-A-FU4, schema v3).
 
     Every composition fact is (a) a verbatim published text span with
     span-bound provenance (the frozen extractor's recorded cues, or the
@@ -777,12 +851,50 @@ class CandidateBundleCompositionEvidenceV2FU4:
     derivation's presentation gate re-verifies the association at
     derivation time: the presented channel's canonical content digest
     must equal the record's, a RECORDED_CHANNEL record must be exactly
-    the construction of the presented channel, and an EXTRACTION_
-    RESULT_V1 record's primary clause must be the determined form of
-    the presented channel's published ``raw_detail``. A composition
-    record originating from another listing is refused even when the
-    source class, bundle form, and quantity are identical; missing
-    provenance is never invented or reconstructed.
+    the construction of the presented channel, and the EXTRACTION
+    association is re-proved over the record's embedded original result
+    (version 3 — below).
+
+    Version 3 (the Q3-B5-P4-FU2 amendment): the EXTRACTION_RESULT_V1
+    record carries ``extraction_result`` — the EXACT original
+    ``SalesUnitExtractionResult`` (frozen schema v1) it was
+    constructed from — the bounded proof carrying ALL authority-
+    relevant extraction facts: every recorded cue with its full
+    provenance (field / source / verbatim field text / span / kind /
+    disposition / reason), the result's state, its established unit, and
+    both of its self-verifying digests (``input_digest`` binding the
+    exact examined input, ``result_digest`` over the full result). The
+    channel content digest (version 2) binds only the MAPPED CHANNEL —
+    the frozen S2-C channel is a lossy projection of the result (the
+    primary cue's published text alone: it cannot carry the result's
+    additional cues, its contradiction state, or the continuation
+    completeness marker sitting in the recorded field text beyond
+    ``raw_detail``) — so the version-2 gate could verify only the
+    record's primary clause against the presented channel. The version-3
+    presentation gate re-proves the association INDEPENDENTLY at
+    derivation time over the embedded original (no fallback to
+    primary-clause-only validation; a self-consistent, caller-
+    reconstructed digest never substitutes for trusted recorded
+    evidence provenance): (1) the embedded result passes its OWN
+    integrity verification (both stored digests recomputed);
+    (2) the record's stored extraction digest anchors equal the
+    embedded result's digests; (3) the frozen P2 mapping of the
+    embedded result EQUALS the presented channel (full channel
+    equality — the wrong result is refused); (4) the candidate
+    composition RECOMPUTED from the embedded result equals the complete
+    presented record (state, clauses, attestations, provenance — a
+    hand-forged or altered record is refused even when self-
+    consistent). The embedded result is inside the record's
+    ``evidence_digest`` (a tampered embedding breaks the record's own
+    verification). The RECORDED_CHANNEL record carries exactly None
+    (it is built from the recorded channel alone). The derivation /
+    dispatch signatures are unchanged — the association travels with
+    the record; the frozen S2-C channel is unchanged. Bound (the frozen
+    channel's granularity): the channel association is proven over the
+    channel CONTENT — two content-identical publications remain
+    indistinguishable at the frozen channel level, and every authority-
+    relevant fact of the record is proven to be exactly the fact of its
+    embedded, self-consistent original result.
     """
 
     schema_version: int
@@ -795,6 +907,7 @@ class CandidateBundleCompositionEvidenceV2FU4:
     channel_quantity: int | None
     extraction_result_digest: str | None
     extraction_input_digest: str | None
+    extraction_result: SalesUnitExtractionResult | None
     channel_content_digest: str
     evidence_digest: str
 
@@ -869,6 +982,76 @@ class CandidateBundleCompositionEvidenceV2FU4:
                 raise ValueError(
                     "a RECORDED_CHANNEL record carries no extraction digests "
                     "(it is built from the recorded channel alone)"
+                )
+        # Version 3 (Q3-B5-P4-FU2): the embedded original extraction
+        # result — the bounded proof carrying all authority-relevant
+        # extraction facts (the channel content digest alone binds only
+        # the lossy mapped-channel projection).
+        if self.extraction_result is not None and not isinstance(
+            self.extraction_result, SalesUnitExtractionResult
+        ):
+            raise TypeError(
+                "extraction_result must be the exact original "
+                "SalesUnitExtractionResult (the frozen schema-v1 result) "
+                "or None, got "
+                f"{type(self.extraction_result).__name__}"
+            )
+        if self.basis is CandidateCompositionEvidenceBasisV2FU4.EXTRACTION_RESULT_V1:
+            if self.extraction_result is None:
+                raise ValueError(
+                    "an EXTRACTION_RESULT_V1 record carries the exact "
+                    "original SalesUnitExtractionResult it was constructed "
+                    "from (version 3, Q3-B5-P4-FU2 — the association "
+                    "anchor); a record whose original result is missing "
+                    "is un-constructible"
+                )
+        else:  # RECORDED_CHANNEL
+            if self.extraction_result is not None:
+                raise ValueError(
+                    "a RECORDED_CHANNEL record carries no embedded "
+                    "extraction result (it is built from the recorded "
+                    "channel alone)"
+                )
+        if self.basis is CandidateCompositionEvidenceBasisV2FU4.EXTRACTION_RESULT_V1:
+            original = self.extraction_result
+            if self.extraction_result_digest != original.result_digest:
+                raise BundleCompositionEvidenceIntegrityError(
+                    "the record's stored extraction result digest does "
+                    "not match the embedded original result (a forged "
+                    "anchor — the record claims provenance the embedded "
+                    "result does not carry)"
+                )
+            if self.extraction_input_digest != original.input_digest:
+                raise BundleCompositionEvidenceIntegrityError(
+                    "the record's stored extraction input digest does "
+                    "not match the embedded original result (a forged "
+                    "anchor — the record claims provenance the embedded "
+                    "result does not carry)"
+                )
+            try:
+                original.verify_integrity()
+            except SalesUnitExtractionIntegrityError as exc:
+                raise BundleCompositionEvidenceIntegrityError(
+                    "the embedded original extraction result fails its "
+                    "own integrity verification (both stored digests — "
+                    "the result was tampered with or forged)"
+                ) from exc
+            if (
+                original.state
+                is not SalesUnitExtractionState.OBSERVED_UNAMBIGUOUS
+                or original.established_kind is not SalesUnitKindV2.BUNDLE
+            ):
+                raise ValueError(
+                    "an EXTRACTION_RESULT_V1 record embeds only an "
+                    "OBSERVED BUNDLE result (the construction over any "
+                    "other state / kind is None — such a record is "
+                    "un-constructible)"
+                )
+            if self.channel_quantity != original.established_quantity:
+                raise ValueError(
+                    "the record's published quantity must be the "
+                    "embedded result's established quantity (never a "
+                    "different count)"
                 )
         if self.completeness_attestation is not None and not isinstance(
             self.completeness_attestation, CompositionCompletenessAttestationV2FU4
@@ -1030,6 +1213,11 @@ class CandidateBundleCompositionEvidenceV2FU4:
             "channel_quantity": self.channel_quantity,
             "extraction_result_digest": self.extraction_result_digest,
             "extraction_input_digest": self.extraction_input_digest,
+            "extraction_result": (
+                self.extraction_result.canonical()
+                if self.extraction_result is not None
+                else None
+            ),
             "channel_content_digest": self.channel_content_digest,
         }
 
@@ -1751,6 +1939,7 @@ def _build_candidate_record(
     channel_quantity: int | None,
     extraction_result_digest: str | None,
     extraction_input_digest: str | None,
+    extraction_result: SalesUnitExtractionResult | None,
     channel_content_digest: str,
 ) -> CandidateBundleCompositionEvidenceV2FU4:
     """The internal record assembly (the digest is computed over the
@@ -1759,7 +1948,11 @@ def _build_candidate_record(
     binding: the caller (one of the two validated constructors) passes
     the SHA-256 over the canonical document of the EXACT channel
     content the record is constructed from — never a value the caller
-    invents."""
+    invents. ``extraction_result`` is the version-3 anchor: the
+    caller passes the EXACT original result the record is constructed
+    from (the EXTRACTION_RESULT_V1 basis) or None (the RECORDED_
+    CHANNEL basis) — the embedding is inside the record's
+    ``evidence_digest``."""
     document = {
         "schema_version": BUNDLE_COMPOSITION_EVIDENCE_VERSION_FU4,
         "basis": basis.value,
@@ -1773,6 +1966,11 @@ def _build_candidate_record(
         "channel_quantity": channel_quantity,
         "extraction_result_digest": extraction_result_digest,
         "extraction_input_digest": extraction_input_digest,
+        "extraction_result": (
+            extraction_result.canonical()
+            if extraction_result is not None
+            else None
+        ),
         "channel_content_digest": channel_content_digest,
     }
     return CandidateBundleCompositionEvidenceV2FU4(
@@ -1786,6 +1984,7 @@ def _build_candidate_record(
         channel_quantity=channel_quantity,
         extraction_result_digest=extraction_result_digest,
         extraction_input_digest=extraction_input_digest,
+        extraction_result=extraction_result,
         channel_content_digest=channel_content_digest,
         evidence_digest=_canonical_digest(document),
     )
@@ -1926,6 +2125,18 @@ def candidate_composition_from_extraction(
     clause (the publication is incomplete as a whole; the clause is
     recorded for audit; no attestation), ABSENT when the primary cue
     carries none — never ESTABLISHED, never PROVEN-reachable.
+
+    Version 3 (Q3-B5-P4-FU2): the returned record EMBEDS the exact
+    verified original result (``extraction_result`` — the bounded
+    proof carrying all authority-relevant extraction facts, inside the
+    record's ``evidence_digest``): the derivation's presentation gate
+    re-proves the association over the embedded original (its own
+    integrity — both stored digests — the record's digest anchors,
+    the frozen P2 mapping against the presented channel, and the
+    RECOMPUTED composition against the complete record — never a
+    fallback to primary-clause-only validation). The derivation /
+    dispatch signatures are unchanged — the association travels with
+    the record.
     """
     if not isinstance(result, SalesUnitExtractionResult):
         raise TypeError(
@@ -1948,8 +2159,15 @@ def candidate_composition_from_extraction(
     # gate later requires the presented channel to be content-identical
     # to it (an extraction record from listing A is refused over
     # listing B's channel, even when source class, bundle form, and
-    # quantity agree). Missing provenance is never invented: the
-    # digest is computed here, over the exact input, at construction.
+    # quantity agree). The version-3 anchor (Q3-B5-P4-FU2): the record
+    # EMBEDS the exact verified original result — the bounded proof
+    # carrying all authority-relevant extraction facts (the channel
+    # content is a lossy projection: it cannot carry the additional
+    # cues, the contradiction state, or the continuation completeness
+    # marker beyond raw_detail); the presentation gate re-proves the
+    # association over the embedded original at derivation time.
+    # Missing provenance is never invented: the digest is computed
+    # here, over the exact input, at construction.
     mapped_channel = sales_unit_channel_from_extraction(result)
     channel_content_digest = _canonical_digest(mapped_channel.canonical())
 
@@ -2033,6 +2251,7 @@ def candidate_composition_from_extraction(
                 channel_quantity=result.established_quantity,
                 extraction_result_digest=result.result_digest,
                 extraction_input_digest=result.input_digest,
+                extraction_result=result,
                 channel_content_digest=channel_content_digest,
             )
     else:
@@ -2091,6 +2310,7 @@ def candidate_composition_from_extraction(
         channel_quantity=result.established_quantity,
         extraction_result_digest=result.result_digest,
         extraction_input_digest=result.input_digest,
+        extraction_result=result,
         channel_content_digest=channel_content_digest,
     )
 
@@ -2147,6 +2367,7 @@ def candidate_composition_from_channel(
         channel_quantity=channel.quantity,
         extraction_result_digest=None,
         extraction_input_digest=None,
+        extraction_result=None,
         channel_content_digest=_canonical_digest(channel.canonical()),
     )
 
@@ -2371,11 +2592,12 @@ def _verify_candidate_composition(
     channel: CandidateSalesUnitEvidenceV2,
 ) -> None:
     """The anti-forgery gate over a PRESENTED candidate record: the
-    ``evidence_digest`` re-verification (the embedded attestation within)
-    plus the embedded attestation's coherence (subject CANDIDATE, basis
-    PUBLISHED_COMPLETENESS_STATEMENT, source = the record's source,
-    clause_digest over exactly the record's clause) plus the binding to
-    the presented channel (the record's ``source`` and
+    ``evidence_digest`` re-verification (the embedded attestation and,
+    on the EXTRACTION_RESULT_V1 basis, the embedded original result
+    within) plus the embedded attestation's coherence (subject
+    CANDIDATE, basis PUBLISHED_COMPLETENESS_STATEMENT, source = the
+    record's source, clause_digest over exactly the record's clause) plus
+    the binding to the presented channel (the record's ``source`` and
     ``channel_quantity`` must agree with the channel's — a record cannot
     claim provenance the channel never recorded — quantity compared by
     EXACT VALUE, never object identity: separately deserialized equal
@@ -2388,18 +2610,37 @@ def _verify_candidate_composition(
     record's recorded ``channel_content_digest`` — composition evidence
     originating from another listing is refused even when source class,
     bundle form, and quantity are identical. Over the RECORDED_CHANNEL
-    basis the association is EXACT: the record must be the very
-    construction of the presented channel (the record is a pure
-    function of that channel — a hand-forged record claiming a clause /
-    state / attestation the presented publication never made is
-    refused). Over the EXTRACTION_RESULT_V1 basis the record is a pure
-    function of the (not presented) extraction result: the association
-    is the chain extraction result → (frozen P2 mapping) → mapped
-    channel content → presented channel, verified here as the digest
-    match PLUS the record's primary clause being the determined form of
-    the presented channel's published ``raw_detail`` (the continuation
-    attestation text may sit beyond ``raw_detail`` — it is AUDIT-ONLY
-    and never compared; the clause is always determined from it).
+    basis the association is EXACT (unchanged by version 3): the record
+    must be the very construction of the presented channel (the record
+    is a pure function of that channel — a hand-forged record claiming a
+    clause / state / attestation the presented publication never made is
+    refused).
+
+    PLUS the version-3 original-result association (Q3-B5-P4-FU2 — the
+    channel content digest binds only the LOSSY mapped-channel
+    projection: the primary cue's published text alone, never the full
+    result's additional cues, contradiction state, or continuation
+    completeness marker beyond ``raw_detail``). Over the EXTRACTION_
+    RESULT_V1 basis the record carries the EXACT original
+    ``SalesUnitExtractionResult`` (the bounded proof carrying all
+    authority-relevant extraction facts), and the gate re-proves the
+    association INDEPENDENTLY at derivation time — never a fallback to
+    primary-clause-only validation, and never a self-consistent,
+    caller-reconstructed digest in place of trusted recorded evidence
+    provenance: (1) the embedded result passes its OWN integrity
+    verification (both stored digests recomputed — a tampered or
+    altered original is refused); (2) the record's stored extraction
+    digest anchors equal the embedded result's digests (a forged anchor
+    is refused); (3) the FROZEN P2 mapping of that exact result EQUALS
+    the presented channel (full channel equality — a wrong extraction
+    result, whose mapping is not the presented publication, is
+    refused); (4) the candidate composition RECOMPUTED from that exact
+    result equals the COMPLETE presented record — state, clauses,
+    attestations, and provenance (a hand-forged or altered record is
+    refused even when self-consistent). An extraction record whose
+    original result is missing, mismatched, or altered produces no
+    derivation input.
+
     The gate verifies the recorded association; it never invents or
     reconstructs missing provenance. Every failure is
     ``BundleCompositionEvidenceIntegrityError``: the record produces no
@@ -2467,26 +2708,79 @@ def _verify_candidate_composition(
                 "publication)"
             )
     else:  # EXTRACTION_RESULT_V1
-        # The primary clause is always determined from the primary
-        # cue's published text — which IS the mapped channel's
-        # raw_detail: the presented channel's published raw_detail must
-        # determine exactly the record's primary clause (the
-        # extraction → mapped-channel → record association, verified
-        # over the presented channel; the continuation attestation
-        # text may sit beyond raw_detail and is audit-only).
-        recomputed_clause, _recomputed_state, _recomputed_att = (
-            _determine_clause_form(
-                channel.raw_detail, allow_continuation=False
-            )
-        )
-        if record.composition_clause != recomputed_clause:
+        # Version 3 (Q3-B5-P4-FU2): the full original-result
+        # association. The record carries the EXACT original
+        # SalesUnitExtractionResult (the bounded proof carrying all
+        # authority-relevant extraction facts — the channel content is
+        # only the lossy mapped-channel projection). The gate re-proves
+        # the chain INDEPENDENTLY over the embedded original: no
+        # fallback to primary-clause-only validation, and no
+        # self-consistent, caller-reconstructed digest in place of
+        # trusted recorded evidence provenance.
+        original = record.extraction_result
+        if not isinstance(original, SalesUnitExtractionResult):
             raise BundleCompositionEvidenceIntegrityError(
-                "the EXTRACTION_RESULT_V1 record's primary clause is "
-                "not the determined form of the presented channel's "
-                "published raw_detail (the association between the "
-                "extraction result, the mapped channel, and the "
-                "composition record failed — cross-listing "
-                "substitution refused)"
+                "the EXTRACTION_RESULT_V1 record's embedded original "
+                "extraction result is missing or not a SalesUnit"
+                "ExtractionResult (an extraction record whose original "
+                "result is missing is refused — no derivation input)"
+            )
+        # (1) The embedded original passes its OWN integrity
+        # verification: BOTH stored extraction digests recomputed
+        # (input_digest over the exact examined input, result_digest
+        # over the full result — a tampered / altered original is
+        # refused).
+        try:
+            original.verify_integrity()
+        except SalesUnitExtractionIntegrityError as exc:
+            raise BundleCompositionEvidenceIntegrityError(
+                "the EXTRACTION_RESULT_V1 record's embedded original "
+                "extraction result fails its own integrity verification "
+                "(both stored digests — the original result was "
+                "tampered with or altered; refused)"
+            ) from exc
+        # (2) The record's stored extraction digest anchors equal the
+        # embedded original's digests (a forged anchor — the record
+        # claiming provenance the embedded result does not carry — is
+        # refused).
+        if record.extraction_result_digest != original.result_digest:
+            raise BundleCompositionEvidenceIntegrityError(
+                "the EXTRACTION_RESULT_V1 record's stored extraction "
+                "result digest does not match its embedded original "
+                "result (forged extraction digest — refused)"
+            )
+        if record.extraction_input_digest != original.input_digest:
+            raise BundleCompositionEvidenceIntegrityError(
+                "the EXTRACTION_RESULT_V1 record's stored extraction "
+                "input digest does not match its embedded original "
+                "result (forged extraction digest — refused)"
+            )
+        # (3) The FROZEN P2 mapping of that exact result EQUALS the
+        # presented channel (full channel equality — the wrong
+        # extraction result, whose mapping is not the presented
+        # publication, is refused).
+        if sales_unit_channel_from_extraction(original) != channel:
+            raise BundleCompositionEvidenceIntegrityError(
+                "the frozen P2 mapping of the EXTRACTION_RESULT_V1 "
+                "record's embedded original result is not the "
+                "presented channel (the record's original result does "
+                "not map to the exact presented candidate publication "
+                "— wrong extraction result, refused)"
+            )
+        # (4) The candidate composition RECOMPUTED from that exact
+        # result equals the COMPLETE presented record — state, clauses,
+        # attestations, and provenance (a hand-forged or altered record
+        # is refused even when self-consistent; the primary-clause-only
+        # validation is superseded, never a fallback).
+        if candidate_composition_from_extraction(original) != record:
+            raise BundleCompositionEvidenceIntegrityError(
+                "the EXTRACTION_RESULT_V1 record is not the exact "
+                "construction of its embedded original result (the "
+                "recomputed composition — state, clauses, "
+                "attestations, and provenance over the FULL result, "
+                "incl. its additional cues, contradiction state, and "
+                "continuation completeness marker — differs; the "
+                "record was hand-forged or altered and is refused)"
             )
 
 
@@ -2533,18 +2827,32 @@ def derive_sales_unit_authority_fu4(
     (``UNAVAILABLE`` ⇒ UNPROVEN for every target, and a composition
     record or quantity attestation over it is contract misuse); the
     candidate record (when present) re-verifies its ``evidence_digest``
-    — including its embedded completeness attestation — and its binding
-    to the presented channel (a non-BUNDLE channel with a composition
-    record is contract misuse, D9). Version 2 (Q3-B5-P4-FU1): the
-    presentation gate ALSO re-verifies the cross-record association at
+    — including its embedded completeness attestation and, on the
+    EXTRACTION_RESULT_V1 basis, its embedded original result — and its
+    binding to the presented channel (a non-BUNDLE channel with a
+    composition record is contract misuse, D9). Version 3 (Q3-B5-P4-FU2,
+    over the version-2 channel-content binding of Q3-B5-P4-FU1): the
+    presentation gate re-proves the cross-record association at
     derivation time — the presented channel's canonical content digest
     must equal the record's ``channel_content_digest`` (composition
     evidence originating from another listing is refused even when
     source class, bundle form, and quantity agree); a RECORDED_CHANNEL
-    record must be exactly the construction of the presented channel;
-    an EXTRACTION_RESULT_V1 record's primary clause must be the
-    determined form of the presented channel's published ``raw_detail``
-    (the association extraction result → mapped channel → record).
+    record must be exactly the construction of the presented channel
+    (the version-2 validation, intact); an EXTRACTION_RESULT_V1 record
+    carries its EXACT original ``SalesUnitExtractionResult`` (the
+    bounded proof carrying all authority-relevant extraction facts — the
+    channel content is only the lossy mapped-channel projection) and the
+    gate verifies, over the embedded original, (1) the result's own
+    integrity (both stored extraction digests), (2) the record's
+    extraction digest anchors, (3) the FROZEN P2 mapping of that exact
+    result against the presented channel (full channel equality — the
+    wrong extraction result is refused), and (4) the RECOMPUTED
+    candidate composition against the complete record (state, clauses,
+    attestations, provenance — never a fallback to primary-clause-only
+    validation; a self-consistent, caller-reconstructed digest never
+    substitutes for trusted recorded evidence provenance). An
+    extraction record whose original result is missing, mismatched, or
+    altered produces no derivation input.
     The target evidence is None (the default single unit), the frozen
     FU3 record (read as
     composition-ABSENT — D18, no implicit upgrade), or the FU4 record
@@ -3249,11 +3557,13 @@ if _INCOMPLETE_MARKERS != (
         "the versioned incompleteness-marker list is bounded to exactly "
         "the corrected members (S2-A-FU4)"
     )
-if BUNDLE_COMPOSITION_EVIDENCE_VERSION_FU4 != 2:
+if BUNDLE_COMPOSITION_EVIDENCE_VERSION_FU4 != 3:
     raise RuntimeError(
-        "the shipped bundle-composition evidence schema is version 2 "
-        "(version 1 + the Q3-B5-P4-FU1 channel-content binding; a "
-        "change is a new version, never a silent edit)"
+        "the shipped bundle-composition evidence schema is version 3 "
+        "(version 1 + the Q3-B5-P4-FU1 channel-content binding + the "
+        "Q3-B5-P4-FU2 embedded original-result association on the "
+        "EXTRACTION_RESULT_V1 candidate record; a change is a new "
+        "version, never a silent edit)"
     )
 if {rule.value for rule in AuthorityRuleV2FU4} != {
     rule.value for rule in AuthorityRuleV2FU3

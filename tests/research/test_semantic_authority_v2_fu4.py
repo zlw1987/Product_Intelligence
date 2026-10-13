@@ -1,6 +1,7 @@
 """Tests for the S2-A-FU4 bundle-composition authority contract
 (PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-Q3-B5-P4, as CORRECTED IN PLACE by
-PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-Q3-B5-P4-FU1).
+PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-Q3-B5-P4-FU1 and by
+PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-Q3-B5-P4-FU2).
 
 Covers ``product_intelligence.research.semantic_authority_fu4`` — the
 separately versioned authority contract
@@ -8,7 +9,82 @@ separately versioned authority contract
 Q3-B5-P3 bundle-composition authority design
 (``docs/PRODUCT_INTEL_Q3B5_P3_BUNDLE_COMPOSITION_DESIGN.md`` — Blocker A
 quantity completeness + Blocker B composition completeness, + the FU1
-channel-content binding amendment, schema version 2):
+channel-content binding amendment, schema version 2, + the FU2 embedded
+original-result association, schema version 3):
+
+**Q3-B5-P4-FU2 (this correction, recorded).** The independent GitHub
+source review of Q3-B5-P4-FU1 found the remaining EXTRACTION_RESULT_V1
+evidence-association gap: the version-2 ``channel_content_digest``
+correctly binds the MAPPED CHANNEL, but the frozen S2-C channel is a
+LOSSY projection of the extraction result (the primary established
+cue's published text alone — ``raw_detail`` — never the full result's
+additional cues, its contradiction state, or the continuation
+completeness marker sitting in the recorded field text beyond
+``raw_detail``). The version-2 gate verified only the record's primary
+clause against the presented channel's ``raw_detail`` (primary-clause-
+only validation): a self-consistent, hand-forged EXTRACTION-basis
+record could carry an ESTABLISHED composition (a completeness
+attestation the presented publication never made) or a
+CONTRADICTED_PUBLISHED state with additional cues (cue facts the
+presented publication never published) whenever its primary clause and
+the channel content agreed — its ``extraction_result_digest`` /
+``extraction_input_digest`` were unverified self-claims (a self-
+consistent, caller-reconstructed digest substituting for trusted
+recorded evidence provenance; demonstrated: the pre-correction v2 gate
+derived PROVEN_EQUIVALENT over a marker-free publication with a forged
+self-consistent EST record). Corrected by the smallest versioned
+amendment (the design's T5 / T9 discipline — any change is a new
+version, never a silent edit; the frozen S2-C channel is byte-frozen
+and cannot carry the back-reference, so the association is expressed
+on the FU4 record's side): the versioned bundle-composition evidence
+schema moves to v3 (``BUNDLE_COMPOSITION_EVIDENCE_VERSION_FU4 = 3``;
+v2 records are un-constructible) — the EXTRACTION_RESULT_V1 candidate
+record gains ONE field, ``extraction_result``: the EXACT original
+``SalesUnitExtractionResult`` (frozen schema v1) it was constructed
+from, the bounded proof carrying ALL authority-relevant extraction
+facts (every recorded cue with its full provenance, the state, the
+established unit, both self-verifying digests), embedded inside the
+record's ``evidence_digest``. The derivation's presentation gate re-
+proves the association INDEPENDENTLY at derivation time over the
+embedded original (no fallback to primary-clause-only validation):
+(1) the embedded result's OWN integrity (both stored digests
+recomputed); (2) the record's extraction digest anchors equal the
+embedded result's digests (a forged anchor is refused); (3) the FROZEN
+P2 mapping of that exact result EQUALS the presented channel (full
+channel equality — the wrong extraction result is refused); (4) the
+candidate composition RECOMPUTED from that exact result equals the
+COMPLETE presented record (state, clauses, attestations, provenance —
+a hand-forged or altered record is refused even when self-consistent).
+An extraction record whose original result is missing is un-
+constructible (the constructor is the validator); one whose original
+result is tampered or altered is refused at the gate. The RECORDED_
+CHANNEL validation is INTACT; the derivation / dispatch / case-level
+signatures are UNCHANGED (the association travels with the record — no
+new derivation input); the frozen S2-C channel is UNCHANGED. Bound
+(the frozen channel's granularity): the channel association is proven
+over the channel CONTENT — two content-identical publications remain
+indistinguishable at the frozen channel level (the S2-C channel cannot
+carry the input identity); over that bound every authority-relevant
+fact of the record is proven to be exactly the fact of its embedded,
+self-consistent original result. This file's corrections are: the
+schema-version pin (A2) moves 2 → 3 and the unknown-version node (B9)
+moves its unknown value 3 → 4 (the mechanical consequence of the
+versioned amendment — the same category as the FU1 pin update); the
+two direct positional constructions (B4 / B5) gain the one new field;
+the record helper gains the ``extraction_result`` mirror parameter;
+and the B11 hand-forged EXTRACTION record row is aligned to the
+versioned amendment (a v3 forgery must embed a real self-consistent
+result whose mapping equals the presented channel — the strongest
+possible forgery; the name, the asserted refusal, and the intent are
+preserved; the refusal now fires at the re-composition check instead
+of the superseded primary-clause check) — plus the new B12
+adversarial class (the mandated matrix over the corrected
+original-result association). No test is deleted, renamed, skipped,
+xfailed, deselected, ignored, or weakened: every preserved node keeps
+its name, its asserted unit / tier / rule expectations, and its intent
+— only the fixture CONSTRUCTION aligns to the corrected contract,
+exactly as the Q3-B4-FU2 / Q3-B5-P2-FU1 / Q3-B5-P4-FU1 precedents
+recorded their in-place corrections.
 
 **Q3-B5-P4-FU1 (this correction, recorded).** The independent GitHub
 source review of Q3-B5-P4 found two defects: (1) the derivation's
@@ -76,7 +152,17 @@ Q3-B5-P2-FU1 precedents recorded their in-place corrections.
   bases), separately deserialized equal quantities > 256 derive, equal
   quantity over different composition, tampered binding /
   association, valid same-listing derivation, and the
-  constructor-time + derivation-time integrity enforcement.
+  constructor-time + derivation-time integrity enforcement; B12 (FU2)
+  the embedded original-result association: the extraction record
+  carries the EXACT original result (the bounded proof of all
+  authority-relevant extraction facts), and the gate re-proves it at
+  derivation time — identical primary clause / different secondary
+  cues, conflicting title / structured clauses, continuation marker
+  present vs absent (the false-PROVEN closure), missing / wrong /
+  tampered original result, forged extraction digest, valid same-
+  result replay, the frozen-channel content bound, the intact
+  RECORDED_CHANNEL validation, the unchanged FU2 / FU3 arms and FU4
+  tier ceilings, and the superseded-v2 un-constructibility.
 * **C — The comparison rules (one row per mandated rule).** C1 missing
   / partial / completeness-unknown composition ⇒ UNPROVEN; C2 equal
   counts without composition ⇒ UNPROVEN (FU4) while FU3 PROVEN; C3
@@ -160,6 +246,7 @@ from product_intelligence.research import (
     SALES_UNIT_EVIDENCE_UNAVAILABLE,
     SalesUnitKindV2,
     SalesUnitExtractionIntegrityError,
+    SalesUnitExtractionResult,
     SalesUnitExtractionState,
     SemanticEvaluationStateV2,
     SemanticEvaluationV2,
@@ -602,17 +689,22 @@ def _make_candidate_record(
     ) = None,
     extraction_result_digest: str | None = None,
     extraction_input_digest: str | None = None,
+    extraction_result: SalesUnitExtractionResult | None = None,
     channel_content_digest: str | None = None,
     schema_version: int = BUNDLE_COMPOSITION_EVIDENCE_VERSION_FU4,
 ) -> CandidateBundleCompositionEvidenceV2FU4:
     """The test-side mirror of the module's candidate record (schema
-    v2). ``channel_content_digest`` defaults to the binding of the
+    v3). ``channel_content_digest`` defaults to the binding of the
     CANONICAL channel this record describes — the OBSERVED BUNDLE
     channel with this record's source / quantity and the
     corpus-shaped ``raw_detail`` (``bundle: <clause>`` / ``bundle`` for
     ABSENT) — so the hand-built record is EXACTLY the construction of
     the channel the derivation call-sites present (the FU1 binding);
-    pass an explicit digest to pin a different recorded anchor."""
+    pass an explicit digest to pin a different recorded anchor.
+    ``extraction_result`` (version 3, Q3-B5-P4-FU2) is the exact
+    original result the EXTRACTION-basis record embeds (None for the
+    RECORDED_CHANNEL basis — or a deliberate mismatch in a
+    hand-forged row)."""
     if channel_content_digest is None:
         raw_detail = (
             "bundle" if composition_clause is None else f"bundle: {composition_clause}"
@@ -640,6 +732,11 @@ def _make_candidate_record(
         "channel_quantity": channel_quantity,
         "extraction_result_digest": extraction_result_digest,
         "extraction_input_digest": extraction_input_digest,
+        "extraction_result": (
+            extraction_result.canonical()
+            if extraction_result is not None
+            else None
+        ),
         "channel_content_digest": channel_content_digest,
     }
     return CandidateBundleCompositionEvidenceV2FU4(
@@ -653,6 +750,7 @@ def _make_candidate_record(
         channel_quantity,
         extraction_result_digest,
         extraction_input_digest,
+        extraction_result,
         channel_content_digest,
         _canon_digest(document),
     )
@@ -887,7 +985,7 @@ class TestA2TokenAndDelegationIdentity:
                 AUTHORITY_CONTRACT_VERSION_V2_FU4,
             }
         )
-        assert BUNDLE_COMPOSITION_EVIDENCE_VERSION_FU4 == 2
+        assert BUNDLE_COMPOSITION_EVIDENCE_VERSION_FU4 == 3
         # The frozen FU3 constant stays exactly {FU2, FU3}.
         assert fu3.KNOWN_AUTHORITY_CONTRACT_TOKENS == frozenset(
             {AUTHORITY_CONTRACT_VERSION_V2, AUTHORITY_CONTRACT_VERSION_V2_FU3}
@@ -1881,6 +1979,7 @@ class TestB4ProvenanceRefusal:
                     None,
                     None,
                     None,
+                    None,  # no embedded result (RECORDED_CHANNEL basis, v3)
                     "0" * 63 + "1",  # channel-content binding (v2)
                     "0" * 64,
                 )
@@ -1963,6 +2062,7 @@ class TestB5Integrity:
                 None,
                 None,
                 None,
+                None,  # no embedded result (RECORDED_CHANNEL basis, v3)
                 "0" * 63 + "1",  # channel-content binding (v2)
                 "0" * 64,  # digest does not verify
             )
@@ -2461,8 +2561,9 @@ class TestB9CompletenessAttestationConstructor:
             )
 
     def test_a_unknown_schema_version_is_unconstructible(self) -> None:
-        # Version 2 is the shipped schema (the Q3-B5-P4-FU1 channel-
-        # content binding amendment); anything else is unknown.
+        # Version 3 is the shipped schema (the Q3-B5-P4-FU1 channel-
+        # content binding + the Q3-B5-P4-FU2 embedded original-result
+        # association); anything else is unknown.
         with pytest.raises(ValueError, match="schema_version"):
             _make_attestation(
                 EvidenceSideV2FU4.TARGET,
@@ -2470,7 +2571,7 @@ class TestB9CompletenessAttestationConstructor:
                 TS,
                 _clause_digest(CLAUSE),
                 "x",
-                schema_version=3,
+                schema_version=4,
             )
 
 
@@ -2875,13 +2976,28 @@ class TestB11ChannelContentBindingFU1:
     def test_a_handforged_extraction_record_cannot_claim_a_foreign_clause(
         self,
     ) -> None:
-        """EXTRACTION_RESULT_V1 basis: a hand-forged record with
-        fabricated (self-verifying) extraction digests, bound to the
-        presented channel's content digest — but whose clause is not
-        the determined form of the presented channel's published
-        raw_detail: refused (the extraction → mapped-channel → record
-        association's clause check)."""
+        """EXTRACTION_RESULT_V1 basis: a hand-forged record — self-
+        verifying, bound to the presented channel's content digest,
+        with the embedded original result's own digests as anchors, and
+        the embedded original's mapping EQUAL to the presented channel
+        (the strongest possible forgery: every version-2 check passes)
+        — but claiming a clause / state the embedded original result
+        never determined: refused. Version 3 (Q3-B5-P4-FU2) supersedes
+        the primary-clause check with the full re-composition: the
+        record must be EXACTLY the construction of its embedded
+        original (the fixture was aligned to the versioned amendment —
+        a v3 hand-forged EXTRACTION record must embed a real result;
+        the name, the asserted refusal, and the intent — a self-
+        consistent digest never proves the association — are
+        preserved)."""
         channel = _candidate_channel(raw_detail="bundle: 2x RAM + 1x CPU")
+        # The embedded original: a real, self-consistent result whose
+        # frozen P2 mapping equals the presented channel (primary cue
+        # "bundle: 2x RAM + 1x CPU", structured source, no quantity).
+        embedded_result, embedded_channel = _extract(
+            "Test Product", "bundle: 2x RAM + 1x CPU"
+        )
+        assert embedded_channel == channel  # the mapping matches
         att = _make_attestation(
             EvidenceSideV2FU4.CANDIDATE,
             CompletenessBasisV2FU4.PUBLISHED_COMPLETENESS_STATEMENT,
@@ -2896,16 +3012,666 @@ class TestB11ChannelContentBindingFU1:
             SRC,
             channel_quantity=None,
             completeness_attestation=att,
-            extraction_result_digest="ab" * 32,
-            extraction_input_digest="cd" * 32,
+            extraction_result_digest=embedded_result.result_digest,
+            extraction_input_digest=embedded_result.input_digest,
+            extraction_result=embedded_result,
             channel_content_digest=_canon_digest(channel.canonical()),
         )
+        # The forgery is self-consistent (its own digest verifies) — the
+        # version-2 gate would have accepted it; the version-3 gate
+        # refuses it: the recomputed composition of the embedded
+        # original (SV over "2x RAM + 1x CPU", no attestation) is not
+        # the forged record.
+        forged.verify()
         with pytest.raises(
-            BundleCompositionEvidenceIntegrityError, match="primary clause"
+            BundleCompositionEvidenceIntegrityError,
+            match="not the exact construction",
         ):
             derive_sales_unit_authority_fu4(
                 channel, forged, _target_established(clause="2x SSD + 1x cable")
             )
+
+
+class TestB12ExtractionResultAssociationFU2:
+    """B12 (Q3-B5-P4-FU2 — the mandated adversarial matrix over the
+    corrected original-result association): the EXTRACTION_RESULT_V1
+    record carries the EXACT original ``SalesUnitExtractionResult``
+    (the bounded proof of all authority-relevant extraction facts —
+    the channel content is only the lossy mapped-channel projection),
+    and the presentation gate re-proves the association INDEPENDENTLY
+    at derivation time: the embedded result's own integrity (both
+    stored digests), the record's extraction digest anchors, the
+    FROZEN P2 mapping of that exact result against the presented
+    channel (full equality), and the RECOMPUTED candidate composition
+    against the complete record (state, clauses, attestations,
+    provenance). No fallback to primary-clause-only validation; no
+    self-consistent, caller-reconstructed digest in place of trusted
+    recorded evidence provenance. The RECORDED_CHANNEL validation is
+    intact; the derivation signatures are unchanged (the association
+    travels with the record)."""
+
+    def test_the_extraction_record_embeds_the_exact_original_result(self) -> None:
+        """The construction entry point embeds the exact verified
+        original result (the anchor + the proof, inside the record's
+        own evidence digest)."""
+        result, channel = _extract("bundle: 2x RAM + 1x CPU, complete list")
+        record = candidate_composition_from_extraction(result)
+        assert record is not None
+        assert record.extraction_result is result
+        assert record.extraction_result_digest == result.result_digest
+        assert record.extraction_input_digest == result.input_digest
+        # The embedding is inside the record's evidence digest: an
+        # out-of-band tamper of the embedded result's FIELD (covered by
+        # the embedding's canonical) breaks the record's own
+        # verification.
+        object.__setattr__(
+            record.extraction_result.cues[0], "cue_text", "bundle: 2x SSD"
+        )
+        with pytest.raises(BundleCompositionEvidenceIntegrityError):
+            record.verify()
+
+    def test_identical_primary_clause_different_secondary_cues(self) -> None:
+        """Two publications with the SAME primary clause but DIFFERENT
+        secondary cues (content-identical channels — the frozen
+        channel carries only the primary cue's text): the genuine
+        record stands over its own mapped channel (CONTRADICTED_
+        PUBLISHED ⇒ UNPROVEN for every bundle target — U12; the form
+        rule owns non-bundle targets — U9); a hand-forged record that
+        swaps in or drops the secondary cue is refused (the
+        re-composition over the embedded original differs). The frozen
+        channel content bound is pinned: a GENUINE record from one
+        content-identical publication stands over the other's channel
+        (every fact of it remains proven to be exactly the fact of its
+        embedded self-consistent original)."""
+        title_a = "bundle: 2x RAM + 1x CPU, bundle: 2x SSD + 1x cable"
+        title_b = "bundle: 2x RAM + 1x CPU, bundle: 2x SSD + 1x GPU"
+        result_a, channel_a = _extract(title_a)
+        result_b, channel_b = _extract(title_b)
+        assert channel_a == channel_b  # identical primary clause ⇒ content-identical
+        record_a = candidate_composition_from_extraction(result_a)
+        assert record_a is not None
+        assert record_a.state is CONTR_PUB
+        assert record_a.composition_clause == "2x RAM + 1x CPU"
+        assert record_a.additional_clauses == ("2x SSD + 1x cable",)
+        # The genuine record over its own mapped channel: the
+        # association stands; the self-contradiction fails closed.
+        bundle_target = TargetSalesUnitEvidenceV2(
+            TargetSalesUnitFormV2.BUNDLE, None, TS
+        )
+        assert derive_sales_unit_authority_fu4(channel_a, record_a, bundle_target) is U
+        assert (
+            derive_sales_unit_authority_fu4(
+                channel_a,
+                record_a,
+                TargetSalesUnitEvidenceV2(TargetSalesUnitFormV2.PACK_QUANTITY, 4, TS),
+            )
+            is C
+        )
+        # A hand-forged record over listing B's channel embedding B's
+        # original but claiming A's secondary cue: refused.
+        forged_other_cue = _make_candidate_record(
+            CandidateCompositionEvidenceBasisV2FU4.EXTRACTION_RESULT_V1,
+            CONTR_PUB,
+            "2x RAM + 1x CPU",
+            SRCT,
+            additional_clauses=("2x SSD + 1x cable",),
+            extraction_result_digest=result_b.result_digest,
+            extraction_input_digest=result_b.input_digest,
+            extraction_result=result_b,
+            channel_content_digest=_canon_digest(channel_b.canonical()),
+        )
+        with pytest.raises(
+            BundleCompositionEvidenceIntegrityError, match="not the exact construction"
+        ):
+            derive_sales_unit_authority_fu4(channel_b, forged_other_cue, None)
+        # A hand-forged record over its own channel embedding A's
+        # original but DROPPING the secondary cue (claiming a clean
+        # single clause): refused.
+        forged_dropped_cue = _make_candidate_record(
+            CandidateCompositionEvidenceBasisV2FU4.EXTRACTION_RESULT_V1,
+            SV,
+            "2x RAM + 1x CPU",
+            SRCT,
+            extraction_result_digest=result_a.result_digest,
+            extraction_input_digest=result_a.input_digest,
+            extraction_result=result_a,
+            channel_content_digest=_canon_digest(channel_a.canonical()),
+        )
+        with pytest.raises(
+            BundleCompositionEvidenceIntegrityError, match="not the exact construction"
+        ):
+            derive_sales_unit_authority_fu4(channel_a, forged_dropped_cue, None)
+        # The frozen channel content bound (documented): a GENUINE
+        # record from one content-identical publication stands over the
+        # other's channel (the association is proven over the channel
+        # CONTENT — the S2-C channel is byte-frozen and cannot carry
+        # the input identity) — and still fails closed (CONTRADICTED_
+        # PUBLISHED ⇒ UNPROVEN).
+        assert (
+            derive_sales_unit_authority_fu4(channel_b, record_a, bundle_target) is U
+        )
+
+    def test_conflicting_title_and_structured_clauses(self) -> None:
+        """Conflicting published clauses across the title and the
+        structured field (the C6 shape at the gate level, version 3):
+        the genuine record stands over its own mapped channel (the
+        channel presents ONLY the primary clause — the title clause is
+        the embedded original's additional cue); a hand-forged record
+        that keeps the primary but drops the conflicting side, or that
+        swaps the sides, is refused (the re-composition differs)."""
+        result, channel = _extract("bundle: 2x RAM + 1x CPU", "Bundle (2x SSD + cable)")
+        record = candidate_composition_from_extraction(result)
+        assert record is not None
+        assert record.state is CONTR_PUB
+        assert record.composition_clause == "2x SSD + cable"
+        assert record.additional_clauses == ("2x RAM + 1x CPU",)
+        assert record.source is SRC
+        bundle_target = TargetSalesUnitEvidenceV2(
+            TargetSalesUnitFormV2.BUNDLE, None, TS
+        )
+        # UNPROVEN for every bundle target shape — the self-
+        # contradiction is unpinned in both directions (U12).
+        assert derive_sales_unit_authority_fu4(channel, record, bundle_target) is U
+        assert derive_sales_unit_authority_fu4(channel, record, _target_established()) is U
+        # A hand-forged record claiming only the primary clause (the
+        # conflicting side dropped): refused.
+        forged = _make_candidate_record(
+            CandidateCompositionEvidenceBasisV2FU4.EXTRACTION_RESULT_V1,
+            SV,
+            "2x SSD + cable",
+            SRC,
+            extraction_result_digest=result.result_digest,
+            extraction_input_digest=result.input_digest,
+            extraction_result=result,
+            channel_content_digest=_canon_digest(channel.canonical()),
+        )
+        with pytest.raises(
+            BundleCompositionEvidenceIntegrityError, match="not the exact construction"
+        ):
+            derive_sales_unit_authority_fu4(channel, forged, None)
+        # A hand-forged record swapping the sides (primary = the title
+        # clause, additional = the structured clause): refused.
+        forged_swapped = _make_candidate_record(
+            CandidateCompositionEvidenceBasisV2FU4.EXTRACTION_RESULT_V1,
+            CONTR_PUB,
+            "2x RAM + 1x CPU",
+            SRC,
+            additional_clauses=("2x SSD + cable",),
+            extraction_result_digest=result.result_digest,
+            extraction_input_digest=result.input_digest,
+            extraction_result=result,
+            channel_content_digest=_canon_digest(channel.canonical()),
+        )
+        with pytest.raises(
+            BundleCompositionEvidenceIntegrityError, match="not the exact construction"
+        ):
+            derive_sales_unit_authority_fu4(channel, forged_swapped, None)
+
+    def test_continuation_marker_present_vs_absent(self) -> None:
+        """The continuation completeness marker: present in the
+        recorded field text beyond the cue span (ESTABLISHED +
+        attestation) vs absent (SYNTACTICALLY_VALID) over the SAME
+        channel content (the cue text is the mapped raw_detail in both
+        cases — the marker sits beyond it, where the frozen channel
+        cannot see). The genuine record stands over its own mapped
+        channel (PROVEN over the attested-equal target); a hand-forged
+        self-consistent EST record embedding the marker-FREE original
+        (claiming an attestation the publication never made) is
+        REFUSED — the version-2 gate derived PROVEN_EQUIVALENT over
+        exactly this shape (the false-PROVEN defect); the marker-free
+        record derives UNPROVEN instead."""
+        result_est, channel_est = _extract("bundle: 2x RAM + 1x CPU, complete list")
+        result_sv, channel_sv = _extract("bundle: 2x RAM + 1x CPU")
+        assert channel_est == channel_sv  # the marker sits beyond raw_detail
+        record_est = candidate_composition_from_extraction(result_est)
+        record_sv = candidate_composition_from_extraction(result_sv)
+        assert record_est is not None and record_est.state is EST
+        assert record_est.completeness_attestation is not None
+        assert record_sv is not None and record_sv.state is SV
+        assert record_sv.completeness_attestation is None
+        # The genuine association stands: PROVEN over the attested-equal
+        # target (U19 / the corrected D6 conjunction).
+        assert (
+            derive_sales_unit_authority_fu4(
+                channel_est, record_est, _target_established()
+            )
+            is P
+        )
+        # The false-PROVEN closure: the forged EST record (self-
+        # consistent — its own digest verifies; its anchors are the
+        # embedded original's OWN digests; its content digest is the
+        # presented channel's) is refused: the recomposed composition
+        # of the embedded original is SV with NO attestation.
+        forged_att = _make_attestation(
+            EvidenceSideV2FU4.CANDIDATE,
+            CompletenessBasisV2FU4.PUBLISHED_COMPLETENESS_STATEMENT,
+            SRCT,
+            _clause_digest(CLAUSE),
+            ", complete list",
+        )
+        forged = _make_candidate_record(
+            CandidateCompositionEvidenceBasisV2FU4.EXTRACTION_RESULT_V1,
+            EST,
+            CLAUSE,
+            SRCT,
+            completeness_attestation=forged_att,
+            extraction_result_digest=result_sv.result_digest,
+            extraction_input_digest=result_sv.input_digest,
+            extraction_result=result_sv,
+            channel_content_digest=_canon_digest(channel_sv.canonical()),
+        )
+        forged.verify()  # the forgery is self-consistent (the digest alone proves nothing)
+        with pytest.raises(
+            BundleCompositionEvidenceIntegrityError, match="not the exact construction"
+        ):
+            derive_sales_unit_authority_fu4(
+                channel_sv, forged, _target_established()
+            )
+        # And the marker-free publication derives UNPROVEN (the safe
+        # direction stands).
+        assert (
+            derive_sales_unit_authority_fu4(
+                channel_sv, record_sv, _target_established()
+            )
+            is U
+        )
+
+    def test_missing_extraction_result_is_unconstructible_and_refused(self) -> None:
+        """An EXTRACTION record whose original result is missing:
+        un-constructible at the type level (the constructor is the
+        validator); an out-of-band removal of the embedding is refused
+        at the gate (the record's own evidence digest covers the
+        embedding — no unit is derived)."""
+        result, channel = _extract("bundle: 2x RAM + 1x CPU, complete list")
+        # Constructor: the embedding is required on the EXTRACTION basis.
+        with pytest.raises(ValueError, match="original SalesUnitExtractionResult"):
+            CandidateBundleCompositionEvidenceV2FU4(
+                BUNDLE_COMPOSITION_EVIDENCE_VERSION_FU4,
+                CandidateCompositionEvidenceBasisV2FU4.EXTRACTION_RESULT_V1,
+                SV,
+                None,
+                CLAUSE,
+                (),
+                SRC,
+                None,
+                "ab" * 32,
+                "cd" * 32,
+                None,  # missing original result
+                "0" * 64,
+                "0" * 64,
+            )
+        # Gate: a valid record whose embedding was removed out-of-band.
+        record = candidate_composition_from_extraction(result)
+        assert record is not None
+        object.__setattr__(record, "extraction_result", None)
+        with pytest.raises(BundleCompositionEvidenceIntegrityError):
+            derive_sales_unit_authority_fu4(channel, record, None)
+
+    def test_wrong_extraction_result_with_matching_mapped_channel(self) -> None:
+        """A WRONG embedded original whose mapped channel nonetheless
+        equals the presented channel (the strongest wrong-result
+        forgery — every version-2 check passes): refused, because the
+        record's composition facts are not the re-composition of the
+        embedded original (the anchor + mapping + full-record checks
+        run over the exact result, never over the channel alone)."""
+        result, channel = _extract("bundle: 2x RAM + 1x CPU")  # SV, no marker
+        # (a) Claiming ESTABLISHED + an attestation the embedded
+        # original never supports.
+        forged_att = _make_attestation(
+            EvidenceSideV2FU4.CANDIDATE,
+            CompletenessBasisV2FU4.PUBLISHED_COMPLETENESS_STATEMENT,
+            SRCT,
+            _clause_digest(CLAUSE),
+            ", complete list",
+        )
+        forged_est = _make_candidate_record(
+            CandidateCompositionEvidenceBasisV2FU4.EXTRACTION_RESULT_V1,
+            EST,
+            CLAUSE,
+            SRCT,
+            completeness_attestation=forged_att,
+            extraction_result_digest=result.result_digest,
+            extraction_input_digest=result.input_digest,
+            extraction_result=result,
+            channel_content_digest=_canon_digest(channel.canonical()),
+        )
+        with pytest.raises(
+            BundleCompositionEvidenceIntegrityError, match="not the exact construction"
+        ):
+            derive_sales_unit_authority_fu4(
+                channel, forged_est, _target_established()
+            )
+        # (b) Claiming an additional clause the embedded original never
+        # published (the same shape with a different secondary cue).
+        result_second, channel_second = _extract(
+            "bundle: 2x RAM + 1x CPU, bundle: 2x SSD + 1x cable"
+        )
+        assert channel == channel_second  # identical primary clause
+        forged_extra = _make_candidate_record(
+            CandidateCompositionEvidenceBasisV2FU4.EXTRACTION_RESULT_V1,
+            CONTR_PUB,
+            "2x RAM + 1x CPU",
+            SRCT,
+            additional_clauses=("2x SSD + 1x cable",),
+            extraction_result_digest=result.result_digest,
+            extraction_input_digest=result.input_digest,
+            extraction_result=result,
+            channel_content_digest=_canon_digest(channel.canonical()),
+        )
+        with pytest.raises(
+            BundleCompositionEvidenceIntegrityError, match="not the exact construction"
+        ):
+            derive_sales_unit_authority_fu4(channel, forged_extra, None)
+        # The genuine record of the fuller publication stands over its
+        # own channel (the re-composition agrees): the form rule owns
+        # the default single-unit target (U9 ⇒ CONTRADICTED), and a
+        # bundle target fails closed (U12 ⇒ UNPROVEN).
+        record_second = candidate_composition_from_extraction(result_second)
+        assert record_second is not None and record_second.state is CONTR_PUB
+        assert record_second.additional_clauses == ("2x SSD + 1x cable",)
+        assert (
+            derive_sales_unit_authority_fu4(channel_second, record_second, None)
+            is C
+        )
+        assert (
+            derive_sales_unit_authority_fu4(
+                channel_second,
+                record_second,
+                TargetSalesUnitEvidenceV2(TargetSalesUnitFormV2.BUNDLE, None, TS),
+            )
+            is U
+        )
+
+    def test_wrong_extraction_result_with_mismatched_mapping_is_refused(self) -> None:
+        """A hand-forged self-consistent record whose embedded
+        original maps to a DIFFERENT channel than the presented one
+        (its content digest forged to the presented channel's): the
+        explicit frozen-P2-mapping check fires — the wrong extraction
+        result is refused before the re-composition is even read."""
+        presented_channel = _candidate_channel(
+            raw_detail="bundle: 2x RAM + 1x CPU", source=SRCT
+        )
+        foreign_result, foreign_channel = _extract("bundle: 2x SSD + 1x cable")
+        assert foreign_channel != presented_channel
+        foreign_record = candidate_composition_from_extraction(foreign_result)
+        assert foreign_record is not None
+        # Re-bind the foreign record's content digest to the presented
+        # channel (the strongest mapping forgery) — the record's own
+        # evidence digest is recomputed over the forged binding.
+        document = dict(foreign_record.canonical())
+        document["channel_content_digest"] = _canon_digest(
+            presented_channel.canonical()
+        )
+        forged = CandidateBundleCompositionEvidenceV2FU4(
+            foreign_record.schema_version,
+            foreign_record.basis,
+            foreign_record.state,
+            foreign_record.completeness_attestation,
+            foreign_record.composition_clause,
+            foreign_record.additional_clauses,
+            foreign_record.source,
+            foreign_record.channel_quantity,
+            foreign_record.extraction_result_digest,
+            foreign_record.extraction_input_digest,
+            foreign_record.extraction_result,
+            document["channel_content_digest"],
+            _canon_digest(document),
+        )
+        forged.verify()  # self-consistent (the v2 content-digest check passes)
+        with pytest.raises(
+            BundleCompositionEvidenceIntegrityError,
+            match="frozen P2 mapping",
+        ):
+            derive_sales_unit_authority_fu4(presented_channel, forged, None)
+
+    def test_tampered_extraction_result_is_refused(self) -> None:
+        """A tampered original result: (a) an out-of-band edit of the
+        embedded result's STORED result_digest — NOT covered by the
+        embedding's canonical (the digest is verified, not re-
+        serialized) so the record's own evidence digest still verifies
+        — is caught by the gate's own re-verification of the embedded
+        result's integrity (both stored digests recomputed); (b) an
+        out-of-band edit of the embedded result's FIELD is caught by
+        the record's own evidence digest; (c) a tampered result is
+        un-constructible into a record at all (the constructor
+        re-verifies the embedded original's integrity)."""
+        result, channel = _extract("bundle: 2x RAM + 1x CPU, complete list")
+        record = candidate_composition_from_extraction(result)
+        assert record is not None
+        # (a) The stored digest tamper (record's evidence digest intact):
+        # the gate re-verifies the embedded original's own digests.
+        object.__setattr__(record.extraction_result, "result_digest", "0" * 64)
+        record.verify()  # the record's own digest still verifies (the premise)
+        with pytest.raises(
+            BundleCompositionEvidenceIntegrityError, match="both stored digests"
+        ):
+            derive_sales_unit_authority_fu4(channel, record, None)
+        # (b) The field tamper (the embedding's canonical changes):
+        # the record's own verification fires (a fresh extraction — the
+        # row (a) tamper lives on the shared original).
+        result_b, _channel_b = _extract("bundle: 2x RAM + 1x CPU, complete list")
+        record_b = candidate_composition_from_extraction(result_b)
+        object.__setattr__(
+            record_b.extraction_result.cues[0], "cue_text", "bundle: 2x SSD + 1x cable"
+        )
+        with pytest.raises(BundleCompositionEvidenceIntegrityError):
+            record_b.verify()
+        # (c) The constructor refuses a record over a tampered result.
+        result_c, _channel_c = _extract("bundle: 2x RAM + 1x CPU, complete list")
+        record_c = candidate_composition_from_extraction(result_c)
+        tampered = dataclasses.replace(result_c)
+        object.__setattr__(tampered, "result_digest", "0" * 64)
+        with pytest.raises(BundleCompositionEvidenceIntegrityError):
+            _make_candidate_record(
+                CandidateCompositionEvidenceBasisV2FU4.EXTRACTION_RESULT_V1,
+                EST,
+                CLAUSE,
+                SRCT,
+                completeness_attestation=record_c.completeness_attestation,
+                extraction_result_digest=result_c.result_digest,
+                extraction_input_digest=result_c.input_digest,
+                extraction_result=tampered,
+                channel_content_digest=_canon_digest(_channel_c.canonical()),
+            )
+
+    def test_forged_extraction_digest_is_refused(self) -> None:
+        """A FORGED extraction digest anchor: a self-consistent record
+        whose stored anchors do not match its embedded original's own
+        digests is un-constructible (the record claims provenance the
+        embedded result does not carry) — and the gate re-checks the
+        anchors over the embedded original at derivation time."""
+        result, channel = _extract("bundle: 2x RAM + 1x CPU, complete list")
+        record = candidate_composition_from_extraction(result)
+        assert record is not None
+        att = record.completeness_attestation
+        # Constructor: forged result anchor (self-consistent digest via
+        # the mirror, anchors ≠ embedded original's digests).
+        with pytest.raises(
+            BundleCompositionEvidenceIntegrityError, match="forged anchor"
+        ):
+            _make_candidate_record(
+                CandidateCompositionEvidenceBasisV2FU4.EXTRACTION_RESULT_V1,
+                EST,
+                CLAUSE,
+                SRCT,
+                completeness_attestation=att,
+                extraction_result_digest="ab" * 32,
+                extraction_input_digest=result.input_digest,
+                extraction_result=result,
+                channel_content_digest=_canon_digest(channel.canonical()),
+            )
+        with pytest.raises(
+            BundleCompositionEvidenceIntegrityError, match="forged anchor"
+        ):
+            _make_candidate_record(
+                CandidateCompositionEvidenceBasisV2FU4.EXTRACTION_RESULT_V1,
+                EST,
+                CLAUSE,
+                SRCT,
+                completeness_attestation=att,
+                extraction_result_digest=result.result_digest,
+                extraction_input_digest="cd" * 32,
+                extraction_result=result,
+                channel_content_digest=_canon_digest(channel.canonical()),
+            )
+        # Gate: an out-of-band anchor tamper on a valid record — the
+        # record's own evidence digest refuses it before the chain
+        # runs (the B11 (a) row stands; re-pinned over v3).
+        object.__setattr__(record, "extraction_result_digest", "0" * 64)
+        with pytest.raises(BundleCompositionEvidenceIntegrityError):
+            derive_sales_unit_authority_fu4(channel, record, None)
+
+    def test_valid_same_result_replay(self) -> None:
+        """Valid same-result replay: the same original result
+        (re-extracted — byte-equal) constructs the byte-equal record
+        twice, and the association stands over the mapped channel and
+        over a separately constructed content-equal channel (the
+        equality is by VALUE, not object identity) — the derivation is
+        deterministic, no spurious refusal."""
+        result_a, channel_a = _extract("bundle: 2x RAM + 1x CPU, complete list")
+        result_b, channel_b = _extract("bundle: 2x RAM + 1x CPU, complete list")
+        assert result_a == result_b
+        record_a = candidate_composition_from_extraction(result_a)
+        record_b = candidate_composition_from_extraction(result_b)
+        assert record_a == record_b
+        assert record_a is not None and record_a.state is EST
+        # Over the mapped channel and over the separately constructed
+        # content-equal channel (full channel equality by value):
+        assert record_a.extraction_result is result_a
+        assert channel_a == channel_b and channel_a is not channel_b
+        assert (
+            derive_sales_unit_authority_fu4(
+                channel_a, record_a, _target_established()
+            )
+            is P
+        )
+        assert (
+            derive_sales_unit_authority_fu4(
+                channel_b, record_a, _target_established()
+            )
+            is P
+        )
+        # Replay: the same presentation derives the same unit.
+        assert (
+            derive_sales_unit_authority_fu4(
+                channel_a, record_b, _target_established()
+            )
+            is P
+        )
+
+    def test_superseded_v2_records_are_unconstructible(self) -> None:
+        """The versioned amendment: a v2 record (the FU1 schema, no
+        embedded original) is un-constructible — a superseded schema
+        version is never silently reinterpreted (the constructor
+        fails closed on any version other than 3)."""
+        result, channel = _extract("bundle: 2x RAM + 1x CPU, complete list")
+        record = candidate_composition_from_extraction(result)
+        assert record is not None
+        with pytest.raises(ValueError, match="schema_version"):
+            _make_candidate_record(
+                CandidateCompositionEvidenceBasisV2FU4.EXTRACTION_RESULT_V1,
+                EST,
+                CLAUSE,
+                SRCT,
+                completeness_attestation=record.completeness_attestation,
+                extraction_result_digest=result.result_digest,
+                extraction_input_digest=result.input_digest,
+                extraction_result=result,
+                channel_content_digest=_canon_digest(channel.canonical()),
+                schema_version=2,
+            )
+
+    def test_recorded_channel_validation_is_intact(self) -> None:
+        """Task item 6: the RECORDED_CHANNEL validation is intact — the
+        exact-construction + channel-content-binding checks are
+        unchanged by version 3, and the RECORDED_CHANNEL record carries
+        no embedded result."""
+        channel = _candidate_channel(quantity=3, raw_detail="bundle of 3")
+        record = candidate_composition_from_channel(channel)
+        assert record is not None
+        assert record.extraction_result is None
+        assert record.extraction_result_digest is None
+        assert record.extraction_input_digest is None
+        # The exact-construction refusal stands (a hand-forged RECORDED
+        # EST over the count-only publication — the B11 row's shape):
+        att = _make_attestation(
+            EvidenceSideV2FU4.CANDIDATE,
+            CompletenessBasisV2FU4.PUBLISHED_COMPLETENESS_STATEMENT,
+            SRC,
+            _clause_digest(CLAUSE),
+            ", complete list",
+        )
+        forged = _make_candidate_record(
+            CandidateCompositionEvidenceBasisV2FU4.RECORDED_CHANNEL,
+            EST,
+            CLAUSE,
+            SRC,
+            channel_quantity=3,
+            completeness_attestation=att,
+            channel_content_digest=_canon_digest(channel.canonical()),
+        )
+        with pytest.raises(
+            BundleCompositionEvidenceIntegrityError, match="not the construction"
+        ):
+            derive_sales_unit_authority_fu4(
+                channel, forged, _target_established(quantity=3)
+            )
+        # A RECORDED_CHANNEL record carrying an embedded result is
+        # un-constructible (the basis coherence):
+        result, _mapped = _extract("bundle: 2x RAM + 1x CPU")
+        with pytest.raises(ValueError, match="no embedded extraction result"):
+            _make_candidate_record(
+                CandidateCompositionEvidenceBasisV2FU4.RECORDED_CHANNEL,
+                SV,
+                CLAUSE,
+                SRCT,
+                extraction_result=result,
+            )
+
+    def test_fu2_fu3_arms_and_fu4_ceiling_unchanged_over_v3(self) -> None:
+        """The historical FU2 / FU3 dispatch arms do not interpret v3
+        records (contract misuse, as before — the arms delegate to the
+        frozen derivations byte-identically), and the FU4 tier
+        ceilings are unchanged over an EXTRACTION-basis record:
+        attested-equal ⇒ the automatic tier stands; unattested ⇒
+        capped at NEEDS_REVIEW (CEILING_SALES_UNIT_NOT_PROVEN)."""
+        u1 = _v2(title=f"Has {REQUEST_MPN} in the title")
+        result, channel = _extract("bundle: 2x RAM + 1x CPU, complete list")
+        record_est = candidate_composition_from_extraction(result)
+        assert record_est is not None
+        # FU2 arm: a composition input under the old token is contract
+        # misuse (unchanged — the arm never inspects the record).
+        with pytest.raises(ValueError, match="composition axis"):
+            derive_authority_tier_for_contract_fu4(
+                AUTHORITY_CONTRACT_VERSION_V2,
+                u1,
+                _match(),
+                NO_CTX,
+                _strong_profile(),
+                candidate_composition=record_est,
+            )
+        # FU3 arm: same (unchanged).
+        with pytest.raises(ValueError, match="composition axis"):
+            derive_authority_tier_for_contract_fu4(
+                AUTHORITY_CONTRACT_VERSION_V2_FU3,
+                u1,
+                _match(),
+                NO_CTX,
+                _strong_profile(),
+                candidate_composition=record_est,
+            )
+        # FU4 ceiling, attested-equal: the automatic tier stands.
+        stands = _tier(channel, record_est, _target_established())
+        assert stands.tier is AuthorityTier.AI_ASSISTED_COMPARABLE
+        assert stands.sales_unit_authority is P
+        # FU4 ceiling, unattested: capped (the restriction is intact).
+        result_sv, channel_sv = _extract("bundle: 2x RAM + 1x CPU")
+        record_sv = candidate_composition_from_extraction(result_sv)
+        assert record_sv is not None and record_sv.state is SV
+        capped = _tier(channel_sv, record_sv, _target(None, TS, CLAUSE, SV))
+        assert capped.tier is AuthorityTier.NEEDS_REVIEW
+        assert capped.sales_unit_authority is U
+        assert AuthorityRuleV2FU4.CEILING_SALES_UNIT_NOT_PROVEN in capped.fired_rules
 
 
 # ===========================================================================

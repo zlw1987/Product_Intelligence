@@ -173,6 +173,109 @@ replays are untouched — the binding is an FU4-contract property); the
 registration step remains separately gated (the v2 records are not
 registered anywhere).
 
+## Revision record 3 (Q3-B5-P4-FU2 — extraction evidence association
+closure, this document revised in place)
+
+**Revised at:** the Q3-B5-P4-FU2 correction endpoint (this amendment is
+the smallest versioned change the independent GitHub source review of
+the Q3-B5-P4-FU1 implementation requires; nothing in the corrected
+design moves — the amendment is to the IMPLEMENTED evidence schema,
+which the T5 / T9 discipline versions explicitly for this purpose).
+
+The independent review of the Q3-B5-P4-FU1 implementation found the
+remaining EXTRACTION_RESULT_V1 evidence-association gap in the
+candidate-side presentation gate (`_verify_candidate_composition`):
+the version-2 `channel_content_digest` correctly binds the MAPPED
+CHANNEL, but the frozen S2-C channel is a LOSSY projection of the
+extraction result — it carries only the primary established cue's
+published text (`raw_detail`), never the full result's additional
+cues, its contradiction state, or the continuation completeness marker
+that may sit in the recorded field text BEYOND `raw_detail`. The
+version-2 gate therefore verified only the record's primary clause
+against the presented channel's `raw_detail` (primary-clause-only
+validation): a self-consistent, hand-forged EXTRACTION-basis record
+could carry an ESTABLISHED composition (a completeness attestation the
+presented publication never made) or a CONTRADICTED_PUBLISHED state
+with additional clauses (cue facts the presented publication never
+published) whenever its primary clause and the channel content agreed
+— its `extraction_result_digest` / `extraction_input_digest` were
+unverified self-claims (a self-consistent, caller-reconstructed
+digest substituting for trusted recorded evidence provenance).
+Demonstrated over the v2 code: the gate derived PROVEN_EQUIVALENT for
+a marker-free publication presented with a forged self-consistent EST
+record (false PROVEN; the ceiling never fired).
+
+Correction — the smallest versioned amendment (the frozen S2-C-FU1
+channel cannot carry the back-reference — it is byte-frozen — so the
+association is expressed on the FU4 record's side, as in Revision
+record 2): the **versioned bundle-composition evidence schema moves to
+v3** (`BUNDLE_COMPOSITION_EVIDENCE_VERSION_FU4 = 3`; v2 records are
+un-constructible — a superseded schema version is never silently
+reinterpreted). The EXTRACTION_RESULT_V1 candidate record gains ONE
+field, `extraction_result` — the EXACT original
+`SalesUnitExtractionResult` (frozen schema v1) it was constructed
+from: the bounded proof carrying ALL authority-relevant extraction
+facts (every recorded cue with its full provenance — field / source /
+verbatim field text / span / kind / disposition / reason — the
+result's state, its established unit, and both of its self-verifying
+digests), embedded inside the record's `evidence_digest`. The RECORDED_
+CHANNEL record carries exactly None. The derivation's presentation
+gate re-proves the association INDEPENDENTLY at derivation time over
+the embedded original (never a fallback to primary-clause-only
+validation): (1) the embedded result passes its OWN integrity
+verification (BOTH stored digests recomputed — a tampered or altered
+original is refused); (2) the record's stored extraction digest
+anchors equal the embedded result's digests (a forged anchor is
+refused); (3) the FROZEN P2 mapping
+`sales_unit_channel_from_extraction` of that exact result EQUALS the
+presented channel (full channel equality — a wrong extraction result,
+whose mapping is not the presented publication, is refused); (4) the
+candidate composition RECOMPUTED from that exact result equals the
+COMPLETE presented record — state, clauses, attestations, and
+provenance (a hand-forged or altered record is refused even when
+self-consistent). An EXTRACTION record whose original result is
+missing is un-constructible (the constructor is the validator: it
+additionally checks the anchor-vs-embedding match, the embedding's
+integrity, the OBSERVED-BUNDLE bound, and
+`channel_quantity == established_quantity`).
+
+**Unchanged (pinned):** the RECORDED_CHANNEL validation (the exact-
+construction + channel-content-binding checks stand byte-for-byte);
+the derivation / dispatch / case-level SIGNATURES (no new derivation
+input — the association travels with the record; the C8 /
+F1 signature pins pass unchanged); the frozen S2-C channel; the
+FU2 / FU3 dispatch arms (delegation identity); the decision table /
+tier ceilings; the two attestation record shapes (version-bumped with
+the shared constant, no field change); the target-side record (same).
+
+**Documented bound (the frozen channel's granularity):** the channel
+association is proven over the channel CONTENT (state / kind /
+quantity / raw_detail / source). Two distinct publications whose
+recorded channels are content-identical (e.g. one whose recorded field
+text carries a continuation completeness marker beyond the primary
+cue's span and one whose does not; or differing only in a secondary
+cue) are indistinguishable at the frozen channel level — the S2-C
+channel cannot carry the input identity, and this phase does not
+modify it. Over that bound, every authority-relevant fact of the
+record is proven to be exactly the fact of its embedded, self-
+consistent original result; the dangerous direction (claiming facts
+the embedded original does not support) is closed.
+
+**Register of corrected locations (design → implemented v3):**
+
+| Location | Correction |
+| --- | --- |
+| §3 (schema intro) / §6 item 3 / §12 item 1 | Evidence schema versioned to 3 (`BUNDLE_COMPOSITION_EVIDENCE_VERSION_FU4 = 3`); v2 records un-constructible |
+| §3.2 | Candidate record gains `extraction_result` (the exact original result — the bounded proof of all authority-relevant extraction facts — inside `evidence_digest`); constructor rules: exact type or None; basis coherence (EXTRACTION ⇒ present, RECORDED ⇒ None); anchor-vs-embedding match; embedding integrity; OBSERVED-BUNDLE bound; `channel_quantity == established_quantity` |
+| §5 (derivation preconditions) | The EXTRACTION_RESULT_V1 presentation gate re-proves the original-result association at derivation time (the four-step chain above); the RECORDED_CHANNEL validation is intact; no derivation-input change |
+| §9 (test matrix) | B12 class added: the mandated adversarial rows (identical primary clause / different secondary cues; conflicting title / structured clauses; continuation marker present vs absent — the false-PROVEN closure; missing / wrong / tampered original result; forged extraction digest; valid same-result replay; the frozen-channel content bound; the intact RECORDED_CHANNEL validation; the unchanged FU2 / FU3 arms and FU4 tier ceilings; the superseded-v2 un-constructibility) |
+
+The frozen FU2 / FU3 / S2-C / P2-extraction / Prompt 2.0 / 2.1 inputs
+are byte-unchanged by the amendment; the FU3 / FU2 dispatch arms
+delegate to the frozen derivations exactly as before; the registration
+step remains separately gated (the v3 records are not registered
+anywhere).
+
 ## Relationship to the prior design documents
 
 This document is the design of record for the separately versioned
@@ -636,11 +739,13 @@ composition axis per D19).
 All names below are the proposed contract surface (module
 `research/semantic_authority_fu4.py`, research layer, stdlib-only,
 import-self-checked, no mutable global state — the FU3 / P2 discipline).
-The schema is **version 2 of the FU4 composition evidence**
-(`BUNDLE_COMPOSITION_EVIDENCE_VERSION_FU4 = 2` — version 1 plus the
-Q3-B5-P4-FU1 `channel_content_digest` channel-content binding on the
-candidate record; see Revision record 2); any future change to a
-grammar or state is a new version of this record, never a silent edit.
+The schema is **version 3 of the FU4 composition evidence**
+(`BUNDLE_COMPOSITION_EVIDENCE_VERSION_FU4 = 3` — version 1 plus the
+Q3-B5-P4-FU1 `channel_content_digest` channel-content binding plus the
+Q3-B5-P4-FU2 embedded original-result association on the EXTRACTION_
+RESULT_V1 candidate record; see Revision records 2 / 3); any future
+change to a grammar or state is a new version of this record, never a
+silent edit.
 
 ## 3.1 Placement: derivation inputs, not case fields (D2)
 
@@ -800,6 +905,16 @@ class CandidateBundleCompositionEvidenceV2FU4:
     extraction_input_digest: str | None
     """EXTRACTION_RESULT_V1 basis: the result's input_digest (the exact
     examined input). None otherwise."""
+    extraction_result: SalesUnitExtractionResult | None
+    """VERSION 3 (Q3-B5-P4-FU2): the EXACT original
+    SalesUnitExtractionResult (the frozen schema-v1 result) the record
+    was constructed from — the bounded proof carrying ALL authority-
+    relevant extraction facts (every recorded cue with its full
+    provenance, the state, the established unit, both self-verifying
+    digests). Present EXACTLY on the EXTRACTION_RESULT_V1 basis (None
+    on the RECORDED_CHANNEL basis). Inside `evidence_digest`; the
+    derivation's presentation gate re-proves the association over it
+    at derivation time (Revision record 3, the four-step chain)."""
     channel_content_digest: str
     """VERSION 2 (Q3-B5-P4-FU1): the binding to the EXACT channel
     content the record was constructed from — SHA-256 over the frozen
@@ -841,7 +956,16 @@ Constructor (fail closed, the P2 result-constructor pattern):
   checks (an empty / truncated clause is un-constructible as
   SYNTACTICALLY_VALID or ESTABLISHED — D5 at the type level);
 * `EXTRACTION_RESULT_V1` ⇒ both extraction digests present and
-  well-formed; `RECORDED_CHANNEL` ⇒ both None;
+  well-formed, AND the exact original `SalesUnitExtractionResult`
+  embedded (VERSION 3 — a record whose original result is missing is
+  un-constructible); the stored anchors must EQUAL the embedded
+  result's own digests (a forged anchor is an integrity error); the
+  embedded result must pass its OWN integrity verification (both
+  stored digests recomputed — a tampered original is an integrity
+  error); the embedded result must be OBSERVED BUNDLE (the
+  construction over any other state / kind is None); `channel_
+  quantity` must be the embedded result's `established_quantity`;
+  `RECORDED_CHANNEL` ⇒ both digests None and NO embedded result;
 * `channel_content_digest` (VERSION 2) is a well-formed 64-hex digest,
   computed by the constructor over the exact channel content the record
   is built from (RECORDED_CHANNEL: the passed channel; EXTRACTION:
@@ -1328,11 +1452,28 @@ misuse inputs; the unit returned is the frozen `SalesUnitAuthorityV2`
   `evidence_digest` — including its embedded completeness attestation
   (§3.8: digest, subject CANDIDATE, basis PUBLISHED_COMPLETENESS_
   STATEMENT, source = the record's source, clause_digest over exactly
-  the record's clause) — and, on the extraction basis, its binding to
-  the presented channel (the record's `source` and `channel_quantity`
-  must agree with the channel's `source` and `quantity` — a record
-  cannot claim provenance the channel never recorded; integrity error
-  otherwise).
+  the record's clause) AND, on the EXTRACTION_RESULT_V1 basis, its
+  embedded original result (VERSION 3 — Revision record 3) — and its
+  binding to the presented channel (the record's `source` and
+  `channel_quantity` must agree with the channel's `source` and
+  `quantity` — a record cannot claim provenance the channel never
+  recorded; integrity error otherwise). Over the EXTRACTION_RESULT_V1
+  basis the gate additionally re-proves the original-result
+  association INDEPENDENTLY at derivation time (Revision record 3 —
+  never a fallback to primary-clause-only validation; a self-
+  consistent, caller-reconstructed digest never substitutes for
+  trusted recorded evidence provenance): (1) the embedded result's
+  OWN integrity (both stored digests recomputed); (2) the record's
+  extraction digest anchors equal the embedded result's digests;
+  (3) the FROZEN P2 mapping of that exact result EQUALS the presented
+  channel (full channel equality); (4) the candidate composition
+  RECOMPUTED from that exact result equals the COMPLETE presented
+  record (state, clauses, attestations, provenance). An EXTRACTION
+  record whose original result is missing, mismatched, or altered
+  produces no derivation input. Over the RECORDED_CHANNEL basis the
+  version-2 validation is intact (the presented channel's content
+  digest equals the record's `channel_content_digest`, and the record
+  is EXACTLY the construction of the presented channel).
 * `target_evidence` is None, or the frozen type (D18), or the FU4 type
   (digest re-verified — including its embedded completeness
   attestation, subject TARGET); a frozen record is read as
@@ -1684,10 +1825,13 @@ EXACTLY:
    bounded marker-delimiter set, the materiality grammar (§3.7), and
    the integrity error type (`BundleCompositionEvidenceIntegrityError`,
    corrected scope: the evidence records AND both attestation
-   records). `BUNDLE_COMPOSITION_EVIDENCE_VERSION_FU4 = 2` (the Q3-
+   records). `BUNDLE_COMPOSITION_EVIDENCE_VERSION_FU4 = 3` (the Q3-
    B5-P4-FU1 amendment: version 1 + the candidate record's
-   `channel_content_digest` binding, §3.2 / Revision record 2) covers
-   the marker lists (the T5 / T9 discipline).
+   `channel_content_digest` binding, §3.2 / Revision record 2; the
+   Q3-B5-P4-FU2 amendment: + the EXTRACTION_RESULT_V1 candidate
+   record's `extraction_result` embedding — the exact original
+   result, §3.2 / Revision record 3) covers the marker lists (the T5
+   / T9 discipline).
 4. **The construction entry points** (fail closed, CORRECTED):
    `candidate_composition_from_extraction(result) ->
    CandidateBundleCompositionEvidenceV2FU4 | None` — re-verifies the
@@ -1722,9 +1866,19 @@ EXACTLY:
    presentation gate re-verifies the association at derivation time
    (a digest match over the presented channel's canonical content, the
    exact-construction requirement over the RECORDED_CHANNEL basis, the
-   primary-clause requirement over the EXTRACTION_RESULT_V1 basis;
-   the published quantity compared by exact value, never object
-   identity).
+   primary-clause requirement over the EXTRACTION_RESULT_V1 basis —
+   SUPERSEDED in VERSION 3, never a fallback —; the published quantity
+   compared by exact value, never object identity). VERSION 3
+   (Revision record 3): the EXTRACTION_RESULT_V1 constructor
+   ADDITIONALLY embeds the exact verified original result
+   (`extraction_result` — the bounded proof carrying all authority-
+   relevant extraction facts, inside `evidence_digest`), and the gate
+   re-proves the four-step original-result association at derivation
+   time (the embedded result's own integrity — both stored digests —
+   the anchor match, the FROZEN P2 mapping against the presented
+   channel, the RECOMPUTED composition against the complete record);
+   the derivation / dispatch / case-level signatures are UNCHANGED (no
+   new derivation input — the association travels with the record).
    The TARGET-side record (and its embedded completeness attestation)
    and the QUANTITY attestation are REVIEW-CONSTRUCTED only — the
    validated dataclass constructors are the sole creation paths (there
@@ -2515,10 +2669,12 @@ ONLY when ALL hold:
    reasons; the five quantity-axis states; the candidate-basis pair;
    the versioned `_COMPLETENESS_MARKERS` list (six members) + the
    marker-delimiter set; the rule set EQUAL to the FU3 set; the token
-   distinct from FU2 / FU3; the evidence schema version 2 (the Q3-B5-
+   distinct from FU2 / FU3; the evidence schema version 3 (the Q3-B5-
    P4-FU1 amendment: version 1 + the candidate record's
-   `channel_content_digest` binding — Revision record 2); no mutable
-   global state).
+   `channel_content_digest` binding — Revision record 2; the Q3-B5-
+   P4-FU2 amendment: + the EXTRACTION_RESULT_V1 candidate record's
+   `extraction_result` embedding of the exact original result —
+   Revision record 3); no mutable global state).
 2. **Frozen pins.** Every file digest in §8 is byte-identical to the
    phase's starting SHA (the pin test computes the digests from the
    starting-SHA tree — not from the phase's own edits); the full 98-
