@@ -1,12 +1,47 @@
 """Tests for the S2-A-FU4 bundle-composition authority contract
-(PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-Q3-B5-P4).
+(PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-Q3-B5-P4, as CORRECTED IN PLACE by
+PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-Q3-B5-P4-FU1).
 
 Covers ``product_intelligence.research.semantic_authority_fu4`` — the
 separately versioned authority contract
 ``SEMANTIC_AUTHORITY_V2_S2A_FU4`` implementing the approved, CORRECTED
 Q3-B5-P3 bundle-composition authority design
 (``docs/PRODUCT_INTEL_Q3B5_P3_BUNDLE_COMPOSITION_DESIGN.md`` — Blocker A
-quantity completeness + Blocker B composition completeness):
+quantity completeness + Blocker B composition completeness, + the FU1
+channel-content binding amendment, schema version 2):
+
+**Q3-B5-P4-FU1 (this correction, recorded).** The independent GitHub
+source review of Q3-B5-P4 found two defects: (1) the derivation's
+presentation gate checked only source class + published quantity
+against the channel — a self-verifying digest is not proof of
+cross-record association — so a composition record built from listing
+A's channel / extraction result was accepted over listing B's channel
+whenever source class, bundle form, and quantity agreed; (2) the gate
+compared the published integer quantities with object identity
+(``is not``), which wrongly refuses separately deserialized equal
+quantities greater than 256. Corrected (versioned evidence schema v2 —
+the candidate record's ``channel_content_digest`` binding over the
+exact canonical channel content, including the published
+``raw_detail``; the presentation gate re-verifies the association at
+derivation time; quantity compared by exact value). This file's
+corrections are: the schema-version pin (A2) and the unknown-version
+node (B9) moved from 1 to 2 / 3 respectively (the versioned amendment
+— the recorded conflict of the Q3-B5-P3-FU1 discipline: any change is a
+new version, never a silent edit); two direct positional constructions
+gain the one new field (B4 / B5); the record helpers bind to the
+canonical channel their derivation call-sites present (the
+``_candidate_established`` helper now constructs over its marker-
+carrying channel, and every call-site presenting an ESTABLISHED record
+presents THAT channel — the fixtures previously embodied the
+substitution defect: an EST record presented over a channel whose
+published ``raw_detail`` carries no completeness statement); and the
+new B11 adversarial class (the mandated matrix over the corrected
+binding). No test is deleted, renamed, skipped, xfailed, deselected,
+ignored, or weakened: every preserved node keeps its name, its
+asserted unit / tier / rule expectations, and its intent — only the
+fixture CONSTRUCTION aligns the record with the channel it is
+presented over (the corrected contract), exactly as the Q3-B4-FU2 /
+Q3-B5-P2-FU1 precedents recorded their in-place corrections.
 
 * **A — Preservation.** A1 file-digest pins (every frozen input of
   section 8 byte-identical to the starting SHA
@@ -36,7 +71,12 @@ quantity completeness + Blocker B composition completeness):
   record under FU4 (D18); B8 clause-grammar edges (the grammar decides
   the TEXTUAL axis only); B9 the composition-completeness attestation
   constructor (Blocker B); B10 the quantity-completeness attestation
-  constructor (Blocker A).
+  constructor (Blocker A); B11 (FU1) the channel-content binding:
+  cross-listing substitution refused (RECORDED_CHANNEL and EXTRACTION
+  bases), separately deserialized equal quantities > 256 derive, equal
+  quantity over different composition, tampered binding /
+  association, valid same-listing derivation, and the
+  constructor-time + derivation-time integrity enforcement.
 * **C — The comparison rules (one row per mandated rule).** C1 missing
   / partial / completeness-unknown composition ⇒ UNPROVEN; C2 equal
   counts without composition ⇒ UNPROVEN (FU4) while FU3 PROVEN; C3
@@ -562,8 +602,29 @@ def _make_candidate_record(
     ) = None,
     extraction_result_digest: str | None = None,
     extraction_input_digest: str | None = None,
+    channel_content_digest: str | None = None,
     schema_version: int = BUNDLE_COMPOSITION_EVIDENCE_VERSION_FU4,
 ) -> CandidateBundleCompositionEvidenceV2FU4:
+    """The test-side mirror of the module's candidate record (schema
+    v2). ``channel_content_digest`` defaults to the binding of the
+    CANONICAL channel this record describes — the OBSERVED BUNDLE
+    channel with this record's source / quantity and the
+    corpus-shaped ``raw_detail`` (``bundle: <clause>`` / ``bundle`` for
+    ABSENT) — so the hand-built record is EXACTLY the construction of
+    the channel the derivation call-sites present (the FU1 binding);
+    pass an explicit digest to pin a different recorded anchor."""
+    if channel_content_digest is None:
+        raw_detail = (
+            "bundle" if composition_clause is None else f"bundle: {composition_clause}"
+        )
+        bound_channel = CandidateSalesUnitEvidenceV2(
+            state=PackagingEvidenceStateV2.OBSERVED,
+            kind=SalesUnitKindV2.BUNDLE,
+            quantity=channel_quantity,
+            raw_detail=raw_detail,
+            source=source,
+        )
+        channel_content_digest = _canon_digest(bound_channel.canonical())
     document = {
         "schema_version": schema_version,
         "basis": basis.value,
@@ -579,6 +640,7 @@ def _make_candidate_record(
         "channel_quantity": channel_quantity,
         "extraction_result_digest": extraction_result_digest,
         "extraction_input_digest": extraction_input_digest,
+        "channel_content_digest": channel_content_digest,
     }
     return CandidateBundleCompositionEvidenceV2FU4(
         schema_version,
@@ -591,6 +653,7 @@ def _make_candidate_record(
         channel_quantity,
         extraction_result_digest,
         extraction_input_digest,
+        channel_content_digest,
         _canon_digest(document),
     )
 
@@ -655,15 +718,28 @@ def _candidate_record(
     )
 
 
+# The ESTABLISHED candidate's canonical channel: the published
+# completeness statement is PART of the presented publication's
+# raw_detail (the FU1 binding: an EST record is the construction of
+# THIS channel — presenting it over a marker-free channel is the
+# cross-listing substitution the corrected gate refuses).
+EST_RAW_DETAIL = f"bundle: {CLAUSE}, complete list"
+
+
+def _candidate_established_channel(
+    quantity: int | None = None,
+    source: CandidateEvidenceSourceV2 = SRC,
+) -> CandidateSalesUnitEvidenceV2:
+    return _channel(SalesUnitKindV2.BUNDLE, quantity, EST_RAW_DETAIL, source)
+
+
 def _candidate_established(quantity: int | None = None):
-    att = _make_attestation(
-        EvidenceSideV2FU4.CANDIDATE,
-        CompletenessBasisV2FU4.PUBLISHED_COMPLETENESS_STATEMENT,
-        SRC,
-        _clause_digest(CLAUSE),
-        ", complete list",
+    """The ESTABLISHED candidate record — constructed (not hand-built)
+    over its canonical marker-carrying channel, so it is exactly the
+    construction of the channel its call-sites present."""
+    return candidate_composition_from_channel(
+        _candidate_established_channel(quantity)
     )
-    return _candidate_record(quantity, CLAUSE, EST, att)
 
 
 def _quantity_attestation(
@@ -811,7 +887,7 @@ class TestA2TokenAndDelegationIdentity:
                 AUTHORITY_CONTRACT_VERSION_V2_FU4,
             }
         )
-        assert BUNDLE_COMPOSITION_EVIDENCE_VERSION_FU4 == 1
+        assert BUNDLE_COMPOSITION_EVIDENCE_VERSION_FU4 == 2
         # The frozen FU3 constant stays exactly {FU2, FU3}.
         assert fu3.KNOWN_AUTHORITY_CONTRACT_TOKENS == frozenset(
             {AUTHORITY_CONTRACT_VERSION_V2, AUTHORITY_CONTRACT_VERSION_V2_FU3}
@@ -1683,7 +1759,7 @@ class TestB1FiveWayDistinctionAndMarkerRows:
         a truncated (unclosed paren) co-publication of the same clause
         form is PARTIAL and blocks the attestation — the single clause
         stands PARTIAL for audit, never ESTABLISHED (fail closed)."""
-        result, _channel = _extract(
+        result, channel = _extract(
             "bundle (2x RAM + 1x CPU", "bundle (2x RAM + 1x CPU, complete list)"
         )
         assert result.state is SalesUnitExtractionState.OBSERVED_UNAMBIGUOUS
@@ -1693,10 +1769,11 @@ class TestB1FiveWayDistinctionAndMarkerRows:
         assert record.composition_clause == CLAUSE
         assert record.completeness_attestation is None
         record.verify()
-        # And it can never contribute to PROVEN_EQUIVALENT.
+        # And it can never contribute to PROVEN_EQUIVALENT (the record is
+        # presented over its OWN mapped channel — the FU1 binding).
         assert (
             derive_sales_unit_authority_fu4(
-                _candidate_channel(), record, _target_established()
+                channel, record, _target_established()
             )
             is U
         )
@@ -1804,6 +1881,7 @@ class TestB4ProvenanceRefusal:
                     None,
                     None,
                     None,
+                    "0" * 63 + "1",  # channel-content binding (v2)
                     "0" * 64,
                 )
 
@@ -1885,6 +1963,7 @@ class TestB5Integrity:
                 None,
                 None,
                 None,
+                "0" * 63 + "1",  # channel-content binding (v2)
                 "0" * 64,  # digest does not verify
             )
 
@@ -2044,16 +2123,17 @@ class TestB6Determinism:
         record.verify()
 
     def test_the_derivation_is_deterministic_over_equal_inputs(self) -> None:
-        channel = _candidate_channel()
-        record = candidate_composition_from_channel(
-            _candidate_channel(raw_detail="bundle: 2x RAM + 1x CPU, complete list")
-        )
+        # Equal inputs (the FU1 binding: the record is the construction
+        # of the presented channel in BOTH derivations — same content,
+        # separately constructed objects).
+        channel = _candidate_established_channel()
+        record = candidate_composition_from_channel(channel)
         target = _target_established()
         first = _tier(channel, record, target)
         second = _tier(
-            _candidate_channel(),
+            _candidate_established_channel(),
             candidate_composition_from_channel(
-                _candidate_channel(raw_detail="bundle: 2x RAM + 1x CPU, complete list")
+                _candidate_established_channel()
             ),
             _target_established(),
         )
@@ -2066,10 +2146,8 @@ class TestB7FrozenTargetUnderFu4:
         """D18: a frozen target record is read exactly as its fields
         state — form + count, composition ABSENT (the field does not
         exist; no implicit upgrade)."""
-        channel = _candidate_channel()
-        record = candidate_composition_from_channel(
-            _candidate_channel(raw_detail="bundle: 2x RAM + 1x CPU, complete list")
-        )
+        channel = _candidate_established_channel()
+        record = candidate_composition_from_channel(channel)
         frozen_target = TargetSalesUnitEvidenceV2(
             TargetSalesUnitFormV2.BUNDLE, None, TS
         )
@@ -2108,10 +2186,11 @@ class TestB8ClauseGrammarEdges:
     context is stated on every row)."""
 
     def test_multiset_equal_is_textual_agreement(self) -> None:
-        # U20 when both sides ESTABLISHED.
+        # U20 when both sides ESTABLISHED (the record is the
+        # construction of the presented channel — the FU1 binding).
         assert (
             derive_sales_unit_authority_fu4(
-                _candidate_channel(),
+                _candidate_established_channel(),
                 _candidate_established(),
                 _target_established(clause="1x CPU + 2x RAM"),
             )
@@ -2130,7 +2209,7 @@ class TestB8ClauseGrammarEdges:
     def test_multiset_differ_is_material_when_both_established(self) -> None:
         assert (
             derive_sales_unit_authority_fu4(
-                _candidate_channel(),
+                _candidate_established_channel(),
                 _candidate_established(),
                 _target_established(clause="2x RAM + 1x SSD"),
             )
@@ -2151,7 +2230,7 @@ class TestB8ClauseGrammarEdges:
         # both ESTABLISHED, U15 otherwise (never CONTRADICTED).
         assert (
             derive_sales_unit_authority_fu4(
-                _candidate_channel(),
+                _candidate_established_channel(),
                 _candidate_established(),
                 _target_established(clause="2x RAM + 1x CPU (revised)"),
             )
@@ -2382,6 +2461,8 @@ class TestB9CompletenessAttestationConstructor:
             )
 
     def test_a_unknown_schema_version_is_unconstructible(self) -> None:
+        # Version 2 is the shipped schema (the Q3-B5-P4-FU1 channel-
+        # content binding amendment); anything else is unknown.
         with pytest.raises(ValueError, match="schema_version"):
             _make_attestation(
                 EvidenceSideV2FU4.TARGET,
@@ -2389,7 +2470,7 @@ class TestB9CompletenessAttestationConstructor:
                 TS,
                 _clause_digest(CLAUSE),
                 "x",
-                schema_version=2,
+                schema_version=3,
             )
 
 
@@ -2444,7 +2525,7 @@ class TestB10QuantityAttestationConstructor:
     def test_an_attestation_with_the_wrong_subject_side_is_an_integrity_error(
         self,
     ) -> None:
-        channel = _candidate_channel(quantity=2)
+        channel = _candidate_established_channel(quantity=2)
         record = _candidate_established(quantity=2)
         # The missing side is the TARGET — the attestation must stand on
         # it.
@@ -2470,7 +2551,7 @@ class TestB10QuantityAttestationConstructor:
         # Both publish.
         with pytest.raises(ValueError, match="asymmetric"):
             derive_sales_unit_authority_fu4(
-                _candidate_channel(quantity=2),
+                _candidate_established_channel(quantity=2),
                 _candidate_established(quantity=2),
                 _target_established(quantity=2),
                 att,
@@ -2478,7 +2559,7 @@ class TestB10QuantityAttestationConstructor:
         # Both absent.
         with pytest.raises(ValueError, match="asymmetric"):
             derive_sales_unit_authority_fu4(
-                _candidate_channel(),
+                _candidate_established_channel(),
                 _candidate_established(),
                 _target_established(),
                 att,
@@ -2492,6 +2573,338 @@ class TestB10QuantityAttestationConstructor:
                     TargetSalesUnitFormV2.PACK_QUANTITY, 4, TS
                 ),
                 att,
+            )
+
+
+class TestB11ChannelContentBindingFU1:
+    """B11 (Q3-B5-P4-FU1 — the mandated adversarial matrix over the
+    corrected presentation gate): the version-2 channel-content binding
+    refuses cross-listing composition evidence substitution (a
+    self-verifying digest is not proof of cross-record association),
+    the published integer quantities compare by exact value (not
+    object identity), and the association is re-verified at derivation
+    time and enforced at construction time."""
+
+    def test_same_source_and_quantity_different_raw_detail_is_refused(self) -> None:
+        """Two channels with identical source and quantity but
+        different published raw_detail (two listings): a record from
+        listing A is refused over listing B's channel — even though
+        source class, bundle form, and quantity all agree."""
+        listing_a = _candidate_channel(quantity=3, raw_detail="bundle of 3")
+        listing_b = _candidate_channel(quantity=3, raw_detail="bundle of 3 (SSD)")
+        assert (
+            listing_a.source is listing_b.source
+            and listing_a.kind is listing_b.kind
+            and listing_a.quantity == listing_b.quantity
+            and listing_a.raw_detail != listing_b.raw_detail
+        )
+        record = candidate_composition_from_channel(listing_a)
+        with pytest.raises(
+            BundleCompositionEvidenceIntegrityError, match="does not belong"
+        ):
+            derive_sales_unit_authority_fu4(listing_b, record, None)
+        # Over its OWN listing the same record stands (ABSENT ⇒ UNPROVEN).
+        assert (
+            derive_sales_unit_authority_fu4(
+                listing_a,
+                record,
+                TargetSalesUnitEvidenceV2(TargetSalesUnitFormV2.BUNDLE, 3, TS),
+            )
+            is U
+        )
+
+    def test_an_extraction_record_from_listing_a_is_refused_over_listing_b(self) -> None:
+        """EXTRACTION_RESULT_V1 basis: the record is digest-bound to
+        the result AND to the result's mapped channel (the verifiable
+        relationship extraction result → mapped channel → record); a
+        record from listing A's result is refused over listing B's
+        mapped channel — identical source class, bundle form, and
+        quantity (both publish a marker-carrying bundle of no count),
+        different publication."""
+        result_a, channel_a = _extract("bundle: 2x RAM + 1x CPU, complete list")
+        result_b, channel_b = _extract("bundle: 2x SSD + 1x cable, complete list")
+        record_a = candidate_composition_from_extraction(result_a)
+        assert record_a is not None and record_a.state is EST
+        assert channel_a.source is channel_b.source
+        assert channel_a.kind is channel_b.kind
+        assert channel_a.quantity == channel_b.quantity
+        assert channel_a.raw_detail != channel_b.raw_detail
+        # Same listing: the association stands (PROVEN over the
+        # attested-equal target).
+        assert (
+            derive_sales_unit_authority_fu4(
+                channel_a, record_a, _target_established()
+            )
+            is P
+        )
+        # Cross-listing: the association fails (refused).
+        with pytest.raises(
+            BundleCompositionEvidenceIntegrityError, match="does not belong"
+        ):
+            derive_sales_unit_authority_fu4(
+                channel_b, record_a, _target_established()
+            )
+
+    def test_separately_deserialized_equal_quantities_above_256_derive(self) -> None:
+        """Blocker 2: two separately deserialized channels with equal
+        published quantity greater than 256 (distinct ``int`` objects —
+        small-int interning does not mask the comparison): the
+        corrected gate compares by EXACT VALUE — the record of one
+        deserialization stands over the other, and the derivation is
+        content-deterministic (the old ``is not`` comparison refused
+        this valid same-publication record)."""
+        q1 = json.loads("300")
+        q2 = json.loads("300")
+        assert q1 == q2 and q1 is not q2  # the premise: distinct objects
+        channel_1 = _candidate_established_channel(quantity=q1)
+        channel_2 = _candidate_established_channel(quantity=q2)
+        record = candidate_composition_from_channel(channel_1)
+        assert record.channel_quantity == q2
+        assert record.channel_quantity is not q2
+        # SV / ABSENT shape (count-only): UNPROVEN over the frozen
+        # same-count bundle target.
+        plain_1 = _candidate_channel(quantity=q1)
+        plain_2 = _candidate_channel(quantity=q2)
+        plain_record = candidate_composition_from_channel(plain_1)
+        assert (
+            derive_sales_unit_authority_fu4(
+                plain_2,
+                plain_record,
+                TargetSalesUnitEvidenceV2(
+                    TargetSalesUnitFormV2.BUNDLE, q2, TS
+                ),
+            )
+            is U
+        )
+        # ESTABLISHED shape: PROVEN over the attested-equal same-count
+        # target — the value-equal quantities agree on the axis.
+        assert (
+            derive_sales_unit_authority_fu4(
+                channel_2,
+                record,
+                _target_established(quantity=q2),
+            )
+            is P
+        )
+
+    def test_equal_quantity_but_different_composition(self) -> None:
+        """Equal published quantity never substitutes for the
+        composition axis: a material difference over two ESTABLISHED
+        clauses ⇒ CONTRADICTED; one side unattested ⇒ UNPROVEN."""
+        assert (
+            derive_sales_unit_authority_fu4(
+                _candidate_established_channel(quantity=2),
+                _candidate_established(quantity=2),
+                _target_established(clause="2x RAM + 1x SSD", quantity=2),
+            )
+            is C
+        )
+        assert (
+            derive_sales_unit_authority_fu4(
+                _candidate_channel(quantity=2),
+                _candidate_record(quantity=2),
+                _target(2, TS, "2x RAM + 1x SSD", SV),
+            )
+            is U
+        )
+
+    def test_a_tampered_channel_provenance_is_refused(self) -> None:
+        """The presented channel's provenance tampered (same content
+        otherwise): the record cannot stand over a channel that never
+        recorded its source — refused at the derivation gate."""
+        channel = _candidate_channel()
+        record = candidate_composition_from_channel(channel)
+        tampered = CandidateSalesUnitEvidenceV2(
+            state=PackagingEvidenceStateV2.OBSERVED,
+            kind=SalesUnitKindV2.BUNDLE,
+            quantity=channel.quantity,
+            raw_detail=channel.raw_detail,
+            source=CandidateEvidenceSourceV2.LISTING_TITLE,
+        )
+        with pytest.raises(
+            BundleCompositionEvidenceIntegrityError, match="provenance"
+        ):
+            derive_sales_unit_authority_fu4(tampered, record, None)
+
+    def test_a_tampered_extraction_association_is_refused(self) -> None:
+        """The EXTRACTION record's association anchors tampered:
+        (a) out-of-band tamper of the recorded extraction result_digest
+        — the record's own evidence digest no longer verifies at the
+        presentation gate; (b) the record presented over the MAPPED
+        CHANNEL OF A FOREIGN RESULT — the mapped-channel association
+        fails. Either way: no derivation input."""
+        result, channel = _extract("bundle: 2x RAM + 1x CPU, complete list")
+        record = candidate_composition_from_extraction(result)
+        assert record is not None
+        # (a) Out-of-band tamper of the recorded extraction result_digest
+        # (bypassing the constructor): the record's own evidence digest
+        # no longer verifies at the presentation gate.
+        object.__setattr__(record, "extraction_result_digest", "0" * 64)
+        with pytest.raises(BundleCompositionEvidenceIntegrityError):
+            derive_sales_unit_authority_fu4(channel, record, None)
+        foreign_result, foreign_channel = _extract(
+            "bundle: 2x SSD + 1x cable, complete list"
+        )
+        foreign_record = candidate_composition_from_extraction(foreign_result)
+        with pytest.raises(
+            BundleCompositionEvidenceIntegrityError, match="does not belong"
+        ):
+            derive_sales_unit_authority_fu4(channel, foreign_record, None)
+
+    def test_a_valid_same_listing_channel_and_composition_derives(self) -> None:
+        """The positive control: a record built over a channel, presented
+        over that SAME channel, derives per the axes (no spurious
+        refusal) — both bases."""
+        channel = _candidate_established_channel()
+        record = candidate_composition_from_channel(channel)
+        assert (
+            derive_sales_unit_authority_fu4(
+                channel, record, _target_established()
+            )
+            is P
+        )
+        result, mapped = _extract("bundle: 2x RAM + 1x CPU, complete list")
+        extraction_record = candidate_composition_from_extraction(result)
+        assert (
+            derive_sales_unit_authority_fu4(
+                mapped, extraction_record, _target_established()
+            )
+            is P
+        )
+
+    def test_count_only_bundle_remains_unproven_under_the_corrected_gate(self) -> None:
+        """The P2-FU1 rule survives the binding: a corpus-shaped
+        count-only bundle (ABSENT composition) never proves against
+        anything — including a target bundle of the same count."""
+        channel = _candidate_channel(quantity=3, raw_detail="bundle of 3")
+        record = candidate_composition_from_channel(channel)
+        assert record is not None and record.state is ABSENT
+        assert (
+            derive_sales_unit_authority_fu4(
+                channel,
+                record,
+                TargetSalesUnitEvidenceV2(
+                    TargetSalesUnitFormV2.BUNDLE, 3, TS
+                ),
+            )
+            is U
+        )
+
+    def test_historical_fu3_replay_is_unchanged_over_the_corrected_gate(self) -> None:
+        """The historical FU3 replay is untouched by the FU1 binding
+        (the frozen derivation has no composition axis — the same
+        count-only bundle inputs still derive PROVEN_EQUIVALENT under
+        the frozen rule; the coexistence pin, A7, stands)."""
+        channel = _candidate_channel(quantity=3, raw_detail="bundle of 3")
+        frozen_target = TargetSalesUnitEvidenceV2(
+            TargetSalesUnitFormV2.BUNDLE, 3, TS
+        )
+        assert (
+            fu3.sales_unit_authority_from_channel(channel, frozen_target) is P
+        )
+
+    def test_the_fu4_match_high_strong_ceiling_is_unchanged(self) -> None:
+        """The MATCH + HIGH + STRONG ceiling invariants over the
+        corrected gate: attested-equal ⇒ the automatic tier stands;
+        the same shape WITHOUT the completeness statement ⇒ capped at
+        NEEDS_REVIEW (the restriction is intact)."""
+        channel = _candidate_established_channel()
+        record = candidate_composition_from_channel(channel)
+        stands = _tier(channel, record, _target_established())
+        assert stands.tier is AuthorityTier.AI_ASSISTED_COMPARABLE
+        assert stands.sales_unit_authority is P
+        capped = _tier(
+            _candidate_channel(), _candidate_record(), _target(None, TS, CLAUSE, SV)
+        )
+        assert capped.tier is AuthorityTier.NEEDS_REVIEW
+        assert capped.sales_unit_authority is U
+        assert AuthorityRuleV2FU4.CEILING_SALES_UNIT_NOT_PROVEN in capped.fired_rules
+
+    def test_constructor_time_integrity_enforcement(self) -> None:
+        """Schema v2 at construction: a malformed channel_content_digest
+        is un-constructible; an out-of-band tamper of the binding field
+        is refused at the presentation gate (the record's evidence
+        digest covers it)."""
+        with pytest.raises(ValueError, match="channel_content_digest"):
+            _make_candidate_record(
+                CandidateCompositionEvidenceBasisV2FU4.RECORDED_CHANNEL,
+                SV,
+                CLAUSE,
+                SRC,
+                channel_content_digest="not-a-digest",
+            )
+        channel = _candidate_channel()
+        record = candidate_composition_from_channel(channel)
+        object.__setattr__(record, "channel_content_digest", "0" * 64)
+        with pytest.raises(BundleCompositionEvidenceIntegrityError):
+            derive_sales_unit_authority_fu4(channel, record, None)
+
+    def test_a_record_cannot_claim_a_clause_the_channel_never_published(
+        self,
+    ) -> None:
+        """A hand-forged RECORDED_CHANNEL record — self-verifying, bound
+        to the presented channel's content digest, matching source and
+        quantity — claiming an ESTABLISHED composition the count-only
+        publication never made: refused. The record must be EXACTLY the
+        construction of the presented channel (the association is
+        re-verified at derivation time, not assumed from the digest)."""
+        channel = _candidate_channel(quantity=3, raw_detail="bundle of 3")
+        att = _make_attestation(
+            EvidenceSideV2FU4.CANDIDATE,
+            CompletenessBasisV2FU4.PUBLISHED_COMPLETENESS_STATEMENT,
+            SRC,
+            _clause_digest(CLAUSE),
+            ", complete list",
+        )
+        forged = _make_candidate_record(
+            CandidateCompositionEvidenceBasisV2FU4.RECORDED_CHANNEL,
+            EST,
+            CLAUSE,
+            SRC,
+            channel_quantity=3,
+            completeness_attestation=att,
+            channel_content_digest=_canon_digest(channel.canonical()),
+        )
+        with pytest.raises(
+            BundleCompositionEvidenceIntegrityError, match="not the construction"
+        ):
+            derive_sales_unit_authority_fu4(
+                channel, forged, _target_established(quantity=3)
+            )
+
+    def test_a_handforged_extraction_record_cannot_claim_a_foreign_clause(
+        self,
+    ) -> None:
+        """EXTRACTION_RESULT_V1 basis: a hand-forged record with
+        fabricated (self-verifying) extraction digests, bound to the
+        presented channel's content digest — but whose clause is not
+        the determined form of the presented channel's published
+        raw_detail: refused (the extraction → mapped-channel → record
+        association's clause check)."""
+        channel = _candidate_channel(raw_detail="bundle: 2x RAM + 1x CPU")
+        att = _make_attestation(
+            EvidenceSideV2FU4.CANDIDATE,
+            CompletenessBasisV2FU4.PUBLISHED_COMPLETENESS_STATEMENT,
+            SRC,
+            _clause_digest("2x SSD + 1x cable"),
+            ", complete list",
+        )
+        forged = _make_candidate_record(
+            CandidateCompositionEvidenceBasisV2FU4.EXTRACTION_RESULT_V1,
+            EST,
+            "2x SSD + 1x cable",
+            SRC,
+            channel_quantity=None,
+            completeness_attestation=att,
+            extraction_result_digest="ab" * 32,
+            extraction_input_digest="cd" * 32,
+            channel_content_digest=_canon_digest(channel.canonical()),
+        )
+        with pytest.raises(
+            BundleCompositionEvidenceIntegrityError, match="primary clause"
+        ):
+            derive_sales_unit_authority_fu4(
+                channel, forged, _target_established(clause="2x SSD + 1x cable")
             )
 
 
@@ -2565,9 +2978,14 @@ class TestC1MissingPartialOrCompletenessUnknown:
         # The "contents known on only one side" regression, preserved
         # under FU4 (the frozen target record carries no composition
         # field — D18: read as composition-ABSENT, no implicit upgrade).
-        channel = _candidate_channel()
-        for record in (None, _candidate_record(), _candidate_established()):
-            assert derive_sales_unit_authority_fu4(channel, record, target) is U
+        # The FU1 binding: each record is presented over its OWN
+        # channel (the EST record's marker-carrying channel).
+        for record, rec_channel in (
+            (None, _candidate_channel()),
+            (_candidate_record(), _candidate_channel()),
+            (_candidate_established(), _candidate_established_channel()),
+        ):
+            assert derive_sales_unit_authority_fu4(rec_channel, record, target) is U
 
     @pytest.mark.parametrize(
         "target",
@@ -2580,7 +2998,7 @@ class TestC1MissingPartialOrCompletenessUnknown:
     def test_target_partial_is_unproven(self, target) -> None:
         assert (
             derive_sales_unit_authority_fu4(
-                _candidate_channel(), _candidate_established(), target
+                _candidate_established_channel(), _candidate_established(), target
             )
             is U
         )
@@ -2596,7 +3014,7 @@ class TestC1MissingPartialOrCompletenessUnknown:
     ) -> None:
         assert (
             derive_sales_unit_authority_fu4(
-                _candidate_channel(),
+                _candidate_established_channel(),
                 _candidate_established(),
                 _target(None, TS, CLAUSE, SV),
             )
@@ -2606,17 +3024,22 @@ class TestC1MissingPartialOrCompletenessUnknown:
     def test_form_rule_owns_non_bundle_targets(self) -> None:
         # U9: a bundle channel vs a non-bundle target is CONTRADICTED
         # before any composition is read (the default single unit
-        # included) — for EVERY candidate composition shape.
-        for record in (None, _candidate_record(), _candidate_established()):
+        # included) — for EVERY candidate composition shape (the FU1
+        # binding: each record over its OWN channel).
+        for record, rec_channel in (
+            (None, _candidate_channel()),
+            (_candidate_record(), _candidate_channel()),
+            (_candidate_established(), _candidate_established_channel()),
+        ):
             assert (
                 derive_sales_unit_authority_fu4(
-                    _candidate_channel(), record, None
+                    rec_channel, record, None
                 )
                 is C
             )
             assert (
                 derive_sales_unit_authority_fu4(
-                    _candidate_channel(),
+                    rec_channel,
                     record,
                     TargetSalesUnitEvidenceV2(
                         TargetSalesUnitFormV2.PACK_QUANTITY, 4, TS
@@ -2661,7 +3084,7 @@ class TestC3MateriallyEstablishedDifference:
         self,
     ) -> None:
         decision = _tier(
-            _candidate_channel(),
+            _candidate_established_channel(),
             _candidate_established(),
             _target_established(clause="2x RAM + 1x SSD"),
         )
@@ -2689,7 +3112,7 @@ class TestC3MateriallyEstablishedDifference:
         )
         assert (
             derive_sales_unit_authority_fu4(
-                _candidate_channel(),
+                _candidate_established_channel(),
                 _candidate_established(),
                 _target(None, TS, "2x RAM + 1x SSD", SV),
             )
@@ -2726,14 +3149,14 @@ class TestC4UnestablishedDifference:
     def test_unestablished_difference_is_unproven_never_contradicted(self) -> None:
         assert (
             derive_sales_unit_authority_fu4(
-                _candidate_channel(),
+                _candidate_established_channel(),
                 _candidate_established(),
                 _target_established(clause="2x RAM + 1x CPU (revised)"),
             )
             is U
         )
         decision = _tier(
-            _candidate_channel(),
+            _candidate_established_channel(),
             _candidate_established(),
             _target_established(clause="2x RAM + 1x CPU (revised)"),
         )
@@ -2787,12 +3210,10 @@ class TestC5EqualCompleteCompositions:
     def test_attested_equal_with_an_asymmetric_quantity_gap_proves_with_the_attestation(
         self,
     ) -> None:
-        channel = _candidate_channel(quantity=2)
-        record = candidate_composition_from_channel(
-            _candidate_channel(
-                quantity=2, raw_detail="bundle: 2x RAM + 1x CPU, complete list"
-            )
-        )
+        # The FU1 binding: the record is presented over the SAME channel
+        # it was constructed from (the marker-carrying publication).
+        channel = _candidate_established_channel(quantity=2)
+        record = candidate_composition_from_channel(channel)
         target = _target_established()  # target quantity None
         att = _quantity_attestation(EvidenceSideV2FU4.TARGET)
         decision = _tier(channel, record, target, att)
@@ -2803,7 +3224,7 @@ class TestC5EqualCompleteCompositions:
 
     def test_the_same_row_with_the_count_rule_violated_contradicts(self) -> None:
         decision = _tier(
-            _candidate_channel(quantity=2),
+            _candidate_established_channel(quantity=2),
             _candidate_established(quantity=2),
             _target_established(quantity=3),
         )
@@ -2822,7 +3243,7 @@ class TestC5EqualCompleteCompositions:
         )
         assert (
             derive_sales_unit_authority_fu4(
-                _candidate_channel(), _candidate_established(), _target(None, TS, CLAUSE, SV)
+                _candidate_established_channel(), _candidate_established(), _target(None, TS, CLAUSE, SV)
             )
             is U
         )
@@ -2830,8 +3251,9 @@ class TestC5EqualCompleteCompositions:
 
 class TestC6ConflictingTitleAndStructured:
     def test_conflicting_published_contents_fail_closed_for_every_target(self) -> None:
-        channel = _candidate_channel()
-        result, _ = _extract("bundle: 2x RAM + 1x CPU", "Bundle (2x SSD + cable)")
+        # The FU1 binding: the EXTRACTION record is presented over its
+        # OWN mapped channel (the frozen P2 mapping of the result).
+        result, channel = _extract("bundle: 2x RAM + 1x CPU", "Bundle (2x SSD + cable)")
         record = candidate_composition_from_extraction(result)
         assert record is not None and record.state is CONTR_PUB
         # UNPROVEN for EVERY target shape — including a target whose
@@ -2912,7 +3334,7 @@ class TestC7FormBeforeContents:
     ) -> None:
         assert (
             derive_sales_unit_authority_fu4(
-                _candidate_channel(), _candidate_established(), target
+                _candidate_established_channel(), _candidate_established(), target
             )
             is C
         )
@@ -2921,10 +3343,12 @@ class TestC7FormBeforeContents:
 class TestC8MPNInClauseNonInference:
     def test_clauses_differing_only_in_an_embedded_part_number(self) -> None:
         # The items differ — no identity weight given: material
-        # difference ⇒ CONTRADICTED when both sides ESTABLISHED.
+        # difference ⇒ CONTRADICTED when both sides ESTABLISHED (the
+        # FU1 binding: each record is presented over the SAME channel
+        # it was constructed from).
         assert (
             derive_sales_unit_authority_fu4(
-                _candidate_channel(raw_detail="bundle: 1x SSD M.2 9A0"),
+                _candidate_channel(raw_detail="bundle: 1x SSD M.2 9A0, complete list"),
                 candidate_composition_from_channel(
                     _candidate_channel(raw_detail="bundle: 1x SSD M.2 9A0, complete list")
                 ),
@@ -2994,7 +3418,7 @@ class TestC9ModelOutputNonInference:
 
     def test_the_authority_rule_trail_never_gains_a_model_sourced_rule(self) -> None:
         decision = _tier(
-            _candidate_channel(), _candidate_established(), _target_established()
+            _candidate_established_channel(), _candidate_established(), _target_established()
         )
         assert {r.value for r in decision.fired_rules} <= {
             r.value for r in AuthorityRuleV2FU4
@@ -3007,7 +3431,7 @@ class TestC10QuantityCompletenessAxis:
 
     def test_q_consistent_proves(self) -> None:
         decision = _tier(
-            _candidate_channel(quantity=2),
+            _candidate_established_channel(quantity=2),
             _candidate_established(quantity=2),
             _target_established(quantity=2),
         )
@@ -3016,7 +3440,7 @@ class TestC10QuantityCompletenessAxis:
 
     def test_q_both_unpublished_proves(self) -> None:
         decision = _tier(
-            _candidate_channel(), _candidate_established(), _target_established()
+            _candidate_established_channel(), _candidate_established(), _target_established()
         )
         assert decision.sales_unit_authority is P
         assert decision.quantity_axis_state is Q_BOTH_UNPUBLISHED
@@ -3034,7 +3458,7 @@ class TestC10QuantityCompletenessAxis:
         # Both ESTABLISHED as well.
         assert (
             derive_sales_unit_authority_fu4(
-                _candidate_channel(quantity=2),
+                _candidate_established_channel(quantity=2),
                 _candidate_established(quantity=2),
                 _target_established(quantity=3),
             )
@@ -3047,7 +3471,7 @@ class TestC10QuantityCompletenessAxis:
         identical clauses, both sides attested complete, candidate
         quantity 2, target quantity None ⇒ UNPROVEN (U18)."""
         decision = _tier(
-            _candidate_channel(quantity=2),
+            _candidate_established_channel(quantity=2),
             _candidate_established(quantity=2),
             _target_established(),
         )
@@ -3059,7 +3483,7 @@ class TestC10QuantityCompletenessAxis:
     def test_q_attested_not_material_proves(self) -> None:
         att = _quantity_attestation(EvidenceSideV2FU4.TARGET)
         decision = _tier(
-            _candidate_channel(quantity=2),
+            _candidate_established_channel(quantity=2),
             _candidate_established(quantity=2),
             _target_established(),
             att,
@@ -3072,7 +3496,7 @@ class TestC10QuantityCompletenessAxis:
         att_candidate = _quantity_attestation(EvidenceSideV2FU4.CANDIDATE)
         assert (
             derive_sales_unit_authority_fu4(
-                _candidate_channel(),
+                _candidate_established_channel(),
                 _candidate_established(),
                 _target_established(quantity=2),
                 att_candidate,
@@ -3156,7 +3580,7 @@ class TestC11CompletenessAxis:
         )
         assert (
             derive_sales_unit_authority_fu4(
-                _candidate_channel(), _candidate_established(), _target(None, TS, CLAUSE, SV)
+                _candidate_established_channel(), _candidate_established(), _target(None, TS, CLAUSE, SV)
             )
             is U
         )
@@ -3181,7 +3605,7 @@ class TestC11CompletenessAxis:
         """Case 6."""
         assert (
             derive_sales_unit_authority_fu4(
-                _candidate_channel(),
+                _candidate_established_channel(),
                 _candidate_established(),
                 _target_established(clause="2x RAM + 1x SSD"),
             )
@@ -3227,10 +3651,10 @@ class TestC12CopiedAttestation:
         reachable when the attestations stand as recorded). The
         contract performs NO copy detection (no similarity /
         provenance-of-text computation exists in the module)."""
-        channel = _candidate_channel()
-        record = candidate_composition_from_channel(
-            _candidate_channel(raw_detail="bundle: 2x RAM + 1x CPU, complete list")
-        )
+        # The FU1 binding: the candidate record is presented over the
+        # SAME channel it was constructed from.
+        channel = _candidate_established_channel()
+        record = candidate_composition_from_channel(channel)
         # The "copy": the target's clause is byte-identical to the
         # candidate's, attested by a REVIEWED determination.
         target = _target(
@@ -3297,7 +3721,7 @@ class TestC12CopiedAttestation:
             )
         with pytest.raises(BundleCompositionEvidenceIntegrityError, match="actually-missing"):
             derive_sales_unit_authority_fu4(
-                _candidate_channel(quantity=2),
+                _candidate_established_channel(quantity=2),
                 _candidate_established(quantity=2),
                 _target_established(),
                 _quantity_attestation(EvidenceSideV2FU4.CANDIDATE),
@@ -3351,7 +3775,7 @@ class TestD1TierInvariants:
         """Blocker A: byte-identical clauses, both attested, candidate
         quantity 2, target quantity None ⇒ UNPROVEN ⇒ NEEDS_REVIEW."""
         decision = _tier(
-            _candidate_channel(quantity=2),
+            _candidate_established_channel(quantity=2),
             _candidate_established(quantity=2),
             _target_established(),
         )
@@ -3364,7 +3788,7 @@ class TestD1TierInvariants:
         self,
     ) -> None:
         decision = _tier(
-            _candidate_channel(),
+            _candidate_established_channel(),
             _candidate_established(),
             _target_established(clause="2x RAM + 1x SSD"),
         )
@@ -3378,7 +3802,7 @@ class TestD1TierInvariants:
         requires the separately gated W1 guard + qualification;
         V2_AUTHORITY_QUALIFIED False)."""
         decision = _tier(
-            _candidate_channel(), _candidate_established(), _target_established()
+            _candidate_established_channel(), _candidate_established(), _target_established()
         )
         assert decision.sales_unit_authority is P
         assert decision.tier is AuthorityTier.AI_ASSISTED_COMPARABLE
@@ -3407,12 +3831,12 @@ class TestD1TierInvariants:
             decision = _tier(_candidate_channel(), _candidate_record(), _target(None, TS, CLAUSE, SV))
         elif unit is C:
             decision = _tier(
-                _candidate_channel(), _candidate_established(),
+                _candidate_established_channel(), _candidate_established(),
                 _target_established(clause="2x RAM + 1x SSD"),
             )
         else:
             decision = _tier(
-                _candidate_channel(), _candidate_established(), _target_established()
+                _candidate_established_channel(), _candidate_established(), _target_established()
             )
         assert decision.sales_unit_authority is unit
         assert decision.tier is expected_tier
@@ -3829,10 +4253,10 @@ class TestF4AttestationTrustBoundary:
         (basis / source / clause_digest / attestation_digest) drive the
         behavior; the text is the reviewer's audit anchor, not a
         derivation input."""
-        channel = _candidate_channel()
-        record = candidate_composition_from_channel(
-            _candidate_channel(raw_detail="bundle: 2x RAM + 1x CPU, complete list")
-        )
+        # The FU1 binding: the candidate record is presented over the
+        # SAME channel it was constructed from.
+        channel = _candidate_established_channel()
+        record = candidate_composition_from_channel(channel)
         target_a = _target(
             None,
             TS,
@@ -3873,7 +4297,10 @@ class TestF4AttestationTrustBoundary:
     ) -> None:
         att = _quantity_attestation(EvidenceSideV2FU4.TARGET)
         object.__setattr__(att, "attestation_text", "tampered after construction")
-        channel = _candidate_channel(quantity=2)
+        # The FU1 binding: the record over its OWN channel, so the
+        # candidate gate passes and the TAMPERED QUANTITY attestation's
+        # own verify is what fires (before any axis uses it).
+        channel = _candidate_established_channel(quantity=2)
         record = _candidate_established(quantity=2)
         with pytest.raises(BundleCompositionEvidenceIntegrityError):
             derive_sales_unit_authority_fu4(

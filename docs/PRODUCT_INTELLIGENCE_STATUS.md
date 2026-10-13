@@ -5,11 +5,227 @@
 ## Current state
 
 
+**PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-Q3-B5-P4-FU1 (Semantic Authority V2 —
+
+Candidate Evidence Binding Integrity, S2-A-FU4 correction)
+
+— IMPLEMENTED / PENDING INDEPENDENT REVIEW**
+
+Bounded SAFETY-CORRECTION phase on the authoritative starting SHA
+`7deb22e7261dad0f086645084dd311608059e48b` (the Q3-B5-P4 contract-
+only endpoint; baseline collection 7474, re-verified this session),
+correcting the two defects found by the independent GitHub source
+review of Q3-B5-P4. This is a bounded correction, not a new feature
+phase. CONTRACT CORRECTION ONLY: NO live integration, NO V2 authority
+activation, NO pricing change, NO corpus label change, NO benchmark
+capture, NO deployment, NO model call, NO migration
+(`makemigrations --check --dry-run`: no changes detected). The frozen
+inputs — the FU2 / FU3 modules, the S2-C-FU1 channel,
+`sales_unit_extraction.py` (schema v1), the Prompt 2.0 / 2.1
+contracts, the codec / replay / harness registries — are byte-
+unchanged (the A1 digest pins pass; the only production file touched
+is the FU4-owned pending-review module `research/
+semantic_authority_fu4.py`, plus its test file and the two design /
+status documents). `V2_AUTHORITY_QUALIFIED` stays False in both
+pinned locations; the production codec still refuses an FU4-bound
+payload; the FU3 / FU2 dispatch arms delegate to the frozen
+derivations byte-identically (the A2 delegation-identity pins pass
+unchanged).
+
+**Blocker 1 — cross-listing composition evidence substitution.** The
+FU4 presentation gate (`_verify_candidate_composition`) checked the
+candidate record's source class and published quantity against the
+presented channel, but did not establish that the composition evidence
+belongs to the EXACT presented candidate publication: a record built
+from listing A's channel / extraction result was accepted over
+listing B's channel whenever source class, bundle form, and quantity
+agreed (a self-verifying digest is not proof of cross-record
+association). Corrected by the **smallest versioned amendment to the
+FU4 evidence schema — v2** (the design's T5 / T9 discipline: any
+change is a new version, never a silent edit; the frozen S2-C-FU1
+channel cannot carry the back-reference — it is byte-frozen — but the
+FU4 schema is versioned for exactly this, and the association it
+cannot express on its side is expressed on the FU4 record's side):
+the candidate record gains ONE field, `channel_content_digest` —
+SHA-256 over the frozen channel's canonical document (state / kind /
+quantity / raw_detail / source) of the EXACT channel content the
+record was constructed from (RECORDED_CHANNEL basis: the passed
+channel; EXTRACTION_RESULT_V1 basis: the frozen P2 mapping
+`sales_unit_channel_from_extraction(result)` of the verified result —
+the verifiable relationship extraction result → mapped channel →
+record). `BUNDLE_COMPOSITION_EVIDENCE_VERSION_FU4` moves 1 → 2; v1
+records are un-constructible (a superseded schema version is never
+silently reinterpreted). The presentation gate re-verifies the
+association at DERIVATION TIME (the unit, case-level, and tier
+derivations all route through it): (a) the presented channel's
+canonical content digest must equal the record's — composition
+evidence originating from another listing is refused even when source
+class, bundle form, and quantity are identical; (b) a RECORDED_
+CHANNEL record must be EXACTLY the construction of the presented
+channel (the record is a pure function of that channel — a
+hand-forged, self-verifying record claiming a clause / state /
+attestation the presented publication never made is refused);
+(c) an EXTRACTION_RESULT_V1 record's primary clause must be the
+determined form of the presented channel's published `raw_detail`
+(the continuation attestation text may sit beyond `raw_detail` —
+AUDIT-ONLY, never compared). Full published provenance and integrity
+evidence are preserved (the source / quantity / digest checks and the
+attestation verifications all stand; the new field is inside the
+record's `evidence_digest`). Missing provenance is never invented or
+reconstructed: the digest is computed at construction over the exact
+input, and the gate verifies the recorded association rather than
+re-deriving it.
+
+**Blocker 2 — integer identity comparison.** The gate compared the
+record's published `channel_quantity` against the channel's
+`quantity` with object identity (`is not`): two separately
+deserialized (or otherwise separately constructed) equal quantities
+greater than 256 are distinct `int` objects, so a valid same-
+publication record was refused (only small-int interning masked the
+defect). Corrected to exact value equality (`!=`). Audit of the
+related identity comparisons: every remaining `is` / `is not` in the
+FU4 module is an enum single-identity check (correct — enum members
+are singletons) or a strict `type(x) is int` bound check; no other
+integer value uses identity comparison (the quantity axis already
+compared by value, `==`). The frozen modules were audited too: their
+quantity comparisons are None checks / `type(...) is int` bounds /
+value `==` — no defect of this class exists outside the FU4 module
+(nor is anything frozen touched).
+
+**Recorded test-file corrections (the P2-FU1 / Q3-B4-FU2 precedent —
+in place, documented, names preserved, intent preserved; no test
+deleted, renamed, skipped, xfailed, deselected, ignored, or
+weakened).** (1) The schema-version pin (A2
+`test_the_fu4_token_is_separately_versioned`) moves 1 → 2 and the
+unknown-version node (B9
+`test_a_unknown_schema_version_is_unconstructible`) moves its unknown
+value 2 → 3 — the mechanical consequence of the versioned amendment
+(the same category as the Q3-B4-FU2 pin update). (2) The two direct
+positional record constructions (B4
+`test_candidate_record_refuses_non_extractor_sources`, B5
+`test_construction_reverifies_the_digest`) gain the one new field.
+(3) The record helpers bind to the canonical channel their
+presentation targets: `_make_candidate_record` defaults
+`channel_content_digest` to the digest of the OBSERVED BUNDLE channel
+with the record's source / quantity / corpus-shaped raw_detail, and
+`_candidate_established` now CONSTRUCTS (not hand-builds) over its
+marker-carrying channel (`_candidate_established_channel` — NEW
+helper; the published completeness statement is part of the
+presented publication's raw_detail). (4) **The fixture CONSTRUCTIONS
+of the affected derivation call-sites are aligned to the corrected
+binding** (the recorded defect, demonstrated): they previously
+presented a record built from / claiming an ESTABLISHED (marker-
+carrying) publication OVER a marker-free channel — i.e. the very
+cross-listing substitution the review found (notably
+`test_attested_equal_with_an_asymmetric_quantity_gap_proves_with_the_`-
+`attestation`, `test_the_constructible_copied_shape_derives_per_the_`-
+`axes`, `test_the_attestation_text_is_never_read_by_the_derivation`,
+and the B1 / B6 / B7 / B8 / B10 / C1 / C3–C12 / D1 / F4 rows, each
+now presenting the record's OWN channel). Every such node keeps its
+name, its asserted unit / tier / rule expectations, and its intent —
+the record and the channel it is presented over are now the SAME
+publication (for the EXTRACTION-basis rows, the record's own mapped
+channel: B1 `test_a_truncated_copublication...`, C6
+`test_conflicting_published_contents...`).
+
+**Tests.** 13 NEW nodes in the NEW class
+`TestB11ChannelContentBindingFU1` (in
+`tests/research/test_semantic_authority_v2_fu4.py`) implement the
+mandated adversarial matrix over the corrected gate: identical
+source + quantity / different raw_detail (RECORDED_CHANNEL basis —
+refused; over its own listing — stands); listing-A EXTRACTION record
+over listing-B's mapped channel (identical source class / bundle form
+/ quantity — refused); two separately deserialized channels with
+equal quantity 300 > 256 (distinct `int` objects — the premise is
+pinned — derive per value equality, no spurious refusal, both the
+SV/ABSENT UNPROVEN row and the ESTABLISHED/PROVEN row); equal
+quantity but different composition (material ⇒ CONTRADICTED both
+ESTABLISHED; one side unattested ⇒ UNPROVEN); tampered channel
+provenance (refused — the pre-existing source-check node stands
+unchanged); tampered extraction-result association (out-of-band
+`extraction_result_digest` tamper refused by the record's own
+evidence digest at the gate; a foreign result's record over this
+mapped channel refused by the mapped-channel association); valid same-
+listing channel + composition (both bases derive per the axes — no
+spurious refusal); count-only bundle remains UNPROVEN (the P2-FU1
+rule survives the binding); the historical FU3 replay is unchanged
+(the frozen count-based derivation still derives PROVEN over the same
+inputs — the coexistence pin, A7, stands); the FU4 MATCH / HIGH /
+STRONG ceiling is unchanged (attested-equal stands at AI_ASSISTED_
+COMPARABLE; the unattested twin is capped at NEEDS_REVIEW with
+CEILING_SALES_UNIT_NOT_PROVEN); constructor-time integrity
+enforcement (a malformed `channel_content_digest` is un-
+constructible; an out-of-band tamper of the binding is refused at
+the gate); and the two forgery rows the digest alone cannot close
+(a self-verifying hand-forged RECORDED_CHANNEL record claiming an
+ESTABLISHED composition a count-only publication never made —
+refused by the exact-construction requirement; a hand-forged
+EXTRACTION-basis record with fabricated self-verifying extraction
+digests claiming a clause the presented raw_detail never determines
+— refused by the primary-clause requirement). Every case is an
+OFFLINE recorded-input construction — no live call, no model capture,
+no network.
+
+**Validation.** Focused new file: 211 passed, 0 failed (198 baseline
++ 13 new). Focused preservation: the 98-node FU3 suite + the 111 +
+7-node P2 / P2-FU1 extraction suites — 216 passed, 0 failed (the A1
+frozen-file pins pass — every frozen input byte-identical to the
+starting SHA). Focused `tests/research/`: 3283 nodes — 3278 passed,
+5 failed; the 5 failures are EXACTLY the documented load-sensitive
+clean-interpreter subprocess guard flake class (every one
+`OSError: [WinError 6]` at `subprocess.Popen` BEFORE any project code
+runs; zero assertion failures), all re-passed isolated one-node-per-
+process on the first attempt. Focused `tests/semantic/` +
+`tests/evaluation/`: 1379 nodes — 1335 passed, 1 failed — the single
+failure is the same flake class (`tests/evaluation/
+test_evaluation_boundaries.py::test_loading_the_corpus_imports_no_`-
+`framework_or_provider`), re-passed isolated on the first attempt.
+Full suite (first run over the committed code): 7487 collected —
+7486 passed, 1 failed — the single failure the same subprocess flake
+class (`tests/domain/test_domain_boundaries.py::test_domain_imports_`
+`without_django_network_or_llm_dependencies`, `OSError [WinError 6]`
+at Popen, zero assertion failures), re-passed isolated on the first
+attempt. Full suite (FINAL run): **7487 collected; 7487 passed, 0
+failed** — no flake-class member failed in the final run; zero
+collection errors. Collection accounting: 7474 → 7487 (+13 — the B11
+class; node-level diff against the starting SHA: **0 nodes removed /
+0 renamed** — the only changed file is the FU4 test file, 198 → 211).
+Skipped / xfailed / deselected: **0 / 0 / 0**. `python manage.py
+check`: System check identified no issues (0 silenced). `python
+manage.py makemigrations --check --dry-run`: No changes detected (no
+model change — the correction is pure research layer + tests +
+documents).
+
+**Production runtime and pricing remain unchanged (evidence).** The
+frozen files are digest-pinned by the unchanged A1 nodes (FU2 / FU3 /
+P2 extraction / S2-C / decision / codec / replay / 2.0 / 2.1 /
+runtime / harness modules, the corpus artifacts, the DRAFT policy —
+byte-identical to the starting SHA); the production codec registry
+still knows exactly the V1 + 2.0/FU2 bindings and refuses an FU4-
+bound payload; the replay registry is the same union; the harness
+knows exactly the two production bindings and no corpus 1.2.0
+artifact exists; the live record type still pins the FU2 token;
+`V2_AUTHORITY_QUALIFIED` is False in both pinned locations; no live
+module references the FU4 surface (the unchanged A4 AST + lexical
+scan passes); the pricing-eligible tier set is unchanged and the
+cap tier remains non-pricing-eligible. Nothing in the phase
+registers, re-seals, activates, or wires; the separately gated FU4
+registration step (design §7.3) remains unexecuted — it will
+register the v2 schema, not the superseded v1.
+
+No deployment performed.
+
+
 **PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-Q3-B5-P4 (Semantic Authority V2 —
 
 Versioned Bundle Composition Authority Contract, S2-A-FU4)
 
-— IMPLEMENTED / PENDING INDEPENDENT REVIEW**
+— IMPLEMENTED / CORRECTED BY Q3-B5-P4-FU1 (CANDIDATE EVIDENCE BINDING
+INTEGRITY) / PENDING FINAL REVIEW (the independent GitHub source
+review identified two safety defects — cross-listing composition
+evidence substitution over the presented channel, and an integer
+identity comparison of published quantities; both corrected in
+Q3-B5-P4-FU1, recorded above)**
 
 Bounded CONTRACT-ONLY phase on the authoritative starting SHA
 `bc12c4a36e4dd4bef85a958b6e7406ca1c87361f` (the Q3-B5-P3-FU1 design
