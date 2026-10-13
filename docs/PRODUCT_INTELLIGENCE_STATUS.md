@@ -5,7 +5,291 @@
 ## Current state
 
 
+**PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-Q3-B5-P4 (Semantic Authority V2 —
+
+Versioned Bundle Composition Authority Contract, S2-A-FU4)
+
+— IMPLEMENTED / PENDING INDEPENDENT REVIEW**
+
+Bounded CONTRACT-ONLY phase on the authoritative starting SHA
+`bc12c4a36e4dd4bef85a958b6e7406ca1c87361f` (the Q3-B5-P3-FU1 design
+endpoint; baseline collection 7268, re-verified this session). It
+implements the approved, CORRECTED Q3-B5-P3 bundle-composition authority
+design (`docs/PRODUCT_INTEL_Q3B5_P3_BUNDLE_COMPOSITION_DESIGN.md` —
+Blocker A quantity completeness, Blocker B composition completeness) as
+an isolated, deterministic, versioned research contract: the separately
+versioned authority token `SEMANTIC_AUTHORITY_V2_S2A_FU4` and, behind
+that token ONLY, the versioned bundle-composition evidence schema (v1),
+the corrected D6 conjunction (composition ESTABLISHED on both sides via
+independent attestations + textual agreement + a determined quantity
+axis), the FU4 decision record with the bounded bundle-axis audit
+fields, and the FU4 superset dispatch. NO implementation of the
+pre-revision (superseded) rules. CONTRACT ONLY: NO live integration, NO
+binding registration (codec / replay / harness registries byte-
+unchanged — an FU4-bound payload is refused by the production codec and
+replay registry, pinned), NO corpus 1.2.0 (no artifact exists; the
+harness knows exactly the two production bindings), NO V2 authority
+activation (`V2_AUTHORITY_QUALIFIED` False in both pinned locations), NO
+pricing change (the cap tier stays non-pricing-eligible; the aggregation
+surface owns no FU4 symbol), NO corpus label change, NO benchmark
+capture, NO deployment, NO model call, NO migration
+(`makemigrations --check --dry-run`: no changes detected).
+
+**The delivered component.** NEW
+`product_intelligence/research/semantic_authority_fu4.py` (research
+layer; stdlib + the research package's public surface + the frozen FU3 /
+FU2 / S2-C / extraction modules; no Django, no I/O, no clock, no
+network, no LLM, no mutable global state — import-self-checked):
+
+* The token `AUTHORITY_CONTRACT_VERSION_V2_FU4` +
+  `KNOWN_AUTHORITY_CONTRACT_TOKENS_FU4` (= exactly {FU2, FU3, FU4}; the
+  frozen FU3 constant stays exactly {FU2, FU3});
+  `BUNDLE_COMPOSITION_EVIDENCE_VERSION_FU4 = 1`.
+* The CORRECTED five-way composition-state vocabulary
+  (`SYNTACTICALLY_VALID` / `ESTABLISHED` / `PARTIAL` / `ABSENT` /
+  `CONTRADICTED_PUBLISHED`) — syntactic closure demoted to a textual
+  property; `ESTABLISHED` redefined as attested-complete (D4 / D19).
+* The two attestation records (self-verifying digests):
+  `CompositionCompletenessAttestationV2FU4` (bounded subject side /
+  basis / source-class coherence; a candidate-side record cannot carry
+  a REVIEWED basis; a candidate source class cannot attest a target and
+  vice versa; `clause_digest` binds the EXACT clause; the attestation
+  text is AUDIT-ONLY — never read by the derivation) and
+  `QuantityCompletenessAttestationV2FU4` (the review process is the
+  contract's SOLE quantity-attestation authority for EITHER subject
+  side; bounded non-materiality reasons; no value field — the
+  attestation never supplies a quantity VALUE). Neither is ever produced
+  by the derivation (no fuzzy / similarity computation exists in the
+  module — import-scanned).
+* The candidate-side record
+  (`CandidateBundleCompositionEvidenceV2FU4`, basis
+  EXTRACTION_RESULT_V1 / RECORDED_CHANNEL, digest-bound to the verified
+  extraction result or the recorded channel, with the embedded
+  completeness attestation within its digest) and the target-side
+  versioned record (`TargetSalesUnitEvidenceV2FU4` — the frozen FU3
+  record's fields with the same constructor rules plus the bounded
+  bundle composition fields; the FROZEN target record is read as
+  composition-ABSENT under FU4, D18, no implicit upgrade). Both
+  constructors are fail-closed validators (state/coherence matrix; D5 at
+  the type level: empty / truncated / incomplete clauses are
+  un-constructible as SYNTACTICALLY_VALID, let alone ESTABLISHED);
+  presentation re-verifies the digests
+  (`BundleCompositionEvidenceIntegrityError` on any tamper).
+* The versioned clause extraction (whole-text count-only match; marker
+  forms incl. the count-prefixed variants — the count is never re-bound
+  into the clause, D17a), the textual-closure classification +
+  completeness-marker detection (the versioned `_COMPLETENESS_MARKERS`
+  six-member list + bounded delimiter set, the versioned
+  `_INCOMPLETE_MARKERS` list; an incompleteness marker always dominates
+  — D5; the EXTRACTION-basis colon-form continuation over the recorded
+  field text), and the versioned materiality grammar (separators
+  `+` / `,` / `&` / ` and `; canonical-quantity entries; grammar-
+  internal normalization; full parse / multiset / material difference —
+  textual agreement and material difference ONLY, never completeness,
+  never quantity, D16 / D17).
+* The unit derivation `derive_sales_unit_authority_fu4` + the case-level
+  `derive_sales_unit_authority_fu4_case`: the CORRECTED decision table
+  U0–U21 (form before composition; missing / partial /
+  completeness-unknown composition ⇒ UNPROVEN; the quantity axis a
+  DETERMINED, RECORDED state in every bundle comparison — CONSISTENT /
+  BOTH_UNPUBLISHED / ATTESTED_NOT_MATERIAL / CONTRADICTED /
+  UNDETERMINED — an asymmetric unattested gap is never silently
+  immaterial, D20; PROVEN only over the full corrected D6 conjunction;
+  the pre-revision U16 pass-arm "at least one side publishes none — no
+  inference" is REMOVED). The non-bundle arms (SINGLE_UNIT /
+  PACK_QUANTITY / TRAY_OR_FACTORY_PACK) delegate to the frozen FU3
+  derivation (byte-identical — D9).
+* The tier derivation `derive_authority_tier_fu4` + the decision record
+  `AuthorityDecisionV2FU4` (the FU3 field set + the same construction
+  invariants — AI_ASSISTED with an UNPROVEN / CONTRADICTED unit is
+  un-constructible — PLUS the bounded bundle-axis audit fields: the
+  quantity-axis state, the candidate / target composition states, the
+  completeness-attestation digests, the quantity-attestation digest;
+  exactly None for non-bundle channels — the determinations are
+  RECORDED, never silent) + the mirrored rule vocabulary
+  `AuthorityRuleV2FU4` (import-self-checked EQUAL to the FU3 set —
+  D10: no new audit rule) + the SAME two restrict-only ceilings
+  (UNPROVEN ⇒ CEILING_SALES_UNIT_NOT_PROVEN; CONTRADICTED ⇒
+  CEILING_SALES_UNIT_CONTRADICTED; PROVEN ⇒ the automatic tier stands).
+* The FU4 superset dispatch `derive_authority_tier_for_contract_fu4`
+  (§5.4 / T8): the FU2 / FU3 arms delegate to the UNCHANGED frozen
+  derivations (delegation identity pinned — same inputs ⇒ same outputs
+  / same exceptions; composition / attestation inputs under either
+  historical token are contract misuse, fail closed); the FU4 arm runs
+  the FU4 derivation (the channel REQUIRED); unknown tokens fail closed
+  (`UnknownAuthorityContractTokenError`, reused from the frozen FU3
+  module); non-string ⇒ TypeError.
+
+The research export surface is strictly additive
+(`research/__init__.py` gains the FU4 import block + `__all__` entries;
+the FU3 / P2 export blocks are untouched).
+
+**Recorded conflict (the one existing-test edit).** The approved design
+mandates the FU4 module inside `research/` (D1) which imports the FU3
+module and reuses its frozen vocabulary (D9 delegation, D10 mirrored
+rule set, D11 reused `SalesUnitAuthorityV2` / bound fields, §5.4 /
+T8) — so the FU3 lexical markers are structurally unavoidable inside
+the FU4 module, while the frozen FU3 reachability guard
+(`tests/research/test_semantic_authority_v2_fu3.py`,
+`TestReachabilityIsolation::test_no_live_module_references_the_fu3_
+contract`) scans every research-layer module outside its allowlist.
+Design §8's statement that the 98-node FU3 suite passes "UNCHANGED" is
+therefore mechanically unsatisfiable without recognizing the
+successor module the design itself mandates. RESOLVED with the minimal
+non-weakening change: the guard's `allowed_paths` set gains exactly one
+entry — `research/semantic_authority_fu4.py` — a single-line edit,
+pinned LINE-EXACTLY by the new test file's A3 node
+(`test_the_fu3_suite_is_unchanged_except_the_recorded_allowline` proves
+the working FU3 suite file equals its starting-SHA content plus exactly
+that one line — no other byte). The guard's stated safety property ("no
+production module OUTSIDE the research contract surface references
+it") is preserved: the FU4 successor contract module IS research
+contract surface (the same category as `research/__init__.py`, already
+allowed), and the new test file's own reachability guard re-pins that
+no live / persistence / pricing / presentation module references the
+FU4 surface. Every other assertion of the guard, and the guard's
+marker set, are byte-unchanged. All 98 FU3 nodes pass.
+
+**Tests.** 197 NEW nodes in the NEW file
+`tests/research/test_semantic_authority_v2_fu4.py` implement the
+design's full §9 adversarial matrix: A1 file-digest pins (every frozen
+input of §8 — FU2 / FU3 / P2 extraction / S2-C / decision / codec /
+replay / 2.0 / 2.1 / runtime / harness modules, the two corpus
+artifact pairs, the DRAFT policy — byte-identical to the starting SHA)
++ A2 token / vocabulary bounds + delegation identity (the FU2 / FU3
+dispatch arms ≡ the frozen derivations over the fixed parameterized
+input set, same exceptions; unknown / non-string tokens fail closed) +
+A3 suite preservation (the extraction suite files digest-pinned
+UNCHANGED; the FU3 suite file pinned as starting-SHA + the one recorded
+allow-line) + A4 the production codec / replay registries unchanged,
+an FU4-bound payload refused (mirroring the FU3 refusal pin), the live
+record type still pins the FU2 token, `V2_AUTHORITY_QUALIFIED` False in
+both pinned locations, no live module references the FU4 contract (AST
++ lexical scan), the FU4 module is research-pure with no similarity /
+fuzzy surface, no vendor / caller names, no pricing activation + A7 the
+two-token coexistence pin (the SAME count-only bundle inputs derive
+PROVEN_EQUIVALENT through the FU3 arm and UNPROVEN through the FU4 arm
+— documented per-binding behavior, never drift). B1–B10 the
+construction-level matrix: the five-way distinction + marker rows over
+published text through the REAL frozen extractor chain (incl. the
+EXTRACTION-basis colon-form continuation; a marker in a non-primary
+field is not adopted — consistency ≠ completeness); empty / truncated
+markers never establish (D5 at the type level); count-only never bound;
+provenance refusal (no member is a model claim); integrity (tampered /
+forged records refused at construction AND at the presentation gate —
+the channel binding: a record cannot claim provenance the channel never
+recorded); determinism (equal inputs ⇒ byte-equal records; the
+canonical order of additional_clauses); the frozen target record under
+FU4 (D18); the clause-grammar edges (the grammar decides the textual
+axis only; `04x RAM` non-canonical ⇒ not fully parseable; the 0034
+shape unattested ⇒ UNPROVEN, attested ⇒ PROVEN); the completeness-
+attestation constructor (Blocker B: candidate-side REVIEWED basis
+un-constructible; subject-side / source-class coherence; clause_digest
+binding; the verbatim marker segment as attestation text; state /
+coherence) and the quantity-attestation constructor (Blocker A:
+vocabulary bounds; the sole authority; wrong subject side ⇒ integrity
+error; non-asymmetric axis ⇒ contract misuse; no value field). C1–C12
+the comparison rules: missing / partial / completeness-unknown ⇒
+UNPROVEN over every target shape (Blocker B); equal counts without
+composition ⇒ UNPROVEN (FU4) while FU3 PROVEN; materially established
+difference ⇒ CONTRADICTED (both sides ESTABLISHED; the Q3-B4 §4.1
+invariant + the constructor invariant); unestablished difference ⇒
+UNPROVEN; equal complete compositions with sufficient provenance ⇒
+PROVEN (U19 / U20 over all three satisfied quantity-axis states); form
+before contents; MPN-in-clause non-inference; model-output
+non-inference (signature-pinned); the quantity-completeness axis (every
+axis state, incl. the Blocker A defect row: byte-identical attested
+clauses with candidate quantity 2 / target None ⇒ UNPROVEN, was the
+pre-revision PROVEN shape; the parsed entry count is never compared
+against the published count); the completeness axis (Blocker B rows
+incl. one-sided attestation never proves / never contradicts);
+the copied attestation (the constructible shape derives per the axes —
+no copy detection, T3'; the detectable launderings are unconstructible
+/ integrity-refused; the audit surface records both attestations).
+D1–D3 tier / overlay: the exact Q3-B4 §4.1 composition (MATCH + HIGH +
+STRONG + clean + U1) over every corrected bundle shape (silent multi-
+bundle, count-only, equal unattested text, asymmetric unattested
+quantity, material difference, attested equal — the automatic-tier
+ceiling invariants); the human overlay preserved (a firewall-capped
+bundle candidate confirmed derives HUMAN_CONFIRMED; a model-reported
+ALWAYS_HARD BUNDLE conflict still supersedes); the ceilings never lift,
+never touch MACHINE_VERIFIED, never fire outside the automatic tier,
+and the unproven / contradicted exposures are un-constructible (the FU3
+invariants re-proven over the FU4 decision type, which is
+type-distinguishable from the FU3 decision). E1–E3 the contract-phase
+registries exactly as frozen; the registration step specified, not
+executed (no FU4 entry anywhere; no corpus 1.2.0 artifact); replay
+refusal of an FU4-bound payload + an unknown token in a record payload
+fails closed. F1–F4 the never-infer list (no composition derived from
+price / availability / condition / seller / offer URL / the raw
+reference / the identifier fields / the model output / absence;
+specification quantities inside a clause are item text, never promoted
+to the bundle's quantity; multi-offer independence; the attestation
+trust boundary: the derivation reads exactly the bounded fields — two
+records differing only in attestation text derive identically — a
+tampered attestation is digest-verified before any axis uses it, and no
+attestation is ever constructed by the derivation). Every case is an
+OFFLINE recorded-input construction with scripted evaluation doubles —
+no live call, no model capture, no network. No existing test is
+deleted, renamed, skipped, xfailed, deselected, ignored, or weakened
+(except the one recorded FU3 guard allow-line above); the Windows
+subprocess flake allowlist is NOT expanded.
+
+**Validation.** Focused new file: 197 passed, 0 failed. Focused
+preservation: the 98-node FU3 suite + the 111 + 7-node P2 / P2-FU1
+extraction suites + the P1 binding-replay suite all pass (re-run
+unchanged apart from the recorded FU3 allow-line). Focused
+`tests/semantic/` + `tests/evaluation/`: 1335 passed, 1 failed — the
+single failure is a member of the documented load-sensitive clean-
+interpreter subprocess guard flake class (`OSError: [WinError 6]` at
+`subprocess.Popen -> _winapi.DuplicateHandle` BEFORE any project code
+runs; zero assertion failures), re-passed isolated on the first
+attempt. Focused `tests/research/`: 3265 passed, 5 failed — the 5
+failures are the same subprocess flake class (all re-passed isolated
+one-node-per-process on the first attempt). Full suite (final): 7473
+collected; **7473 passed, 0 failed** — no flake class member failed in
+the final run; zero collection errors. Collection accounting: 7268 →
+7473 (+205 = 197 new-file nodes + 8 auto-expanded parameterized
+boundary scans the new research file triggers: research-core per-file
+x4, domain +1, providers +1, runs +1, web +1 — the P2 precedent). Node-
+level diff against the starting SHA: **0 nodes removed / 0 renamed**;
+the addition is exactly the new test file + the boundary-scan
+expansion. Skipped / xfailed / deselected: **0 / 0 / 0**. `python
+manage.py check`: System check identified no issues (0 silenced). `python
+manage.py makemigrations --check --dry-run`: No changes detected (no
+model change — the component is pure research layer + tests).
+
+**Production runtime and pricing remain unchanged (evidence).** The
+frozen files are digest-pinned by the new A1 nodes (FU2 / FU3 / P2
+extraction / S2-C / decision / codec / replay / 2.0 / 2.1 / runtime /
+harness modules, the corpus artifacts, the DRAFT policy — all byte-
+identical to the starting SHA); the production codec registry still
+knows exactly the V1 + 2.0/FU2 bindings and refuses an FU4-bound
+payload; the replay registry is the same union; the harness knows
+exactly the two production bindings (2.0/FU2 ↔ 1.0.0, 2.1/FU3 ↔
+1.1.0) and no corpus 1.2.0 artifact exists; the live record type still
+pins the FU2 token at construction; `V2_AUTHORITY_QUALIFIED` is False
+in both pinned locations; no live module (semantic / execution / runs /
+web / providers) imports or lexically names the FU4 surface (AST +
+lexical scan); the pricing-eligible tier set is unchanged and the cap
+tier (NEEDS_REVIEW) remains non-pricing-eligible while the aggregation
+/ matching surfaces own no FU4 symbol; the live V2 execution still
+derives under the frozen 2.0/FU2 token. Nothing in the phase registers,
+re-seals, activates, or wires.
+
+No deployment performed. Q3-B5-P4 does NOT activate V2 authority, does
+NOT connect V2 to pricing aggregation, and does NOT change any frozen
+contract, the corpus, the DRAFT policy, or the live runtime: it
+implements the separately versioned bundle-composition authority behind
+its own token, isolated exactly as the design specifies. The
+registration step (semantic-layer binding constant, corpus 1.2.0
+binding-only reseal, harness registry extension, codec + replay
+extension, offline no-capture baselines) remains its own separately
+approval-gated phase (design §7.3), NOT executed here.
+
+
 **PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-Q3-B5-P2-FU1 (Semantic Authority V2 —
+
 
 Packaging Ambiguity and Bundle Identity Correction)
 

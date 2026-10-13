@@ -491,6 +491,33 @@ from product_intelligence.research.sales_unit_extraction import (
     extract_sales_unit_evidence,
     sales_unit_channel_from_extraction,
 )
+from product_intelligence.research.semantic_authority_fu4 import (
+    AUTHORITY_CONTRACT_VERSION_V2_FU4,
+    AuthorityDecisionV2FU4,
+    AuthorityRuleV2FU4,
+    BUNDLE_COMPOSITION_EVIDENCE_VERSION_FU4,
+    BundleCompositionEvidenceIntegrityError,
+    BundleCompositionStateV2FU4,
+    BundleQuantityAxisStateV2FU4,
+    CandidateBundleCompositionEvidenceV2FU4,
+    CandidateCompositionEvidenceBasisV2FU4,
+    CompletenessBasisV2FU4,
+    CompositionCompletenessAttestationV2FU4,
+    EvidenceSideV2FU4,
+    KNOWN_AUTHORITY_CONTRACT_TOKENS_FU4,
+    QuantityCompletenessAttestationV2FU4,
+    QuantityNonMaterialityReasonV2FU4,
+    TargetSalesUnitEvidenceV2FU4,
+    candidate_composition_from_channel,
+    candidate_composition_from_extraction,
+    classify_clause_closure,
+    derive_authority_tier_for_contract_fu4,
+    derive_authority_tier_fu4,
+    derive_sales_unit_authority_fu4,
+    derive_sales_unit_authority_fu4_case,
+    extract_published_bundle_clause,
+    is_known_authority_contract_token_fu4,
+)
 
 __all__ = [
     "ALWAYS_HARD_CONFLICT_CLASSES",
@@ -766,4 +793,36 @@ __all__ = [
     "extract_and_map_sales_unit_evidence",
     "extract_sales_unit_evidence",
     "sales_unit_channel_from_extraction",
+    # S2-A-FU4 (Q3-B5-P4): the separately versioned bundle-composition
+    # authority contract (token SEMANTIC_AUTHORITY_V2_S2A_FU4 — the
+    # corrected Q3-B5-P3 design: Blocker A quantity completeness +
+    # Blocker B composition completeness). Contract-only: unreachable
+    # from the live V2 runtime wiring, the production codec, and the
+    # replay registries; the frozen FU2 / FU3 / S2-C / extraction
+    # contracts and all historical replay behavior are unchanged.
+    "AUTHORITY_CONTRACT_VERSION_V2_FU4",
+    "AuthorityDecisionV2FU4",
+    "AuthorityRuleV2FU4",
+    "BUNDLE_COMPOSITION_EVIDENCE_VERSION_FU4",
+    "BundleCompositionEvidenceIntegrityError",
+    "BundleCompositionStateV2FU4",
+    "BundleQuantityAxisStateV2FU4",
+    "CandidateBundleCompositionEvidenceV2FU4",
+    "CandidateCompositionEvidenceBasisV2FU4",
+    "CompletenessBasisV2FU4",
+    "CompositionCompletenessAttestationV2FU4",
+    "EvidenceSideV2FU4",
+    "KNOWN_AUTHORITY_CONTRACT_TOKENS_FU4",
+    "QuantityCompletenessAttestationV2FU4",
+    "QuantityNonMaterialityReasonV2FU4",
+    "TargetSalesUnitEvidenceV2FU4",
+    "candidate_composition_from_channel",
+    "candidate_composition_from_extraction",
+    "classify_clause_closure",
+    "derive_authority_tier_for_contract_fu4",
+    "derive_authority_tier_fu4",
+    "derive_sales_unit_authority_fu4",
+    "derive_sales_unit_authority_fu4_case",
+    "extract_published_bundle_clause",
+    "is_known_authority_contract_token_fu4",
 ]

@@ -1673,7 +1673,7 @@ class TestReachabilityIsolation:
             "CEILING_SALES_UNIT_CONTRADICTED",
             "S2A_FU3",
         )
-        allowed_paths = {FU3_MODULE_PATH, PACKAGE_ROOT / "research" / "__init__.py"}
+        allowed_paths = {FU3_MODULE_PATH, PACKAGE_ROOT / "research" / "__init__.py", PACKAGE_ROOT / "research" / "semantic_authority_fu4.py"}
         for layer in ("research", "execution", "semantic", "runs", "web", "providers"):
             root = PACKAGE_ROOT / layer
             assert root.is_dir()
