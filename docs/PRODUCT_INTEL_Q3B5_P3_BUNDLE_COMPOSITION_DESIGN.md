@@ -10,6 +10,89 @@ design-only on the starting SHA below.
 correction; baseline collection 7268, re-verified this session: HEAD is
 `1ec0e34`, full-suite state per the Q3-B5-P2-FU1 STATUS section).
 
+## Revision record (FU4 correction — this document, revised in place)
+
+**Revised at:** `68ac4e4988ea35f805eb524afec6e1cd1b9fa2fe`
+(this document as originally committed, design-only, at the Q3-B5-P3
+design endpoint).
+
+The independent review of the Q3-B5-P3 candidate identified two
+architecture blockers in the bundle-composition design. This revision
+corrects both in place. The original design rationale is preserved
+wherever it remains valid; every correction is recorded explicitly, at
+the corrected location and in the register below. Design-only: no
+implementation exists for the pre-revision or the corrected design,
+and nothing frozen moves.
+
+**Blocker A — quantity completeness.** The pre-revision D6 / U16 count
+rule treated a quantity published on one side and absent on the other
+as passable ("equal, or at least one side publishes none — no
+inference, D17"): a missing quantity was silently treated as
+immaterial, and the derivation could return PROVEN_EQUIVALENT while
+one side's published count was never checked. Correction: a bounded,
+independently supported **quantity-completeness determination** is now
+a recorded axis of every bundle comparison (D6, D17, D20, §3.8, §5
+U16–U18, §5.1 cases 1–3, §9 C10). Exactly one side publishes a count
+⇒ the axis is `UNDETERMINED` ⇒ UNPROVEN, unless a verified
+`QuantityCompletenessAttestationV2FU4` (bounded non-materiality reason,
+frozen non-model attestation class, digest-verified) stands on the
+missing side. No quantity is inferred from bundle item counts, MPN,
+price, model output, or absence. Neither-side-publishes is a
+determined, recorded state (`BOTH_UNPUBLISHED`), not a silence.
+
+**Blocker B — composition completeness.** The pre-revision D4 / D5 /
+§3.5 treated a non-empty, syntactically closed published clause as
+`ESTABLISHED`, and byte-identical text (or equal parsed multisets) as
+sufficient for the PROVEN conjunction: syntactic validity was
+conflated with commercial completeness, so two pages publishing the
+same INCOMPLETE enumeration could derive PROVEN_EQUIVALENT.
+Correction: the state vocabulary now distinguishes **syntactically
+valid text** (`SYNTACTICALLY_VALID` — what the pre-revision
+`ESTABLISHED` denoted, demoted), **partially enumerated contents**
+(`PARTIAL`), **independently attested complete composition**
+(`ESTABLISHED`, redefined — a syntactically valid clause PLUS a
+bounded, independently supported
+`CompositionCompletenessAttestationV2FU4`: the subject's own published
+explicit completeness statement, or a target-side reviewed composition
+attestation), **complete but materially different composition** (a
+comparison OUTCOME — two `ESTABLISHED` clauses with a materially
+established difference ⇒ CONTRADICTED, U17 — not a state), and
+**unknown completeness** (syntactically valid, no attestation). Byte-
+identity and multiset equality establish TEXTUAL AGREEMENT only —
+never completeness (D4, D5, D6, D16, D19, §3.5, §3.6, §3.7, §4, §5
+U15–U21, §5.1 cases 4–7 and 9, §9 C11). If completeness cannot be
+independently established on a side, FU4 derives UNPROVEN for that
+pair. The pre-revision T2 residual (two identically truncated pages
+could derive PROVEN over the truncated statement, byte-identity
+being "sufficient") is closed by the attestation requirement (T2 as
+corrected).
+
+**Register of corrected locations** (pre-revision → corrected):
+
+| Location | Correction |
+| --- | --- |
+| Scope box 1 / 3 | Attestation facts admitted as the same recorded, non-model, bounded class (determination text audit-only); completeness-unknown composition and asymmetric unattested quantity added to the UNPROVEN arms |
+| D4 | State vocabulary split: `SYNTACTICALLY_VALID` added; `ESTABLISHED` redefined as attested-complete |
+| D5 | Closure refusals now bar `SYNTACTICALLY_VALID` and `ESTABLISHED` alike; a completeness marker can never rescue an unclosed clause; incompleteness markers dominate |
+| D6 | PROVEN conjunction restructured as three recorded axes (form / composition-with-completeness / quantity); byte-identity + multiset equality demoted to textual agreement |
+| D11 | Decision record gains bounded bundle-axis audit fields (quantity-axis state, composition states, attestation digests) |
+| D16 | Textual agreement explicitly never establishes completeness |
+| D17 | No-silent-immateriality rule + explicit no-inference lists (item counts / MPN / price / model output / absence; closure / identity / repetition / absence for completeness) |
+| D19 (new) | Composition-completeness attestation: the exact evidence for `ESTABLISHED` |
+| D20 (new) | Quantity-completeness attestation: the exact evidence lifting an asymmetric gap |
+| §2 | Safety-direction audit re-stated for the corrected design (FU4 corrected is strictly more restrictive than FU4 pre-revision; no FU3-capped tier exposure is lifted) |
+| §3.1 / §3.2 / §3.3 | Derivation signature gains the quantity attestation; evidence records gain the attestation fields; constructor coherence updated |
+| §3.4 / §3.5 | Clause extraction tightened (whole-text count-only match; count-prefixed marker form); §3.5 split into textual closure (a) + completeness-marker detection (b, versioned list) |
+| §3.6 / §3.7 | Three epistemic tiers; materiality grammar scoped to textual agreement / material difference only; worked examples re-stated with the attestation context |
+| §3.8 (new) | The two attestation records + bounded vocabularies + the quantity-axis states |
+| §4 | Table re-stated over the corrected states (completeness column added; the pre-revision "completely established" row split into unknown / attested) |
+| §5 | U-table restructured (U0–U14 preserved; U15–U21 corrected); attestation preconditions; §5.1 mandated decision matrix (ten cases); §5.2 byte-identity sufficiency corrected (was §5.1); tier / dispatch renumbered (§5.3 / §5.4, was §5.2 / §5.3) |
+| §6 | Construction entry points and the schema delivery list updated; the identical-repetition rule corrected (consistency ≠ completeness) |
+| §7.3 step 4 | The FU4-bound record carries the attestations' canonical documents |
+| §9 | B9 / B10 (attestation constructors), C10 / C11 / C12 (quantity and completeness comparison rows), C1 / C5 corrected, F4 (attestation trust boundary) |
+| §11 | T2 / T3 corrected; T9 (marker vocabulary) and T10 (quantity-attestation epistemology) recorded |
+| §12 | Acceptance vocabularies updated |
+
 ## Relationship to the prior design documents
 
 This document is the design of record for the separately versioned
@@ -65,7 +148,14 @@ What this document deliberately is NOT:
    request-description record with a bounded non-model provenance class
    (target side). No member of either provenance vocabulary is a model
    claim; no LLM output enters the derivation; the derivation is pure,
-   deterministic, and replayable.
+   deterministic, and replayable. **Corrected (Blocker A / B):** the
+   completeness and quantity non-materiality ATTESTATIONS are composition /
+   quantity facts of exactly these two classes — (a) the subject side's own
+   published explicit statement, verbatim and recorded (the versioned marker
+   detection, §3.5b), or (b) a reviewed / request-description record with a
+   bounded non-model class — and their recorded determination text is
+   AUDIT-ONLY: never read by the derivation (the bounded basis / reason
+   fields drive behavior; §3.8, §9-F4).
 2. **No inference from matching MPN alone.** Composition comparison is
    over the published clause text (or the versioned materiality grammar's
    parse of it). A part number occurring inside a clause is an item token
@@ -73,9 +163,11 @@ What this document deliberately is NOT:
    MPN, or given identity weight. MPN similarity inside compositions is
    out of grammar (an entry containing a full identifier string simply
    parses as item text or fails to parse — never as identity evidence).
-3. **No automatic pricing eligibility from missing or partial
-   sales-unit evidence.** A missing / partial / self-contradicted
-   composition derives UNPROVEN (never PROVEN_EQUIVALENT), and the
+3. **No automatic pricing eligibility from missing, partial,
+   completeness-unknown, or quantity-undetermined sales-unit evidence.** A
+   missing / partial / self-contradicted / completeness-unknown composition
+   derives UNPROVEN (never PROVEN_EQUIVALENT), an asymmetric unattested
+   quantity derives UNPROVEN (D20), and the
    restrict-only ceilings (`CEILING_SALES_UNIT_NOT_PROVEN` /
    `CEILING_SALES_UNIT_CONTRADICTED`, frozen FU3 vocabulary, unchanged)
    keep any would-be automatic tier at `NEEDS_REVIEW`. PROVEN_EQUIVALENT
@@ -102,21 +194,23 @@ source citation (§1) or an explicit tradeoff record (§11).
 | **D1** | New token, new module | The amendment is the separately versioned authority contract token `SEMANTIC_AUTHORITY_V2_S2A_FU4`, owned by a NEW research module (proposed name `product_intelligence/research/semantic_authority_fu4.py`). The FU2 module (`research/semantic_authority_v2.py`), the FU3 module (`research/semantic_authority_fu3.py`), the extraction module (`research/sales_unit_extraction.py`), the S2-C channel module (`research/semantic_v2.py`), and the 2.0 / 2.1 contract modules are BYTE-FROZEN inputs (file-level SHA-256 pins, the FU3-test precedent at `tests/research/test_semantic_authority_v2_fu3.py` line 144 ff.). |
 | **D2** | No input-schema change | The recorded V2 input (`SemanticMatchCaseV2`; input-schema axis "1") is unchanged. The composition facts are DERIVATION-INPUT records (the FU3 `TargetSalesUnitEvidenceV2` precedent — an explicit, bounded record passed to the derivation, not a case field). The FU4 production binding therefore keeps input schema 1 and output schema 1 (§7.1). |
 | **D3** | Candidate-side evidence, two bounded bases | The candidate composition record is constructed only (a) from a verified `SalesUnitExtractionResult` (schema v1) — the `EXTRACTION_RESULT_V1` basis, digest-bound, reading the result's FULL cue list (so self-contradictory published contents are detectable, §6 item 4) — or (b) from a recorded OBSERVED BUNDLE channel alone — the `RECORDED_CHANNEL` basis (corpus-shaped / supplied channels), which sees exactly one clause. The basis is recorded in the evidence. When an extraction result is available, the integration MUST use basis (a) (the channel basis is the single-clause view, §11-T6). |
-| **D4** | Composition publication states | The bounded vocabulary is `ESTABLISHED` (a non-empty, closed, verbatim published contents clause with no explicit incompleteness marker), `PARTIAL` (contents published but explicitly incomplete or not closed: an incompleteness marker, an unclosed paren, a dangling trailing separator), `ABSENT` (no contents clause: bare / count-only bundle, empty marker clause), plus the candidate-side-only relation `CONTRADICTED_PUBLISHED` (two or more established/partial published clauses that differ — every side recorded, none adopted). |
-| **D5** | Empty / truncated markers never establish | `bundle:` (nothing after), `bundle ()`, `bundle (…` (no closing paren), and a clause ending on a dangling separator / incomplete quantity token are NEVER `ESTABLISHED` (they are `ABSENT` or `PARTIAL`), so they can never contribute to PROVEN_EQUIVALENT on either side. |
-| **D6** | The PROVEN conjunction | FU4 derives `PROVEN_EQUIVALENT` for a bundle ONLY when ALL hold: matching BUNDLE form on both sides; composition `ESTABLISHED` on BOTH sides; the clauses equal under the bounded equality rule (byte-identical, OR equal multisets under the versioned full-parse materiality grammar, §3.7); the count rule holds (both sides publish a count ⇒ the counts are equal); both sides carry bounded non-model provenance; and the records are integrity-verified. Missing or partial composition on either side ⇒ UNPROVEN. |
+| **D4** | Composition publication states (CORRECTED — Blocker B) | The bounded vocabulary is `SYNTACTICALLY_VALID` (a non-empty, closed, verbatim published contents clause with no explicit incompleteness marker — a TEXTUAL property only; the commercial completeness of the enumeration is unknown: this is what the pre-revision design's `ESTABLISHED` denoted, demoted), `ESTABLISHED` (REDEFINED: `SYNTACTICALLY_VALID` PLUS a bounded, independently supported completeness attestation — `CompositionCompletenessAttestationV2FU4`, D19 / §3.8 — establishing that the published clause is the bundle's complete commercial composition), `PARTIAL` (partially enumerated contents: published but explicitly incomplete or not closed — an incompleteness marker, an unclosed paren, a dangling trailing separator), `ABSENT` (no contents clause: bare / count-only bundle, empty marker clause), plus the candidate-side-only relation `CONTRADICTED_PUBLISHED` (two or more published clauses that differ textually — every side recorded with its own textual state, none adopted). A non-empty, syntactically closed clause is NOT automatically a complete commercial composition: syntactic closure is the floor of `SYNTACTICALLY_VALID`, never of `ESTABLISHED`. |
+| **D5** | Empty / truncated markers never establish (CORRECTED) | `bundle:` (nothing after), `bundle ()`, `bundle (…` (no closing paren), and a clause ending on a dangling separator / incomplete quantity token are NEVER `SYNTACTICALLY_VALID` or `ESTABLISHED` (they are `ABSENT` or `PARTIAL`), so they can never contribute to PROVEN_EQUIVALENT on either side. A completeness marker can never rescue an unclosed clause: the marker detection (§3.5b) runs only over a textually valid clause, and an incompleteness marker always dominates (a clause containing `etc.` is PARTIAL with no attestation, even with a trailing `complete list`). |
+| **D6** | The PROVEN conjunction (CORRECTED — Blockers A / B) | FU4 derives `PROVEN_EQUIVALENT` for a bundle ONLY when ALL hold: (1) FORM axis — matching BUNDLE form on both sides; (2) COMPOSITION axis — composition `ESTABLISHED` on BOTH sides (each side with its OWN verified completeness attestation, D19 — a `SYNTACTICALLY_VALID` clause, however identical, is completeness-unknown and can never prove), and the clauses TEXTUALLY AGREE (byte-identical, OR equal multisets under the versioned full-parse materiality grammar, §3.7 — textual agreement only, never completeness); (3) QUANTITY axis — SATISFIED: both sides publish a count ⇒ the counts are equal (`CONSISTENT`), OR neither side publishes one (`BOTH_UNPUBLISHED` — a determined, recorded state, not a silence), OR a material quantity is published on one side and absent on the other with a verified non-materiality attestation standing on the MISSING side (`ATTESTED_NOT_MATERIAL`, D20); (4) both sides carry bounded non-model provenance; (5) the records are integrity-verified. Missing, partial, or completeness-unknown composition on either side ⇒ UNPROVEN. An asymmetric unattested quantity ⇒ UNPROVEN. A published incompatibility independently established on either axis — a count difference over textually-agreed clauses, or a materially established difference between two `ESTABLISHED` clauses — ⇒ CONTRADICTED. |
 | **D7** | CONTRADICTED only on materially established difference | Byte-different `ESTABLISHED` clauses derive `CONTRADICTED` ONLY when the versioned bounded item grammar fully parses BOTH clauses and the (normalized quantity, normalized item) multisets differ. Any parse failure ⇒ UNPROVEN (a textual difference that the deterministic grammar cannot establish as material is never declared a contradiction — the safe direction: UNPROVEN caps the tier, CONTRADICTED additionally marks published incompatibility). |
 | **D8** | Candidate self-contradiction fails closed to UNPROVEN | Two published candidate-side clauses that differ (title vs structured field, or two title clauses) ⇒ `CONTRADICTED_PUBLISHED` on the evidence ⇒ the derivation returns UNPROVEN for EVERY target shape (never PROVEN, and never CONTRADICTED — mirroring the P2 contradiction → recorded-absence → UNPROVEN discipline and the 2.1 INTERNAL CONTRADICTION RULE: an internally contradictory dimension is unpinned in both directions, not adopted as a conflict against the target). Every side stays recorded with full provenance in the result / evidence for audit. |
-| **D9** | Non-bundle arms unchanged | For `SINGLE_UNIT`, `PACK_QUANTITY`, and `TRAY_OR_FACTORY_PACK` the FU4 unit derivation is BYTE-IDENTICAL in behavior to the frozen FU3 derivation (delegated where possible; proven equivalent by test over the full FU3 shape suite, §9-A2). Only the BUNDLE arm changes, and the changes are exactly D6 / D7 / D8. |
+| **D9** | Non-bundle arms unchanged | For `SINGLE_UNIT`, `PACK_QUANTITY`, and `TRAY_OR_FACTORY_PACK` the FU4 unit derivation is BYTE-IDENTICAL in behavior to the frozen FU3 derivation (delegated where possible; proven equivalent by test over the full FU3 shape suite, §9-A2). Only the BUNDLE arm changes, and the changes are exactly D6 / D7 / D8 / D19 / D20. |
 | **D10** | No new audit rule | FU4 introduces no new `AuthorityRule` member. The two frozen FU3 restrict-only ceilings cover every FU4 unit state (`UNPROVEN` ⇒ `CEILING_SALES_UNIT_NOT_PROVEN`; `CONTRADICTED` ⇒ `CEILING_SALES_UNIT_CONTRADICTED`). The FU4 rule vocabulary mirrors the FU3 set exactly (import-self-checked, the FU3 pattern over the FU2 set). |
-| **D11** | State vocabulary reused; decision record versioned | The three-state `SalesUnitAuthorityV2` enum (frozen FU3) is REUSED — the states are vocabulary; the semantics live in the derivation under the token. The decision record is a NEW separately versioned `AuthorityDecisionV2FU4` with the same field set and the same construction invariants as the FU3 record, so an FU4 decision is type-distinguishable from a FU3 decision at replay. |
+| **D11** | State vocabulary reused; decision record versioned (CORRECTED — audit surface) | The three-state `SalesUnitAuthorityV2` enum (frozen FU3) is REUSED — the states are vocabulary; the semantics live in the derivation under the token. The decision record is a NEW separately versioned `AuthorityDecisionV2FU4` with the FU3 record's field set and the same construction invariants, PLUS bounded bundle-axis audit fields (for BUNDLE channels: the quantity-axis state (`BundleQuantityAxisStateV2FU4`), the candidate / target composition states, the completeness-attestation digests, the quantity-attestation digest; for non-bundle channels: exactly None) — the determinations are RECORDED, never silent (D19 / D20). An FU4 decision is type-distinguishable from a FU3 decision at replay; the FU3 firewall invariants are unchanged. |
 | **D12** | Prompt 2.1 needs no new version; a NEW binding is required | The 2.1 prompt TEXT is unchanged (no 2.2): its sales-unit instructions are model-level and assert nothing FU4 contradicts (§7.4). But a record governed by FU4 must carry FU4 on its authority axis — the existing 2.1 binding `("V2","2.1",1,1,FU3)` is NOT reused for changed authority semantics. The FU4 production binding is `("V2","2.1",1,1,"SEMANTIC_AUTHORITY_V2_S2A_FU4")` — a successor 2.1 binding moving ONLY the authority axis. The downstream token alone is necessary but not sufficient: the token identifies the derivation, the binding identifies the RECORD CONTRACT (§7.4 answers task item 7 explicitly). |
 | **D13** | Binding registration is separately gated | The contract-only FU4 phase registers NOTHING in the production / qualification registries (codec, replay, corpus, harness pins, report sections stay exactly as §1.6). The registration step (semantic-layer binding constant + harness pins + corpus 1.2.0 binding-only reseal + codec adapter + replay extension + offline no-capture baseline reports) is its own approval-gated phase, specified in §7.3 and executable only after the FU4 contract phase is reviewed and approved. |
 | **D14** | Corpus reseal is binding-only | When registered, the FU4 binding seals a NEW corpus version `1.2.0`: 56/56 per-case documents byte-identical to 1.1.0, `label_revisions` empty, exactly `{corpus_version, semantic_contract_binding, corpus_digest}` moved (the P1 1.1.0 re-seal precedent). No label change; the committed 1.0.0 / 1.1.0 artifacts stay byte-frozen under their own bindings. |
 | **D15** | No wiring, no promotion, no eligibility | The FU4 module is unreachable from every live path (the P2 AST-pin / FU3 lexical-guard discipline). `V2_AUTHORITY_QUALIFIED` stays False in both pinned locations. No V2 pricing consumer reads FU4 states (none exists; W1's guard predicate is unchanged and orthogonal). |
-| **D16** | Verbatim comparison is primary; normalization is grammar-internal | Clause equality's primary path is byte-identity over the verbatim clause (after the bounded marker strip, §3.4). The materiality grammar's normalization (casefold + internal-whitespace collapse of item tokens, integer quantities) applies ONLY inside the secondary full-parse multiset path and the materiality test — never to the primary comparison, never beyond the documented grammar. |
-| **D17** | No cross-field inference | A published bundle count is never parsed into the composition, and the composition is never parsed into the count: count-vs-entry-count agreement is neither required nor checked (D6's count rule compares published counts side-to-side only). The clause and the count are independent published facts. |
+| **D16** | Textual agreement only; normalization is grammar-internal (CORRECTED — Blocker B) | Clause equality's primary path is byte-identity over the verbatim clause (after the bounded marker strip, §3.4–3.5b); the materiality grammar's normalization (casefold + internal-whitespace collapse of item tokens, integer quantities) applies ONLY inside the secondary full-parse multiset path and the materiality test — never to the primary comparison, never beyond the documented grammar. The equality rule establishes TEXTUAL AGREEMENT between two clauses only. It NEVER establishes that either clause is a complete commercial composition — that is the completeness attestation's function (D19), a separate axis: byte-identical text and parsed multiset equality may establish textual agreement, but not completeness by themselves. |
+| **D17** | No cross-field inference; no silent immateriality (CORRECTED — Blocker A) | (a) A published bundle count is never parsed into the composition, and the composition is never parsed into the count: count-vs-entry-count agreement is neither required nor checked (the quantity axis compares PUBLISHED counts side-to-side only). (b) A MISSING QUANTITY IS NEVER SILENTLY IMMATERIAL: exactly one side publishing a material count leaves the quantity axis `UNDETERMINED` ⇒ UNPROVEN, unless a bounded, independently supported non-materiality attestation stands on the missing side (D20) — the pre-revision design's pass-arm "at least one side publishes none — no inference" is REMOVED. (c) No quantity is inferred from a bundle item count (the clause's parsed entries), an MPN, a price, a model output, or an absence. (d) No completeness is inferred from syntactic closure, byte-identity, multiset equality, same-page repetition, a model output, or an absence (D19). The clause, the count, and their attestations are separate recorded facts. |
 | **D18** | Frozen target records are composition-ABSENT under FU4 | The FU4 unit derivation also accepts the FROZEN `TargetSalesUnitEvidenceV2` (so one call site can serve both tokens): under the FU4 token a frozen target record is read exactly as its fields state — form + count, composition ABSENT (the field does not exist; no implicit upgrade). This keeps FU4 total over recorded inputs while guaranteeing a FU3-shaped record can never manufacture a composition fact. |
+| **D19** | Composition completeness attestation (NEW — Blocker B) | A composition is `ESTABLISHED` ONLY with a recorded `CompositionCompletenessAttestationV2FU4` (§3.8): bound to the exact clause (the clause digest), carrying a BOUNDED basis — the subject side's own published explicit completeness statement (the versioned `_COMPLETENESS_MARKERS` list, detected deterministically from the recorded text, §3.5b), or, TARGET-SIDE ONLY, a recorded review composition attestation (the review process's determination, trusted as recorded, T3) — carrying the subject side's frozen non-model provenance class, the verbatim attestation text (AUDIT-ONLY: never read by the derivation), and a self-verifying digest. No other evidence — syntactic closure, byte-identity, multiset equality, same-page repetition, a model output, an MPN, a price, an absence — establishes completeness. If completeness cannot be independently established on a side, FU4 derives UNPROVEN for that pair. |
+| **D20** | Quantity completeness attestation (NEW — Blocker A) | The bundle quantity axis is a DETERMINED, RECORDED state in every comparison (`CONSISTENT` / `BOTH_UNPUBLISHED` / `ATTESTED_NOT_MATERIAL` / `CONTRADICTED` / `UNDETERMINED`, §3.8). A material quantity published on one side and absent on the other is `UNDETERMINED` ⇒ UNPROVEN, UNLESS a recorded `QuantityCompletenessAttestationV2FU4` stands on the MISSING side: bounded subject side, bounded non-materiality reason (the versioned vocabulary), a frozen non-model attestation class (the review process is the contract's sole quantity-attestation authority — a page never self-attests its own silence, T10), the verbatim recorded determination (AUDIT-ONLY), a self-verifying digest. The attestation never supplies a quantity VALUE (a reviewed value enters through the record's quantity field, the frozen mechanism). Neither-side-published is `BOTH_UNPUBLISHED` — determined and recorded, not a silence. |
 
 ---
 
@@ -386,7 +480,14 @@ established difference → CONTRADICTED, otherwise UNPROVEN" per the
 task's comparison rules and the no-model / no-fuzzy-match constraints;
 (c) the prompt-2.1 question is answered explicitly: no new prompt
 version, but a NEW production binding (not merely a downstream token) is
-required for any record to be governed by FU4 (§7.4).
+required for any record to be governed by FU4 (§7.4). The correction
+recorded in the revision record at the top of this document further
+refines (b) in two recorded places: "byte-identical" establishes TEXTUAL
+AGREEMENT only — PROVEN additionally requires a completeness
+attestation on BOTH sides (D19) and a determined quantity axis (D20);
+and the quantity axis itself is a recorded determination in every
+comparison, never a silent pass-arm (the pre-revision U16 defect,
+Blocker A).
 
 ---
 
@@ -423,19 +524,30 @@ required for any record to be governed by FU4 (§7.4).
    nothing under FU2 / FU3 moves.
 
 **Safety-direction audit of the FU3 → FU4 delta** (over identical
-inputs): FU4 differs from FU3 only where (a) FU3 said PROVEN on a
-count-only or composition-unestablished bundle shape (FU4: UNPROVEN —
-restricts); (b) FU3 said PROVEN or UNPROVEN over two ESTABLISHED
-clauses with a materially established difference (FU4: CONTRADICTED —
-restricts, and the decision-level absolute rule already owns the
-model-side shape); or (c) FU3 said UNPROVEN over two ESTABLISHED,
-equal, sufficiently-provenanced clauses (FU4: PROVEN — the intended
-capability, requiring the full D6 conjunction, which no count-only or
-partial shape satisfies). No shape that FU4 admits as PROVEN is a
-count-only or incomplete-composition shape (D5 / D6 / D7), so the
-Q3-B5-P2-FU1 bundle-identity invariant ("a published count is not the
-complete identity of a bundle") holds at the derivation level under the
-FU4 token.
+inputs, CORRECTED design): FU4 differs from FU3 only where (a) FU3
+said PROVEN on a count-only or composition-unestablished bundle shape
+(FU4: UNPROVEN — restricts); (b) FU3 said PROVEN or UNPROVEN over two
+bundles whose published statements are textually agreed with a count
+difference, or materially different with completeness attested on both
+sides (FU4: CONTRADICTED — restricts, and the decision-level absolute
+rule already owns the model-side shape); or (c) FU3 said UNPROVEN over
+two textually-agreed clauses, quantity axis satisfied, with a
+completeness attestation on BOTH sides (FU4: PROVEN — the intended
+capability, requiring the full corrected D6 conjunction, which no
+count-only, partial, completeness-unknown, or quantity-undetermined
+shape satisfies). FU4 (corrected) is strictly MORE restrictive than
+FU4 (pre-revision) and lifts no tier exposure FU3 capped: every shape
+the pre-revision design admitted as PROVEN on an unattested clause or
+on an unattested asymmetric quantity is UNPROVEN under the corrected
+design (U15 / U18), and CONTRADICTED / UNPROVEN cap identically
+(NEEDS_REVIEW) on every shape where FU3 and the corrected FU4 diverge
+in informativeness. No shape that the corrected FU4 admits as PROVEN
+is a count-only, partial, completeness-unknown, or quantity-
+undetermined shape (D5 / D6 / D19 / D20), so the Q3-B5-P2-FU1
+bundle-identity invariant ("a published count is not the complete
+identity of a bundle") holds at the derivation level under the FU4
+token — now on BOTH axes (the count axis per D17 / D20, the
+composition axis per D19).
 
 ---
 
@@ -458,6 +570,8 @@ derive_sales_unit_authority_fu4(
     candidate_composition: CandidateBundleCompositionEvidenceV2FU4 | None,  # NEW
     target_evidence: TargetSalesUnitEvidenceV2FU4                # NEW
                     | TargetSalesUnitEvidenceV2 | None,          # frozen (D18)
+    quantity_attestation: QuantityCompletenessAttestationV2FU4  # NEW (D20)
+                        | None = None,
 ) -> SalesUnitAuthorityV2
 ```
 
@@ -466,36 +580,72 @@ derive_sales_unit_authority_fu4(
   (§3.2). `None` is legitimate and means "no composition evidence
   presented" — for a BUNDLE channel that is composition ABSENT
   (UNPROVEN); for a non-BUNDLE channel it is contract misuse (fail
-  closed, D9).
+  closed, D9). The record's embedded completeness attestation (§3.8)
+  re-verifies with it.
 * `target_evidence` — the NEW versioned target record (§3.3), or the
   FROZEN FU3 record (read as composition-ABSENT, D18), or `None`
-  (the default single unit — unchanged).
+  (the default single unit — unchanged). The FU4 record's embedded
+  completeness attestation (§3.8) re-verifies with it.
+* `quantity_attestation` — CORRECTED (Blocker A, D20): the NEW
+  bounded, review-constructed non-materiality attestation, presented
+  ONLY over an asymmetric quantity axis (exactly one side publishes a
+  count) and ONLY with its subject side the actually-missing side;
+  digest-verified before any axis uses it. `None` is the normal case;
+  both-sides-published and both-unpublished axes are determined
+  without it, and presenting it there is contract misuse.
 
 Replay reconstructs the derivation exactly because every input is a
 recorded, digest-verified value (§8): the channel is inside the case
-(input schema 1, unchanged); the two records are recorded in the
-FU4-bound record's own evaluation section (§7.3, the Q3-B4 §6.1 item 5
-"derived snapshots … replay re-derives and proves agreement"
-precedent).
+(input schema 1, unchanged); the two records (with their embedded
+completeness attestations) and the quantity attestation (when
+present) are recorded in the FU4-bound record's own evaluation
+section (§7.3, the Q3-B4 §6.1 item 5 "derived snapshots … replay re-
+derives and proves agreement" precedent).
 
 ## 3.2 Candidate-side record
 
 ```python
 class BundleCompositionStateV2FU4(str, Enum):
-    ESTABLISHED = "ESTABLISHED"
+    """CORRECTED (Blocker B): the pre-revision member set conflated
+    syntactic closure with commercial completeness. The pre-revision
+    `ESTABLISHED` (a non-empty, closed, marker-free clause) is
+    DEMOTED to `SYNTACTICALLY_VALID`; `ESTABLISHED` is REDEFINED as
+    the attested-complete state. `PARTIAL` / `ABSENT` /
+    `CONTRADICTED_PUBLISHED` keep their pre-revision meaning (stated
+    now over textual validity)."""
+
+    SYNTACTICALLY_VALID = "SYNTACTICALLY_VALID"
     """A non-empty, closed, verbatim published contents clause with no
-    explicit incompleteness marker (the bounded grammar of §3.4-3.6).
-    The clause is the publisher's published statement of what the bundle
-    contains — recorded, not verified against the physical contents
-    (the same epistemic status as every recorded fact in this system:
-    equivalence is AS PUBLISHED)."""
+    explicit incompleteness marker (the textual closure grammar of
+    §3.5a). A TEXTUAL property only: the statement is a complete
+    published sentence, not necessarily a complete ENUMERATION of what
+    the bundle contains — the commercial completeness of the
+    composition is UNKNOWN. This state can never by itself contribute
+    to PROVEN_EQUIVALENT, on either side (D19; §5 U15). (This is what
+    the pre-revision design's `ESTABLISHED` denoted.)"""
+
+    ESTABLISHED = "ESTABLISHED"
+    """REDEFINED (Blocker B): SYNTACTICALLY_VALID PLUS a bounded,
+    independently supported completeness attestation
+    (`CompositionCompletenessAttestationV2FU4`, §3.8) establishing
+    that the published clause is the bundle's COMPLETE commercial
+    composition — the subject's own published explicit completeness
+    statement (the versioned marker, §3.5b) or, target-side only, a
+    recorded review composition attestation. Only this state may
+    enter the PROVEN conjunction (D6). The attestation is trusted as
+    recorded (the T3 / T3' boundary); physical truth remains the
+    publisher's claim or the reviewer's determination (the same
+    epistemic status as every recorded fact in this system:
+    equivalence is AS PUBLISHED, and AS ATTESTED complete)."""
 
     PARTIAL = "PARTIAL"
-    """Contents were published but the publication is explicitly
-    incomplete or not closed: an incompleteness marker inside the clause
-    (§3.6 list), an unclosed paren-form, or a dangling trailing
-    separator / incomplete quantity token. The clause text is recorded
-    for audit; it can never contribute to PROVEN_EQUIVALENT."""
+    """Partially enumerated contents: the publication is explicitly
+    incomplete or not closed: an incompleteness marker inside the
+    clause (§3.5a list), an unclosed paren-form, or a dangling
+    trailing separator / incomplete quantity token. The clause text is
+    recorded for audit; it can never contribute to
+    SYNTACTICALLY_VALID, ESTABLISHED, or PROVEN_EQUIVALENT, and a
+    completeness marker can never rescue it (D5)."""
 
     ABSENT = "ABSENT"
     """No contents clause is published: a bare bundle word, a count-only
@@ -507,10 +657,13 @@ class BundleCompositionStateV2FU4(str, Enum):
     CONTRADICTED_PUBLISHED = "CONTRADICTED_PUBLISHED"
     """Candidate-side ONLY: two or more published contents clauses
     (across the examined fields, e.g. title vs structured field) that
-    differ. EVERY clause is recorded with its full provenance; NONE is
-    adopted. The derivation returns UNPROVEN for every target shape
-    (D8) — a self-contradiction is not a contradiction against the
-    target, and neither side may be presented as THE composition."""
+    differ textually (byte comparison over the §3.4-3.5b clause form).
+    EVERY clause is recorded with its full provenance AND its own
+    textual state (and its own published attestation, if the marker
+    was present); NONE is adopted. The derivation returns UNPROVEN
+    for every target shape (D8) — a self-contradiction is not a
+    contradiction against the target, and neither side may be
+    presented as THE composition."""
 
 
 class CandidateCompositionEvidenceBasisV2FU4(str, Enum):
@@ -529,11 +682,22 @@ class CandidateBundleCompositionEvidenceV2FU4:
     schema_version: int                        # = 1 (bounded)
     basis: CandidateCompositionEvidenceBasisV2FU4
     state: BundleCompositionStateV2FU4
+    completeness_attestation: CompositionCompletenessAttestationV2FU4 | None
+    """CORRECTED (Blocker B): the attestation that makes state
+    ESTABLISHED. Present EXACTLY when state is ESTABLISHED (subject
+    side = CANDIDATE; the basis is necessarily
+    PUBLISHED_COMPLETENESS_STATEMENT — a candidate-side record cannot
+    carry a review basis, §3.8); None for every other state (a
+    SYNTACTICALLY_VALID clause is completeness-unknown — the attested
+    and unattested shapes are type-distinguishable, never conflated).
+    Embedded in the record's digest."""
     composition_clause: str | None
-    """The verbatim published contents clause (marker-stripped per §3.4)
-    — present when ESTABLISHED or PARTIAL or CONTRADICTED_PUBLISHED
-    (the primary clause); None when ABSENT. Original case and spacing
-    (byte comparison is over exactly this text)."""
+    """The verbatim published contents clause (§3.4–3.5b: marker-
+    stripped, completeness-marker-stripped when attested) — present
+    when SYNTACTICALLY_VALID or ESTABLISHED or PARTIAL or
+    CONTRADICTED_PUBLISHED (the primary clause); None when ABSENT.
+    Original case and spacing (byte comparison is over exactly this
+    text)."""
     additional_clauses: tuple[str, ...]
     """CONTRADICTED_PUBLISHED only: the OTHER published clauses, each
     verbatim, in canonical order (extraction field order, then span
@@ -567,21 +731,29 @@ Constructor (fail closed, the P2 result-constructor pattern):
 * `source` must be one of the two non-model frozen members (a cue from
   any other provenance is un-constructible — the forged / model-claim
   defense, §1.4);
-* state/coherence: `ABSENT` ⇒ `composition_clause is None` and
-  `additional_clauses == ()`; `ESTABLISHED` / `PARTIAL` ⇒ exactly one
-  clause, non-empty, and `additional_clauses == ()`;
-  `CONTRADICTED_PUBLISHED` ⇒ `composition_clause` is the primary clause
-  and `additional_clauses` is non-empty and every clause differs from
-  every other (byte comparison);
-* `ESTABLISHED` clauses must pass the §3.5 closure checks (an empty /
-  truncated clause is un-constructible as ESTABLISHED — D5 at the
-  type level);
+* state/coherence (CORRECTED): `ABSENT` ⇒ `composition_clause is
+  None`, `completeness_attestation is None`, `additional_clauses ==
+  ()`; `SYNTACTICALLY_VALID` / `PARTIAL` ⇒ exactly one clause
+  (non-empty for SYNTACTICALLY_VALID), `completeness_attestation is
+  None`, `additional_clauses == ()`; `ESTABLISHED` ⇒ exactly one
+  clause, non-empty, `completeness_attestation` present and coherent
+  (subject CANDIDATE; basis PUBLISHED_COMPLETENESS_STATEMENT; source =
+  the record's source; `clause_digest` over exactly the record's
+  clause; digest verified — §3.8), `additional_clauses == ()`;
+  `CONTRADICTED_PUBLISHED` ⇒ `composition_clause` is the primary
+  clause and `additional_clauses` is non-empty and every clause
+  differs from every other (byte comparison over the §3.4–3.5b clause
+  form);
+* SYNTACTICALLY_VALID clauses must pass the §3.5a textual closure
+  checks (an empty / truncated clause is un-constructible as
+  SYNTACTICALLY_VALID or ESTABLISHED — D5 at the type level);
 * `EXTRACTION_RESULT_V1` ⇒ both extraction digests present and
   well-formed; `RECORDED_CHANNEL` ⇒ both None;
 * `channel_quantity` obeys the frozen channel's bundle quantity rules
   (positive int or None; never inferred);
 * `evidence_digest` re-verifies at construction and on every presented
-  record (a tampered record produces no derivation input —
+  record (a tampered record — including a tampered embedded
+  attestation — produces no derivation input —
   `BundleCompositionEvidenceIntegrityError`).
 
 ## 3.3 Target-side record
@@ -607,11 +779,20 @@ class TargetSalesUnitEvidenceV2FU4:
     composition_state: BundleCompositionStateV2FU4 | None
     """None unless form is BUNDLE. For a BUNDLE form the field is
     REQUIRED and is the bounded classification of composition_clause
-    (the same §3.5 grammar; the target side has no
+    (the same §3.5 grammar, corrected; the target side has no
     CONTRADICTED_PUBLISHED — one reviewed attestation is one record; a
     self-contradictory source is a review-governance failure, not a
     contract state, §11-T7). Non-BUNDLE forms carry exactly
-    (None, None): composition is a bundle-only fact."""
+    (None, None, None): composition is a bundle-only fact."""
+    completeness_attestation: CompositionCompletenessAttestationV2FU4 | None
+    """CORRECTED (Blocker B): present EXACTLY when composition_state is
+    ESTABLISHED (subject side = TARGET; basis PUBLISHED_COMPLETENESS_
+    STATEMENT — the target's own source published the statement, the
+    review records it — or REVIEWED_COMPOSITION_ATTESTATION — the
+    review's determination over the clause); None for
+    SYNTACTICALLY_VALID / PARTIAL / ABSENT (a SYNTACTICALLY_VALID
+    target clause is completeness-unknown and can never prove, §5
+    U15). Embedded in the record's digest."""
     evidence_digest: str
 ```
 
@@ -619,9 +800,13 @@ Constructor rules: the frozen FU3 rules verbatim (form / source
 vocabulary; PACK_QUANTITY requires the positive count; SINGLE_UNIT
 forbids it; the provenance classes are the two frozen non-model
 members) + `schema_version == 1` + the bundle composition coherence
-(BUNDLE ⇒ state ∈ {ESTABLISHED, PARTIAL, ABSENT}, and the clause
-matches the state exactly as on the candidate side; ESTABLISHED ⇒
-clause passes §3.5; non-BUNDLE ⇒ both None) + digest self-verification.
+(BUNDLE ⇒ state ∈ {SYNTACTICALLY_VALID, ESTABLISHED, PARTIAL, ABSENT},
+and the clause matches the state exactly as on the candidate side;
+ESTABLISHED ⇒ the attestation present and coherent (subject TARGET;
+clause_digest over exactly the clause; source in the target classes;
+digest verified); SYNTACTICALLY_VALID / PARTIAL ⇒ the attestation
+None; non-BUNDLE ⇒ all three composition fields None) + digest self-
+verification.
 
 **Provenance semantics (recorded, not re-verified by the derivation):**
 the target source label is the bounded class of where the attestation
@@ -629,27 +814,44 @@ came from. Independence of the two sides (that the target clause was
 not copied from the candidate page) is the REVIEW process's
 attestation at record creation — the same epistemic boundary the frozen
 target record already carries for its count (a reviewed "pack of 4" is
-trusted as reviewed, not re-derived). The derivation records both
-source labels in the decision's audit surface; a red flag (both sides
-labeled from the same request description) is visible to the reviewer,
-never silently laundered by the derivation (§11-T3).
+trusted as reviewed, not re-derived). CORRECTED (Blocker B): the same
+boundary now extends to the completeness ATTESTATION itself — that the
+target's ESTABLISHED state rests on genuine independent verification
+rather than on a copy of the candidate's publication is the review
+process's attestation at record creation (T3 / T3': a copied,
+unverified attestation is a review-governance failure — the record must
+not have been created — not a contract state; the deterministically
+detectable slice — basis / source-class coherence, clause_digest
+binding — is enforced, §3.8). The derivation records both source
+labels AND both attestations in the decision's audit surface; a red
+flag (both sides labeled from the same request description, or a
+target attestation whose recorded anchor names the candidate source)
+is visible to the reviewer, never silently laundered by the derivation
+(§11-T3).
 
-## 3.4 The bounded clause extraction (marker strip)
+## 3.4 The bounded clause extraction (marker strip — CORRECTED)
 
 One versioned function, `extract_published_bundle_clause(text) ->
 (clause, was_paren_form)` (stdlib only; the text is always a verbatim
 published span — an established cue text or a recorded channel
 `raw_detail`):
 
-1. **Count-only bundle phrase** (grammar mirroring the frozen cue
-   table's bundle forms: `bundle`, `bundle of N`, `N-unit bundle`,
-   `N unit bundle`, with N canonical 1..99999 — case-insensitive on the
+1. **Count-only bundle phrase** (WHOLE-TEXT match — corrected: the
+   pre-revision step did not state the match bound, and a text with
+   contents after a count, e.g. `"bundle of 2: 2x RAM + 1x CPU"`,
+   falls through to the marker forms, not to ABSENT): the trimmed text
+   matches `bundle` / `bundle of N` / `N-unit bundle` / `N unit
+   bundle` in FULL (N canonical 1..99999 — case-insensitive on the
    packaging word only, N verbatim-checked): → `clause = None`
    (composition ABSENT; the count is never bound, P2-FU1 / D17).
-2. **Marker form** (word `bundle` + optional whitespace + `:` or `(`):
-   strip the marker; for the paren form, strip the ENCLOSING closing
-   paren when present (the cue span includes it); `clause` = the
-   residue (original case / spacing preserved).
+2. **Marker form** (word `bundle` + optional whitespace + `:` or `(`;
+   INCLUDING the count-prefixed variants `bundle of N` + marker and
+   `N-unit bundle` + marker, in which the published count N is IGNORED
+   by the clause extraction — it stays the channel / target's quantity
+   fact, never re-bound into the clause, D17a): strip the marker
+   prefix; for the paren form, strip the ENCLOSING closing paren when
+   present (the cue span includes it); `clause` = the residue
+   (original case / spacing preserved).
 3. **No marker, not count-only** (the corpus-shape: the structured
    field's value IS the contents, e.g. `"GPU + power cables + bracket
    kit"`): `clause` = the whole text.
@@ -662,17 +864,25 @@ none is treated as step 3 (the text is the published clause) — a
 recorded channel `raw_detail` is by contract "the observed value as
 published."
 
-## 3.5 Closure / completeness classification (D5)
+## 3.5 Closure / completeness classification (D5 / D19 — CORRECTED)
 
-`classify_clause(clause, was_paren_form) -> BundleCompositionStateV2FU4`
-over the marker-stripped clause (empty clause ⇒ ABSENT immediately):
+CORRECTED (Blocker B): the pre-revision single step ("ESTABLISHED
+otherwise") conflated textual closure with commercial completeness.
+It is now two versioned steps over the §3.4 clause:
+
+**Step (a) — textual closure classification**
+`classify_clause_closure(clause, was_paren_form) -> ABSENT | PARTIAL |
+SYNTACTICALLY_VALID` (empty clause ⇒ ABSENT immediately):
 
 * **PARTIAL** when any holds:
   * the clause contains an explicit incompleteness marker from the
     bounded versioned list `_INCOMPLETE_MARKERS = ("etc.", "etc",
     "…", "...", "and more", "+ more", "and so on", "among others",
-    "and other")` (matched case-insensitively as a complete
-    whitespace-delimited token, or the ellipsis character anywhere);
+    "and other")` — corrected precision: a single-word member matches
+    as a complete whitespace-delimited token anywhere in the clause; a
+    multi-word member matches as a maximal whitespace-delimited run;
+    the ellipsis character (`…`) or the dot-triplet token (`...`)
+    matches anywhere;
   * the paren form's enclosure is not closed (the published span ends
     without the closing paren — the clause is truncated at the field
     boundary);
@@ -681,33 +891,103 @@ over the marker-stripped clause (empty clause ⇒ ABSENT immediately):
     (a trailing `N x` / `Nx` with no item following) — positive
     evidence the published statement continues beyond the examined
     text.
-* **ESTABLISHED** otherwise (non-empty, closed, no marker).
+* **SYNTACTICALLY_VALID** otherwise (non-empty, closed, no marker).
+  Textually a complete published statement; the ENUMERATION's
+  completeness is unknown (D4). This is what the pre-revision design
+  classified as ESTABLISHED — demoted, not deleted.
 * (ABSENT is reached only via the empty clause / count-only path.)
 
 The colon-form clause that runs to the field end (the title simply ends
-after the clause) is CLOSED (ESTABLISHED if otherwise clean): the
-examined field is the complete published field; there is no
+after the clause) is CLOSED (SYNTACTICALLY_VALID if otherwise clean):
+the examined field is the complete published field; there is no
 deterministic signal of continuation. The residual risk (a page-level
-truncation invisible to the field) is recorded in §11-T2.
+truncation invisible to the field) is recorded in §11-T2 — corrected:
+it can no longer reach PROVEN, because step (b) and D19 require an
+attestation the truncation would have to survive.
 
-## 3.6 What "complete" is and is not
+**Step (b) — completeness-marker detection** (runs ONLY over a
+SYNTACTICALLY_VALID clause — an incompleteness marker always dominates:
+a clause containing `etc.` is PARTIAL with no attestation, even with a
+trailing `complete list`, D5):
 
-`ESTABLISHED` means: **the page published a closed, non-empty contents
-statement, and it does not say the statement is incomplete.** It does
-NOT mean "the bundle physically contains exactly these items" — that
-is the publisher's claim, recorded with provenance, on the same
-epistemic footing as every other recorded fact (the frozen
-`PROVEN_EQUIVALENT` semantics: "the candidate is published as sold in
-the same commercial unit as the target"). Equivalence is established
-AS PUBLISHED, by two independently recorded publications agreeing under
-the bounded grammar — never by a model, never by catalog knowledge,
-never by MPN matching inside the clauses.
+A clause C carries a PUBLISHED completeness statement iff C = P + D + M
+with: M (casefolded) a member of the versioned list
+`_COMPLETENESS_MARKERS = ("complete list", "all items listed",
+"everything included", "all included", "full contents", "nothing else
+included")`, matched as a maximal whitespace-delimited run; D a bounded
+delimiter from the versioned set {whitespace-prefixed `+` / `,` / `&`
+/ `;` / "and", whitespace-prefixed em-dash / en-dash, whitespace-
+prefixed `(`}; P non-empty. When it does: the marker segment D+M is
+STRIPPED (the residual P is the clause — re-checked for non-emptiness;
+a marker-only clause is ABSENT), and a
+`CompositionCompletenessAttestationV2FU4` is CONSTRUCTED with basis
+`PUBLISHED_COMPLETENESS_STATEMENT`, attestation_text = the verbatim
+recorded D+M segment, subject side = the evidence's side, source = the
+clause's recorded source, clause_digest over P.
 
-## 3.7 The versioned materiality grammar (D6 / D7 / D16)
+For the EXTRACTION_RESULT_V1 basis there is one additional recorded
+location: the frozen cue engine's COLON-form span stops at the first
+comma / semicolon / closing paren (§1.4), so a title
+`"bundle: 2x RAM + 1x CPU, complete list"` records the cue
+`"bundle: 2x RAM + 1x CPU"` and leaves the marker segment in the
+RECORDED `raw_field_value` immediately after the cue span. Step (b)
+therefore also checks, for a colon-form established cue, the recorded
+field text following the cue span: it must begin, after any
+whitespace, with a bounded delimiter D + a marker member M (no other
+text between the span end and D); the verbatim recorded segment is the
+attestation_text. The PAREN form needs no such continuation (its span
+includes the closure, so the marker sits inside the clause). No other
+text location is read; the check is over recorded, span-verified,
+digest-bound fields only.
 
-Used ONLY for the secondary equality path and the material-difference
-test; a versioned constant set of the FU4 module (import-self-checked
-immutable):
+Both marker lists and the delimiter set are VERSIONED contract
+constants of the FU4 module (`BUNDLE_COMPOSITION_EVIDENCE_VERSION_FU4`
+covers them; any change is a new version — the T5 discipline,
+§11-T9).
+
+## 3.6 What "complete" is and is not (CORRECTED — three epistemic
+tiers)
+
+CORRECTED (Blocker B): the pre-revision paragraph defined
+`ESTABLISHED` as "the page published a closed, non-empty contents
+statement, and it does not say the statement is incomplete" — i.e. it
+treated syntactic closure + the absence of an incompleteness marker as
+completeness. That is insufficient: a closed, marker-free clause may
+enumerate only part of the bundle's contents without any syntactic
+trace of the omission. The corrected design separates three tiers:
+
+1. **Textual validity** (`SYNTACTICALLY_VALID`) — the page published a
+   closed, non-empty contents statement that does not say it is
+   incomplete. A property of the TEXT, deterministically classified
+   (§3.5a). Necessary for ESTABLISHED, never sufficient.
+2. **Attested completeness** (`ESTABLISHED`) — tier 1 PLUS a recorded,
+   bounded, independently supported attestation that the clause is the
+   bundle's complete commercial composition (D19 / §3.8: the subject's
+   own published explicit statement, or a target-side review
+   determination). This is the exact evidence the corrected design
+   requires; no substitute (closure, byte-identity, multiset equality,
+   same-page repetition) is admitted.
+3. **Physical truth** — NEVER claimed by this contract. The
+   completeness of the enumeration as a matter of physical fact is the
+   publisher's claim (tier 2a) or the reviewer's attested
+   determination (tier 2b), recorded with provenance, on the same
+   epistemic footing as every other recorded fact (the frozen
+   `PROVEN_EQUIVALENT` semantics: "the candidate is published as sold
+   in the same commercial unit as the target"). Equivalence is
+   established AS PUBLISHED and AS ATTESTED — by two independently
+   recorded publications agreeing under the bounded grammar, each
+   side's completeness independently established — never by a model,
+   never by catalog knowledge, never by MPN matching inside the
+   clauses.
+
+## 3.7 The versioned materiality grammar (D6 / D7 / D16 — CORRECTED
+scope)
+
+CORRECTED (Blocker B): the grammar is used ONLY for the TEXTUAL-
+AGREEMENT axis (the secondary multiset path) and the MATERIAL-
+DIFFERENCE test (D7) — and explicitly NEVER for completeness (D19) or
+quantity (D17 / D20). A versioned constant set of the FU4 module
+(import-self-checked immutable):
 
 * **Separators** (split the clause into entries): `+`, `,`, `&`, and
   ` and ` (case-insensitive).
@@ -730,34 +1010,188 @@ immutable):
   shared item, or a different item). A clause pair where either side
   fails to fully parse is NEVER a material difference (UNPROVEN, D7).
 
-Worked examples (pinned as tests):
+Worked examples (pinned as tests; CORRECTED — the attestation context
+is stated, because the grammar alone no longer decides PROVEN):
 
-| Candidate clause | Target clause | Parse | FU4 result |
+| Candidate clause | Target clause | Textual axis | FU4 result (quantity axis permitting) |
 | --- | --- | --- | --- |
-| `2x RAM + 1x CPU` | `2x RAM + 1x CPU` | byte-identical | PROVEN (count rule permitting) |
-| `2x RAM + 1x CPU` | `1x CPU + 2x RAM` | both full, multisets equal | PROVEN (secondary path) |
-| `2x RAM + 1x CPU` | `2x RAM + 1x SSD` | both full, multisets differ | CONTRADICTED |
-| `2x RAM + 1x CPU` | `2x DDR5-6400 RAM + 1x CPU` | full/full, items differ | CONTRADICTED |
-| `2x RAM + 1x CPU` | `2x RAM + a mystery gizmo` | both fully parseable (multi-word item tokens are in grammar), multisets differ | CONTRADICTED |
-| `2x RAM + 1x CPU (revised)` | `2x RAM + 1x CPU` | the parenthesized qualifier is residual on one side — NOT fully parseable | UNPROVEN (never CONTRADICTED on unparseable text) |
-| `GPU + power cables + bracket kit` (0034 shape) | same clause | byte-identical | PROVEN (count rule permitting) |
-| `2x RAM etc.` | `2x RAM` | candidate PARTIAL (incompleteness marker) | UNPROVEN (never PROVEN, §9-C1) |
+| `2x RAM + 1x CPU` | `2x RAM + 1x CPU` | byte-identical (T-AGREE) | TEXTUAL AGREEMENT only — UNPROVEN without a completeness attestation on both sides (U15); with attestations on both sides + quantity axis satisfied: PROVEN (U19) |
+| `2x RAM + 1x CPU` | `1x CPU + 2x RAM` | both full, multisets equal (T-AGREE, secondary path) | as above — PROVEN (U20) when both sides ESTABLISHED |
+| `2x RAM + 1x CPU` | `2x RAM + 1x SSD` | both full, multisets differ (T-DIFF-MATERIAL) | CONTRADICTED when BOTH sides ESTABLISHED (U17); UNPROVEN when either side's completeness is unknown (U15 — a material difference without both-side completeness is never a contradiction) |
+| `2x RAM + 1x CPU` | `2x DDR5-6400 RAM + 1x CPU` | full/full, items differ (T-DIFF-MATERIAL) | as above |
+| `2x RAM + 1x CPU` | `2x RAM + a mystery gizmo` | both fully parseable (multi-word item tokens are in grammar), multisets differ (T-DIFF-MATERIAL) | as above |
+| `2x RAM + 1x CPU (revised)` | `2x RAM + 1x CPU` | the parenthesized qualifier is residual on one side — NOT fully parseable (T-DIFF-UNESTABLISHED) | UNPROVEN (never CONTRADICTED on unparseable text — U21 / D7) |
+| `GPU + power cables + bracket kit` (0034 shape) | same clause | byte-identical (T-AGREE) | textual agreement; the committed 0034 text carries no completeness marker ⇒ SYNTACTICALLY_VALID ⇒ UNPROVEN without attestations (U15); a corpus-shaped raw_detail WITH a recorded marker (e.g. `"… bracket kit, complete list"`) ⇒ ESTABLISHED via the PUBLISHED basis, then U19 |
+| `2x RAM etc.` | `2x RAM` | candidate PARTIAL (incompleteness marker, §3.5a) | UNPROVEN (never PROVEN, and never CONTRADICTED by its own incompleteness — U11 / U14, §9-C1) |
+| `2x RAM + 1x CPU, complete list` | `2x RAM + 1x CPU` | marker stripped (§3.5b), then byte-identical (T-AGREE); candidate ESTABLISHED (PUBLISHED basis) | PROVEN (U19) when the target side is also ESTABLISHED; the marker segment is the recorded attestation text, never an item token |
+
+## 3.8 The attestation records (NEW — Blocker A / B)
+
+The bounded vocabulary of evidence that completeness and quantity
+non-materiality may rest on. All names below are the proposed contract
+surface of the FU4 module; the integrity error type is the corrected-
+scope `BundleCompositionEvidenceIntegrityError` (it now covers the
+evidence records AND both attestation records).
+
+```python
+class EvidenceSideV2FU4(str, Enum):
+    CANDIDATE = "CANDIDATE"
+    TARGET = "TARGET"
+
+
+class CompletenessBasisV2FU4(str, Enum):
+    PUBLISHED_COMPLETENESS_STATEMENT = "PUBLISHED_COMPLETENESS_STATEMENT"
+    """The subject side's OWN recorded publication contains an explicit
+    bounded completeness statement tied to the clause: detected
+    deterministically from recorded text by §3.5b (the versioned
+    _COMPLETENESS_MARKERS list; the verbatim marker segment IS the
+    recorded attestation text), or, target-side, recorded by the
+    review as the statement the target's own source published.
+    Candidate- or target-side (each side's own source)."""
+
+    REVIEWED_COMPOSITION_ATTESTATION = "REVIEWED_COMPOSITION_ATTESTATION"
+    """A recorded review determination that the subject's published
+    clause is the bundle's complete commercial composition (TARGET-
+    SIDE ONLY — the review process is the contract's attestation
+    authority for the target side; the attestation text records the
+    review's anchor, e.g. the manufacturer-published bundle
+    specification the clause was verified against). The derivation
+    trusts the record as reviewed (the T3 / T3' epistemic boundary);
+    a copied, unverified attestation is a review-governance failure —
+    the record must not have been created — not a contract state."""
+
+
+@dataclass(frozen=True)
+class CompositionCompletenessAttestationV2FU4:
+    schema_version: int          # = 1
+    subject_side: EvidenceSideV2FU4
+    basis: CompletenessBasisV2FU4
+    source: <the subject side's frozen non-model class>
+    """CANDIDATE subject ⇒ exactly LISTING_TITLE /
+    PUBLISHED_STRUCTURED_FIELD (the frozen channel vocabulary
+    members); TARGET subject ⇒ exactly REVIEWED_TARGET_CONTEXT /
+    REQUEST_DESCRIPTION (the frozen target vocabulary). A
+    basis/source-class mismatch is un-constructible; a candidate-side
+    record with basis REVIEWED_COMPOSITION_ATTESTATION is
+    un-constructible (a review attests the target side, not the
+    candidate listing's own completeness)."""
+    clause_digest: str
+    """SHA-256 of the attested clause (the §3.4–3.5b clause form,
+    original case / spacing) — binds the attestation to the EXACT
+    clause; an attestation presented for a different clause is an
+    integrity error."""
+    attestation_text: str
+    """The verbatim recorded statement / determination (non-empty;
+    AUDIT-ONLY — never read by the derivation, §9-F4)."""
+    attestation_digest: str
+    """SHA-256 over the canonical record minus this field."""
+
+
+class QuantityNonMaterialityReasonV2FU4(str, Enum):
+    SUBJECT_SOURCE_STRUCTURALLY_WITHOUT_BUNDLE_COUNTS = \
+        "SUBJECT_SOURCE_STRUCTURALLY_WITHOUT_BUNDLE_COUNTS"
+    """The subject side's source structurally publishes no bundle
+    quantities for this offer shape; the published composition clause
+    is the source's complete statement of the commercial unit, so the
+    missing quantity is not a material difference between the two
+    publications (the review's recorded determination, e.g. the
+    requested part's listing family never publishes bundle counts)."""
+    PUBLISHED_COUNT_NOT_UNIT_MULTIPLICITY = \
+        "PUBLISHED_COUNT_NOT_UNIT_MULTIPLICITY"
+    """The OTHER side's published count does not denote the commercial
+    unit's multiplicity (the review's recorded determination, e.g. a
+    promotional multi-set count), so the subject side's silence on it
+    is not a material unit difference."""
+
+
+@dataclass(frozen=True)
+class QuantityCompletenessAttestationV2FU4:
+    schema_version: int          # = 1
+    subject_side: EvidenceSideV2FU4
+    """The side where the quantity is MISSING — the derivation enforces
+    the match: an attestation whose subject is not the actually-missing
+    side is an integrity error (no derivation); an attestation over a
+    non-asymmetric axis (both publish / both absent) is contract
+    misuse (ValueError)."""
+    reason: QuantityNonMaterialityReasonV2FU4
+    source: TargetSalesUnitEvidenceSourceV2
+    """Exactly the two frozen non-model attestation classes
+    (REVIEWED_TARGET_CONTEXT / REQUEST_DESCRIPTION) — the review
+    process is the contract's SOLE quantity-attestation authority for
+    EITHER subject side (a page never self-attests the non-materiality
+    of its own silence; the candidate-side gap is attested by the
+    review record with subject_side = CANDIDATE, T10)."""
+    attestation_text: str
+    """The verbatim recorded determination (non-empty; AUDIT-ONLY)."""
+    attestation_digest: str
+    """SHA-256 over the canonical record minus this field."""
+
+
+class BundleQuantityAxisStateV2FU4(str, Enum):
+    """The DETERMINED quantity-axis outcome of a bundle comparison
+    (recorded on the decision's audit surface in EVERY case — D20: the
+    determination is never silent)."""
+    CONSISTENT = "CONSISTENT"
+    """Both sides publish a count; the counts are equal. SATISFIED."""
+    BOTH_UNPUBLISHED = "BOTH_UNPUBLISHED"
+    """Neither side publishes a count. SATISFIED — a determined,
+    recorded state (no published quantity exists on either side for
+    the other side's silence to mask), NOT a silence."""
+    ATTESTED_NOT_MATERIAL = "ATTESTED_NOT_MATERIAL"
+    """Exactly one side publishes; a verified
+    QuantityCompletenessAttestationV2FU4 stands on the missing side.
+    SATISFIED (D20)."""
+    CONTRADICTED = "CONTRADICTED"
+    """Both sides publish; the counts differ. The quantity axis
+    independently establishes published incompatibility (unit
+    CONTRADICTED — §5 U16)."""
+    UNDETERMINED = "UNDETERMINED"
+    """Exactly one side publishes; no verified attestation stands on
+    the missing side. Blocks PROVEN (unit UNPROVEN — §5 U18) unless
+    another axis independently establishes a contradiction (U17)."""
+```
+
+**Constructor rules (fail closed, both records):** vocabulary bounds
+(the members above, exact); `schema_version == 1`; `source` in the
+subject side's frozen non-model class (basis/source coherence for the
+completeness record); `attestation_text` non-empty; digests 64-hex and
+self-verified at construction and on every presentation (a tampered
+attestation produces no derivation input —
+`BundleCompositionEvidenceIntegrityError`); the completeness
+attestation is usable ONLY over a `SYNTACTICALLY_VALID` clause (a
+PARTIAL / ABSENT clause cannot be attested — §3.5b runs only over
+textual validity, and the record constructors enforce state/coherence).
+
+**Review-constructed, not derived:** neither attestation is ever
+produced by the derivation or by a fuzzy / similarity computation. The
+completeness attestation is machine-constructed ONLY from the recorded
+marker detection (§3.5b — deterministic, bounded, over recorded text)
+or review-constructed (target side); the quantity attestation is
+review-constructed ONLY (there is no machine path: non-materiality is
+a determination, not a text pattern).
 
 ---
 
-# 4. The six-way distinction (task item 3)
+# 4. The six-way distinction (task item 3 — CORRECTED: Blocker B's
+five-way classification over the published shapes, plus the quantity
+axis row)
 
 Every published bundle shape, deterministically classified by the
-extraction layer (unchanged) + the FU4 evidence record (new):
+extraction layer (unchanged) + the FU4 evidence record (corrected —
+the completeness column distinguishes what the pre-revision design
+conflated):
 
-| Observed shape (published text) | Extraction result (v1, FROZEN behavior) | Mapped channel (FROZEN behavior) | FU4 composition state (NEW) | Derivation consequence |
-| --- | --- | --- | --- | --- |
-| **Bundle form observed, no contents, no count** — `"bundle"` (bare) | `AMBIGUOUS_CUE` / `BUNDLE_WITHOUT_CONTENTS` | `UNAVAILABLE` | — (no record; channel absent) | UNPROVEN, every target |
-| **Bundle quantity observed, no contents** — `"bundle of 3"`, `"3-unit bundle"` | Extraction-derived: `AMBIGUOUS_CUE` / `BUNDLE_WITHOUT_CONTENTS` (count verbatim, never bound). Corpus-shaped: the frozen channel ADMIITS an OBSERVED BUNDLE with `quantity=3` and count-only `raw_detail` (e.g. `"bundle of 3"`) — a hand- or corpus-supplied channel the extractor never produces | Extraction-derived ⇒ `UNAVAILABLE`. Corpus-shaped ⇒ `OBSERVED` / BUNDLE / qty 3 / raw_detail = the count-only phrase | ABSENT (basis `RECORDED_CHANNEL`, step 1 of §3.4) for the corpus-shaped channel; no record (channel absent) for the extraction-derived one | UNPROVEN vs every target, INCLUDING a target bundle of the same count (D6 — "equal counts without composition → UNPROVEN") |
-| **Bundle contents partially described** — `"bundle: 2x RAM etc."`, `"bundle (2x RAM + 1x CPU"` (unclosed), `"bundle: 2x RAM + "` (dangling) | `OBSERVED_UNAMBIGUOUS` (established BUNDLE cue; the span is the published clause) | `OBSERVED` / BUNDLE / qty None / raw_detail = the published phrase | PARTIAL (clause recorded for audit) | UNPROVEN vs every target — partial never proves (D5 / D6), and never contradicts by its own incompleteness |
-| **Bundle contents completely established** — `"bundle: 2x RAM + 1x CPU"`, `"bundle (2x RAM + 1x CPU)"` | `OBSERVED_UNAMBIGUOUS` | `OBSERVED` / BUNDLE / qty None / raw_detail = the published phrase | ESTABLISHED (verbatim clause, provenance, digest-bound) | The D6 conjunction applies (PROVEN only against a target side that is ALSO ESTABLISHED and equal; CONTRADICTED only on a materially established difference; UNPROVEN otherwise) |
-| **Contents absent or ambiguous (empty markers)** — `"bundle:"`, `"bundle ()"`, `"bundle: "` | `OBSERVED_UNAMBIGUOUS` (the cue engine's established marker shape; the clause residue is empty) | `OBSERVED` / BUNDLE / qty None / raw_detail = the empty-marker phrase | ABSENT (empty clause, §3.5) | UNPROVEN vs every target — an empty marker never establishes complete composition (task item 4, final row) |
-| **Contradictory published contents** — title `"bundle: 2x RAM + 1x CPU"` + structured `"Bundle (2x SSD + cable)"` | `OBSERVED_UNAMBIGUOUS` (kind + quantity consistent; the contents relation is NOT the extractor's scope, §1.4) | `OBSERVED` (primary clause only — the channel cannot express the second) | CONTRADICTED_PUBLISHED (both clauses recorded with provenance; basis `EXTRACTION_RESULT_V1`) | UNPROVEN vs every target (D8 — fail closed; the recorded absence of a single adoptable composition) |
+| Observed shape (published text) | Extraction result (v1, FROZEN behavior) | Mapped channel (FROZEN behavior) | FU4 composition state (CORRECTED) | FU4 completeness (CORRECTED) | Derivation consequence |
+| --- | --- | --- | --- | --- | --- |
+| **Bundle form observed, no contents, no count** — `"bundle"` (bare) | `AMBIGUOUS_CUE` / `BUNDLE_WITHOUT_CONTENTS` | `UNAVAILABLE` | — (no record; channel absent) | — | UNPROVEN, every target |
+| **Bundle quantity observed, no contents** — `"bundle of 3"`, `"3-unit bundle"` | Extraction-derived: `AMBIGUOUS_CUE` / `BUNDLE_WITHOUT_CONTENTS` (count verbatim, never bound). Corpus-shaped: the frozen channel ADMIITS an OBSERVED BUNDLE with `quantity=3` and count-only `raw_detail` (e.g. `"bundle of 3"`) — a hand- or corpus-supplied channel the extractor never produces | Extraction-derived ⇒ `UNAVAILABLE`. Corpus-shaped ⇒ `OBSERVED` / BUNDLE / qty 3 / raw_detail = the count-only phrase | ABSENT (basis `RECORDED_CHANNEL`, §3.4 step 1) for the corpus-shaped channel; no record (channel absent) for the extraction-derived one | — (no clause to attest) | UNPROVEN vs every target, INCLUDING a target bundle of the same count (U10 — a published count is not the complete identity of a bundle) |
+| **Bundle contents partially described** — `"bundle: 2x RAM etc."`, `"bundle (2x RAM + 1x CPU"` (unclosed), `"bundle: 2x RAM + "` (dangling) | `OBSERVED_UNAMBIGUOUS` (established BUNDLE cue; the span is the published clause) | `OBSERVED` / BUNDLE / qty None / raw_detail = the published phrase | PARTIAL (partially enumerated contents; the clause recorded for audit) | — (a PARTIAL clause can never be attested — §3.5b runs only over textually valid clauses; an `etc.` clause is PARTIAL even with a trailing `complete list`, D5) | UNPROVEN vs every target — partial never proves (U11 / U14) and never contradicts by its own incompleteness |
+| **Bundle contents closed, no completeness statement** — `"bundle: 2x RAM + 1x CPU"` | `OBSERVED_UNAMBIGUOUS` | `OBSERVED` / BUNDLE / qty None / raw_detail = the published phrase | SYNTACTICALLY_VALID (the verbatim clause, provenance, digest-bound) | UNKNOWN — no attestation (**CORRECTED**: the pre-revision design classified this row `ESTABLISHED` from syntactic closure alone — Blocker B) | UNPROVEN vs every target — a textually valid clause is not a complete composition (U15), even against a byte-identical, quantity-satisfied target clause |
+| **Bundle contents closed + published completeness statement** — `"bundle: 2x RAM + 1x CPU, complete list"`, `"bundle (2x RAM + 1x CPU) (all items listed)"` | `OBSERVED_UNAMBIGUOUS` (the established cue's recorded span / field text carries the marker segment, §3.5b) | `OBSERVED` / BUNDLE / qty None / raw_detail = the published phrase | SYNTACTICALLY_VALID clause (marker stripped, §3.5b) | ATTESTED — `PUBLISHED_COMPLETENESS_STATEMENT` (the verbatim marker segment recorded) ⇒ state ESTABLISHED | The corrected D6 conjunction applies (PROVEN only against a target side that is ALSO ESTABLISHED and textually equal with the quantity axis satisfied — U19 / U20; CONTRADICTED per U16 / U17; UNPROVEN otherwise) |
+| **Bundle contents closed + reviewed completeness attestation (target side)** — the requested part's source clause `"2x RAM + 1x CPU"`, the review's recorded verification against the manufacturer-published bundle specification | — (the target side has no extraction layer — the review supplies the record) | — | SYNTACTICALLY_VALID clause | ATTESTED — `REVIEWED_COMPOSITION_ATTESTATION` (the determination + anchor recorded) ⇒ state ESTABLISHED | The target side of the corrected D6 conjunction (the independence boundary: T3 / T3'; case 9) |
+| **Contents absent or ambiguous (empty markers)** — `"bundle:"`, `"bundle ()"`, `"bundle: "` | `OBSERVED_UNAMBIGUOUS` (the cue engine's established marker shape; the clause residue is empty) | `OBSERVED` / BUNDLE / qty None / raw_detail = the empty-marker phrase | ABSENT (empty clause, §3.5a) | — | UNPROVEN vs every target — an empty marker never establishes syntactic validity, completeness, or PROVEN (U10) |
+| **Contradictory published contents** — title `"bundle: 2x RAM + 1x CPU"` + structured `"Bundle (2x SSD + cable)"` | `OBSERVED_UNAMBIGUOUS` (kind + quantity consistent; the contents relation is NOT the extractor's scope, §1.4) | `OBSERVED` (primary clause only — the channel cannot express the second) | CONTRADICTED_PUBLISHED (both clauses recorded with provenance AND their own textual states; each with its own published attestation if the marker was present; basis `EXTRACTION_RESULT_V1`) | per-clause (recorded, none adopted) | UNPROVEN vs every target (U12 / D8 — fail closed; a self-contradiction is unpinned in both directions, not adopted as a conflict against the target) |
+| **Asymmetric published quantity (CORRECTED row — Blocker A)** — the candidate channel quantity 2 with clause `"2x RAM + 1x CPU"` (corpus-shaped `raw_detail` `"bundle of 2: 2x RAM + 1x CPU"`), the target the same clause with quantity None (or the reverse roles) | per shape (the extraction-derived candidate always carries quantity None — the P2-FU1 rule — so the asymmetric shape over an extraction-derived candidate is the review-supplied target quantity) | per shape | per shape (each side's own) | per shape | UNPROVEN (U18 — the quantity axis is UNDETERMINED: the missing quantity is NOT silently immaterial) unless a verified `QuantityCompletenessAttestationV2FU4` stands on the missing side (⇒ the axis is ATTESTED_NOT_MATERIAL, and the pair derives per the composition / textual axes — U19 when both sides are ESTABLISHED and agreed); both-sides-published differing counts ⇒ CONTRADICTED (U16) |
 
 Two shapes outside the table, for completeness:
 
@@ -779,9 +1213,10 @@ Two shapes outside the table, for completeness:
 # 5. The FU4 comparison rules (task item 4) — exact derivation
 
 `derive_sales_unit_authority_fu4(channel, candidate_composition,
-target_evidence)` — pure, deterministic, zero-live, replayable;
-`TypeError` / `ValueError` on foreign or contract-misuse inputs; the
-unit returned is the frozen `SalesUnitAuthorityV2` (D11).
+target_evidence, quantity_attestation)` — pure, deterministic, zero-
+live, replayable; `TypeError` / `ValueError` on foreign or contract-
+misuse inputs; the unit returned is the frozen `SalesUnitAuthorityV2`
+(D11).
 
 **Preconditions (fail closed):**
 
@@ -791,16 +1226,31 @@ unit returned is the frozen `SalesUnitAuthorityV2` (D11).
   contract misuse (ValueError: the recorded absence admits no
   composition evidence).
 * `candidate_composition` (when present) re-verifies its
-  `evidence_digest` and, on the extraction basis, its binding to the
-  presented channel (the record's `source` and `channel_quantity` must
-  agree with the channel's `source` and `quantity` — a record cannot
-  claim provenance the channel never recorded; integrity error
+  `evidence_digest` — including its embedded completeness attestation
+  (§3.8: digest, subject CANDIDATE, basis PUBLISHED_COMPLETENESS_
+  STATEMENT, source = the record's source, clause_digest over exactly
+  the record's clause) — and, on the extraction basis, its binding to
+  the presented channel (the record's `source` and `channel_quantity`
+  must agree with the channel's `source` and `quantity` — a record
+  cannot claim provenance the channel never recorded; integrity error
   otherwise).
 * `target_evidence` is None, or the frozen type (D18), or the FU4 type
-  (digest re-verified); a frozen record is read as composition-ABSENT.
+  (digest re-verified — including its embedded completeness
+  attestation, subject TARGET); a frozen record is read as
+  composition-ABSENT.
+* CORRECTED (Blocker A): `quantity_attestation` (when present) is
+  digest-verified before any axis uses it; it is admissible ONLY over
+  an asymmetric quantity axis (exactly one side publishes a count) and
+  ONLY with `subject_side` = the actually-missing side — a subject
+  mismatch is an integrity error (no derivation); presentation over a
+  both-published or both-unpublished axis is contract misuse
+  (ValueError).
 
-**The decision table** (target form = the explicit target evidence's
-form, or the default SINGLE_UNIT):
+**The decision table (CORRECTED — the bundle rows U15–U21 are
+restructured over the three recorded axes: form, composition-with-
+completeness, quantity; U0–U14 preserve their pre-revision meaning)**
+(target form = the explicit target evidence's form, or the default
+SINGLE_UNIT):
 
 | # | Candidate channel | Target | FU4 unit | Rule |
 | --- | --- | --- | --- | --- |
@@ -819,36 +1269,183 @@ form, or the default SINGLE_UNIT):
 | U12 | `OBSERVED BUNDLE` | BUNDLE; candidate composition CONTRADICTED_PUBLISHED | **UNPROVEN** | D8 — fail closed; every side recorded |
 | U13 | `OBSERVED BUNDLE` | BUNDLE; target composition ABSENT (frozen target record, or FU4 record with None clause) | **UNPROVEN** | D6 — composition missing on the target side |
 | U14 | `OBSERVED BUNDLE` | BUNDLE; target composition PARTIAL | **UNPROVEN** | D6 |
-| U15 | `OBSERVED BUNDLE` | BUNDLE; both ESTABLISHED; count rule violated (both publish, counts differ) | **CONTRADICTED** | D6 count rule — published incompatible units |
-| U16 | `OBSERVED BUNDLE` | BUNDLE; both ESTABLISHED; count rule holds (equal, or at least one side publishes none — no inference, D17); clauses byte-identical | **PROVEN_EQUIVALENT** | D6 — equal complete compositions, both provenances bounded (the intended capability) |
-| U17 | `OBSERVED BUNDLE` | BUNDLE; same as U16, clauses byte-different, both fully parse, multisets equal | **PROVEN_EQUIVALENT** | D6 secondary path (order / formatting only) |
-| U18 | `OBSERVED BUNDLE` | BUNDLE; same as U16, clauses byte-different, both fully parse, multisets differ | **CONTRADICTED** | D7 — materially established difference |
-| U19 | `OBSERVED BUNDLE` | BUNDLE; same as U16, clauses byte-different, at least one side NOT fully parseable | **UNPROVEN** | D7 — the difference is textual but not materially established; no semantic / fuzzy comparison exists in this contract |
+| U15 | `OBSERVED BUNDLE` | BUNDLE; both sides textually valid (SYNTACTICALLY_VALID or ESTABLISHED); at least one side's completeness UNKNOWN (no verified attestation); no independently established axis contradiction (i.e., not U16 / U17) | **UNPROVEN** | Blocker B (NEW) — byte-identity / multiset equality establishes TEXTUAL AGREEMENT, not completeness (D19); a material difference without both-side completeness is never a contradiction (D7's safe direction) |
+| U16 | `OBSERVED BUNDLE` | BUNDLE; both sides textually valid; clauses TEXTUALLY AGREE (byte-identical or multiset-equal); quantity axis CONTRADICTED (both sides publish, counts differ) | **CONTRADICTED** | D20 — a count difference over the same stated composition is a published incompatibility that completeness does not gate (was pre-revision U15, broadened: no longer requires both sides ESTABLISHED) |
+| U17 | `OBSERVED BUNDLE` | BUNDLE; both ESTABLISHED; clauses byte-different, both fully parse, multisets differ (T-DIFF-MATERIAL) — quantity axis state recorded (an UNDETERMINED gap is logged, does not shield the contradiction) | **CONTRADICTED** | D7 — complete but materially different composition (was pre-revision U18, completeness redefined) |
+| U18 | `OBSERVED BUNDLE` | BUNDLE; both ESTABLISHED; quantity axis UNDETERMINED (one side publishes, none attested); clauses not independently materially different (T-AGREE or T-DIFF-UNESTABLISHED) | **UNPROVEN** | Blocker A (NEW) — a missing quantity is NOT silently immaterial (D20); the pre-revision U16 pass-arm "at least one side publishes none — no inference" is REMOVED |
+| U19 | `OBSERVED BUNDLE` | BUNDLE; both ESTABLISHED (each with its own verified attestation); quantity axis SATISFIED (CONSISTENT / BOTH_UNPUBLISHED / ATTESTED_NOT_MATERIAL); clauses byte-identical | **PROVEN_EQUIVALENT** | D6 — the corrected intended capability: textually agreed compositions, each side independently attested complete, quantity axis determined (was pre-revision U16, now completeness- and quantity-gated) |
+| U20 | `OBSERVED BUNDLE` | BUNDLE; same as U19, clauses byte-different, both fully parse, multisets equal | **PROVEN_EQUIVALENT** | D6 secondary path (T1 preserved, now over attested-complete compositions) (was pre-revision U17) |
+| U21 | `OBSERVED BUNDLE` | BUNDLE; same as U19, clauses byte-different, at least one side NOT fully parseable | **UNPROVEN** | D7 — the difference is textual but not materially established; no semantic / fuzzy comparison exists in this contract (was pre-revision U19) |
 
-**Never an input, never inferred (FU3 list, preserved verbatim):** model
-confidence, model matched / conflicting / missing-critical attributes
-(a model claim of "bundle contents matched" is not independent
-verification), product-title similarity beyond the recorded verbatim
-clause, price, availability, or any other commercial fact; no quantity
-is inferred from a missing value; no composition is inferred from a
-count, a channel absence, an MPN, or a model output.
+**The axis structure (CORRECTED).** The table reads in order — form
+(U9), candidate composition (U10–U12), target composition (U13–U14),
+then the two comparison axes over the two textually-valid clauses:
+the QUANTITY axis (`BundleQuantityAxisStateV2FU4`, §3.8) and the
+TEXTUAL-AGREEMENT axis (T-AGREE / T-DIFF-MATERIAL / T-DIFF-
+UNESTABLISHED, §3.7). The combination rule: the unit is **
+CONTRADICTED** iff the form axis mismatches (U9), or the quantity axis
+is CONTRADICTED over textually-agreed clauses (U16), or the
+composition axis is T-DIFF-MATERIAL with both sides ESTABLISHED (U17);
+the unit is **PROVEN_EQUIVALENT** iff all axes are satisfied (U19 /
+U20); every other combination is **UNPROVEN** (U0 / U10–U15 / U18 /
+U21). Every axis determination is recorded on the decision's audit
+surface (D11) — the comparison is total over recorded inputs, and no
+axis is ever silent.
 
-**The task's six mandated rows, mapped:** "Missing or partial
-composition → UNPROVEN" = U10 / U11 / U13 / U14; "Different verified
+**Never an input, never inferred (FU3 list, preserved + CORRECTED
+extension):** model confidence, model matched / conflicting / missing-
+critical attributes (a model claim of "bundle contents matched" OR of
+"the composition is complete" is not independent verification — only
+the §3.8 attestation records are), product-title similarity beyond the
+recorded verbatim clause, price, availability, or any other commercial
+fact; no quantity is inferred from a bundle item count (the clause's
+parsed entries), a missing value, an MPN, a price, a model output, or
+an absence (D17c); no composition is inferred from a count, a channel
+absence, an MPN, or a model output; no completeness is inferred from
+syntactic closure, byte-identity, multiset equality, same-page
+repetition, or an absence (D17d / D19); the attestation's recorded
+text is never an input (the bounded fields drive behavior; §9-F4).
+
+**The task's six mandated rows, mapped (CORRECTED row numbers):**
+"Missing or partial composition → UNPROVEN" = U10 / U11 / U13 / U14,
+plus completeness-unknown composition = U15 (Blocker B: "missing"
+now includes "closed but unattested"); "Different verified
 compositions → CONTRADICTED only when the difference is materially
-established" = U18 (yes) / U19 (no — UNPROVEN); "Equal counts without
+established" = U17 (yes — both sides ESTABLISHED) / U21 (no —
+UNPROVEN) / U15 (no — a material difference without both-side
+completeness is UNPROVEN, the safe direction); "Equal counts without
 composition → UNPROVEN" = U10; "Equal complete compositions with
-sufficient provenance → potentially PROVEN_EQUIVALENT" = U16 / U17
-("potentially" is the D6 conjunction: equality alone is not the rule —
-§5.1); "Conflicting title and structured fields → fail closed" =
-§4 row 6 / U12 (and, at the channel level, the frozen P2 rule: kind or
-quantity conflict across the fields ⇒ `CONTRADICTED_CUES` ⇒ recorded
-absence ⇒ UNPROVEN, unchanged); "Empty `bundle:` / `bundle ()` /
-truncated content must never establish complete composition" = §4 row 5
-/ U10 / U11 (D5 at the type level: such clauses are
-un-constructible as ESTABLISHED).
+sufficient provenance → potentially PROVEN_EQUIVALENT" = U19 / U20
+("potentially" is the corrected D6 conjunction: attested completeness
++ textual agreement + the determined quantity axis — §5.2); "
+Conflicting title and structured fields → fail closed" = §4 row 8 /
+U12 (and, at the channel level, the frozen P2 rule: kind or quantity
+conflict across the fields ⇒ `CONTRADICTED_CUES` ⇒ recorded absence ⇒
+UNPROVEN, unchanged); "Empty `bundle:` / `bundle ()` / truncated
+content must never establish complete composition" = §4 row 7 / U10 /
+U11 (D5 at the type level: such clauses are un-constructible as
+SYNTACTICALLY_VALID, let alone ESTABLISHED).
 
-## 5.1 Is byte-identity sufficient? (task item 5) — no, and here is why
+## 5.1 The mandated revision decision matrix (ten cases — NEW)
+
+The ten mandated cases, each with the exact input shape and the exact
+corrected derivation (the axes of §5: the form axis, the composition
+axis, the textual-agreement axis T, the quantity axis Q). "Clause C"
+abbreviates a closed, marker-free contents clause; "attested (side)"
+means the side carries a verified completeness attestation (§3.8)
+over its clause; the quantity-axis states per §3.8.
+
+1. **Equal bundle text, both quantities absent.** The candidate
+   publishes C (quantity None); the target publishes C (quantity
+   None). Q = BOTH_UNPUBLISHED — a determined, recorded state, not a
+   silence. Neither side attested (both SYNTACTICALLY_VALID):
+   **UNPROVEN** (U15 — textual agreement without completeness is not
+   equivalence). Both sides attested (both ESTABLISHED):
+   **PROVEN_EQUIVALENT** (U19 — case 4's shape). Never CONTRADICTED
+   (no published difference on any axis).
+2. **Equal bundle text, quantity present on one side only.** The
+   candidate publishes C with quantity 2; the target publishes C with
+   quantity None (the reverse roles are symmetric). Q = UNDETERMINED.
+   Both sides attested: **UNPROVEN** (U18 — the Blocker A row: the
+   pre-revision design derived PROVEN here on "at least one side
+   publishes none"; that arm is removed). With a verified
+   `QuantityCompletenessAttestationV2FU4` on the missing side (subject
+   = the missing side, a bounded reason, a frozen non-model source):
+   Q = ATTESTED_NOT_MATERIAL ⇒ **PROVEN_EQUIVALENT** (U19). An
+   attestation with the wrong subject side ⇒
+   `BundleCompositionEvidenceIntegrityError` (no derivation);
+   an attestation over a non-asymmetric axis ⇒ ValueError (contract
+   misuse). Without attested completeness on both sides: **UNPROVEN**
+   (U15 — the completeness gap stands; the quantity gap is recorded).
+3. **Equal bundle text, different published quantities.** The
+   candidate publishes C with quantity 2; the target publishes C with
+   quantity 3. Q = CONTRADICTED + T = T-AGREE ⇒ **CONTRADICTED**
+   (U16) — regardless of the completeness attestation state (a count
+   difference over the same stated composition is a published
+   incompatibility that completeness does not gate); the completeness
+   states are recorded on the audit surface.
+4. **Equal bundle text, complete independent attestations.** Both
+   sides ESTABLISHED via independent attestations — the candidate's
+   own published statement (the PUBLISHED basis, detected from the
+   recorded text) and the target's reviewed attestation (the REVIEWED
+   basis; the independence boundary is case 9 / T3') — T = T-AGREE
+   (byte-identical, or multiset-equal under the grammar), Q satisfied
+   (any of CONSISTENT / BOTH_UNPUBLISHED / ATTESTED_NOT_MATERIAL) ⇒
+   **PROVEN_EQUIVALENT** (U19 / U20) — the intended capability of the
+   corrected design.
+5. **Equal but incomplete published descriptions.** Either clause is
+   PARTIAL (incompleteness marker / unclosed paren / dangling
+   separator): **UNPROVEN** (U11 / U14) — a partial description never
+   proves and never contradicts by its own incompleteness, even
+   against an ESTABLISHED, differently-attested other side. A clause
+   that is syntactically valid but incomplete in fact (the page
+   omitted items without saying so — no marker, no unclosed form):
+   SYNTACTICALLY_VALID, completeness UNKNOWN ⇒ **UNPROVEN** (U15) —
+   the Blocker B point: the incompleteness is invisible to the
+   syntax; only a recorded attestation can establish completeness;
+   without it, UNPROVEN.
+6. **Different descriptions with independently complete
+   compositions.** Both sides ESTABLISHED (independent attestations);
+   the clauses byte-differ; both fully parse; the multisets differ
+   (T = T-DIFF-MATERIAL) ⇒ **CONTRADICTED** (U17 — the "complete but
+   materially different composition" outcome; the Q state is
+   recorded, and Q = UNDETERMINED does not shield it). The same but
+   one side not fully parseable ⇒ **UNPROVEN** (U21 — the difference
+   is not materially established, D7's safe direction). The same but
+   at least one side's completeness unknown ⇒ **UNPROVEN** (U15 — a
+   material difference requires completeness on BOTH sides; one-sided
+   completeness never contradicts).
+7. **Equal parsed multisets with incomplete source evidence.** Both
+   clauses fully parse and the multisets are equal (T = T-AGREE via
+   the secondary path; byte-different) but at least one side lacks a
+   verified completeness attestation (SYNTACTICALLY_VALID), or its
+   attestation is integrity-failed or bound to a different clause ⇒
+   **UNPROVEN** (U15) — multiset equality establishes textual
+   agreement, never completeness (D16 corrected). With both sides
+   attested this is case 4 (U20 — PROVEN).
+8. **Contradictory candidate publications.** The title's clause C1 ≠
+   the structured clause C2 ⇒ the evidence is CONTRADICTED_PUBLISHED
+   (both clauses recorded with their own textual states and their own
+   published attestations, if any) ⇒ **UNPROVEN for every target
+   shape** (U12 / D8) — including a target whose clause equals C1 or
+   C2 and is itself ESTABLISHED: a self-contradiction is unpinned in
+   both directions (the 2.1 INTERNAL CONTRADICTION RULE, preserved).
+9. **Candidate source copied into target evidence without
+   independent verification.** The target FU4 record's clause is
+   byte-identical to the candidate's clause and the target carries a
+   REVIEWED_COMPOSITION_ATTESTATION. The derivation cannot detect the
+   copy (T3 / T3' — text independence is not a deterministic contract
+   fact; the same boundary the frozen target record carries for its
+   count). The contract's pins: (a) the attestation's subject-side /
+   basis / source-class coherence (a target-side review attestation
+   over the target's own clause — constructible, trusted as
+   recorded); (b) the audit surface records both attestations (basis,
+   source, text, digest) — the reviewer's inspection surface; (c) a
+   copied, unverified attestation is a review-governance failure:
+   the record must not have been created (T3'); (d) the detectable
+   launderings are unconstructible / integrity-refused (B9 / B10):
+   a candidate-side completeness claim with a REVIEWED basis, a
+   target-side attestation with a candidate source class, an
+   attestation over a different clause (the clause_digest mismatch).
+   Behavior over the constructible shape: the pair derives per the
+   axes (PROVEN reachable when the attestations stand as recorded) —
+   the contract adds no fuzzy independence check (the rejected
+   alternative, preserved from T3).
+10. **Historical FU3 bundle behavior preserved under its original
+    binding.** The corpus-shaped channel OBSERVED BUNDLE quantity 3
+    raw_detail "bundle of 3" (count-only) vs. the frozen target
+    record BUNDLE quantity 3: under the FU3 arm of the dispatch (the
+    record's binding `("V2","2.1",1,1,FU3)`) ⇒ **PROVEN_
+    EQUIVALENT** — the frozen count-based behavior, byte-unchanged
+    (the A7 coexistence pin, preserved). Under the FU4 arm (the same
+    recorded input, the FU4 token) ⇒ candidate composition ABSENT ⇒
+    **UNPROVEN** (U10) — the corrected design's restriction (the
+    safety-direction audit's delta (a)). The same recorded input,
+    coexisting results under coexisting tokens — per-binding replay,
+    documented, never drift.
+
+## 5.2 Is byte-identity sufficient? (task item 5) — no, and here is
+why (CORRECTED)
 
 Byte-identical published clauses are **necessary but not sufficient**
 for PROVEN_EQUIVALENT. Identical text can still be:
@@ -856,64 +1453,82 @@ for PROVEN_EQUIVALENT. Identical text can still be:
 1. **Incomplete** — `"bundle: 2x RAM etc."` on both sides is
    byte-identical and PARTIAL (incompleteness marker): the pages
    published the same INCOMPLETE statement; equivalence is unproven
-   (U11 / U14). D5 refuses the ESTABLISHED classification at the type
-   level, so the derivation cannot reach U16 on such text at all.
+   (U11 / U14). D5 refuses the SYNTACTICALLY_VALID classification at
+   the type level, so the derivation cannot reach U19 on such text at
+   all.
 2. **Truncated** — `"bundle (2x RAM + 1x C"` on both sides (identical
    field-level truncation): byte-identical, PARTIAL (unclosed paren),
-   UNPROVEN. The §11-T2 residual (an invisible page-level truncation of
-   a colon-form clause that runs to the field end) is the one identical-
-   text case the field cannot detect; it is recorded as an accepted
-   epistemic boundary (§11-T2), bounded by the same independence
-   requirement that bounds every recorded fact.
-3. **Ambiguous in meaning** — the deterministic contract has no
-   semantic layer: a clause is ESTABLISHED when it is a closed,
-   non-empty, marker-free published statement; whether that statement
-   is TRUE of the physical bundle is the publisher's claim (and the
-   review process's attestation on the target side), exactly the
-   epistemic status of every other recorded fact in this system
-   (the frozen PROVEN semantics: "published as sold in the same
-   commercial unit").
-4. **Under-insufficient provenance** — U16 / U17 additionally require
-   the bounded non-model source on both sides (the record constructors
-   refuse any other value) and the D18 rule (a frozen target record can
-   only ever be ABSENT — identity of text with a count-only target
-   record is impossible because the record carries no clause).
+   UNPROVEN. The invisible colon-form variant (a title cut at max
+   length mid-clause, no marker) is SYNTACTICALLY_VALID — textually
+   identical, completeness UNKNOWN — and CORRECTED: it can no longer
+   derive PROVEN without a completeness attestation on both sides;
+   the residual is recorded in §11-T2 (corrected), bounded by the
+   attestation the truncation would have to survive.
+3. **Not a complete composition** — the principal CORRECTED case
+   (Blocker B): a closed, marker-free clause may enumerate only part
+   of the bundle's contents without any syntactic trace of the
+   omission. Two pages publishing the same partial enumeration are
+   byte-identical and both SYNTACTICALLY_VALID — the derivation
+   returns UNPROVEN (U15), because byte-identity establishes textual
+   agreement, never completeness. Only the recorded attestation
+   (§3.8) establishes ESTABLISHED.
+4. **A quantity gap** — CORRECTED (Blocker A): byte-identical clauses
+   with a count published on one side only do NOT derive PROVEN; the
+   quantity axis is UNDETERMINED ⇒ UNPROVEN (U18) unless the missing
+   side carries a verified non-materiality attestation (D20).
+5. **Under-insufficient provenance** — U19 / U20 additionally require
+   the bounded non-model source on both sides (the record
+   constructors refuse any other value) AND the attestation
+   coherence (D19 / §3.8) AND the D18 rule (a frozen target record
+   can only ever be ABSENT — identity of text with a count-only
+   target record is impossible because the record carries no clause).
 
-Conversely, byte-identity is **not required**: U17 admits an equal,
+Conversely, byte-identity is **not required**: U20 admits an equal,
 fully parsed multiset (order / formatting differences) under the
-versioned grammar — a strictly bounded relaxation, with the grammar's
-residuals failing closed to UNPROVEN (U19).
+versioned grammar — a strictly bounded relaxation of TEXTUAL
+AGREEMENT, with the grammar's residuals failing closed to UNPROVEN
+(U21).
 
-**Sufficient provenance, stated:** candidate side — the clause is a
-verbatim span of a published field with the frozen source label
-(`LISTING_TITLE` / `PUBLISHED_STRUCTURED_FIELD`), digest-bound to the
-verified extraction result (basis a) or to the recorded channel (basis
-b); target side — the clause is verbatim published text supplied under
-one of the two frozen attestation classes (`REVIEWED_TARGET_CONTEXT` /
-`REQUEST_DESCRIPTION`). That conjunction is what U16 / U17 call
-"sufficient"; it is provenance of PUBLICATION, not of PHYSICAL TRUTH
-(§3.6), and it is the strongest the deterministic contract can express.
+**Sufficient evidence, stated (CORRECTED):** candidate side — the
+clause is a verbatim span of a published field with the frozen source
+label (`LISTING_TITLE` / `PUBLISHED_STRUCTURED_FIELD`), digest-bound
+to the verified extraction result (basis a) or to the recorded
+channel (basis b), PLUS the candidate's own completeness
+attestation (a published statement detected from recorded text,
+§3.5b); target side — the clause is verbatim published text supplied
+under one of the two frozen attestation classes
+(`REVIEWED_TARGET_CONTEXT` / `REQUEST_DESCRIPTION`), PLUS the
+target's completeness attestation (the review's determination, or the
+target source's published statement); and the quantity axis is
+DETERMINED (D20). That conjunction is what U19 / U20 call
+"sufficient"; it is provenance of PUBLICATION + recorded ATTESTATION
+of COMPLETENESS + a determined QUANTITY AXIS — not provenance of
+PHYSICAL TRUTH (§3.6), and it is the strongest the deterministic
+contract can express.
 
-## 5.2 Tier derivation (unchanged machinery, new unit input)
+## 5.3 Tier derivation (unchanged machinery, corrected inputs)
 
 `derive_authority_tier_fu4(assessment_v2, sales_unit_channel,
 evaluation, context_provenances, product_evidence, human_review, *,
-target_unit_evidence, candidate_composition)` = the frozen S2-A-FU2
-derivation (called, never re-implemented) + the FU3
-`IdentityResolutionBoundV2` (delegated — byte-identical) + the FU4 unit
-derivation (above) + the SAME two restrict-only ceilings on the
+target_unit_evidence, candidate_composition, quantity_attestation=None)`
+= the frozen S2-A-FU2 derivation (called, never re-implemented) + the
+FU3 `IdentityResolutionBoundV2` (delegated — byte-identical) + the FU4
+unit derivation (above) + the SAME two restrict-only ceilings on the
 automatic tier (`UNPROVEN` ⇒ `CEILING_SALES_UNIT_NOT_PROVEN`;
 `CONTRADICTED` ⇒ `CEILING_SALES_UNIT_CONTRADICTED`; `PROVEN_
 EQUIVALENT` ⇒ the automatic tier stands). Result: a NEW
-`AuthorityDecisionV2FU4` (D11) with the FU3 record's field set and
-construction invariants (AI_ASSISTED with an UNPROVEN / CONTRADICTED
-unit is un-constructible; each ceiling rule only with its unit state on
-`NEEDS_REVIEW`; `frozen_fired_rules` projection onto the frozen
-vocabulary). Human overlay precedence (HARD_CONFLICT > HUMAN_CONFIRMED
-> AI) unchanged: a human may confirm a firewall-capped bundle candidate
-— the explicit, auditable path is preserved.
+`AuthorityDecisionV2FU4` (D11 corrected) with the FU3 record's field
+set PLUS the bounded bundle-axis audit fields (the quantity-axis
+state, the composition states, the attestation digests — None for
+non-bundle channels) and the same construction invariants (AI_
+ASSISTED with an UNPROVEN / CONTRADICTED unit is un-constructible; each
+ceiling rule only with its unit state on `NEEDS_REVIEW`; `frozen_
+fired_rules` projection onto the frozen vocabulary). Human overlay
+precedence (HARD_CONFLICT > HUMAN_CONFIRMED > AI) unchanged: a human
+may confirm a firewall-capped bundle candidate — the explicit,
+auditable path is preserved.
 
-## 5.3 Per-binding dispatch (the FU4 superset)
+## 5.4 Per-binding dispatch (the FU4 superset)
 
 `derive_authority_tier_for_contract_fu4(token, …)`:
 
@@ -921,8 +1536,9 @@ vocabulary). Human overlay precedence (HARD_CONFLICT > HUMAN_CONFIRMED
   (delegated; sales-unit inputs are contract misuse — the frozen rule,
   preserved);
 * `SEMANTIC_AUTHORITY_V2_S2A_FU3` ⇒ the frozen `derive_authority_tier_
-  fu3` (delegated byte-identically; composition inputs are contract
-  misuse under FU3 — the FU3 contract has no composition axis, and
+  fu3` (delegated byte-identically; composition / attestation inputs
+  are contract misuse under FU3 — the FU3 contract has no composition
+  axis, and
   silently dropping or interpreting them would be a re-interpretation);
 * `SEMANTIC_AUTHORITY_V2_S2A_FU4` ⇒ `derive_authority_tier_fu4` (the
   channel REQUIRED, as under FU3);
@@ -955,36 +1571,68 @@ EXACTLY:
 2. **The token** `AUTHORITY_CONTRACT_VERSION_V2_FU4 =
    "SEMANTIC_AUTHORITY_V2_S2A_FU4"` (a new string; distinct from FU2 /
    FU3 by import check) and `KNOWN_AUTHORITY_CONTRACT_TOKENS_FU4`.
-3. **The evidence schema** (§3): `BundleCompositionStateV2FU4`,
-   `CandidateCompositionEvidenceBasisV2FU4`,
+3. **The evidence schema** (§3, CORRECTED): `BundleCompositionState
+   V2FU4` (five members: SYNTACTICALLY_VALID / ESTABLISHED / PARTIAL /
+   ABSENT / CONTRADICTED_PUBLISHED), `EvidenceSideV2FU4`,
+   `CompletenessBasisV2FU4`, `CompositionCompletenessAttestationV2FU4`,
+   `QuantityNonMaterialityReasonV2FU4`,
+   `QuantityCompletenessAttestationV2FU4`, `BundleQuantityAxisStateV2
+   FU4`, `CandidateCompositionEvidenceBasisV2FU4`,
    `CandidateBundleCompositionEvidenceV2FU4`,
    `TargetSalesUnitEvidenceV2FU4`, the clause extraction (§3.4), the
-   closure classification (§3.5), the materiality grammar (§3.7), and
-   the integrity error type (`BundleCompositionEvidenceIntegrityError`).
-   `BUNDLE_COMPOSITION_EVIDENCE_VERSION_FU4 = 1`.
-4. **The construction entry points** (fail closed):
+   textual closure classification + completeness-marker detection
+   (§3.5a / §3.5b), the versioned `_COMPLETENESS_MARKERS` list + the
+   bounded marker-delimiter set, the materiality grammar (§3.7), and
+   the integrity error type (`BundleCompositionEvidenceIntegrityError`,
+   corrected scope: the evidence records AND both attestation
+   records). `BUNDLE_COMPOSITION_EVIDENCE_VERSION_FU4 = 1` covers the
+   marker lists (the T5 / T9 discipline).
+4. **The construction entry points** (fail closed, CORRECTED):
    `candidate_composition_from_extraction(result) ->
    CandidateBundleCompositionEvidenceV2FU4 | None` — re-verifies the
    presented result FIRST (`verify_integrity`), returns None for every
    non-OBSERVED_UNAMBIGUOUS state and for a non-BUNDLE established kind,
    and for an OBSERVED BUNDLE result reads the result's FULL established
    BUNDLE cue list (primary = the channel mapping's primary cue rule:
-   structured first, else first title span order): one clause ⇒
-   classified (§3.5); ≥2 differing clauses ⇒ CONTRADICTED_PUBLISHED
-   (every clause recorded); identical repeated clauses ⇒ ESTABLISHED
-   (consistent repetition, the count-rule precedent).
+   structured first, else first title span order): each established
+   cue's clause extracted (§3.4) and closure-classified (§3.5a), the
+   completeness marker detected over each textually valid clause
+   (§3.5b, incl. the recorded field-text continuation for colon-form
+   cues) ⇒ the PUBLISHED_COMPLETENESS_STATEMENT attestation when
+   present; one textually differing clause pair ⇒
+   CONTRADICTED_PUBLISHED (every clause recorded with its own textual
+   state and its own published attestation, if any); identical repeated
+   clauses (byte-identical after marker strip) ⇒ one clause —
+   CORRECTED: the pre-revision design read consistent repetition as
+   ESTABLISHED support ("the count-rule precedent"); repetition is
+   textual agreement with itself, NOT completeness (Blocker B) — the
+   repeated clause is SYNTACTICALLY_VALID unless a published marker
+   attests it (the recorded cues are the audit trail).
    `candidate_composition_from_channel(channel) ->
    CandidateBundleCompositionEvidenceV2FU4` — the `RECORDED_CHANNEL`
-   basis, §3.4 steps 1–3 over the channel's `raw_detail` (OBSERVED
-   BUNDLE only; anything else is contract misuse).
-5. **The unit derivation** `derive_sales_unit_authority_fu4` (§5) and
-   the case-level `derive_sales_unit_authority_fu4_case(case_v2, …)`
+   basis, §3.4 steps 1–3 + §3.5a / §3.5b over the channel's
+   `raw_detail` (OBSERVED BUNDLE only; anything else is contract
+   misuse; a corpus-shaped raw_detail carrying a recorded marker, e.g.
+   `"… bracket kit, complete list"`, attests via the PUBLISHED basis —
+   pinned in §9-B1).
+   The TARGET-side record (and its embedded completeness attestation)
+   and the QUANTITY attestation are REVIEW-CONSTRUCTED only — the
+   validated dataclass constructors are the sole creation paths (there
+   is no machine derivation of either: §3.8 "Review-constructed, not
+   derived").
+5. **The unit derivation** `derive_sales_unit_authority_fu4(channel,
+   candidate_composition, target_evidence, quantity_attestation)` (§5)
+   and the case-level `derive_sales_unit_authority_fu4_case(case_v2,
+   candidate_composition, target_evidence, quantity_attestation=None)`
    (the frozen case-type entry point, mirroring `derive_sales_unit_
    authority`).
-6. **The tier derivation** `derive_authority_tier_fu4` + the decision
-   record `AuthorityDecisionV2FU4` + the mirrored rule vocabulary
-   `AuthorityRuleV2FU4` (import-self-checked EQUAL to the FU3 set — D10).
-7. **The dispatch** `derive_authority_tier_for_contract_fu4` (§5.3) and
+6. **The tier derivation** `derive_authority_tier_fu4` (the quantity
+   attestation parameter included) + the decision record
+   `AuthorityDecisionV2FU4` (the FU3 field set + the bounded bundle-
+   axis audit fields, D11 corrected) + the mirrored rule vocabulary
+   `AuthorityRuleV2FU4` (import-self-checked EQUAL to the FU3 set —
+   D10).
+7. **The dispatch** `derive_authority_tier_for_contract_fu4` (§5.4) and
    `is_known_authority_contract_token_fu4`.
 8. **The research package export surface** — strictly additive
    (`research/__init__.py` gains the FU4 symbols; the FU3 / P2 export
@@ -1072,8 +1720,11 @@ registration step delivers EXACTLY:
    row by registering a new contract adapter; no model change, no new
    migration, no data rewrite"); the FU4-bound record carries, inside
    its payload's evaluation section: the FU4 decision record
-   (`AuthorityDecisionV2FU4`), the two evidence records' canonical
-   documents (digests included), and the bound + unit + tier + fired-
+   (`AuthorityDecisionV2FU4`, audit fields included), the two evidence
+   records' canonical documents (digests included — the embedded
+   completeness attestations WITHIN their records' digests), the
+   quantity-completeness attestation's canonical document (when
+   present), and the bound + unit + tier + fired-
    rules derived snapshots — replay re-derives under
    `derive_authority_tier_for_contract_fu4` and proves exact agreement
    (the Q3-B4 §6.1 item-5 discipline, as executed for FU3).
@@ -1136,7 +1787,7 @@ insufficient for records.**
   `("V2","2.1",1,1,FU3)` for FU4-governed records would (i) let a
   FU4-derived snapshot be replayed as a FU3 derivation (wrong
   re-interpretation — the FU3 arm cannot see composition inputs,
-  §5.3), or (ii) force the FU3 dispatch to accept composition inputs
+  §5.4), or (ii) force the FU3 dispatch to accept composition inputs
   (an amendment of a frozen module — forbidden). The task's own rule
   applies: **do not silently reuse an existing binding for changed
   authority semantics.** Therefore the FU4 successor binding
@@ -1223,7 +1874,10 @@ the frozen extractor chain, or a directly constructed frozen channel /
 result / record), with scripted evaluation doubles; NO live call, NO
 model capture, NO network. Assertions split: (i) extraction state +
 cue shape (frozen, unchanged), (ii) composition evidence record (state,
-clause, provenance, digest), (iii) FU4 unit state, (iv) FU3 unit state
+clause, completeness attestation + its bounded fields and digest, the
+quantity attestation's bounded fields and digest where presented,
+provenance), (iii) FU4 unit state + the recorded axis determinations
+(quantity-axis state, D11), (iv) FU3 unit state
 under the SAME inputs (the coexistence pin), (v) tier under
 MATCH + HIGH + STRONG + clean over the FU4 dispatch (the Q3-B4 §4.1
 invariant), (vi) the expected ceiling rule / rejection. Rows:
@@ -1272,19 +1926,31 @@ invariant), (vi) the expected ceiling rule / rejection. Rows:
 
 **B — The composition evidence schema (construction-level)**
 
-* **B1.** The six-way distinction (§4) over published text: bare
-  `"bundle"`; `"bundle of 3"` / `"3-unit bundle"`; `"bundle: 2x RAM
-  etc."`; `"bundle (2x RAM + 1x CPU"`; `"bundle: 2x RAM + 1x CPU"` /
-  `"bundle (2x RAM + 1x CPU)"`; title `"bundle: 2x RAM + 1x CPU"` +
-  structured `"Bundle (2x SSD + cable)"` — each yields exactly the
-  recorded extraction state (frozen) AND exactly the recorded FU4
-  evidence state (ABSENT / PARTIAL / ESTABLISHED /
-  CONTRADICTED_PUBLISHED), with the clause text verbatim and the
-  provenance (field + source + span / basis + digest) intact.
+* **B1.** The five-way distinction + the marker rows (§4) over
+  published text: bare `"bundle"`; `"bundle of 3"` / `"3-unit bundle"`;
+  `"bundle: 2x RAM etc."`; `"bundle (2x RAM + 1x CPU"`; `"bundle:
+  2x RAM + 1x CPU"` / `"bundle (2x RAM + 1x CPU)"` (closed, no marker
+  ⇒ SYNTACTICALLY_VALID, NO attestation — the corrected demotion);
+  `"bundle: 2x RAM + 1x CPU, complete list"` (colon form; the marker
+  segment sits in the recorded field text after the cue span ⇒ clause
+  `"2x RAM + 1x CPU"` + the PUBLISHED_COMPLETENESS_STATEMENT
+  attestation, verbatim segment recorded ⇒ ESTABLISHED); `"bundle (2x
+  RAM + 1x CPU, all items listed)"` (paren form; the marker inside the
+  clause ⇒ stripped ⇒ ESTABLISHED); `"bundle: 2x RAM etc., complete
+  list"` (incompleteness DOMINATES ⇒ PARTIAL, NO attestation, D5);
+  title `"bundle: 2x RAM + 1x CPU"` + structured `"Bundle (2x SSD +
+  cable)"` (⇒ CONTRADICTED_PUBLISHED, both clauses with their own
+  textual states) — each yields exactly the recorded extraction state
+  (frozen) AND exactly the recorded FU4 evidence state (ABSENT /
+  PARTIAL / SYNTACTICALLY_VALID / ESTABLISHED /
+  CONTRADICTED_PUBLISHED) with the attestation (or its absence) exact,
+  the clause text verbatim, and the provenance (field + source + span
+  / basis + digest) intact.
 * **B2.** Empty markers never establish: `"bundle:"` (title-final),
   `"bundle ()"`, `"bundle: "`, `"bundle ("` (unclosed, title-final) —
-  all ABSENT or PARTIAL; the ESTABLISHED constructor REFUSES such a
-  clause (un-constructible, D5 at the type level).
+  all ABSENT or PARTIAL; the SYNTACTICALLY_VALID and ESTABLISHED
+  constructors REFUSE such a clause (un-constructible, D5 at the type
+  level).
 * **B3.** Count-only never bound: over `"bundle of 3"`, the evidence
   (via a corpus-shaped channel with quantity 3) is ABSENT with
   `channel_quantity = 3` mirrored verbatim; no derivation input
@@ -1311,42 +1977,91 @@ invariant), (vi) the expected ceiling rule / rejection. Rows:
   composition-ABSENT for a BUNDLE form (UNPROVEN vs a composition-
   verified candidate); non-BUNDLE forms with composition fields are
   un-constructible.
-* **B8.** Clause-grammar edges (pinned verbatim): `"2x RAM + 1x CPU"`
-  vs `"1x CPU + 2x RAM"` (multiset-equal ⇒ U17); vs `"2x RAM + 1x SSD"`
-  (multiset-differ ⇒ U18); vs `"2x RAM + 1x CPU (revised)"` (residual
-  ⇒ U19 UNPROVEN); `"GPU + power cables + bracket kit"` (the 0034
-  shape, fully parseable); a quantity edge (`"04x RAM"` non-canonical
-  ⇒ not fully parseable ⇒ U19); a trailing `"2x"` (dangling
-  incomplete token ⇒ PARTIAL, never ESTABLISHED).
+* **B8.** Clause-grammar edges (pinned verbatim; the attestation
+  context stated — the grammar decides the TEXTUAL axis only):
+  `"2x RAM + 1x CPU"` vs `"1x CPU + 2x RAM"` (multiset-equal ⇒ T-AGREE:
+  U20 when both sides ESTABLISHED, U15 when either side unattested);
+  vs `"2x RAM + 1x SSD"` (multiset-differ ⇒ T-DIFF-MATERIAL: U17 when
+  both sides ESTABLISHED, U15 when either side unattested); vs `"2x
+  RAM + 1x CPU (revised)"` (residual ⇒ T-DIFF-UNESTABLISHED: U21 when
+  both ESTABLISHED, U15 otherwise); `"GPU + power cables + bracket
+  kit"` (the 0034 shape, fully parseable — and NO completeness marker
+  in the committed corpus text ⇒ SYNTACTICALLY_VALID ⇒ U15 without an
+  attestation); a quantity edge (`"04x RAM"` non-canonical ⇒ not fully
+  parseable ⇒ T-DIFF-UNESTABLISHED); a trailing `"2x"` (dangling
+  incomplete token ⇒ PARTIAL, never SYNTACTICALLY_VALID, let alone
+  ESTABLISHED).
+* **B9.** The composition-completeness attestation (constructor-level,
+  NEW — Blocker B): a marker detected from recorded text is the only
+  candidate-side basis (a candidate-side record with a
+  REVIEWED_COMPOSITION_ATTESTATION basis is un-constructible); the
+  subject-side / source-class coherence (CANDIDATE subject ⇒
+  LISTING_TITLE / PUBLISHED_STRUCTURED_FIELD; TARGET subject ⇒ the
+  frozen target classes); the clause_digest binding (an attestation
+  over a different clause is un-constructible / an integrity error at
+  presentation); a PUBLISHED-basis attestation_text is exactly the
+  verbatim marker segment; a tampered attestation (text edited, digest
+  not recomputed) is refused; an attestation over a PARTIAL / ABSENT
+  clause is un-constructible (detection runs only over textual
+  validity); a target-side record with state ESTABLISHED and no
+  coherent attestation (or state SYNTACTICALLY_VALID with one) is
+  un-constructible (state/coherence, §3.3).
+* **B10.** The quantity-completeness attestation (constructor-level,
+  NEW — Blocker A): the vocabulary bounds (the two reasons; the frozen
+  non-model source classes); the subject-side / source coherence;
+  `attestation_text` non-empty; a tampered attestation refused (digest
+  self-verification + re-verification at presentation —
+  `BundleCompositionEvidenceIntegrityError`, no derivation input);
+  at the derivation: an attestation with `subject_side` ≠ the actually-
+  missing side ⇒ integrity error; an attestation over a non-asymmetric
+  axis (both publish / both absent) ⇒ ValueError (contract misuse);
+  the attestation never supplies a quantity VALUE (there is no value
+  field — a reviewed value enters through the record's quantity field,
+  the frozen mechanism).
 
 **C — The comparison rules (task item 4, one row per mandated rule)**
 
-* **C1.** Missing or partial composition ⇒ UNPROVEN: every pair in
-  {candidate ABSENT × target any; candidate PARTIAL × target ESTABLISHED
-  (byte-identical text); candidate ESTABLISHED × target ABSENT (frozen
-  record — the "contents known on only one side" regression, now
-  preserved under FU4); candidate ESTABLISHED × target PARTIAL} over
-  EVERY target shape (default single unit, explicit bundle ± count).
+* **C1.** Missing, partial, or completeness-unknown composition ⇒
+  UNPROVEN: every pair in {candidate ABSENT × target any; candidate
+  PARTIAL × target any; candidate SYNTACTICALLY_VALID (no attestation)
+  × target any ESTABLISHED / SYNTACTICALLY_VALID; target ABSENT ×
+  candidate any (frozen record — the "contents known on only one
+  side" regression, now preserved under FU4); target PARTIAL ×
+  candidate any; target SYNTACTICALLY_VALID × candidate ESTABLISHED}
+  over EVERY target shape (default single unit, explicit bundle ±
+  count) — a completeness-unknown clause never proves (U15) and never
+  contradicts (a material difference requires both-side ESTABLISHED —
+  U17's gate).
 * **C2.** Equal counts without composition ⇒ UNPROVEN: corpus-shaped
   channel BUNDLE quantity 3 (raw_detail `"bundle of 3"`) vs target
   BUNDLE quantity 3 (frozen record) — FU4 UNPROVEN while the SAME
   inputs derive FU3 PROVEN_EQUIVALENT (the coexistence pin, A7's
   shape); and vs target BUNDLE no count — both tokens UNPROVEN.
-* **C3.** Materially established difference ⇒ CONTRADICTED: U18 over
+* **C3.** Materially established difference ⇒ CONTRADICTED: U17 over
   MATCH + HIGH + STRONG + clean ⇒ tier NEEDS_REVIEW with
   `CEILING_SALES_UNIT_CONTRADICTED` fired; the Q3-B4 §4.1 invariant: NEVER
   `AI_ASSISTED_COMPARABLE`; the hand-constructed `AuthorityDecisionV2
   FU4` with that tier + unit is un-constructible (the constructor
-  invariant).
-* **C4.** Unestablished difference ⇒ UNPROVEN (U19, B8 residual rows) —
-  never CONTRADICTED; the tier cap is `CEILING_SALES_UNIT_NOT_PROVEN`.
+  invariant). The same text with one side UNATTESTED (SYNTACTICALLY_
+  VALID) ⇒ U15 UNPROVEN (the safe direction — a material difference
+  without both-side completeness is never a contradiction).
+* **C4.** Unestablished difference ⇒ UNPROVEN (U21 / U15, B8 residual
+  rows) — never CONTRADICTED; the tier cap is
+  `CEILING_SALES_UNIT_NOT_PROVEN`.
 * **C5.** Equal complete compositions with sufficient provenance ⇒
-  PROVEN_EQUIVALENT (U16 / U17): the tier STANDS under MATCH + HIGH +
-  STRONG (no ceiling fired) — the positive row proving FU4 can
-  represent verified-composition equivalence the frozen channel cannot
-  (the Q3-B5-P2-FU1 regression 8 shape, now lifted off UNPROVEN by the
-  new evidence, still gated by qualification); the same row with the
-  count rule violated (both publish, counts differ) ⇒ CONTRADICTED (U15).
+  PROVEN_EQUIVALENT (U19 / U20, CORRECTED): BOTH sides ESTABLISHED via
+  independent attestations (candidate: the PUBLISHED marker detected
+  from the recorded text; target: the REVIEWED attestation), clauses
+  byte-identical (U19) or multiset-equal (U20), quantity axis
+  satisfied (BOTH_UNPUBLISHED / CONSISTENT / ATTESTED_NOT_MATERIAL): the
+  tier STANDS under MATCH + HIGH + STRONG (no ceiling fired) — the
+  positive row proving the corrected design can represent
+  attested-composition equivalence the frozen channel cannot (the Q3-
+  B5-P2-FU1 regression 8 shape, now lifted off UNPROVEN by the
+  attestations, still gated by qualification); the same row with the
+  count rule violated (both publish, counts differ) ⇒ CONTRADICTED
+  (U16); the same row with ONE side unattested ⇒ UNPROVEN (U15 — the
+  Blocker B negative twin of the positive row).
 * **C6.** Conflicting title and structured fields ⇒ fail closed (U12 /
   D8): extraction `OBSERVED_UNAMBIGUOUS` with two differing established
   clauses ⇒ evidence CONTRADICTED_PUBLISHED ⇒ UNPROVEN for every
@@ -1357,28 +2072,81 @@ invariant), (vi) the expected ceiling rule / rejection. Rows:
   default single-unit target / pack / tray ⇒ CONTRADICTED (U9) — the
   composition is never read to "explain away" a form mismatch.
 * **C8.** MPN-in-clause non-inference: clauses differing only in an
-  embedded part number (e.g. `"1x SSD M.2 9A0…" vs "1x SSD M.2 9B0…"`)
-  ⇒ multiset-differ ⇒ CONTRADICTED (the items differ — no identity
-  weight given); clauses where the identifier makes the entry
-  unparseable ⇒ U19 UNPROVEN; in NO row is the target MPN or the
-  candidate MPN an input to the comparison (signature-pinned).
+  embedded part number (e.g. `"1x SSD M.2 9A0…"` vs `"1x SSD M.2
+  9B0…"`) ⇒ multiset-differ ⇒ CONTRADICTED when both sides ESTABLISHED
+  (U17 — the items differ, no identity weight given); the same with
+  one side unattested ⇒ UNPROVEN (U15); clauses where the identifier
+  makes the entry unparseable ⇒ U21 / U15 UNPROVEN; in NO row is the
+  target MPN or the candidate MPN an input to the comparison (signature-
+  pinned).
 * **C9.** Model-output non-inference: a scripted evaluation whose
-  `matched_attributes` claims BUNDLE / PACKAGING_QUANTITY agreement
-  changes NOTHING under the FU4 dispatch (the unit derivation's inputs
-  are signature-pinned: channel + evidence records only); the
-  `AuthorityRule` trail never gains a model-sourced rule.
+  `matched_attributes` claims BUNDLE / PACKAGING_QUANTITY agreement OR
+  "the compositions are complete" changes NOTHING under the FU4
+  dispatch (the unit derivation's inputs are signature-pinned:
+  channel + evidence records + the quantity attestation's bounded
+  fields only); the `AuthorityRule` trail never gains a model-sourced
+  rule.
+* **C10.** The quantity-completeness axis (NEW — Blocker A, one row per
+  axis state over textually-agreed, both-ESTABLISHED clauses): Q =
+  CONSISTENT (both publish, equal) ⇒ PROVEN (U19); Q =
+  BOTH_UNPUBLISHED (neither publishes) ⇒ PROVEN (U19 — the determined,
+  recorded state, not a silence); Q = CONTRADICTED (both publish,
+  differ) ⇒ CONTRADICTED (U16) — even when one side's completeness is
+  unknown (the count difference over the same stated composition is not
+  gated by completeness); Q = UNDETERMINED (asymmetric, no attestation)
+  ⇒ UNPROVEN (U18 — the Blocker A defect row: byte-identical clauses,
+  both sides attested complete, candidate quantity 2, target quantity
+  None; pinned as the shape the pre-revision design derived PROVEN
+  over); Q = ATTESTED_NOT_MATERIAL (asymmetric + a verified attestation
+  on the missing side) ⇒ PROVEN (U19); the no-inference pins (D17c):
+  a clause's parsed entry count is never compared against the published
+  count (the 3-entry clause with published quantity 3 derives purely
+  from the published values; the derivation never receives the parsed
+  multiset for quantity purposes — signature-pinned); no quantity is
+  derived from absence / MPN / price / model output (the FU3 list,
+  preserved + extended).
+* **C11.** The completeness axis (NEW — Blocker B rows): byte-identical
+  clauses, NO attestation on either side, both quantities absent ⇒
+  UNPROVEN (U15 — decision-matrix case 1); byte-identical + one side
+  attested ⇒ UNPROVEN (U15 — case 7's shape over byte-identity);
+  multiset-equal (byte-different) + incomplete source evidence (one
+  side unattested) ⇒ UNPROVEN (U15 — case 7); both attested + material
+  difference ⇒ CONTRADICTED (U17 — case 6); one attested + material
+  difference ⇒ UNPROVEN (U15 — the safe direction); the same-page
+  repeated clause (title + structured, byte-identical, no marker) ⇒
+  SYNTACTICALLY_VALID, NO attestation (the §6 identical-repetition
+  correction — consistency is textual agreement with itself) ⇒
+  UNPROVEN against a byte-identical target clause (repetition ≠
+  completeness).
+* **C12.** The copied attestation (NEW — decision-matrix case 9): the
+  constructible shape (a target review attestation over a clause byte-
+  identical to the candidate's) derives per the axes as recorded — the
+  contract performs no copy detection (T3' pinned: the derivation's
+  inputs are signature-pinned; no similarity / provenance-of-text
+  computation exists in the module — import-scanned); the detectable
+  launderings are unconstructible / integrity-refused (B9 / B10 rows:
+  a candidate-side REVIEWED-basis record, a target-side attestation
+  with a candidate source class, a clause_digest mismatch, a
+  subject-side mismatch); the decision's audit surface records both
+  attestations (basis + source + text + digest — the reviewer's
+  inspection surface, pinned).
 
 **D — Tier, overlay, and the Q3-B4 §4.1 invariant**
 
 * **D1.** The exact Q3-B4 §4.1 composition (MATCH + HIGH + STRONG + clean +
   U1 exact-identifier) over: silent multi-bundle (no cue) ⇒ UNPROVEN
   ⇒ NEEDS_REVIEW (`CEILING_SALES_UNIT_NOT_PROVEN`); count-only pair
-  (C2) ⇒ UNPROVEN ⇒ NEEDS_REVIEW; material difference (C3) ⇒
-  CONTRADICTED ⇒ NEEDS_REVIEW (`CEILING_SALES_UNIT_CONTRADICTED`);
-  verified equal (C5) ⇒ PROVEN ⇒ `AI_ASSISTED_COMPARABLE` STAYS (the
-  firewall's own design: a proven unit leaves the automatic tier
-  standing — pricing eligibility still requires the separately gated
-  W1 guard + qualification; `V2_AUTHORITY_QUALIFIED` False).
+  (C2) ⇒ UNPROVEN ⇒ NEEDS_REVIEW; equal unattested text (C11 case 1
+  row) ⇒ UNPROVEN ⇒ NEEDS_REVIEW (Blocker B — the pre-revision design
+  derived PROVEN here); asymmetric unattested quantity over attested
+  equal text (C10 Q = UNDETERMINED row) ⇒ UNPROVEN ⇒ NEEDS_REVIEW
+  (Blocker A); material difference over two attested compositions (C3)
+  ⇒ CONTRADICTED ⇒ NEEDS_REVIEW (`CEILING_SALES_UNIT_CONTRADICTED`);
+  attested equal, quantity axis satisfied (C5) ⇒ PROVEN ⇒
+  `AI_ASSISTED_COMPARABLE` STAYS (the firewall's own design: a proven
+  unit leaves the automatic tier standing — pricing eligibility still
+  requires the separately gated W1 guard + qualification;
+  `V2_AUTHORITY_QUALIFIED` False).
 * **D2.** Human overlay preserved: a firewall-capped bundle candidate
   (UNPROVEN or CONTRADICTED) confirmed by a recorded
   `HumanReviewStateV2` CONFIRM derives `HUMAN_CONFIRMED` under the FU4
@@ -1426,11 +2194,25 @@ invariant), (vi) the expected ceiling rule / rejection. Rows:
   the frozen channel or target record publishes); and a clause with an
   out-of-grammar residual (e.g. `"1x 960GB SSD + 1x fan (tray)"` —
   parentheses are not in the item-token character class) is NOT fully
-  parseable ⇒ U19 UNPROVEN, never CONTRADICTED from a half-understood
-  clause.
+  parseable ⇒ U21 / U15 UNPROVEN, never CONTRADICTED from a half-
+  understood clause.
 * **F3.** Multi-offer independence (frozen): two observations with
   different bundle clauses extract independently (distinct input
   digests); no cross-contamination into any evidence record.
+* **F4.** The attestation trust boundary (NEW — Blocker A / B): the
+  derivation reads EXACTLY the attestation's bounded fields (basis /
+  reason, source, subject_side, clause_digest, attestation_digest) —
+  `attestation_text` is NEVER read (the recorded determination is the
+  reviewer's audit anchor, not a derivation input; a derivation that
+  parsed it would be a new inference surface — import-scanned); a
+  presented attestation is digest-verified before any axis uses it (a
+  tamper ⇒ `BundleCompositionEvidenceIntegrityError`, no unit
+  derived); an attestation is never adopted for the wrong side / wrong
+  axis (B10 pins); no attestation is ever CONSTRUCTED by the
+  derivation itself (the completeness attestation only from the
+  §3.5b recorded marker detection or the review; the quantity
+  attestation only from the review — §3.8 "Review-constructed, not
+  derived").
 
 ---
 
@@ -1456,7 +2238,7 @@ invariant), (vi) the expected ceiling rule / rejection. Rows:
    true (the harness registry GAINS an entry at registration; nothing
    is removed or re-pointed).
 4. **Replay is per-binding forever:** the recorded token selects the
-   derivation (§5.3); the FU4 dispatch delegates FU2 / FU3 to the
+   derivation (§5.4); the FU4 dispatch delegates FU2 / FU3 to the
    frozen functions (identity pinned, A2); the old replay path
    (`SUPPORTED_CONTRACT_BINDINGS` pre-registration) is byte-unchanged
    and keeps refusing FU4 payloads (A4).
@@ -1475,41 +2257,67 @@ invariant), (vi) the expected ceiling rule / rejection. Rows:
 
 # 11. Unresolved tradeoffs (recorded for the approval decision)
 
-* **T1 — The secondary equality path (U17).** Byte-identity (U16) is
+* **T1 — The secondary equality path (U20).** Byte-identity (U19) is
   the primary, trust-minimal path; the full-parse multiset path
-  (U17) admits order / formatting differences. Tradeoff: it widens the
+  (U20) admits order / formatting differences. Tradeoff: it widens the
   PROVEN population by exactly the shapes where a deterministic grammar
   proves the published item multisets equal; every grammar gap fails
-  to UNPROVEN (U19), never to CONTRADICTED. Rejected alternative:
-  byte-identity ONLY (simpler contract; genuinely equal published
-  compositions differing in item order would stay UNPROVEN
-  indefinitely). Rejection path: if approval prefers the narrower
-  contract, U17 is deleted (one table row + B8's equal-multiset rows)
-  without touching any other decision — the grammar constants stay
-  versioned for the materiality test.
-* **T2 — Field-end closure for colon-form clauses.** A colon-form clause
-  running to the end of the examined field is treated as closed
-  (ESTABLISHED if otherwise clean). Residual risk: an invisible page-
-  level truncation (the title cut at max length mid-clause) is
+  to UNPROVEN (U21, or U15 where a side is unattested), never to
+  CONTRADICTED. Rejected alternative: byte-identity ONLY (simpler
+  contract; genuinely equal published compositions differing in item
+  order would stay UNPROVEN indefinitely). Rejection path: if approval
+  prefers the narrower contract, U20 is deleted (one table row + B8's
+  equal-multiset rows) without touching any other decision — the
+  grammar constants stay versioned for the materiality test.
+* **T2 — Field-end closure for colon-form clauses (CORRECTED).** A
+  colon-form clause running to the end of the examined field is
+  treated as textually closed (SYNTACTICALLY_VALID if otherwise clean
+  — the §3.5a rule preserved). The pre-revision residual (an invisible
+  page-level truncation: the title cut at max length mid-clause,
   undetectable from the field; two identically truncated pages could
-  then derive PROVEN over the truncated statement. Rejected
-  alternative: require a positive terminator (comma / semicolon /
-  paren) — strictly safer but fails the common real-title shape
-  (`"…SSD bundle: 2x RAM + 1x CPU"`) and keeps it UNPROVEN forever.
-  The risk is bounded by §5.1(2)'s independence requirement (both
-  sides must publish the same statement) and by the review attestation
-  on the target side; it is recorded here, not papered over. The
-  dangling-separator / incomplete-token rule (§3.5) is the deterministic
-  slice of the risk that IS detectable, and is enforced.
-* **T3 — Target provenance independence.** The derivation cannot verify
-  that the target clause was not copied from the candidate page (text
-  independence is not a deterministic contract fact). The contract
-  records both source labels in the decision's audit surface (visible
-  to the reviewer) and relies on the REVIEW process's attestation at
-  record creation — the same epistemic boundary the frozen target
-  record carries for its count. Rejected alternative: a fuzzy text-
-  similarity independence check in contract code (an inference surface,
-  brittle, and a violation of the deterministic-ownership rule).
+  then derive PROVEN over the truncated statement, byte-identity being
+  "sufficient") is CLOSED by Blocker B: PROVEN now requires a
+  completeness attestation on BOTH sides, and an attestation over an
+  identically truncated clause would be a double governance failure —
+  a cut in the middle of the item list leaves no marker for the
+  PUBLISHED basis and no honest anchor for the REVIEWED basis, so the
+  clause stays SYNTACTICALLY_VALID ⇒ UNPROVEN. The residual recorded
+  here, corrected, is the narrow case where the truncation falls
+  AFTER a published completeness marker survives in the text (e.g.
+  the title cut at max length after "…, complete list") — the marker
+  is the page's own statement, trusted as recorded (the T3 boundary),
+  and the review's attestation must survive the same scrutiny on the
+  target side. Rejected alternative (unchanged): require a positive
+  terminator (comma / semicolon / paren) — its cost is now LOWER, not
+  higher: a terminator-less clause is merely UNPROVEN-eligible, never
+  PROVEN-eligible, so the field-end rule exists only to keep the
+  common real-title shape (`"…SSD bundle: 2x RAM + 1x CPU"`) out of
+  PARTIAL and attestation-eligible. The dangling-separator /
+  incomplete-token rule (§3.5a) is the deterministic slice of the
+  risk that IS detectable, and is enforced.
+* **T3 — Target provenance independence (CORRECTED — extended to the
+  attestations).** The derivation cannot verify that the target clause
+  was not copied from the candidate page — and, corrected, it cannot
+  verify that the target's completeness ATTESTATION was not created by
+  copying the candidate's publication rather than by independent
+  verification (a copied attestation: the review reads the candidate
+  listing and records its clause, and its "verified" completeness, as
+  the target composition). Both are text-independence questions, not
+  deterministic contract facts. The contract records both source
+  labels AND both attestations (basis + source + text + digest) in the
+  decision's audit surface (visible to the reviewer) and relies on the
+  REVIEW process's attestation at record creation — the same
+  epistemic boundary the frozen target record carries for its count.
+  A copied, unverified attestation is a review-governance failure:
+  the record must not have been created (T3') — not a contract state,
+  and no contract rule may be tuned to "detect" it. The
+  deterministically detectable slice is enforced at construction /
+  presentation (B9 / B10): basis / source-class coherence,
+  clause_digest binding, subject-side match — laundering across the
+  side / basis boundary is un-constructible. Rejected alternative
+  (unchanged): a fuzzy text-similarity independence check in contract
+  code (an inference surface, brittle, and a violation of the
+  deterministic-ownership rule).
 * **T4 — Count-vs-clause cross-check.** A published bundle count is
   never compared against the clause's parsed entry count (D17).
   Rejected: requiring agreement (it would manufacture a new
@@ -1531,8 +2339,9 @@ invariant), (vi) the expected ceiling rule / rejection. Rows:
   `EXTRACTION_RESULT_V1`; the channel basis exists for corpus-shaped /
   supplied channels where no result is in evidence. Residual: a
   hand-supplied channel basis over a page that actually published two
-  clauses is under-evidenced — its state can only be ESTABLISHED /
-  PARTIAL / ABSENT, and the derivation cannot know better. Accepted
+  clauses is under-evidenced — its state can only be
+  SYNTACTICALLY_VALID / ESTABLISHED / PARTIAL / ABSENT, and the
+  derivation cannot know better. Accepted
   (the corpus channels are single-value structured fields by
   construction); recorded.
 * **T7 — No target-side `CONTRADICTED_PUBLISHED`.** One reviewed
@@ -1548,6 +2357,37 @@ invariant), (vi) the expected ceiling rule / rejection. Rows:
   FU3 entry point. A future top-level merger (one dispatch knowing all
   tokens) is its own separately versioned step; until then, both
   dispatches coexist and agree by delegation (A2).
+* **T9 — The completeness-marker vocabulary (NEW — Blocker B).**
+  `_COMPLETENESS_MARKERS` (six members) and the bounded marker-
+  delimiter set (§3.5b) are VERSIONED contract constants: any
+  addition / removal / rewording changes which recorded texts attest
+  completeness — a derivation-result change — so it is a new evidence-
+  schema version or a new token (the T5 discipline, applied to the
+  new lists). Recorded concern: the list is English-shaped and
+  conservative; pages phrasing completeness differently ("as listed",
+  "full bundle contents", localized phrasings) leave the clause
+  SYNTACTICALLY_VALID ⇒ UNPROVEN — the safe direction (an unlisted
+  phrasing is an unattested clause, never a false attestation). A
+  future version may grow the list only with recorded examples and
+  re-pinned tests (B1's marker rows).
+* **T10 — The quantity non-materiality attestation's epistemology
+  (NEW — Blocker A).** The review process is the contract's SOLE
+  quantity-attestation authority (the frozen non-model classes; §3.8).
+  A page does not self-attest the non-materiality of its own silence —
+  a published statement about one's own omission is a publisher claim
+  about its own gap, not independent support — so the candidate-side
+  gap is attested by the review record with `subject_side =
+  CANDIDATE`, and the target-side gap by the review record with
+  `subject_side = TARGET`. The attestation is trusted as recorded (the
+  T3 boundary); the two bounded reasons are the only behavior-driving
+  content, the recorded determination text is the audit anchor (F4).
+  Recorded concern: a mistaken attestation (the missing count WAS
+  material) produces a PROVEN over a real unit difference — the same
+  exposure class as a mistaken reviewed target count (the frozen
+  record's existing boundary, now extended to the gap-determination);
+  the failure is the record's, not the derivation's. No cheaper
+  deterministic substitute exists: the count-vs-entry-count check is
+  forbidden (D17a / T4), and absence is never evidence.
 
 ---
 
@@ -1559,19 +2399,23 @@ ONLY when ALL hold:
 1. **Design fidelity.** The module implements this document exactly:
    the token, the evidence schema (§3) including every constructor
    rule, the derivation table (§5) including every fail-closed arm,
-   the dispatch (§5.3), and the import self-checks (vocabulary
-   bounds: the four composition states; the two bases; the rule set
-   EQUAL to the FU3 set; the token distinct from FU2 / FU3; the
-   evidence schema version 1; no mutable global state).
+   the dispatch (§5.4), and the import self-checks (vocabulary
+   bounds CORRECTED: the five composition states; the two evidence
+   sides; the two completeness bases; the two quantity non-materiality
+   reasons; the five quantity-axis states; the candidate-basis pair;
+   the versioned `_COMPLETENESS_MARKERS` list (six members) + the
+   marker-delimiter set; the rule set EQUAL to the FU3 set; the token
+   distinct from FU2 / FU3; the evidence schema version 1; no mutable
+   global state).
 2. **Frozen pins.** Every file digest in §8 is byte-identical to the
    phase's starting SHA (the pin test computes the digests from the
    starting-SHA tree — not from the phase's own edits); the full 98-
    node FU3 suite and the full 111-node extraction suite pass
    UNCHANGED; the P1 binding-replay suite passes unchanged; the two
    corpus artifacts' digests re-pin.
-3. **Adversarial matrix.** The complete §9 matrix (A1–A7, B1–B8,
-   C1–C9, D1–D3, E1, F1–F3) is implemented as NEW test nodes in the
-   NEW test file and passes; no existing test is deleted, renamed,
+3. **Adversarial matrix.** The complete §9 matrix (A1–A7, B1–B10,
+   C1–C12, D1–D3, E1–E3, F1–F4) is implemented as NEW test nodes in
+   the NEW test file and passes; no existing test is deleted, renamed,
    skipped, xfailed, deselected, ignored, or weakened; the Windows
    subprocess flake allowlist is NOT expanded.
 4. **Isolation.** No live module (semantic runtime / execution / runs /
