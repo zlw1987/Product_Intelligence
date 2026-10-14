@@ -23,13 +23,17 @@ Usage (all commands are OFFLINE - no network, no model calls):
     python -m product_intelligence.evaluation.semantic_v2.cli verify-report \
         --report <report.json> --corpus <corpus.json>
 
-``corpus-build`` regenerates BOTH sealed corpus versions from the
+``corpus-build`` regenerates ALL THREE sealed corpus versions from the
 auditable source: the frozen 1.0.0 document bound to the 2.0
-production binding (``corpus_v1.json``) and the Q3-B5-P1 1.1.0
+production binding (``corpus_v1.json``), the Q3-B5-P1 1.1.0
 BINDING-ONLY re-seal bound to the separately versioned 2.1 binding
 (``corpus_2_1.json`` - every per-case document byte-identical, only
 the authorized contract binding / version metadata moved, new
-corpus digest), plus the reproducible manifest for each.
+corpus digest), and the Q3-B5-P5 R2 1.2.0 BINDING-ONLY re-seal bound
+to the separately versioned 2.1 FU4 binding (``corpus_2_1_fu4.json``
+- the same binding-only property over the sealed 1.1.0 document,
+plus the manifest's additive statement / lineage keys), with the
+reproducible manifest for each.
 
 ``evaluate`` with no ``--capture`` produces the explicit no-capture
 baseline for BOTH pinned route candidates (every eligible case is
@@ -74,6 +78,7 @@ def _cmd_corpus_build(args: argparse.Namespace) -> int:
     )
     from product_intelligence.evaluation.semantic_v2.fixtures import (
         build_corpus_2_1_document,
+        build_corpus_2_1_fu4_document,
         build_corpus_document,
     )
 
@@ -95,6 +100,20 @@ def _cmd_corpus_build(args: argparse.Namespace) -> int:
     _write_json(out_dir / "manifest_2_1.json", manifest_2_1)
     print(f"corpus 2.1 digest: {corpus_2_1_doc['corpus_digest']}")
     print(f"corpus 2.1 manifest digest: {manifest_2_1['manifest_digest']}")
+
+    # The Q3-B5-P5 R2 1.2.0 binding-only re-seal under the separately
+    # versioned 2.1 FU4 binding (the same binding-only property over
+    # the sealed 1.1.0 document; the manifest gains the additive
+    # statement / lineage keys). All three versions coexist.
+    corpus_2_1_fu4_doc = build_corpus_2_1_fu4_document()
+    _write_json(out_dir / "corpus_2_1_fu4.json", corpus_2_1_fu4_doc)
+    manifest_2_1_fu4 = build_manifest_document(corpus_2_1_fu4_doc)
+    _write_json(out_dir / "manifest_2_1_fu4.json", manifest_2_1_fu4)
+    print(f"corpus 1.2.0 digest: {corpus_2_1_fu4_doc['corpus_digest']}")
+    print(
+        "corpus 1.2.0 manifest digest: "
+        f"{manifest_2_1_fu4['manifest_digest']}"
+    )
     return 0
 
 

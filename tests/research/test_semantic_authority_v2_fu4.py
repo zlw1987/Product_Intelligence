@@ -340,6 +340,22 @@ Q_UNDETERMINED = BundleQuantityAxisStateV2FU4.UNDETERMINED
 # the recorded consequence of the versioned amendment (design §1.7 /
 # §10.1); every other pin is unchanged (the working tree at R1's
 # starting SHA is byte-identical for every file still frozen).
+#
+# Q3-B5-P5 R2 re-pin (design §10.2, recorded): the table re-pins at
+# R2's starting SHA (ac75f474f2515760a7eb9913807b075f6cf50d1a),
+# EXCLUDING the files R2 owns — the semantic layer's 2.1 FU4 binding
+# constant (contract_v2_1.py) and the harness extension targets
+# (corpus.py / fixtures.py / gates.py / report.py / cli.py). The six
+# removed rows are the only removals of R2 (17 -> 11): the R2-owned
+# files are the additive registration deliverables of this phase
+# (their post-R2 state is pinned by the R2 suite
+# tests/evaluation/semantic_v2/test_q3b5_p5_fu4_registration.py), and
+# every remaining row is byte-identical between R1's starting SHA and
+# R2's starting SHA (R1 amended only the codec + the research export
+# surface, neither of which is in this table). The CORPUS_ARTIFACT_PINS
+# and SUITE_FILE_PINS tables are unchanged — the committed 1.0.0 /
+# 1.1.0 artifacts and the DRAFT policy stay byte-frozen under their own
+# bindings; the NEW 1.2.0 artifacts are pinned by the R2 suite.
 # ---------------------------------------------------------------------------
 
 FROZEN_MODULE_PINS: dict[str, str] = {
@@ -364,32 +380,14 @@ FROZEN_MODULE_PINS: dict[str, str] = {
     "product_intelligence/semantic/contract_v2.py": (
         "d1a69692f57ece6bab8362e77c7067a9642f214d2b115403c1638fe537aa7492"
     ),
-    "product_intelligence/semantic/contract_v2_1.py": (
-        "dc86899f233eb97beb70007a128745bfc04d374a48dc1d45aec4f6703dede1ec"
-    ),
     "product_intelligence/semantic/runtime_v2.py": (
         "e0791384a218409a1e390e304cfc6da1d0e002b404955722b94d557b8c02cc36"
-    ),
-    "product_intelligence/evaluation/semantic_v2/corpus.py": (
-        "876edbe8322889653a5a2178b30f2daf0c7d9a540e52906bf70cad91cddbcc40"
-    ),
-    "product_intelligence/evaluation/semantic_v2/gates.py": (
-        "113c7b53605b4a85d5b11fe93e182518fd1efcf1115b7f797177d4508cc58371"
-    ),
-    "product_intelligence/evaluation/semantic_v2/report.py": (
-        "cad62e4234f7478a326cb5a398f40bc4e1c2e7f2ac1915954179be0c3363c6f1"
     ),
     "product_intelligence/evaluation/semantic_v2/capture.py": (
         "4da8b79a33ffc86363fb01af1b6b5ff0533191374da53a46ecf5b137e00f73fd"
     ),
     "product_intelligence/evaluation/semantic_v2/direct_capture.py": (
         "58b790879efb13f167bf20ae56c96807a47dca9deda10e433d4aece5015e616d"
-    ),
-    "product_intelligence/evaluation/semantic_v2/cli.py": (
-        "0102c4ccc98034d6f5ede3bd2d7be238ae37a4136ca60a634ebd387fb1509376"
-    ),
-    "product_intelligence/evaluation/semantic_v2/fixtures.py": (
-        "cdb60166cf71d3f313b254a1eb652cdec711c8a8cc39a8676eb245bec5f109a8"
     ),
     "product_intelligence/evaluation/semantic_v2/policy.py": (
         "af951180594a4e10cba64db22be114e4bd4b03bb204179c689bef20617e387f4"
@@ -1391,32 +1389,51 @@ class TestA4RegistriesAndReachability:
         )
 
     def test_the_harness_registries_are_unchanged(self) -> None:
-        """E1 / D13: the harness knows exactly the two production
-        bindings (2.0/FU2 ↔ 1.0.0, 2.1/FU3 ↔ 1.1.0); there is NO corpus
-        1.2.0 artifact and NO FU4 entry anywhere (the registration step
-        is separately gated — design §7.3)."""
+        """E1 / D13 (Q3-B5-P5 R2 re-pinned, recorded, design §1.7 / §5.1):
+        the harness knows exactly the THREE production bindings
+        (2.0/FU2 ↔ 1.0.0, 2.1/FU3 ↔ 1.1.0, 2.1/FU4 ↔ 1.2.0); the corpus
+        1.2.0 binding-only re-seal artifact exists and is sealed under
+        the FU4 binding (the separately gated registration step has
+        happened — this phase).
+
+        PREVIOUS assertion (contract phase through R1): the harness
+        knew exactly two bindings, there was NO corpus 1.2.0 artifact
+        and NO ``CORPUS_VERSION_2_1_FU4`` constant. NEW assertion (R2):
+        the seal registry gains EXACTLY the 2.1/FU4 -> 1.2.0 entry and
+        nothing else; ``KNOWN_PRODUCTION_BINDINGS`` is exactly the
+        three production bindings; the 1.2.0 artifact + fixtures
+        constant exist. The two historical seal entries are byte-
+        unchanged. The name and the anti-reinterpretation intent are
+        preserved and strengthened — the pin now asserts a STRICTLY
+        MORE exact registry state (exactly three, no more, no
+        cross-binding combination)."""
         from product_intelligence.evaluation.semantic_v2 import corpus as harness_corpus
         from product_intelligence.evaluation.semantic_v2 import fixtures as harness_fixtures
 
         assert harness_corpus.BINDING_CORPUS_VERSIONS == {
             V2_CONTRACT_BINDING: "1.0.0",
             ("V2", "2.1", 1, 1, AUTHORITY_CONTRACT_VERSION_V2_FU3): "1.1.0",
+            ("V2", "2.1", 1, 1, AUTHORITY_CONTRACT_VERSION_V2_FU4): "1.2.0",
         }
         assert harness_corpus.KNOWN_PRODUCTION_BINDINGS == frozenset(
             {
                 V2_CONTRACT_BINDING,
                 ("V2", "2.1", 1, 1, AUTHORITY_CONTRACT_VERSION_V2_FU3),
+                ("V2", "2.1", 1, 1, AUTHORITY_CONTRACT_VERSION_V2_FU4),
             }
         )
-        assert AUTHORITY_CONTRACT_VERSION_V2_FU4 not in {
-            binding[4] for binding in harness_corpus.KNOWN_PRODUCTION_BINDINGS
-        }
-        assert not hasattr(harness_fixtures, "CORPUS_VERSION_2_1_FU4")
+        # The V1 binding is NOT a harness seal (historical V1, codec /
+        # replay only - unchanged).
+        assert V1_CONTRACT_BINDING not in harness_corpus.BINDING_CORPUS_VERSIONS
+        # The fixtures constant + the committed 1.2.0 artifacts exist
+        # (the R2 deliverables; their content is pinned by the R2
+        # suite).
+        assert harness_fixtures.CORPUS_VERSION_2_1_FU4 == "1.2.0"
         for name in ("corpus_2_1_fu4.json", "manifest_2_1_fu4.json"):
-            assert not (
+            assert (
                 REPO_ROOT / "evaluation" / "semantic_v2_qualification" / name
-            ).exists(), f"{name} exists; corpus 1.2.0 is the separately " \
-                      "gated registration step, NOT the contract phase"
+            ).exists(), f"{name} is missing; the corpus 1.2.0 re-seal " \
+                        "is the R2 registration deliverable"
 
     def test_an_fu4_bound_payload_is_refused_by_production_replay(self) -> None:
         """A4 / E3 (Q3-B5-P5 R1 re-pinned, recorded, design §1.7): a
@@ -4891,18 +4908,22 @@ class TestD3CeilingInvariants:
 
 class TestE1ContractPhaseRegistries:
     def test_the_registries_are_exactly_as_frozen(self) -> None:
-        # A4 / E1 (Q3-B5-P5 R1 re-pinned, recorded, design §1.7): the
-        # production codec + replay registries, the live record pin, the
-        # harness registries, and the qualification marker.
+        # A4 / E1 (Q3-B5-P5 R1 re-pinned, recorded, design §1.7; R2
+        # re-pinned in place, recorded): the production codec + replay
+        # registries, the live record pin, the harness registries, and
+        # the qualification marker.
         #
         # PREVIOUS assertion (contract phase): the codec / replay union
         # was exactly (V1, 2.0/FU2).
-        # NEW assertion (R1): the union is exactly (V1, 2.0/FU2,
-        # 2.1/FU4) — the FU4 record / replay registration. The HARNESS
-        # registries, the committed 2.1 binding, and the qualification
-        # marker are still exactly as frozen (the harness extension is
-        # the separately gated R2 step; the name and intent are
-        # preserved, and the pin asserts a strictly more exact state).
+        # R1 assertion: the union is exactly (V1, 2.0/FU2, 2.1/FU4) —
+        # the FU4 record / replay registration.
+        # R2 assertion: the HARNESS registries are now the three-
+        # binding state as well (the separately gated R2 step has
+        # happened: the seal registry gains exactly 2.1/FU4 -> 1.2.0).
+        # The committed 2.1 binding (the FU3 constant) and the
+        # qualification marker are still exactly as frozen. The name
+        # and intent are preserved; the pin asserts a strictly more
+        # exact state.
         from product_intelligence.research import V2_FU4_CONTRACT_BINDING
 
         assert supported_contract_bindings() == (
@@ -4921,49 +4942,84 @@ class TestE1ContractPhaseRegistries:
             1,
             AUTHORITY_CONTRACT_VERSION_V2_FU3,
         )
+        # R2: the harness seal registry is exactly the three production
+        # bindings (2.0/FU2 -> 1.0.0, 2.1/FU3 -> 1.1.0, 2.1/FU4 ->
+        # 1.2.0); the historical two entries are unchanged.
+        from product_intelligence.evaluation.semantic_v2 import corpus as harness_corpus
+
+        assert harness_corpus.BINDING_CORPUS_VERSIONS == {
+            V2_CONTRACT_BINDING: "1.0.0",
+            V2_1_CONTRACT_BINDING: "1.1.0",
+            ("V2", "2.1", 1, 1, AUTHORITY_CONTRACT_VERSION_V2_FU4): "1.2.0",
+        }
 
     def test_the_committed_2_1_binding_is_still_the_fu3_one(self) -> None:
-        """The existing 2.1 binding byte-unchanged alongside (no FU4
-        successor binding exists at the contract phase — D13)."""
+        """The existing 2.1 binding is byte-unchanged alongside (R2
+        re-pinned, recorded): the FU3 binding constant keeps the
+        separately versioned FU3 token, and the module now ADDITIONALLY
+        owns the distinct FU4 successor binding constant (the semantic-
+        layer owner of the registration, design §4.5 / DEC-6) — a
+        separate constant, never a move of the committed 2.1 binding.
+
+        PREVIOUS assertion (contract phase through R1): the module
+        named no FU4 token value at all. NEW assertion (R2): the module
+        imports the separately versioned FU4 token (to compose the
+        successor constant) and owns exactly the two 2.1 binding
+        constants, the FU3 one unchanged and the FU4 one moving only
+        the authority axis. The name and the anti-mutation intent are
+        preserved and strengthened."""
         from product_intelligence.semantic import contract_v2_1
 
         assert (
             contract_v2_1.V2_1_CONTRACT_BINDING[4]
             == AUTHORITY_CONTRACT_VERSION_V2_FU3
         )
-        assert AUTHORITY_CONTRACT_VERSION_V2_FU4 not in getattr(
-            contract_v2_1, "__dict__", {}
-        ).values()
+        assert contract_v2_1.V2_1_CONTRACT_BINDING == (
+            "V2", "2.1", 1, 1, AUTHORITY_CONTRACT_VERSION_V2_FU3
+        )
+        assert contract_v2_1.V2_1_FU4_CONTRACT_BINDING == (
+            "V2", "2.1", 1, 1, AUTHORITY_CONTRACT_VERSION_V2_FU4
+        )
+        assert contract_v2_1.V2_1_FU4_CONTRACT_BINDING[:4] == (
+            contract_v2_1.V2_1_CONTRACT_BINDING[:4]
+        )
 
 
 class TestE2RegistrationStepNotExecuted:
     def test_no_binding_registration_happened_in_the_contract_phase(self) -> None:
-        """E2 (Q3-B5-P5 R1 re-pinned, recorded, design §1.7): the
-        CONTRACT phase registered nothing, and the HARNESS-level
-        registration (the R2 step) has NOT happened: no FU4 entry in
-        the harness seal registry; no corpus 1.2.0 artifact; no
-        CORPUS_VERSION_2_1_FU4 constant.
+        """E2 (Q3-B5-P5 R1 re-pinned, recorded, design §1.7; R2
+        re-pinned in place, recorded): the CONTRACT phase registered
+        nothing at any level.
 
         PREVIOUS assertion (contract phase): "no FU4 entry in any
         registry" — including the codec.
-        NEW assertion (R1): the record / replay-level registration (R1)
-        HAS happened — the codec + replay union is exactly (V1,
-        2.0/FU2, 2.1/FU4) (pinned by the companion A4 / E1 nodes) —
-        while the harness-level assertions below are UNCHANGED and
-        still hold (the harness seal / corpus 1.2.0 / fixtures constant
-        are the separately gated R2 deliverables). The name and intent
-        are preserved; the pin now separates the R1-registered state
-        from the R2-unregistered state."""
+        R1 assertion: the record / replay-level registration (R1) HAS
+        happened — the codec + replay union is exactly (V1, 2.0/FU2,
+        2.1/FU4) (pinned by the companion A4 / E1 nodes) — while the
+        harness-level assertions below were UNCHANGED and still held
+        (the harness seal / corpus 1.2.0 / fixtures constant were the
+        separately gated R2 deliverables).
+        NEW assertion (R2): the harness-level registration HAS
+        happened — the seal registry carries exactly the 2.1/FU4 ->
+        1.2.0 entry, the fixtures constant exists, and the committed
+        1.2.0 artifacts exist (their content is pinned by the R2
+        suite). The name is preserved; the pin now separates the
+        contract-phase state (nothing registered) from the completed
+        registration (record / replay in R1, harness in R2)."""
         from product_intelligence.evaluation.semantic_v2 import corpus as harness_corpus
         from product_intelligence.evaluation.semantic_v2 import fixtures as harness_fixtures
 
-        assert all(
-            binding[4] != AUTHORITY_CONTRACT_VERSION_V2_FU4
-            for binding in harness_corpus.BINDING_CORPUS_VERSIONS
-        )
-        assert not hasattr(harness_fixtures, "CORPUS_VERSION_2_1_FU4")
+        # The contract phase itself registered nothing: the only FU4
+        # entry in the seal registry is the R2 1.2.0 entry, and the
+        # two historical seals are exactly as committed.
+        assert harness_corpus.BINDING_CORPUS_VERSIONS == {
+            V2_CONTRACT_BINDING: "1.0.0",
+            ("V2", "2.1", 1, 1, AUTHORITY_CONTRACT_VERSION_V2_FU3): "1.1.0",
+            ("V2", "2.1", 1, 1, AUTHORITY_CONTRACT_VERSION_V2_FU4): "1.2.0",
+        }
+        assert harness_fixtures.CORPUS_VERSION_2_1_FU4 == "1.2.0"
         for name in ("corpus_2_1_fu4.json", "manifest_2_1_fu4.json"):
-            assert not (
+            assert (
                 REPO_ROOT / "evaluation" / "semantic_v2_qualification" / name
             ).exists()
 

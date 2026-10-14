@@ -9733,3 +9733,168 @@ domain +1, providers +1, runs +1, web +1] - 1 recorded A1 codec-pin
 row); skipped / xfailed / deselected 0 / 0 / 0; `manage.py check`
 clean; no model call, no capture, no deployment, no corpus change, no
 policy change.
+
+### 26.40 SEMANTIC-AUTHORITY-V2-Q3-B5-P5-R2: FU4 Offline
+Qualification Harness Integration
+
+**Context and status.** Bounded QUALIFICATION-LAYER phase (sub-phase
+R2 of the separately gated FU4 registration step, design §10.2) on
+the R1-FU1 endpoint (starting SHA
+`ac75f474f2515760a7eb9913807b075f6cf50d1a`; baseline collection
+7545), executing the CONDITIONALLY APPROVED Q3-B5-P5 design
+(`docs/PRODUCT_INTEL_Q3B5_P5_FU4_BINDING_REPLAY_QUALIFICATION_DESIGN.
+md`). R2 makes the approved FU4 authority binding a RECOGNIZED,
+digest-sealed, independently identifiable member of the versioned
+offline Semantic V2 qualification harness: the semantic-layer
+binding constant, the corpus 1.2.0 binding-only re-seal, the
+harness registry extension, and the committed 1.2.0 no-capture
+baselines. This is the P3 design §7.3 deliverable completed across
+R1 + R2. **It does NOT qualify FU4 for production:** the binding
+begins POLICY_PENDING / AUTHORITY_NOT_QUALIFIED; no production
+eligibility, no automatic pricing eligibility, no capture, no
+model call, no live execution, no pricing, no deployment.
+Collection 7545 -> 7568.
+
+**Delivered.** (1) MODIFIED `semantic/contract_v2_1.py` — the
+semantic-layer owner of the FU4 successor binding constant
+`V2_1_FU4_CONTRACT_BINDING = ("V2","2.1",1,1,
+"SEMANTIC_AUTHORITY_V2_S2A_FU4")` (DEC-6; composed from the frozen
+exports, no literal token in source; import-self-checked to move
+ONLY the authority axis relative to the existing 2.1/FU3 binding;
+the FU3 constant byte-unchanged). The R1 research record
+adapter's mirror is drift-pinned against this owner by test. (2)
+MODIFIED `evaluation/semantic_v2/fixtures.py` — `CORPUS_VERSION_
+2_1_FU4 = "1.2.0"` + `build_corpus_2_1_fu4_document()` (the 1.1.0
+P1 precedent executed verbatim: every per-case document byte-
+identical to 1.1.0, `label_revisions` empty, exactly
+`{corpus_version, semantic_contract_binding, corpus_digest}`
+moved) + the manifest's two additive keys for the FU4-sealed
+corpus only (`statement` = the required binding-registration /
+semantic-compatibility record; `lineage` = the explicit 1.1.0
+derivation anchor — manifest schema stays 1; the committed 1.0.0 /
+1.1.0 manifests do not gain the keys). (3) MODIFIED `evaluation/
+semantic_v2/corpus.py` — the third `BINDING_CORPUS_VERSIONS` entry
+(2.1/FU4 -> 1.2.0); `KNOWN_PRODUCTION_BINDINGS` = exactly the three
+production bindings (drift-pinned, no literal copies); the
+mirrored manifest builder. (4) MODIFIED `evaluation/semantic_v2/
+gates.py` — the `zero_contract_version_mismatch` detail-text
+branch for the third binding; the eight gate names / order / fail-
+closed semantics unchanged; the 2.0 and 2.1/FU3 detail texts stay
+byte-identical (proven against the committed historical
+baselines). (5) MODIFIED `evaluation/semantic_v2/report.py` — the
+`_contract_section` third-binding branch (the FU4 binding + the
+REAL 2.1 system-prompt digest `e2949e75…` + the runtime config
+identity with `v2_authority_qualified: false`); the report schema
+unchanged. (6) MODIFIED `evaluation/semantic_v2/cli.py` — the
+corpus-build 1.2.0 generation (regenerating from the source
+reproduces ALL committed corpus artifacts byte-for-byte — the
+historical four included). (7) NEW `evaluation/semantic_v2_
+qualification/corpus_2_1_fu4.json` (corpus digest `582b35bbee9395
+9eaa5a598fa579cd99229e550e37f3c6cd970f7774ed9d1b91`) +
+`manifest_2_1_fu4.json` (manifest digest `972ba35428d1dfc0a4b07d2
+027d9186577cf398a3ba4dc96dc61865b9843d8d7`). (8) NEW
+`evaluation/semantic_v2_qualification/reports/q3b5_p5_baseline_1_
+2_0/` — the four committed no-capture baseline reports for both
+pinned route candidates (POLICY_PENDING; `granted: false`;
+`v2_authority_qualified: false`; `verify_report` binds them to the
+1.2.0 corpus and refuses the 1.0.0 / 1.1.0 corpora, and the
+historical baselines refuse the 1.2.0 corpus — the cross-lineage
+matrix). (9) NEW `tests/evaluation/semantic_v2/test_q3b5_p5_fu4_
+registration.py` — 29 nodes implementing the mandated §9.2 matrix
+over the REAL public harness interfaces + the REAL R1 record /
+replay entry points (the four-binding registry / seal
+distinction; the 1.2.0 re-seal field-by-field verification +
+digest / manifest integrity + byte-for-byte regeneration; the
+wrong-digest / wrong-binding / unknown-token / cross-version
+substitution rejections; the no-capture evaluation + committed-
+baseline reproduction; invalid 2.1 output failing closed on the
+zero-schema-bypass gate; primary / fallback provenance
+independence; wrong provider / model refusal; zero-live socket-
+blocked no-capture / replay / historical V2 replay; qualification
+cannot set production authority flags — the hypothetical full
+pass stays POLICY_PENDING with the DRAFT policy; the authority-
+isolation rows: the FU4 bundle states governed by the R1
+derivation + replay, never by the corpus semantic labels, over
+EVERY committed 1.2.0 case; count-only bundle never automatic
+comparable; missing completeness attestation never PROVEN;
+tampered extraction evidence refused; `NEEDS_REVIEW` never
+pricing-eligible; `V2_AUTHORITY_QUALIFIED` False everywhere; no
+live runtime references the FU4 qualification harness; frozen FU2
+/ FU3 replay behavior unchanged; historical reports interpretable;
+the eight gate names / order / semantics unchanged). (10)
+RECORDED in-place test corrections (design §1.7 + two mechanical
+discoveries of the same category beyond the design's inventory —
+none weakens a safety property; each pins a strictly more exact
+state): `test_semantic_authority_v2_fu4.py` (A1: the six R2-OWNED
+files — contract_v2_1.py / corpus.py / fixtures.py / gates.py /
+report.py / cli.py — are excluded from the frozen-input pin table,
+17 -> 11 parameterized rows, the recorded consequence of design
+§10.2; A4 harness-registry node re-pinned to the exact three-
+binding seal state; E1 registry node's harness portion + the
+"committed 2.1 binding is still the FU3 one" node re-pinned (the
+module now owns the distinct FU4 successor constant); E2 node
+re-pinned to the completed registration); `test_q3b5_p1_binding_
+replay.py` (the 2.1 drift-pin node's `KNOWN_PRODUCTION_BINDINGS`
+assertion moves to the exact three-binding set); `test_q3b5_p1_
+corpus_2_1.py` (MECHANICAL DISCOVERY — the design's §1.7 "verified
+by inspection" inventory missed this node: `test_the_known_
+bindings_map_is_exact` moves to the exact three-entry / three-set
+state); `test_semantic_decision_v2_fu4.py` (MECHANICAL DISCOVERY,
+R1's own suite — the qualification-marker node's trailing harness
+assertion moves from "exactly two bindings, no 1.2.0 artifact" to
+the exact three-entry seal registry + the committed artifacts). No
+other test deleted, renamed, skipped, xfailed, deselected,
+ignored, or weakened; the R1-FU1 codec SHA-256 content pin
+(`c0cef216…`) preserved and passing; the Windows subprocess flake
+allowlist NOT expanded.
+
+**Frozen (byte-pinned at the starting SHA).** The R1 codec /
+replay / adapter modules (the codec's R1-endpoint digest
+`c0cef216…` stands — the production codec is byte-identical);
+`capture.py` / `direct_capture.py` / `policy.py` / `evaluator.py`
+(the prompt-axis capture mechanism and the metric surface are
+binding-count-agnostic — verified, not modified); the frozen FU2 /
+FU3 / FU4 research modules; the extraction module; `semantic_v2.
+py`; the V1 / V2 adapters + record types; the envelope
+foundation; `contract_v2.py` / `runtime_v2.py` (the live runtime
+stays on the frozen 2.0 / FU2 record); the Prompt 2.0 / 2.1
+texts (digests `c0cc98bd…` / `e2949e75…` stand); the committed
+1.0.0 / 1.1.0 corpus + manifest artifacts (file digests
+`ffb407b3…` / `caa5d76f…` / `6f5254c8…` / `f37956e4…`); the
+DRAFT policy (`6bc30d37…`, 1.0.0-scoped — NOT copied into FU4, no
+1.2.0 policy exists).
+
+**Authority / pricing firewall.** `V2_AUTHORITY_QUALIFIED` False
+in both pinned locations + the FU4 adapter's mirror (the 1.2.0
+baselines record it False); the live record type still pins 2.0 /
+FU2; no live module references the FU4 qualification harness (the
+new R2 reachability node) or the FU4 record surface (the R1 guard
+stands); the pricing-eligible tier set unchanged, `NEEDS_REVIEW`
+never pricing-eligible; over every committed 1.2.0 case the FU4
+no-capture arithmetic derives CONTRADICTED (0032 / 0033 / 0034,
+the form axis) or UNPROVEN (the 40 UNAVAILABLE channels, frozen
+delegation) — no case derives PROVEN, no ceiling lifted; the
+corpus semantic labels are never an input to the unit derivation
+(signature-pinned); `NEEDS_REVIEW` / `V2_AUTHORITY_QUALIFIED`
+stand. The remaining Bundle-specific qualification gap is
+explicit: a future separately approved phase must establish the
+FU4 authority qualification cases + an APPROVED 1.2.0-scoped
+policy (design §5.6 / O-2), the live 2.1/FU4 execution decision +
+the W1 atomic consumer guard (O-3), and the model capture over
+1.2.0 (O-4). Corpus 1.2.0 is a binding-registration and semantic-
+compatibility corpus (stated in the 1.2.0 manifest inside the
+manifest digest); it does not independently qualify the FU4
+Bundle composition authority.
+
+**Acceptance.** The §9.2 matrix passes as NEW nodes; the full
+historical suites pass (the 217-node FU4 contract suite modulo the
+§1.7 re-pins; the 98-node FU3 suite; the 111 + 7 extraction
+suites; the R1 38-node suite; the codec / replay / V2 / record /
+boundaries suites; the P1 binding-replay + corpus-2.1 suites
+modulo the recorded nodes; the 49-node 2.1 contract suite);
+collection 7545 -> 7568 (+29 new-file nodes - 6 the recorded A1
+re-pin rows; node-level diff against the starting SHA: 0 other
+nodes removed / 0 renamed); skipped / xfailed / deselected 0 / 0 /
+0; `manage.py check` clean; `makemigrations --check --dry-run`
+clean; no model call, no capture, no deployment, no corpus LABEL
+change, no threshold / policy change, no authority activation.

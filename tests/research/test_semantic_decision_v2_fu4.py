@@ -692,17 +692,34 @@ class TestA1RegistrationState:
         assert sdv2.SEMANTIC_V2_ADAPTER.supported_bindings == (
             V2_CONTRACT_BINDING,
         )
-        # The harness remains R2's surface: exactly two production
-        # bindings, no 1.2.0 artifact.
+        # Q3-B5-P5 R2 (re-pinned, recorded): the PREVIOUS assertion
+        # pinned that the harness was still R2's surface — exactly two
+        # production bindings, no 1.2.0 artifact. The design's §1.7
+        # inventory did not list this node (this suite is R1's own). The
+        # NEW assertion pins the strictly more exact post-R2 state:
+        # the harness seal registry is exactly the three production
+        # bindings (2.0/FU2 -> 1.0.0, 2.1/FU3 -> 1.1.0, 2.1/FU4 ->
+        # 1.2.0) and the fixtures constant + committed 1.2.0 artifacts
+        # exist (their content is pinned by the R2 suite). The marker
+        # pins above are unchanged; the name and intent are preserved
+        # and strengthened.
         from product_intelligence.evaluation.semantic_v2 import (
             corpus as harness_corpus,
         )
         from product_intelligence.evaluation.semantic_v2 import (
             fixtures as harness_fixtures,
         )
+        from product_intelligence.semantic.contract_v2_1 import (
+            V2_1_CONTRACT_BINDING,
+            V2_1_FU4_CONTRACT_BINDING,
+        )
 
-        assert len(harness_corpus.BINDING_CORPUS_VERSIONS) == 2
-        assert not hasattr(harness_fixtures, "CORPUS_VERSION_2_1_FU4")
+        assert harness_corpus.BINDING_CORPUS_VERSIONS == {
+            V2_CONTRACT_BINDING: "1.0.0",
+            V2_1_CONTRACT_BINDING: "1.1.0",
+            V2_1_FU4_CONTRACT_BINDING: "1.2.0",
+        }
+        assert harness_fixtures.CORPUS_VERSION_2_1_FU4 == "1.2.0"
 
     def _imported_modules(self, path: Path) -> set[str]:
         modules: set[str] = set()

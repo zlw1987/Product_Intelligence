@@ -86,17 +86,21 @@ from product_intelligence.research.semantic_v2 import (
 )
 from product_intelligence.semantic.contract_v2_1 import (
     V2_1_CONTRACT_BINDING,
+    V2_1_FU4_CONTRACT_BINDING,
 )
 
 __all__ = [
     "CASES",
+    "CORPUS_2_1_CORPUS_DIGEST",
     "CORPUS_CREATED_UTC",
     "CORPUS_ID",
     "CORPUS_LABEL",
     "CORPUS_VERSION",
     "CORPUS_VERSION_2_1",
+    "CORPUS_VERSION_2_1_FU4",
     "MICRON_CATALOG_FIXTURE_BODY_SHA256",
     "build_corpus_2_1_document",
+    "build_corpus_2_1_fu4_document",
     "build_corpus_document",
     "build_corpus_state",
     "build_manifest_document",
@@ -121,6 +125,32 @@ CORPUS_LABEL: Final[str] = "q3a-independent-v2-qualification"
 #: over the re-sealed state. ``label_revisions`` stays empty - no
 #: label moved.
 CORPUS_VERSION_2_1: Final[str] = "1.1.0"
+
+#: The corpus digest of the sealed 1.1.0 document (RECORDED, never
+#: recomputed here; the 1.1.0 artifact is byte-frozen and digest-
+#: pinned by the FU4 suite's A1 table). It is the lineage anchor of
+#: the 1.2.0 re-seal's manifest (Q3-B5-P5 R2): the 1.2.0 manifest
+#: records exactly which sealed document it derives from.
+CORPUS_2_1_CORPUS_DIGEST: Final[str] = (
+    "14396eae884841e20063cb4da0d4424ce8f05ff8745f2c787fc395d250ea8dcd"
+)
+
+#: The corpus version sealed under the separately versioned 2.1 FU4
+#: contract binding (Q3-B5-P5 R2, the gated FU4 registration step,
+#: design section 5.1 / DEC-3). The 1.2.0 document is a BINDING-ONLY
+#: re-seal of the sealed 1.1.0 document: every per-case document
+#: (payload, expected outcome, label, challenge metadata, and the
+#: sealed per-case ``case_digest``) is byte-identical to 1.1.0; only
+#: the authorized contract binding / version metadata moves
+#: (``corpus_version``, ``semantic_contract_binding``) and the corpus
+#: digest is recomputed over the re-sealed state. ``label_revisions``
+#: stays empty - no label moved. Corpus 1.2.0 is a binding-
+#: registration and semantic-compatibility corpus: it does NOT
+#: independently qualify the FU4 bundle-composition authority (the
+#: FU4 PROVEN path is exercised at the research / record level only;
+#: a future separately approved phase establishes the
+#: bundle-specific authority qualification cases).
+CORPUS_VERSION_2_1_FU4: Final[str] = "1.2.0"
 
 #: The declared creation instant of corpus 1.0.0 (deterministic constant;
 #: the corpus is a versioned artifact, not a runtime observation).
@@ -2967,6 +2997,46 @@ def build_corpus_2_1_document() -> dict[str, Any]:
     return doc
 
 
+def build_corpus_2_1_fu4_document() -> dict[str, Any]:
+    """The corpus 1.2.0 BINDING-ONLY re-seal (Q3-B5-P5 R2).
+
+    Derived from the sealed 1.1.0 document by moving EXACTLY the
+    authorized contract binding / version metadata (the P1 1.1.0
+    precedent, design section 5.1 / DEC-3):
+
+    * ``corpus_version`` -> ``1.2.0``;
+    * ``semantic_contract_binding`` -> the separately versioned 2.1
+      FU4 binding (the semantic layer's 2.1 owner constant, design
+      section 4.5 / DEC-6);
+    * ``corpus_digest`` -> recomputed over the re-sealed state.
+
+    Every per-case document - payload, expected outcome, label,
+    challenge metadata, and the sealed per-case ``case_digest`` - is
+    byte-identical to 1.1.0 (which is itself byte-identical to 1.0.0
+    per-case), and ``label_revisions`` stays empty. All three versions
+    coexist; 1.0.0 and 1.1.0 remain bound to their own bindings for
+    historical evidence. Regenerating from the source must reproduce
+    the committed re-seal byte-for-byte (proven by test).
+
+    The re-seal registers the FU4 binding for qualification
+    infrastructure ONLY: it adds no case, moves no label, and does
+    not independently qualify the FU4 bundle-composition authority
+    (that statement is carried in the 1.2.0 manifest's ``statement``
+    key, recorded inside the manifest digest).
+    """
+    base = build_corpus_2_1_document()
+    state = {
+        k: v
+        for k, v in base.items()
+        if k not in ("label_revisions", "corpus_digest")
+    }
+    state["corpus_version"] = CORPUS_VERSION_2_1_FU4
+    state["semantic_contract_binding"] = list(V2_1_FU4_CONTRACT_BINDING)
+    doc = {**state, "label_revisions": []}
+    doc["corpus_digest"] = canonical_sha256(state)
+    return doc
+
+
 def build_manifest_document(
     corpus_document: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
@@ -2994,6 +3064,26 @@ def build_manifest_document(
         "case_count": len(cases),
         "cases": cases,
     }
+    # Q3-B5-P5 R2 (additive, recorded): the manifest of the corpus
+    # 1.2.0 re-seal carries EXACTLY two additive top-level keys - the
+    # required binding-registration statement and the explicit
+    # lineage from the sealed 1.1.0 document (manifest schema stays
+    # 1; the committed 1.0.0 / 1.1.0 manifests do not gain the keys
+    # and remain byte-identical). Both keys are inside the manifest
+    # digest; a tampered statement or lineage is an integrity error.
+    if (
+        list(doc["semantic_contract_binding"])
+        == list(V2_1_FU4_CONTRACT_BINDING)
+    ):
+        state["statement"] = (
+            "Corpus 1.2.0 is a binding-registration and "
+            "semantic-compatibility corpus. It does not independently "
+            "qualify FU4 Bundle composition authority."
+        )
+        state["lineage"] = {
+            "derived_from_corpus_version": CORPUS_VERSION_2_1,
+            "derived_from_corpus_digest": CORPUS_2_1_CORPUS_DIGEST,
+        }
     state["manifest_digest"] = canonical_sha256(state)
     return state
 

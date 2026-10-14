@@ -133,8 +133,33 @@ class TestBindingDriftPins:
         assert V2_1_CONTRACT_BINDING[4] == fu3.AUTHORITY_CONTRACT_VERSION_V2_FU3
         assert PROMPT_VERSION_V2_1 == SEMANTIC_PROMPT_VERSION_V2_1 == "2.1"
         assert PROMPT_VERSION_V2 == SEMANTIC_PROMPT_VERSION_V2 == "2.0"
+        # Q3-B5-P5 R2 (re-pinned, recorded, design §1.7 / §10.2): the
+        # PREVIOUS assertion pinned that the harness knew exactly the
+        # two production bindings (2.0/FU2, 2.1/FU3). The NEW assertion
+        # pins the strictly more exact post-R2 state: the harness
+        # knows exactly the THREE production bindings — the separately
+        # versioned 2.1 FU4 binding (the semantic layer's 2.1 owner
+        # constant, design §4.5 / DEC-6) is the only addition, sealed
+        # to corpus 1.2.0. The name and the drift-pin intent are
+        # preserved and strengthened.
+        from product_intelligence.semantic.contract_v2_1 import (
+            V2_1_FU4_CONTRACT_BINDING,
+        )
+
+        assert V2_1_FU4_CONTRACT_BINDING == (
+            "V2",
+            "2.1",
+            1,
+            1,
+            "SEMANTIC_AUTHORITY_V2_S2A_FU4",
+        )
+        assert V2_1_FU4_CONTRACT_BINDING[:4] == V2_1_CONTRACT_BINDING[:4]
         assert KNOWN_PRODUCTION_BINDINGS == frozenset(
-            {tuple(V2_CONTRACT_BINDING), tuple(V2_1_CONTRACT_BINDING)}
+            {
+                tuple(V2_CONTRACT_BINDING),
+                tuple(V2_1_CONTRACT_BINDING),
+                tuple(V2_1_FU4_CONTRACT_BINDING),
+            }
         )
         assert DIRECT_KNOWN_PROMPT_VERSIONS == frozenset(
             {"2.0", "2.1"}

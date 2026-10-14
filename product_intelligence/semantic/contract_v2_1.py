@@ -68,6 +68,21 @@ What this module deliberately is NOT:
 This module is the semantic layer's Prompt 2.1 owner. It imports the
 pure V2 input contract (research) and the frozen 2.0 prompt builder
 surface; it imports no transport.
+
+Q3-B5-P5 R2 (the separately gated FU4 registration step, design
+section 4.5 / DEC-6): this module additionally owns the 2.1 FU4
+successor binding constant ``V2_1_FU4_CONTRACT_BINDING`` — the exact
+five-axis identity of the FU4 qualification / record lineage (prompt
+2.1 + the separately versioned FU4 authority token; only the
+authority axis moves relative to the existing 2.1 binding). The
+constant is composed from the frozen exports (no literal token in
+source; import-self-checked); the research record adapter's mirror
+and the harness seal registry are drift-pinned against it by test.
+Registering the binding is NOT a qualification: every qualification
+marker stays False, the live runtime stays on the frozen 2.0 / FU2
+record, and corpus 1.2.0 (the seal of this binding) is a
+binding-registration and semantic-compatibility corpus that does not
+independently qualify the FU4 bundle-composition authority.
 """
 
 from __future__ import annotations
@@ -78,6 +93,7 @@ from typing import Final
 from product_intelligence.research import (
     AUTHORITY_CONTRACT_VERSION_V2,
     AUTHORITY_CONTRACT_VERSION_V2_FU3,
+    AUTHORITY_CONTRACT_VERSION_V2_FU4,
     SEMANTIC_CONTRACT_VERSION_V2,
     SEMANTIC_INPUT_SCHEMA_VERSION_V2,
     SEMANTIC_OUTPUT_SCHEMA_VERSION_V2,
@@ -94,6 +110,7 @@ __all__ = [
     "SYSTEM_PROMPT_V2_1",
     "SemanticPromptV2_1",
     "V2_1_CONTRACT_BINDING",
+    "V2_1_FU4_CONTRACT_BINDING",
     "build_semantic_prompt_v2_1",
     "render_v2_1_user_prompt",
 ]
@@ -124,6 +141,36 @@ the separately versioned FU3 token (the frozen S2-A-FU2 token is
 unchanged and still owns every 2.0 record). No literal token string
 appears in this source: the axes are composed from the research
 package's frozen exports, drift-pinned by test."""
+
+
+V2_1_FU4_CONTRACT_BINDING: Final[tuple[str, str, int, int, str]] = (
+    SEMANTIC_CONTRACT_VERSION_V2,
+    SEMANTIC_PROMPT_VERSION_V2_1,
+    SEMANTIC_INPUT_SCHEMA_VERSION_V2,
+    SEMANTIC_OUTPUT_SCHEMA_VERSION_V2,
+    AUTHORITY_CONTRACT_VERSION_V2_FU4,
+)
+"""The immutable 2.1 successor contract identity under the separately
+versioned FU4 authority contract (Q3-B5-P5 R2 — the semantic-layer
+binding constant of the gated FU4 registration step, design section
+4.5 / DEC-6). Axis by axis: semantic contract V2 (unchanged), prompt
+2.1 (unchanged — the same frozen 2.1 text, which names no authority
+token), input schema 1 (unchanged), output schema 1 (unchanged),
+authority contract = the separately versioned FU4 token (the ONLY
+axis that moves relative to ``V2_1_CONTRACT_BINDING`` — the existing
+2.1 binding is NOT reused for changed authority semantics, and no
+new prompt version exists: a 2.2 would be a phantom version). No
+literal token string appears in this source: the axes are composed
+from the research package's frozen exports, drift-pinned by test.
+
+This constant is the record / corpus / harness identity of the FU4
+lineage: the corpus 1.2.0 seal, the harness binding registry, the
+1.2.0 no-capture baselines, and the research record adapter's mirror
+constant (drift-pinned against this owner by test) all name exactly
+this tuple. Defining the constant registers NOTHING by itself: no
+codec / replay change, no corpus label change, no qualification, no
+live wiring.
+"""
 
 
 SYSTEM_PROMPT_V2_1: Final[str] = """You are a product commercial-equivalence evaluation assistant.
@@ -388,4 +435,42 @@ if AUTHORITY_CONTRACT_VERSION_V2_FU3 == AUTHORITY_CONTRACT_VERSION_V2:
     raise RuntimeError(
         "the 2.1 binding's authority token must be the separately "
         "versioned FU3 token, not the frozen 2.0 token"
+    )
+
+# ---------------------------------------------------------------------------
+# Q3-B5-P5 R2 (design section 4.5 / DEC-6): the 2.1 FU4 successor
+# binding is composed from the frozen exports and import-self-checked
+# to move ONLY the authority axis relative to the existing 2.1 binding
+# (the P1 self-check pattern, extended to the separately versioned FU4
+# token). Registering the binding is NOT a qualification: every
+# marker stays False and the live runtime stays on the frozen 2.0 / FU2
+# record.
+# ---------------------------------------------------------------------------
+if V2_1_FU4_CONTRACT_BINDING != (
+    SEMANTIC_CONTRACT_VERSION_V2,
+    SEMANTIC_PROMPT_VERSION_V2_1,
+    SEMANTIC_INPUT_SCHEMA_VERSION_V2,
+    SEMANTIC_OUTPUT_SCHEMA_VERSION_V2,
+    AUTHORITY_CONTRACT_VERSION_V2_FU4,
+):
+    raise RuntimeError(
+        "the 2.1 FU4 binding is inconsistent with its axis constants "
+        "(the binding is composed from the frozen exports, never "
+        "from literals)"
+    )
+if V2_1_FU4_CONTRACT_BINDING[:4] != V2_1_CONTRACT_BINDING[:4]:
+    raise RuntimeError(
+        "the 2.1 FU4 binding must move ONLY the authority axis "
+        "(the separately versioned FU4 token) relative to the existing "
+        "2.1 binding; the semantic contract, prompt, input schema, and "
+        "output schema axes are unchanged (no phantom prompt version)"
+    )
+if AUTHORITY_CONTRACT_VERSION_V2_FU4 in (
+    AUTHORITY_CONTRACT_VERSION_V2,
+    AUTHORITY_CONTRACT_VERSION_V2_FU3,
+):
+    raise RuntimeError(
+        "the 2.1 FU4 binding's authority token must be the separately "
+        "versioned FU4 token, distinct from the frozen FU2 token and "
+        "the separately versioned FU3 token"
     )

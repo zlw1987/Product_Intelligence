@@ -63,9 +63,11 @@ from product_intelligence.evaluation.semantic_v2.fixtures import (
     CASE_CLASSES,
     CHALLENGE_TAGS,
     CONFLICT_CLASSES,
+    CORPUS_2_1_CORPUS_DIGEST,
     CORPUS_ID,
     CORPUS_VERSION,
     CORPUS_VERSION_2_1,
+    CORPUS_VERSION_2_1_FU4,
     DECISIONS,
     EVIDENCE_KINDS,
     FORBIDDEN_EVIDENCE_TOKENS,
@@ -92,6 +94,7 @@ from product_intelligence.research.semantic_v2 import (
 )
 from product_intelligence.semantic.contract_v2_1 import (
     V2_1_CONTRACT_BINDING,
+    V2_1_FU4_CONTRACT_BINDING,
 )
 
 __all__ = [
@@ -123,14 +126,18 @@ corpus versions are never best-effort interpreted)."""
 #: is sealed under (Q3-B5-P1: the corpus versions coexist, each bound
 #: to its own production binding - 1.0.0 to the frozen 2.0 binding for
 #: historical evidence, 1.1.0 to the separately versioned 2.1 binding
-#: with the separately versioned FU3 authority token). A corpus
-#: document's binding must be one of these EXACTLY, and its declared
-#: corpus version must be the version sealed under that binding; any
-#: other combination fails closed (a version move is never a silent
-#: reinterpretation).
+#: with the separately versioned FU3 authority token; Q3-B5-P5 R2: the
+#: corpus versions coexist, each bound to its own production binding -
+#: 1.2.0 to the separately versioned 2.1 FU4 binding, the
+#: binding-registration and semantic-compatibility corpus of the gated
+#: FU4 registration step). A corpus document's binding must be one of
+#: these EXACTLY, and its declared corpus version must be the version
+#: sealed under that binding; any other combination fails closed (a
+#: version move is never a silent reinterpretation).
 BINDING_CORPUS_VERSIONS: Final[dict[tuple[str, str, int, int, str], str]] = {
     tuple(V2_CONTRACT_BINDING): CORPUS_VERSION,
     tuple(V2_1_CONTRACT_BINDING): CORPUS_VERSION_2_1,
+    tuple(V2_1_FU4_CONTRACT_BINDING): CORPUS_VERSION_2_1_FU4,
 }
 
 #: The known production bindings (the harness qualifies exactly these;
@@ -1340,6 +1347,26 @@ def build_manifest_document(document: dict[str, Any]) -> dict[str, Any]:
         "case_count": len(cases),
         "cases": cases,
     }
+    # Q3-B5-P5 R2 (additive, recorded): the manifest of the corpus
+    # 1.2.0 re-seal carries EXACTLY two additive top-level keys - the
+    # required binding-registration statement and the explicit
+    # lineage from the sealed 1.1.0 document (manifest schema stays
+    # 1; the committed 1.0.0 / 1.1.0 manifests do not gain the keys
+    # and remain byte-identical). Both keys are inside the manifest
+    # digest; a tampered statement or lineage is an integrity error.
+    if (
+        list(document["semantic_contract_binding"])
+        == list(V2_1_FU4_CONTRACT_BINDING)
+    ):
+        state["statement"] = (
+            "Corpus 1.2.0 is a binding-registration and "
+            "semantic-compatibility corpus. It does not independently "
+            "qualify FU4 Bundle composition authority."
+        )
+        state["lineage"] = {
+            "derived_from_corpus_version": CORPUS_VERSION_2_1,
+            "derived_from_corpus_digest": CORPUS_2_1_CORPUS_DIGEST,
+        }
     state["manifest_digest"] = canonical_sha256(state)
     return state
 

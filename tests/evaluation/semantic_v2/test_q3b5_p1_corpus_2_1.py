@@ -226,15 +226,30 @@ class TestBindingOnlyInvariance:
     def test_the_known_bindings_map_is_exact(
         self, corpus_2_0, corpus_2_1
     ) -> None:
+        # Q3-B5-P5 R2 (re-pinned, recorded): the PREVIOUS assertion
+        # pinned the two-entry seal registry (2.0/FU2 -> 1.0.0,
+        # 2.1/FU3 -> 1.1.0) — the design's §1.7 inventory did not list
+        # this node (verified by inspection of four suites at design
+        # time; this suite was not among them). The NEW assertion pins
+        # the strictly more exact post-R2 state: the seal registry
+        # gains EXACTLY the 2.1/FU4 -> 1.2.0 entry and nothing else;
+        # the two historical entries are byte-unchanged. The name and
+        # the exactness intent are preserved and strengthened.
+        from product_intelligence.semantic.contract_v2_1 import (
+            V2_1_FU4_CONTRACT_BINDING,
+        )
+
         assert KNOWN_PRODUCTION_BINDINGS == frozenset(
             {
                 tuple(V2_CONTRACT_BINDING),
                 tuple(V2_1_CONTRACT_BINDING),
+                tuple(V2_1_FU4_CONTRACT_BINDING),
             }
         )
         assert BINDING_CORPUS_VERSIONS == {
             tuple(V2_CONTRACT_BINDING): CORPUS_VERSION,
             tuple(V2_1_CONTRACT_BINDING): CORPUS_VERSION_2_1,
+            tuple(V2_1_FU4_CONTRACT_BINDING): "1.2.0",
         }
 
     def test_both_versions_load_against_their_own_bindings(

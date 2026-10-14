@@ -36,6 +36,7 @@ from typing import Any, Final
 
 from product_intelligence.research import (
     AUTHORITY_CONTRACT_VERSION_V2_FU3,
+    AUTHORITY_CONTRACT_VERSION_V2_FU4,
     V2_CONTRACT_BINDING,
 )
 from product_intelligence.evaluation.semantic_v2.corpus import (
@@ -47,6 +48,10 @@ from product_intelligence.evaluation.semantic_v2.evaluator import (
 from product_intelligence.evaluation.semantic_v2.policy import (
     PolicyDocument,
     policy_applies_to,
+)
+from product_intelligence.semantic.contract_v2_1 import (
+    V2_1_CONTRACT_BINDING,
+    V2_1_FU4_CONTRACT_BINDING,
 )
 
 __all__ = [
@@ -165,17 +170,27 @@ def evaluate_safety_gates(result: EvaluationResult) -> dict[str, GateResult]:
     # detail text is byte-identical to the pre-2.1 gate); in the 2.1
     # context it pins the separately versioned 2.1 production binding
     # (the separately versioned FU3 authority token) - the only
-    # allowed delta. The eight gate names and their fail-closed
-    # semantics are unchanged.
+    # allowed delta. Q3-B5-P5 R2: the third known production binding
+    # (the separately versioned 2.1 FU4 binding) gains its own detail
+    # branch (prompt 2.1, the separately versioned FU4 authority
+    # token); the 2.0 and 2.1/FU3 detail texts stay byte-identical.
+    # The eight gate names and their fail-closed semantics are
+    # unchanged.
     binding_key = tuple(result.semantic_contract_binding)
     binding_ok = binding_key in KNOWN_PRODUCTION_BINDINGS
     if binding_key == tuple(V2_CONTRACT_BINDING):
         binding_detail = "corpus binds to the exact frozen production contract"
-    elif binding_key in KNOWN_PRODUCTION_BINDINGS:
+    elif binding_key == tuple(V2_1_CONTRACT_BINDING):
         binding_detail = (
             f"corpus binds to the exact 2.1 production contract "
             f"(prompt {result.semantic_contract_binding[1]}, "
             f"authority {AUTHORITY_CONTRACT_VERSION_V2_FU3})"
+        )
+    elif binding_key == tuple(V2_1_FU4_CONTRACT_BINDING):
+        binding_detail = (
+            f"corpus binds to the exact 2.1 production contract "
+            f"(prompt {result.semantic_contract_binding[1]}, "
+            f"authority {AUTHORITY_CONTRACT_VERSION_V2_FU4})"
         )
     else:
         binding_detail = (

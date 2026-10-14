@@ -10,9 +10,11 @@ The report binds to the EXACT identity of everything it evaluates:
   frozen 2.0 binding - semantic contract V2, prompt 2.0, input /
   output schema 1, authority contract SEMANTIC_AUTHORITY_V2_S2A_FU2
   - or, for the corpus 1.1.0 re-seal, the separately versioned 2.1
-  binding with the separately versioned FU3 authority token; the
-  two bindings are never mixed, and a report is only verifiable
-  against the corpus version it was produced from);
+  binding with the separately versioned FU3 authority token - or,
+  for the corpus 1.2.0 re-seal (Q3-B5-P5 R2), the separately
+  versioned 2.1 binding with the separately versioned FU4 authority
+  token; the bindings are never mixed, and a report is only
+  verifiable against the corpus version it was produced from);
 * the production system prompt (by digest of the REAL prompt text for
   the bound prompt version — the harness renders with the real
   builders, it never carries a copy);
@@ -44,6 +46,7 @@ from product_intelligence.research import (
     SEMANTIC_OUTPUT_SCHEMA_VERSION_V2,
     AUTHORITY_CONTRACT_VERSION_V2,
     AUTHORITY_CONTRACT_VERSION_V2_FU3,
+    AUTHORITY_CONTRACT_VERSION_V2_FU4,
     V2_AUTHORITY_QUALIFIED,
     V2_CONTRACT_BINDING,
 )
@@ -55,6 +58,7 @@ from product_intelligence.semantic.contract_v2_1 import (
     SEMANTIC_PROMPT_VERSION_V2_1,
     SYSTEM_PROMPT_V2_1,
     V2_1_CONTRACT_BINDING,
+    V2_1_FU4_CONTRACT_BINDING,
 )
 from product_intelligence.semantic.runtime_v2 import (
     SEMANTIC_MAX_TOKENS_V2,
@@ -122,8 +126,12 @@ def _contract_section(
     2.0 context (the frozen binding): byte-identical to the pre-2.1
     section. 2.1 context (the separately versioned 2.1 binding): the
     same section shape with the prompt axis, the authority axis, and
-    the REAL 2.1 system-prompt digest. Unknown bindings fail closed
-    (the corpus loader already refuses them; this is defense in
+    the REAL 2.1 system-prompt digest. 2.1 FU4 context (Q3-B5-P5 R2,
+    the gated registration step): the same 2.1 section shape with the
+    separately versioned FU4 authority axis - the REAL 2.1
+    system-prompt digest is the one (the prompt text is unchanged by
+    the authority token). Unknown bindings fail closed (the corpus
+    loader already refuses them; this is defense in
     depth)."""
     if tuple(binding) == tuple(V2_CONTRACT_BINDING):
         prompt_version = PROMPT_VERSION_V2
@@ -132,6 +140,10 @@ def _contract_section(
     elif tuple(binding) == tuple(V2_1_CONTRACT_BINDING):
         prompt_version = SEMANTIC_PROMPT_VERSION_V2_1
         authority = AUTHORITY_CONTRACT_VERSION_V2_FU3
+        system_prompt_digest = _system_prompt_digest_v2_1()
+    elif tuple(binding) == tuple(V2_1_FU4_CONTRACT_BINDING):
+        prompt_version = SEMANTIC_PROMPT_VERSION_V2_1
+        authority = AUTHORITY_CONTRACT_VERSION_V2_FU4
         system_prompt_digest = _system_prompt_digest_v2_1()
     else:
         raise ReportError(
