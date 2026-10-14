@@ -35,7 +35,13 @@ The R2 registration state pinned here:
   by the corpus 1.2.0 semantic labels;
 * the historical 1.0.0 / 1.1.0 artifacts, baselines, and reports are
   byte-identical and remain interpretable (and refuse the 1.2.0
-  lineage in both directions).
+  lineage in both directions);
+* the six R2-amended modules themselves (contract_v2_1.py /
+  corpus.py / fixtures.py / gates.py / report.py / cli.py) are
+  content-pinned at the R2 endpoint by literal SHA-256 (the
+  TestR2EndpointModulePins class - the R2-FU1 restoration of the six
+  file-content integrity contracts the FU4 A1 frozen-module table
+  re-pinned around at R2).
 
 Every case is an OFFLINE recorded-input / recorded-payload
 construction — NO live call, NO model capture, NO network.
@@ -108,6 +114,56 @@ HISTORICAL_ARTIFACT_FILE_DIGESTS = {
     ),
     "policy/qualification_policy_draft_1.json": (
         "6bc30d3781b7cac27e8dd767849ca53e6d4141095ca972d528ffbee2e4cdc111"
+    ),
+}
+
+#: The six modules R2 explicitly amended to register the FU4 offline
+#: binding (design section 10.2): the semantic layer's 2.1 FU4 binding
+#: constant (contract_v2_1.py) and the harness extension targets
+#: (corpus.py / fixtures.py / gates.py / report.py / cli.py). They
+#: left the FU4 suite's A1 FROZEN_MODULE_PINS table at R2 (17 -> 11
+#: rows - they are no longer BYTE-FROZEN inputs), and this suite is
+#: their recorded R2-endpoint content pin (the R2-FU1 restoration of
+#: the six file-content integrity contracts; the same category as the
+#: R1-FU1 codec pin in the R1 suite). The digests are the SHA-256 of
+#: the exact committed content at the R2 endpoint (starting SHA
+#: 202a3efa386c45b137b2f407510fe91a594f5e55) - RECORDED literals,
+#: never computed from the files at run time.
+#: Why these digests differ from the pre-R2 A1 pins: R2 amended these
+#: six modules on purpose - contract_v2_1.py gained the
+#: V2_1_FU4_CONTRACT_BINDING constant + import self-checks (the FU3
+#: binding byte-unchanged); fixtures.py gained
+#: CORPUS_VERSION_2_1_FU4 = "1.2.0" + build_corpus_2_1_fu4_document()
+#: + the manifest statement / lineage keys; corpus.py gained the third
+#: BINDING_CORPUS_VERSIONS entry (KNOWN_PRODUCTION_BINDINGS = exactly
+#: three) + the mirrored manifest builder; gates.py gained the
+#: zero_contract_version_mismatch third-binding detail branch (the
+#: eight gate names / order / fail-closed semantics unchanged); the
+#: report.py _contract_section gained the third-binding branch (the
+#: report schema unchanged); cli.py gained the corpus-build 1.2.0
+#: generation. The pre-R2 literals (contract_v2_1.py
+#: dc86899f..., fixtures.py cdb60166..., corpus.py 876edbe8...,
+#: gates.py 113c7b53..., report.py cad62e42..., cli.py 0102c4cc... -
+#: the ac75f47 content) are OBSOLETE and must not be restored as
+#: current expectations.
+R2_ENDPOINT_MODULE_PINS: dict[str, str] = {
+    "product_intelligence/semantic/contract_v2_1.py": (
+        "d9e564ef1824b55e31a2096082feff2e5d7d7df42154b4845785f4d846617ea4"
+    ),
+    "product_intelligence/evaluation/semantic_v2/corpus.py": (
+        "4c0851a82b2f0863a16938c419e49938c86c1494aefbbde03684e496ee4fb4e4"
+    ),
+    "product_intelligence/evaluation/semantic_v2/cli.py": (
+        "e4853546e879eaf1b1edb69002b7f07aece15f5199e7d4979ae662eb84d9c645"
+    ),
+    "product_intelligence/evaluation/semantic_v2/fixtures.py": (
+        "ac8777dc27cdf879415645a04468690366d5d92f515c67fe7f794482cb0c783f"
+    ),
+    "product_intelligence/evaluation/semantic_v2/gates.py": (
+        "a441ada2a275983f15ddb39f770c4163a42c4f95255c99f7565ea6d83c582e3f"
+    ),
+    "product_intelligence/evaluation/semantic_v2/report.py": (
+        "45626ae166cf6ba0e4818357dc65363bf837503153a78764b518a7294f6a8619"
     ),
 }
 
@@ -1386,3 +1442,38 @@ class TestHistoricalPreservation:
         )
         for name in HARD_SAFETY_GATES:
             assert committed["safety_gates"][name] == gates_2_0[name].to_report_dict()
+
+
+class TestR2EndpointModulePins:
+    """The six R2-owned modules' file-content integrity (R2-FU1).
+
+    R2's recorded claim that "the six R2-owned files' post-R2 state is
+    pinned by the new R2 suite" was NOT implemented as file-content
+    pins: no node in this suite - or anywhere else in the tree - read
+    the six modules' bytes and compared their SHA-256 against a
+    literal, so any post-R2 edit to any of the six passed the full
+    7568-node suite silently. This class restores the six contracts
+    the FU4 A1 frozen-module table dropped at R2, at the correct
+    endpoint: the same safety property as the removed rows (any edit
+    fails the suite; a change requires an explicit, recorded re-pin),
+    pinned at the R2-endpoint content rather than the obsolete pre-R2
+    literals. The expected digests are RECORDED literals computed from
+    the committed content at the starting SHA 202a3efa - never
+    derived from the files under test at run time.
+    """
+
+    @pytest.mark.parametrize(
+        "relative_path,expected_digest",
+        sorted(R2_ENDPOINT_MODULE_PINS.items()),
+        ids=lambda v: v if isinstance(v, str) else str(v),
+    )
+    def test_r2_amended_module_is_content_pinned_at_the_r2_endpoint(
+        self, relative_path: str, expected_digest: str
+    ) -> None:
+        assert _file_digest(relative_path) == expected_digest, (
+            f"{relative_path} differs from its R2-endpoint content "
+            f"(commit 202a3efa, digest {expected_digest}); the module "
+            "was explicitly amended by R2 to register the FU4 offline "
+            "binding - a further change requires an explicit, recorded "
+            "re-pin"
+        )

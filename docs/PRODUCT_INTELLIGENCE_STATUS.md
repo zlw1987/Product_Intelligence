@@ -5,10 +5,205 @@
 ## Current state
 
 
+**PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-Q3-B5-P5-R2-FU1 (Semantic
+Authority V2 — Six Module Integrity Contract Restoration, R2
+test-preservation correction)
+
+— IMPLEMENTED / PENDING INDEPENDENT REVIEW**
+
+Bounded TEST-PRESERVATION CORRECTION on the authoritative starting
+SHA `202a3efa386c45b137b2f407510fe91a594f5e55` (the R2 endpoint;
+baseline collection 7568, re-verified this session), restoring the
+six SHA-256 file-content integrity contracts that R2's A1 re-pin
+removed from the FU4 frozen-module test table (`tests/research/
+test_semantic_authority_v2_fu4.py`, `FROZEN_MODULE_PINS`, 17 -> 11
+rows). This is a test-file correction only: NO production code
+change, NO corpus reseal, NO manifest change, NO qualification-
+policy change, NO live wiring, NO pricing change, NO deployment, NO
+migration (`makemigrations --check --dry-run`: No changes detected),
+NO Windows flake allowlist change.
+
+**The gap (R2's removal left the six modules unpinned at the file
+level).** R2's recorded claim — "the six R2-owned files' post-R2
+state is pinned by the new R2 suite" — was NOT implemented as file-
+content pins. Verified before changing anything (the FU1 pre-change
+audit): no node anywhere in the tree reads the bytes of any of the
+six modules and compares its SHA-256 against a literal (all six
+post-R2 digests grepped across `tests/` + `docs/`: zero hits). The
+R2 suite's `_file_digest` helper is used only for the qualification
+artifacts (the committed corpus / manifest JSON files) and never
+for the modules; the R2-suite nodes that reference the six modules
+are behavioral (registry / seal / gate / report / CLI-regeneration
+assertions), not content-based. Any post-R2 edit to any of the six
+files therefore passed the full 7568-node suite silently.
+
+**The old A1 pins vs the R2 implementation endpoint.** The six
+pre-R2 literals (at R2's starting SHA `ac75f47`, now obsolete):
+`contract_v2_1.py` `dc86899f…`, `fixtures.py` `cdb60166…`,
+`corpus.py` `876edbe8…`, `gates.py` `113c7b53…`, `report.py`
+`cad62e42…`, `cli.py` `0102c4cc…`. R2 explicitly amended these six
+modules on purpose to register the new FU4 offline binding (design
+§10.2: the `V2_1_FU4_CONTRACT_BINDING` constant + import
+self-checks; `CORPUS_VERSION_2_1_FU4` + the 1.2.0 document builder
++ the manifest statement / lineage keys; the third
+`BINDING_CORPUS_VERSIONS` entry; the `zero_contract_version_
+mismatch` third-binding detail branch; the `_contract_section`
+third-binding branch; the corpus-build 1.2.0 generation), so the
+pre-R2 literals no longer describe the current content. **They
+were NOT restored as current expectations** — restoring them would
+fail by design (the same category as the pre-R1 codec literal in
+R1-FU1). The six expected digests changed for exactly this reason:
+R2's registration amendment moved each module from its `ac75f47`
+content to its `202a3efa` endpoint content.
+
+**The correction (one new class, six literal digests, no dynamic
+computation).** `tests/evaluation/semantic_v2/
+test_q3b5_p5_fu4_registration.py` — the R2 suite, the recorded home
+of the R2-endpoint pins for the R2-owned files (the same category
+as the R1-FU1 codec pin in the R1 suite; pinning here makes the
+recorded R2 claim true and leaves the FU4 A1 suite file
+UNMODIFIED) — gains: the `R2_ENDPOINT_MODULE_PINS` table with six
+explicit literal SHA-256 expected digests (each computed from the
+actual committed file content at the starting SHA `202a3efa` — the
+working tree verified byte-identical for all six at FU1 start:
+`git diff` clean); the NEW `TestR2EndpointModulePins` class with
+one parameterized node; and one bullet in the file docstring. The
+node reads the real file bytes (`_file_digest` =
+`hashlib.sha256(...).hexdigest()` over the file's bytes) and
+compares against the corresponding literal. The expected digest is
+recorded, never derived from the file under test at run time. The
+six fixed expected digests (the R2-endpoint content):
+
+* `product_intelligence/semantic/contract_v2_1.py` —
+  `d9e564ef1824b55e31a2096082feff2e5d7d7df42154b4845785f4d846617ea4`
+* `product_intelligence/evaluation/semantic_v2/corpus.py` —
+  `4c0851a82b2f0863a16938c419e49938c86c1494aefbbde03684e496ee4fb4e4`
+* `product_intelligence/evaluation/semantic_v2/cli.py` —
+  `e4853546e879eaf1b1edb69002b7f07aece15f5199e7d4979ae662eb84d9c645`
+* `product_intelligence/evaluation/semantic_v2/fixtures.py` —
+  `ac8777dc27cdf879415645a04468690366d5d92f515c67fe7f794482cb0c783f`
+* `product_intelligence/evaluation/semantic_v2/gates.py` —
+  `a441ada2a275983f15ddb39f770c4163a42c4f95255c99f7565ea6d83c582e3f`
+* `product_intelligence/evaluation/semantic_v2/report.py` —
+  `45626ae166cf6ba0e4818357dc65363bf837503153a78764b518a7294f6a8619`
+
+**What stands (no weakening, nothing removed).** (1) The existing
+ELEVEN frozen-input pins in the FU4 A1 suite are untouched (the
+suite file is unmodified by FU1; the A1 table, CORPUS_
+ARTIFACT_PINS, SUITE_FILE_PINS, and the FU3 line-exact pin all
+stand). (2) The R1-FU1 codec integrity pin (`c0cef216…`) is
+untouched. (3) All 29 pre-existing R2-suite nodes are unmodified —
+the correction is purely additive to the R2 suite (29 -> 35
+nodes). (4) All existing R2 behavior / corpus / manifest /
+qualification / firewall tests pass unmodified (re-run below). (5)
+The six pre-R2 literals are documented as obsolete in the
+`R2_ENDPOINT_MODULE_PINS` comment and are not restored as current
+expectations.
+
+**Safety property demonstrated (adversarial verification,
+controlled and fully reversible).** For each of the six files: the
+original bytes + SHA-256 were recorded; a harmless temporary
+content mutation was appended (`b"\n# probe\n"` — a byte-level
+tamper, never committed); EXACTLY that file's integrity node FAILED
+(recorded `AssertionError: {file} differs from its R2-endpoint
+content (commit 202a3efa, digest …); the module was explicitly
+amended by R2 to register the FU4 offline binding - a further
+change requires an explicit, recorded re-pin`); the exact original
+bytes were restored (direct byte write-back — NO git restore /
+reset / checkout / stash / clean); and the restored digest was
+verified equal to the original literal before any suite run below.
+All unrelated worktree evidence preserved.
+
+**Tests.** 6 NEW nodes (the R2 suite's `TestR2EndpointModulePins`,
+one parameterized row per file): `test_r2_amended_module_is_
+content_pinned_at_the_r2_endpoint[product_intelligence/evaluation/
+semantic_v2/cli.py-e4853546e879eaf1b1edb69002b7f07aece15f5199e7d4
+979ae662eb84d9c645]`, `[…corpus.py-4c0851a82b2f0863a16938c419e499
+38c86c1494aefbbde03684e496ee4fb4e4]`, `[…fixtures.py-ac8777dc27c
+df879415645a04468690366d5d92f515c67fe7f794482cb0c783f]`, `[…gates
+.py-a441ada2a275983f15ddb39f770c4163a42c4f95255c99f7565ea6d83c58
+2e3f]`, `[…report.py-45626ae166cf6ba0e4818357dc65363bf837503153a
+78764b518a7294f6a8619]`, `[product_intelligence/semantic/contract_
+v2_1.py-d9e564ef1824b55e31a2096082feff2e5d7d7df42154b4845785f4d8
+46617ea4]`. No other test change.
+
+**Validation.** R2 suite alone: 35 passed, 0 failed (29 + 6 new).
+Targeted R1 / R2 + preservation batch (`test_q3b5_p5_fu4_
+registration` 35 + `test_semantic_authority_v2_fu4` 217 +
+`test_semantic_decision_v2_fu4` 38 + `test_q3b5_p1_binding_replay`
+20 + `test_q3b5_p1_corpus_2_1` 20): 330 passed, 0 failed. Targeted
+historical corpus / codec / replay / boundary batch (the full
+`tests/evaluation/semantic_v2/` directory 398 + codec 55 + replay
+31 + record 47 + V2 61 + decision-boundaries 50 + semantic_v2-
+boundaries 32 + FU3 98 + extraction 111 + 7): 890 passed, 0
+failed. Boundary batch (the same 824-node set as the R2 record:
+research identity 161 + evaluation 64 + domain 59 + providers 170
++ web 183 + runs 105 + semantic_v2 boundaries 32 + decision
+boundaries 50): 821 passed on the batch run + 3 fixed-allowlist
+members (every one `OSError: [WinError 6] The handle is invalid`
+at `subprocess.Popen -> _winapi.DuplicateHandle` BEFORE any
+project code runs; zero assertion failures) each re-passed
+isolated one-node-per-process — no non-flake failure. Full suite
+(run 1): 7574 collected — 7563 passed, 11 failed — the 11 failures
+are EXACTLY the fixed eleven-node load-sensitive clean-interpreter
+subprocess guard flake allowlist (every one `OSError: [WinError 6]
+The handle is invalid` at `subprocess.Popen -> _winapi.
+DuplicateHandle` before any project code runs; zero assertion
+failures), each re-passed isolated one-node-per-process (7 on the
+first spaced pass, 4 on spaced retry — the documented multi-
+attempt behavior under sustained handle pressure after a full run).
+Full suite (run 2, over the final tree with documentation): 7574
+collected — 7563 passed, 11 failed — the SAME 11 fixed-allowlist
+nodes, every one failing at the same
+recorded point (`subprocess.Popen -> _get_handles -> _winapi.
+DuplicateHandle` before any project code runs; zero assertion
+failures) with a VARIANT OS error code under the machine's
+sustained handle pressure (9× `OSError: [WinError 50] The request
+is not supported` + 2× `OSError: [WinError 6] The handle is
+invalid` — the same flake class at the same line, a surface
+variant; the node-identity allowlist is NOT expanded and no new
+node joined it); all 11 re-passed isolated one-node-per-process
+(7 on the first spaced pass, 4 on spaced retries). Full suite
+(run 3 — DEFINITIVE, over the final tree with documentation):
+**7574 collected — 7574 passed, 0 failed, exit 0** (zero
+collection errors; the machine's handle pressure cleared between
+run 2 and run 3). Across all three full runs and every targeted
+run: no non-flake node failed, and no node outside the fixed
+allowlist failed anywhere. Collection accounting
+(node-level diff against the 7568-node R2 baseline collected over
+the same working tree before the correction): 7568 -> 7574 (+6 =
+6 new parameterized rows; **0 removed / 0 renamed / 0 added**);
+per-file: `test_q3b5_p5_fu4_registration` 29 -> 35 — no other file
+changed its node count. Skipped / xfailed / deselected: **0 / 0 /
+0**. `python manage.py check`: System check identified no issues
+(0 silenced). `python manage.py makemigrations --check --dry-run`:
+No changes detected.
+
+**Production firewall (evidence).** The six production files are
+byte-identical to the R2 endpoint (each pinned by the new nodes;
+the transient probe bytes were restored and verified by digest
+before the suite runs). No qualification flag flipped (`V2_
+AUTHORITY_QUALIFIED` remains False in both pinned locations + the
+FU4 adapter's mirror — re-run above); no corpus / manifest change
+(historical artifact pins + the 1.2.0 digest pins pass); no policy
+change (the DRAFT is byte-identical and still 1.0.0-scoped); no
+live wiring; no pricing change; no migration; no deployment
+performed.
+
+R2 (below) is ON HOLD pending this correction's independent review;
+ChatGPT inspects the GitHub correction before approving R2.
+
+
 **PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-Q3-B5-P5-R2 (Semantic
 Authority V2 — FU4 Offline Qualification Harness Integration)
 
-— IMPLEMENTED / PENDING INDEPENDENT REVIEW**
+— IMPLEMENTED / ON HOLD PENDING TEST-PRESERVATION CORRECTION (Q3-
+B5-P5-R2-FU1: the R2 A1 re-pin excluded the six R2-owned modules
+from the frozen-input table, and the recorded claim that the new
+R2 suite pins their post-R2 state was not implemented as file-
+content pins; corrected in Q3-B5-P5-R2-FU1, recorded above) /
+PENDING INDEPENDENT REVIEW (ChatGPT inspects the GitHub correction
+before approving R2)**
 
 Bounded QUALIFICATION-LAYER phase (sub-phase R2 of the separately
 gated FU4 registration step; the R1 record / replay layer is
