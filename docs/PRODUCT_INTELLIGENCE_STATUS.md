@@ -5,12 +5,143 @@
 ## Current state
 
 
+**PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-Q3-B5-P5-R1-FU1 (Semantic
+Authority V2 — Codec Integrity Test Contract Restoration, R1 test-
+preservation correction)
+
+— IMPLEMENTED / PENDING INDEPENDENT REVIEW**
+
+Bounded TEST-PRESERVATION CORRECTION on the authoritative starting
+SHA `60f548d404b39ac801f4c1963505ca36c160fea8` (the R1 endpoint;
+baseline collection 7544, re-verified this session), restoring the
+codec file-content integrity contract that the R1 node removal left
+open. This is a test-file correction only: NO production
+implementation change, NO R2, NO corpus / qualification / runtime /
+pricing / deployment change, NO migration (`makemigrations --check
+--dry-run`: No changes detected), NO Windows flake allowlist change.
+
+**The gap (R1's removal left the codec unpinned at the file level).**
+R1 removed the one parameterized A1 row
+`test_frozen_module_is_byte_identical_to_the_starting_sha[product_\nintelligence/research/semantic_decision_codec.py-ef31ef38…]`
+from `tests/research/test_semantic_authority_v2_fu4.py` (recorded at
+design §1.7 / §10.1: the codec is no longer a frozen input of R1 —
+it is the one production module R1 amended). The R1 record and the
+removed row's own comment state that the codec's R1-endpoint
+integrity "is pinned by the new R1 suite instead" — that claim was
+NOT implemented. Verified before changing anything (the FU1
+pre-change audit, item 7): no node in
+`tests/research/test_semantic_decision_v2_fu4.py` — or anywhere else
+in the tree — reads the codec file's bytes or compares its SHA-256
+against a literal; the R1-suite nodes that reference the codec are
+registry-identity assertions (`TestA1RegistrationState.
+test_the_codec_registry_is_exactly_the_three_registered_bindings` —
+the three-binding union, registration order, first-match pair
+lookup) and a reachability-guard `allowed_paths` entry (`TestA1
+RegistrationState.test_no_live_module_references_the_fu4_record_\nsurface`, line-level) — behavioral, not content-based. The R1-
+endpoint digest `c0cef216…` appeared in no test or document; the
+pre-R1 frozen digest `ef31ef38…` appears only in design §1.1 and in
+the R1 STATUS record. The replacement R1 tests verify codec
+behavior and registry identity but do not establish the same
+file-content integrity contract: any post-R1 edit to
+`semantic_decision_codec.py` passed the full 7544-node suite
+silently.
+
+**The correction (one new node, literal digest, no dynamic
+computation).** `tests/research/test_semantic_decision_v2_fu4.py`
+(`TestA1RegistrationState`, class A1 of the R1 suite — the recorded
+home of the R1-endpoint pins for the R1-owned files) gains exactly
+one node: `test_the_amended_codec_is_content_pinned_at_the_r1_\nendpoint`, plus the two module constants it uses (`CODEC_PATH`,
+`CODEC_R1_ENDPOINT_DIGEST`) and one bullet in the file's docstring
+(A1 section description). The node reads the actual codec file
+(`product_intelligence/research/semantic_decision_codec.py`),
+calculates its SHA-256, and compares against the LITERAL expected
+digest `c0cef216d72e528ba8b17daa7adbb941f9ac328b42f02eb8dc4f00fdaa68\nbd3d` — the codec's content as committed at the starting SHA
+`60f548d` (verified byte-identical to the working tree at FU1 start:
+`git diff` clean on the file). The expected digest is recorded,
+never computed from the file under test. **Why the expected digest
+differs from the pre-R1 frozen digest** (recorded in the node's
+docstring and the constant's comment): `ef31ef38ca5159c01cbfab9056a\ne20365c1dd58a8c6fb33b8f45f9f80a03b769` pinned the codec at R1's
+starting SHA `de3dd95` (design §1.1) — the pre-amendment content.
+R1 amended the codec (the DEC-9 claim-based disambiguation of the
+decode dispatch — the claiming set on the full recorded five-axis
+binding must be exactly one — plus the registry's third entry, the
+FU4 adapter), so its R1-endpoint content is different by design;
+`c0cef216…` is the SHA-256 of that exact committed endpoint. The
+pin therefore moves from "frozen input at `de3dd95`" to "R1-endpoint
+content at `60f548d`" — same safety property (any edit fails the
+suite; a change requires an explicit, recorded re-pin), new
+endpoint, recorded reason.
+
+**What stands (no weakening, nothing removed).** (1) The original
+A1 test's historical pins are preserved for ALL still-frozen files:
+`FROZEN_MODULE_PINS` 18 → 17 rows — the AST-parsed diff between the
+`de3dd95` and working-tree tables shows the codec row as the ONLY
+removal, zero additions, zero value changes; `CORPUS_ARTIFACT_PINS`
+(5) and `SUITE_FILE_PINS` (2) are byte-identical. The FU4 suite
+file `tests/research/test_semantic_authority_v2_fu4.py` is
+UNMODIFIED by FU1. (2) No existing registry, replay, authority, or
+boundary assertion was touched — the R1 suite's 37 prior nodes, the
+55-node codec suite, the 31-node replay suite, the boundary suites,
+and the P1 binding-replay suite are all unedited and re-run below.
+(3) The removed pre-R1 pin is NOT re-added to the frozen-input
+table (it would fail by design — the codec is amended at R1);
+its contract is replaced at the correct endpoint, as the task
+mandates.
+
+**Tests.** 1 NEW node (above). No other test change.
+
+**Validation.** New node alone: 1 passed, 0 failed. R1 suite:
+38 passed, 0 failed (37 + 1 new). Targeted preservation / codec /
+replay / boundary runs: `test_semantic_authority_v2_fu4` 223 +
+`test_semantic_decision_codec` 55 + `test_semantic_decision_replay`
+31 + `test_semantic_decision_boundaries` 50 + `test_semantic_v2_\nboundaries` 32 + `test_semantic_decision_v2` 61 + `test_semantic_\ndecision_record` 47 + `test_q3b5_p1_binding_replay` 20 — 519
+passed, 0 failed. **Safety property demonstrated**: a one-line
+append to the codec file (a valid `# probe` comment — byte-level
+tamper, never committed) made the new node FAIL with the recorded
+message (`AssertionError: semantic_decision_codec.py differs from
+its R1-endpoint content (commit 60f548d, digest c0cef216…); … a
+change requires an explicit, recorded re-pin`); the file was
+restored and verified byte-identical (SHA-256 `c0cef216…`, `git
+diff` clean) before any suite run below. Full suite: 7545
+collected — 7545 passed, 0 failed, exit 0 (zero collection errors).
+Collection accounting (node-level diff against the 7544-node R1
+baseline, collected before and after over the same working tree):
+7544 → 7545; **added: exactly 1** — `tests/research/
+test_semantic_decision_v2_fu4.py::TestA1RegistrationState::test_\nthe_amended_codec_is_content_pinned_at_the_r1_endpoint`; **removed:
+0; renamed: 0**; no other file changed its node count. Skipped /
+xfailed / deselected: **0 / 0 / 0**. No flake-class member failed;
+the Windows flake allowlist is UNCHANGED (not expanded). `python
+manage.py check`: System check identified no issues (0 silenced).
+`python manage.py makemigrations --check --dry-run`: No changes
+detected.
+
+**Production runtime unchanged (evidence).** The only production-
+file bytes touched during FU1 were the codec's, transiently, for
+the safety-property probe — restored byte-identical and verified by
+digest + `git diff` before the targeted and full runs. The codec
+itself is the R1-endpoint content `c0cef216…` (unmodified by FU1);
+the new node pins exactly that. `V2_AUTHORITY_QUALIFIED` remains
+False in both pinned locations + the FU4 adapter's mirror; the
+registry / replay unions, the 2.1/FU3 harness-only refusal, the
+reachability firewall, and the historical V1 / V2 behavior
+preservation proofs all stand (re-run above). No deployment
+performed.
+
+R1 (below) is ON HOLD pending this correction's independent review;
+ChatGPT inspects the GitHub correction before approving R1.
+
+
 **PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-Q3-B5-P5-R1 (Semantic Authority V2 —
 
 FU4 Versioned Record, Codec and Replay Integration, the R1 record /
 replay layer of the separately gated FU4 registration step)
 
-— IMPLEMENTED / PENDING INDEPENDENT REVIEW**
+— IMPLEMENTED / ON HOLD PENDING TEST-PRESERVATION CORRECTION (Q3-
+B5-P5-R1-FU1: the R1 A1 codec-pin removal left the codec without a
+file-content pin despite the recorded claim that the R1 suite pins
+it; corrected in Q3-B5-P5-R1-FU1, recorded above) / PENDING
+INDEPENDENT REVIEW (ChatGPT inspects the GitHub correction before
+approving R1)**
 
 Bounded RECORD/REPLAY-LAYER phase on the authoritative starting SHA
 `de3dd950cd5386ffa03806984cb5f0c7a05340eb` (the Q3-B5-P5 design

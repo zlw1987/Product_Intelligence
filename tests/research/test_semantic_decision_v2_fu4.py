@@ -23,7 +23,10 @@ capture, NO network.
   (registration order V1, V2, V2-FU4); the FU4 binding is drift-pinned
   across every surface that names it; the qualification marker stays
   False everywhere; the adapter module is research-pure and no live
-  module references the FU4 record surface.
+  module references the FU4 record surface; the amended codec file
+  itself is content-pinned at the R1 endpoint (Q3-B5-P5-R1-FU1 — the
+  restored file-integrity contract for the one production module R1
+  amended).
 * **A2 — historical behavior preserved.** Every historical V1 / V2
   payload decodes to the SAME typed record, replays to the SAME
   decision, and re-encodes BYTE-IDENTICAL under the amended codec (the
@@ -146,6 +149,16 @@ from product_intelligence.research.sales_unit_extraction import (
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PACKAGE_ROOT = REPO_ROOT / "product_intelligence"
 ADAPTER_PATH = PACKAGE_ROOT / "research" / "semantic_decision_v2_fu4.py"
+CODEC_PATH = PACKAGE_ROOT / "research" / "semantic_decision_codec.py"
+#: The codec's SHA-256 at the R1 endpoint (commit
+#: 60f548d404b39ac801f4c1963505ca36c160fea8) — the exact file the
+#: registration shipped (the DEC-9 claim-based disambiguation amendment
+#: + the registry's third entry). A LITERAL recorded at FU1 (verified
+#: against the committed content at that SHA); it is NOT computed from
+#: the file under test at run time.
+CODEC_R1_ENDPOINT_DIGEST = (
+    "c0cef216d72e528ba8b17daa7adbb941f9ac328b42f02eb8dc4f00fdaa68bd3d"
+)
 
 RUN_ID = str(uuid.uuid4())
 SOURCE_URL = "https://example.com/test-product"
@@ -829,6 +842,51 @@ class TestA1RegistrationState:
                         f"({marker!r}); the registration wires no live "
                         "path"
                     )
+
+    def test_the_amended_codec_is_content_pinned_at_the_r1_endpoint(
+        self,
+    ) -> None:
+        """FU1 restoration (Q3-B5-P5-R1-FU1): the codec's file-content
+        integrity contract.
+
+        At R1's starting SHA (de3dd95) the FU4 suite's A1 pin table
+        held the parameterized row
+        ``test_frozen_module_is_byte_identical_to_the_starting_sha[
+        product_intelligence/research/semantic_decision_codec.py-
+        ef31ef38…]``, which SHA-256-pinned the codec's working-tree
+        content to its pre-R1 frozen digest
+        ``ef31ef38ca5159c01cbfab9056ae20365c1dd58a8c6fb33b8f45f9f80a03b769``
+        (design section 1.1). R1 removed that row (design section 1.7,
+        recorded): the codec is NOT a frozen input of R1 — it is the
+        one production module R1 amended (the DEC-9 claim-based
+        disambiguation of the codec dispatch + the registry's third
+        entry), so its expected digest differs from the pre-R1 frozen
+        digest by design: this pin records the codec's content as
+        committed at the R1 endpoint (60f548d), the exact file the
+        registration shipped.
+
+        The removal left the codec without any file-content pin — the
+        replacement R1 nodes assert registry identity and behavior
+        (the three-binding union, the registration order, the
+        claim-gate refusals), never the file's bytes. This node
+        restores that exact safety contract at the R1 endpoint: it
+        reads the actual codec file, calculates its SHA-256, and
+        compares it against the literal digest above (never computed
+        from the file under test). Any further edit to the codec now
+        fails this node and requires an explicit, recorded re-pin —
+        the same discipline the removed A1 row enforced for the
+        frozen codec.
+        """
+        assert hashlib.sha256(CODEC_PATH.read_bytes()).hexdigest() == (
+            CODEC_R1_ENDPOINT_DIGEST
+        ), (
+            "semantic_decision_codec.py differs from its R1-endpoint "
+            "content (commit 60f548d, digest "
+            f"{CODEC_R1_ENDPOINT_DIGEST}); the codec is the one "
+            "production module R1 amended, and its file content is "
+            "pinned here at the R1 endpoint — a change requires an "
+            "explicit, recorded re-pin"
+        )
 
 
 # ===========================================================================
