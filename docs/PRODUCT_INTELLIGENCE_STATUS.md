@@ -5,6 +5,165 @@
 ## Current state
 
 
+**PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-Q3-C-D1 (FU4 Bundle Authority
+Qualification Design)
+
+— DESIGN ONLY / UNAPPROVED (this design exists; it authorizes nothing;
+ChatGPT independently reviews the GitHub document and source references
+before authorizing any implementation phase)**
+
+Bounded DESIGN-ONLY phase on the authoritative starting SHA
+`3bf6e3294df3ca83b93665158297f97abf3fba4b` (the Q3-B5-P5-R2-FU1
+endpoint; baseline collection **7574, re-verified this session** by a
+full `pytest --collect-only` over the working tree at this SHA). This is
+the first independent qualification program designed for FU4 Bundle
+composition authority — the explicitly recorded gap of Q3-B5-P5-R2
+("Corpus 1.2.0 is a binding-registration and semantic-compatibility
+corpus; it does not independently qualify the FU4 Bundle composition
+authority" — stated in the 1.2.0 manifest inside the manifest digest).
+The sole deliverable is
+`docs/PRODUCT_INTEL_Q3C_FU4_BUNDLE_AUTHORITY_QUALIFICATION_DESIGN.md`
+(design-only, append-only, on the starting SHA). NO implementation, NO
+corpus artifact, NO label, NO evaluator, NO capture, NO model call, NO
+policy, NO authority promotion, NO pricing wiring, NO deployment, NO
+migration. The final diff contains only the new design document + the
+authorized STATUS / PLAN additions (this entry + the PLAN §26.41 row).
+
+**What the design specifies (of record; all UNAPPROVED).** (1) A NEW,
+separately versioned, independently labeled qualification corpus family
+(`PI-FU4-BUNDLE-AUTHORITY-QUALIFICATION`, proposed identity — O-1;
+first version 1.0.0; its own loader / seal / manifest / policy / report —
+NOT an extension of the byte-pinned `evaluation/semantic_v2` harness and
+NOT a modification of corpus 1.2.0), whose per-case documents carry the
+task-mandated fields (stable case ID, category, target + candidate
+evidence, the original published source content, evidence provenance,
+the extraction evidence + digest, the bundle composition evidence, the
+completeness-attestation source, the published quantity information, the
+independently expected authority outcome, the reviewer identity +
+review status, the explicit rationale, the case digest). (2) A five-axis
+separation (semantic product identity / bundle composition equivalence /
+sales-unit quantity equivalence / authority tier eligibility / pricing
+eligibility) with the headline invariant I-1: a correct semantic MATCH
+must never be treated as sufficient proof of Bundle equivalence or
+pricing comparability (labeled rows B10 / D13 / D11 + the evaluator's
+perturbation-invariance check I-4). (3) A five-layer evidence-authenticity
+boundary (internal structural integrity / provenance consistency /
+independent source authenticity / completeness of published evidence /
+truth of the underlying commercial claim) with the exact safe-conclusions
+statement — a valid digest alone does NOT establish source authenticity;
+a publisher's completeness claim does NOT establish physical
+completeness; the system claims neither; no cryptographic trust or
+verification capability is invented beyond what the repository
+implements. (4) A complete qualification case matrix (category A
+PROVEN_EQUIVALENT, B UNPROVEN, C CONTRADICTED, D adversarial authority
+cases — each row with the expected authority, the expected failure
+stage, the required evidence, the evidence kind, the surface, and the
+minimum case count; v1.0.0 floor 92 Track A / 21 Track B; the
+independent tester authors or reviews the D rows). (5) Two distinct
+qualification tracks: Track A (deterministic authority — the frozen FU4
+derivation + constructors + the registered R1 codec / replay executed
+offline over the sealed corpus, metrics M1–M15 with exact denominators,
+including the false-PROVEN count over the whole population, the
+confusion matrix, the replay agreement, the substitution / missing-
+attestation / quantity-conflict detections, and the pricing-leakage
+count) and Track B (model-assisted evidence acquisition — the pinned
+models under the frozen Prompt 2.1 scored on published-constituent
+extraction precision / recall, attestation-grounding accuracy,
+unsupported-constituent hallucination, ambiguous-evidence abstention,
+provenance correctness (PARTIAL — span-level is FUTURE / NOT
+IMPLEMENTED, O-5), valid output schema rate, coverage, and primary /
+fallback separation; Track B NEVER feeds Track A and NEVER constructs an
+attestation — gate MB-3). (6) An acceptance policy: eight mandatory
+hard safety gates (G1 zero false PROVEN_EQUIVALENT on independently
+labeled negative cases; G2 zero unauthorized authority promotion;
+G3 zero pricing-eligibility leakage; G4 zero evidence-integrity bypass;
+G5 zero cross-listing substitution; G6 zero historical-binding
+confusion; G7 full replay agreement for accepted records; G8 no model-
+generated completeness attestation treated as publisher evidence), three
+Track B model-tier gates (MB-1..MB-3), the family DRAFT threshold
+vocabulary (O-7 — proposals, NOT finalized values; the existing DRAFT
+policy is untouched and uncopied), the six-state decision ladder
+(FAIL_CLOSED > NOT_QUALIFIED > POLICY_PENDING > RESEARCH_ONLY >
+QUALIFICATION_CANDIDATE > QUALIFIED_FOR_REVIEW_ASSISTANCE, with
+PRODUCTION_AUTHORITY_QUALIFIED reserved for the separately gated W1 and
+NEVER computable by the report), the statistically meaningful coverage
+requirements (population-complete zero-tolerance gates; the mandatory
+rule-of-three disclosure with the explicit contract-coverage-not-
+real-market statement; the real-market minimums as the gate for tiers
+above RESEARCH_ONLY; the diversity + two-identity + reviewer-distinctness
+floors). (7) An independent review workflow (corpus author /
+independent label reviewer / independent tester / phase implementer /
+ChatGPT final gate — the implementer is never the sole authority for
+expected results; no agent's final report is proof). (8) A bounded
+ten-phase roadmap (D1 this design + C0 the recorded pin-gap correction
+forced by finding CF-2; C1 the corpus schema + integrity validator;
+C2 the independently labeled v1.0.0 seal; C3 the real-market bundle
+evidence acquisition — the only live surface besides E2's gated capture
+sub-step; E1 the deterministic evaluator + adversarial tests; E2 the model
+evidence acquisition evaluation; P1 the independent policy review; Q1
+the qualification execution; W1 the separate production wiring approval,
+only if qualified) — each with the exact scope, inputs, deliverables,
+acceptance criteria, required tests, explicit stop conditions, and
+authority boundaries; no phase may redefine its acceptance criteria
+because the implementation failed. (9) The source-to-design
+traceability table and the exact implementation authorization boundaries
+(the design authorizes nothing beyond its own existence; every phase
+requires the pending lineage reviews to be ratified + ChatGPT's
+explicit phase approval).
+
+**Findings of record (design-time inspection, verified at the starting
+SHA).** CF-1: the task matrix's placement of "conflicting secondary extraction
+cues" under CONTRADICTED conflicts with the frozen approved contract
+(P3 D8 / U12; R1 matrix row 8) which derives UNPROVEN for candidate
+self-contradiction — the design keeps the frozen semantics, documents
+the conflict, and requests ratification of the documentation (O-3); NO
+contract change. CF-2 (forces phase C0): the FU4 module
+(`semantic_authority_fu4.py` — working-tree digest `0a0fb3d7…` /
+committed blob `482a6374…`) and the R1 record adapter
+(`semantic_decision_v2_fu4.py` — `c1037a5a…`) are NOT content-pinned by
+any test literal or document record at the starting SHA (the qualified
+surface is unpinned — the same gap class R1-FU1 and R2-FU1 closed for
+the codec and the six R2-owned modules); C0 restores the contract
+following the recorded precedent. CF-3: under the frozen materiality
+grammar (P3 §3.7 — a multiset of (quantity, item) pairs, no merging),
+"valid duplicate constituent quantities" is PROVEN-eligible only when
+published byte-identically on both sides; the non-identical phrasing
+(`1x RAM + 1x RAM + 1x CPU` vs `2x RAM + 1x CPU`) is T-DIFF-MATERIAL ⇒
+CONTRADICTED over attested clauses — both shapes are labeled per the
+frozen contract (O-4 records the future grammar-version decision). CF-4:
+"asymmetric published quantity" splits under the frozen contract into
+UNPROVEN (U18, no attestation) and PROVEN-eligible (ATTESTED_NOT_
+MATERIAL, verified quantity attestation on the missing side). CF-5:
+"semantic NO_MATCH with apparently equivalent Bundle composition" — the
+unit axis is decision-independent; where the composition IS
+attested-equivalent the unit derives PROVEN even under a NO_MATCH
+context while the tier stays non-automatic (row D12).
+
+**Invariance (this phase).** No production Python code, test, corpus or
+manifest, qualification policy, prompt text, live runtime, pricing rule,
+authority flag, or database schema changed. No model capture occurred
+(no transport, no provider, no capture runner — the design is the only
+artifact). No qualification labels were created or revised. No
+qualification is claimed: the program's state of record at this design's
+completion is UNAPPROVED / NOT EXECUTED, and after full execution the
+computable state can only move under an APPROVED family policy (the
+ladder's POLICY_PENDING floor). No test deleted, renamed, skipped,
+xfailed, deselected, or weakened; the collection baseline remains
+**7574** (re-verified; no new test nodes — design only). The unrelated
+worktree artifacts (the pre-existing `tmp_collection.txt` modification;
+the untracked session / benchmark files) are preserved. No
+restore / reset / checkout / stash / clean / amend / rebase / force-push
+used.
+
+**Next.** ChatGPT's independent review of the GitHub design document +
+its source references is the approval gate. The first implementable
+phase is Q3-C-C0 (the CF-2 pin correction), which starts only after the
+pending lineage reviews (Q3-B5-P4-FU2, R1, R1-FU1, R2, R2-FU1) are
+ratified and the C0 scope is explicitly approved (design §9.2 / O-2).
+A successful D1 means the qualification design is ready for review — it
+does NOT mean FU4 authority is qualified or production-approved.
+
+
 **PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-Q3-B5-P5-R2-FU1 (Semantic
 Authority V2 — Six Module Integrity Contract Restoration, R2
 test-preservation correction)
