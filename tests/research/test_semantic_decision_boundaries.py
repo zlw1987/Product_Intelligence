@@ -477,24 +477,36 @@ def test_v1_adapter_module_owns_the_v1_route_pin() -> None:
 
 
 def test_registry_is_the_explicit_version_adapter_extension_point() -> None:
-    """S2-B-FU1 proof (S2-C updated): interpretation requires a REGISTERED,
-    explicitly supported version-specific adapter — the registry is a
-    frozen tuple of adapters (no mutable global state), currently exactly
-    the V1 adapter and the final V2 adapter (registered in S2-C through
-    the same explicit extension point), and fail-closed for every
-    unregistered (envelope version, semantic contract) pair."""
+    """S2-B-FU1 proof (S2-C updated, Q3-B5-P5 R1 re-pinned): interpretation
+    requires a REGISTERED, explicitly supported version-specific adapter —
+    the registry is a frozen tuple of adapters (no mutable global state),
+    currently exactly the V1 adapter, the final V2 adapter (registered in
+    S2-C through the same explicit extension point), and the FU4 record /
+    replay adapter (registered in Q3-B5-P5 R1 through the same explicit
+    extension point, appended AFTER the V2 adapter), and fail-closed for
+    every unregistered (envelope version, semantic contract) pair.
+
+    R1 recorded correction: the PREVIOUS assertion pinned
+    ``len(registry) == 2`` with entries [0] = V1, [1] = V2; the NEW
+    assertion pins ``len(registry) == 3`` with entry [2] = the FU4
+    adapter — the registration order V1, V2, V2-FU4 is preserved (the
+    single-adapter pair lookup's first-match semantics stand), and the
+    FU4 adapter's identity is pinned exactly (envelope 1, semantic
+    contract V2, the one FU4 binding)."""
     import product_intelligence.research.semantic_decision_codec as codec
 
     registry = codec._REGISTERED_SEMANTIC_CONTRACT_ADAPTERS
     assert isinstance(registry, tuple)
-    assert len(registry) == 2
+    assert len(registry) == 3
     from product_intelligence.research import (
         SEMANTIC_V1_ADAPTER,
         SEMANTIC_V2_ADAPTER,
+        SEMANTIC_V2_FU4_ADAPTER,
     )
 
     assert registry[0] is SEMANTIC_V1_ADAPTER
     assert registry[1] is SEMANTIC_V2_ADAPTER
+    assert registry[2] is SEMANTIC_V2_FU4_ADAPTER
     # The V1 adapter speaks exactly one envelope version and one semantic
     # contract, with exactly one supported binding.
     assert SEMANTIC_V1_ADAPTER.envelope_schema_version == 1
@@ -509,7 +521,16 @@ def test_registry_is_the_explicit_version_adapter_extension_point() -> None:
     assert SEMANTIC_V2_ADAPTER.supported_bindings == (
         ("V2", "2.0", 1, 1, "SEMANTIC_AUTHORITY_V2_S2A_FU2"),
     )
-    # The codec's envelope version constant and both adapters' envelope
+    # The FU4 adapter speaks the SAME universal envelope version with the
+    # final V2 semantic contract under the separately versioned FU4
+    # authority axis (one binding only — a future binding is a future
+    # adapter).
+    assert SEMANTIC_V2_FU4_ADAPTER.envelope_schema_version == 1
+    assert SEMANTIC_V2_FU4_ADAPTER.semantic_contract_version == "V2"
+    assert SEMANTIC_V2_FU4_ADAPTER.supported_bindings == (
+        ("V2", "2.1", 1, 1, "SEMANTIC_AUTHORITY_V2_S2A_FU4"),
+    )
+    # The codec's envelope version constant and all adapters' envelope
     # versions cannot drift apart.
     from product_intelligence.research import (
         SEMANTIC_DECISION_SCHEMA_VERSION,
@@ -520,6 +541,9 @@ def test_registry_is_the_explicit_version_adapter_extension_point() -> None:
         SEMANTIC_DECISION_SCHEMA_VERSION
     )
     assert SEMANTIC_V2_ADAPTER.envelope_schema_version == (
+        SEMANTIC_DECISION_SCHEMA_VERSION
+    )
+    assert SEMANTIC_V2_FU4_ADAPTER.envelope_schema_version == (
         SEMANTIC_DECISION_SCHEMA_VERSION
     )
     assert (

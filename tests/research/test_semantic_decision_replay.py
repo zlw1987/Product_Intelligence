@@ -509,14 +509,19 @@ class TestDerivedAgreementProof:
 
 class TestContractBindingGate:
     def test_supported_bindings_are_exactly_the_frozen_v1_tuple(self) -> None:
-        # S2-C: the universal gate's safe-replay envelope is now exactly
+        # S2-C: the universal gate's safe-replay envelope was exactly
         # the two registered final contracts — the frozen V1 semantic
         # contract and the final V2 semantic contract — in registration
-        # order. Both derive under the S2-A authority contract as frozen
-        # through S2-A-FU2; any other binding is still refused.
+        # order.
+        # Q3-B5-P5 R1 (re-pinned, recorded): the union gains the
+        # separately versioned FU4 binding as its third entry (the
+        # FU4 record / replay adapter is the third registered adapter;
+        # the 2.1/FU3 harness-only binding is NOT in the union). Any
+        # other binding is still refused.
         assert SUPPORTED_CONTRACT_BINDINGS == (
             ("V1", "1.1", 1, 1, "SEMANTIC_AUTHORITY_V2_S2A_FU2"),
             ("V2", "2.0", 1, 1, "SEMANTIC_AUTHORITY_V2_S2A_FU2"),
+            ("V2", "2.1", 1, 1, "SEMANTIC_AUTHORITY_V2_S2A_FU4"),
         )
 
     def test_gate_fires_for_unknown_binding(self, monkeypatch) -> None:
@@ -580,9 +585,13 @@ class TestContractBindingGate:
     def test_future_bound_payload_fails_at_decode(self) -> None:
         # A payload bound to a future authority contract is outside the
         # V1 adapter's exact contract binding: it cannot even construct a
-        # V1 record (let alone replay) — the universal dispatch still
-        # routes it to the V1 adapter (the recorded semantic contract is
-        # V1), and the V1 adapter refuses the non-V1 binding, fail closed.
+        # V1 record (let alone replay). Q3-B5-P5 R1 (recorded): the
+        # failure point moved — the universal decode now disambiguates on
+        # the FULL recorded five-axis binding (FIND-1 / DEC-9), so a
+        # future-token binding is claimed by NO registered adapter and is
+        # refused at the codec's binding-disambiguation gate (previously:
+        # dispatched to the V1 adapter, whose strict check refused it). The
+        # bounded error class is unchanged.
         from product_intelligence.research import (
             SEMANTIC_DECISION_SCHEMA_VERSION,
             decode_semantic_decision_record,
@@ -659,11 +668,12 @@ class TestReplayDispatch:
         # The universal gate's binding table is exactly the union of the
         # registered adapters' supported bindings (no drift between the
         # codec registry and the replay gate; S2-C: the V1 + V2
-        # bindings, in registration order).
+        # bindings, in registration order; Q3-B5-P5 R1: + the FU4
+        # binding as the third entry — re-pinned, recorded).
         from product_intelligence.research import supported_contract_bindings
 
         assert SUPPORTED_CONTRACT_BINDINGS == supported_contract_bindings()
-        assert len(SUPPORTED_CONTRACT_BINDINGS) == 2
+        assert len(SUPPORTED_CONTRACT_BINDINGS) == 3
 
 
 # ===========================================================================

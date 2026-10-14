@@ -162,12 +162,32 @@ class TestProductionAdapterUnchanged:
     def test_the_codec_registry_still_knows_exactly_the_v1_and_2_0_bindings(
         self,
     ) -> None:
+        # Q3-B5-P5 R1 (re-pinned, recorded, design §1.7): the PREVIOUS
+        # assertion pinned that the separately versioned 2.1/FU3 binding
+        # was NOT in SUPPORTED_CONTRACT_BINDINGS and the frozen 2.0/FU2
+        # binding WAS (the 2.1 binding was qualification-record identity,
+        # not a registered production record binding). The NEW assertion
+        # pins the STRICTLY MORE exact post-R1 state: the codec / replay
+        # union is exactly (V1, 2.0/FU2, 2.1/FU4) — the separately
+        # versioned FU4 record / replay binding is the only registered
+        # addition; the 2.1/FU3 binding is STILL not registered
+        # (harness-only — unchanged by R1).
         assert tuple(V2_1_CONTRACT_BINDING) not in {
             tuple(b) for b in SUPPORTED_CONTRACT_BINDINGS
         }
         assert tuple(V2_CONTRACT_BINDING) in {
             tuple(b) for b in SUPPORTED_CONTRACT_BINDINGS
         }
+        from product_intelligence.research import V2_FU4_CONTRACT_BINDING
+
+        assert tuple(V2_FU4_CONTRACT_BINDING) in {
+            tuple(b) for b in SUPPORTED_CONTRACT_BINDINGS
+        }
+        assert SUPPORTED_CONTRACT_BINDINGS == (
+            ("V1", "1.1", 1, 1, "SEMANTIC_AUTHORITY_V2_S2A_FU2"),
+            tuple(V2_CONTRACT_BINDING),
+            tuple(V2_FU4_CONTRACT_BINDING),
+        )
 
     def test_the_live_v2_record_type_still_pins_the_frozen_binding(self) -> None:
         from product_intelligence.research.semantic_decision_v2 import (
@@ -194,11 +214,15 @@ class TestProductionAdapterUnchanged:
         )
 
         # A V2-shaped payload whose binding carries the separately
-        # versioned FU3 token: the universal envelope dispatches to the
-        # registered V2 adapter, whose strict contract check refuses
-        # the foreign prompt axis / authority token (no registered
-        # adapter owns the 2.1 binding - it is qualification-record
-        # identity, not a production record binding).
+        # versioned FU3 token: no registered adapter claims the 2.1/FU3
+        # binding (the V2 adapter claims exactly 2.0/FU2; the FU4 adapter
+        # claims exactly 2.1/FU4) — the 2.1 binding is qualification-
+        # record identity, not a production record binding. Q3-B5-P5 R1
+        # (recorded): the failure point moved — the refusal now fires at
+        # the codec's binding-disambiguation gate (the recorded five-axis
+        # binding is claimed by zero registered adapters) instead of at
+        # the V2 adapter's strict contract check; the bounded error class
+        # is unchanged.
         payload = {
             "envelope_schema_version": 1,
             "schema_version": 1,

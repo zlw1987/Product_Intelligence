@@ -19,15 +19,28 @@ semantic-decision envelope. It owns:
   version (the dispatch key);
 * the no-float discipline for every persisted payload;
 * the adapter REGISTRY — the explicit version-adapter extension point:
-  ``_REGISTERED_SEMANTIC_CONTRACT_ADAPTERS`` currently names exactly two
-  adapters (the Semantic V1 adapter, ``research/semantic_decision_v1.py``,
-  and the final Semantic V2 adapter, ``research/semantic_decision_v2.py``
-  — registered in S2-C through this same explicit extension point).
-  Decoding dispatches on the RECORDED (envelope schema version, semantic
-  contract version) pair to the registered adapter; unknown or future
-  semantic contracts fail closed with an explicit "no registered adapter"
-  error — never best-effort decoded, never reinterpreted under a
-  different contract;
+  ``_REGISTERED_SEMANTIC_CONTRACT_ADAPTERS`` currently names exactly
+  three adapters (the Semantic V1 adapter,
+  ``research/semantic_decision_v1.py``; the final Semantic V2 adapter,
+  ``research/semantic_decision_v2.py`` — registered in S2-C through
+  this same explicit extension point; and the FU4 record / replay
+  adapter, ``research/semantic_decision_v2_fu4.py`` — registered in
+  Q3-B5-P5 R1 through this same explicit extension point, appended
+  AFTER the V2 adapter so the registration order stays V1, V2,
+  V2-FU4). Decoding dispatches on the FULL RECORDED five-axis contract
+  binding to exactly one claiming adapter (Q3-B5-P5 R1, FIND-1 /
+  DEC-9 — the claim-based disambiguation amendment, mirroring the
+  replay module's existing per-binding selection): for every
+  registered binding the claiming set is a singleton, so the
+  resolution is identical to the historical first-match-on-(envelope
+  schema version, semantic contract version) resolution; a payload
+  whose recorded binding is claimed by ZERO registered adapters is
+  refused with an explicit "no registered adapter" error (unknown or
+  future semantic contracts / cross-binding combinations fail closed —
+  never best-effort decoded, never reinterpreted under a different
+  contract); a payload claimed by MORE THAN ONE registered adapter is
+  a contract-registry defect and is refused with a distinct bounded
+  error (fail closed — never first-match, never adapter failover).
 * ``canonical_payload_digest`` — the whole-artifact tamper anchor value
   the persistence service stores in the row's separate digest column.
 
@@ -88,6 +101,9 @@ from product_intelligence.research.semantic_decision_v1 import (
 from product_intelligence.research.semantic_decision_v2 import (
     SEMANTIC_V2_ADAPTER,
 )
+from product_intelligence.research.semantic_decision_v2_fu4 import (
+    SEMANTIC_V2_FU4_ADAPTER,
+)
 
 __all__ = [
     "SEMANTIC_DECISION_SCHEMA_VERSION",
@@ -125,21 +141,26 @@ other axis.
 
 
 #: The registered version-specific semantic contract adapters, in
-#: registration order. Currently exactly two: the Semantic V1 adapter
+#: registration order. Currently exactly three: the Semantic V1 adapter
 #: (envelope schema version 1, semantic contract V1 — the frozen FU3A
-#: production semantic contract) and the final Semantic V2 adapter
+#: production semantic contract), the final Semantic V2 adapter
 #: (envelope schema version 1, semantic contract V2 — the S2-C final V2
-#: contract, registered through the same explicit extension point: the
-#: envelope, the row, the migration, and the service did not change).
-#: Registering a future semantic contract is a matter of adding its
-#: adapter here — the envelope, the row, the migration, and the service
-#: do not change. Frozen tuple of frozen adapter instances: no mutable
-#: global state.
+#: contract, registered through this same explicit extension point), and
+#: the FU4 record / replay adapter (envelope schema version 1, semantic
+#: contract V2 — the separately versioned FU4 authority binding,
+#: (V2, 2.1, 1, 1, the FU4 authority token), registered in Q3-B5-P5 R1
+#: through this same explicit extension point, appended AFTER the V2
+#: adapter). The envelope, the row, the migration, and the service did
+#: not change. Registering a future semantic contract is a matter of
+#: adding its adapter here — the envelope, the row, the migration, and
+#: the service do not change. Frozen tuple of frozen adapter instances:
+#: no mutable global state.
 _REGISTERED_SEMANTIC_CONTRACT_ADAPTERS: Final[
     tuple[SemanticDecisionContractAdapter, ...]
 ] = (
     SEMANTIC_V1_ADAPTER,
     SEMANTIC_V2_ADAPTER,
+    SEMANTIC_V2_FU4_ADAPTER,
 )
 
 
@@ -148,12 +169,22 @@ def registered_semantic_contract_adapter(
     semantic_contract_version: object,
 ) -> SemanticDecisionContractAdapter | None:
     """The registered adapter for one (envelope schema version, semantic
-    contract version) pair, or None when no adapter is registered for it.
+    contract version) pair, or None when no adapter is registered for
+    it.
 
-    Interpretation of a persisted payload requires an explicit registered
-    adapter: this lookup is the fail-closed dispatch of the universal
-    codec. Unknown or future semantic contracts return None (and are
-    refused), never guessed.
+    Interpretation of a persisted payload requires an explicit
+    registered adapter: this lookup is the fail-closed dispatch of the
+    universal codec. Unknown or future semantic contracts return None
+    (and are refused), never guessed.
+
+    NOTE (Q3-B5-P5 R1): this is an INTROSPECTION helper — it KEEPS its
+    historical first-match-on-pair semantics (the registration order
+    V1, V2, V2-FU4 keeps the (1, V2) pair resolving to the V2 adapter).
+    The universal DECODE path no
+    longer dispatches through this pair: it disambiguates on the full
+    recorded five-axis binding (``decode_semantic_decision_record`` —
+    the pair is ambiguous once two adapters speak one semantic contract
+    under different authority axes).
     """
     if isinstance(envelope_schema_version, bool) or not isinstance(
         envelope_schema_version, int
@@ -228,6 +259,57 @@ def canonical_payload_digest(payload: dict[str, object]) -> str:
     semantic contract produced it.
     """
     return canonical_sha256(payload)
+
+
+def _read_recorded_binding(
+    payload: dict[str, object],
+) -> tuple[str, str, int, int, str] | None:
+    """The FULL five-axis contract binding recorded in the payload's
+    ``contract`` section, or None when the section is structurally
+    malformed (a missing / wrong-typed axis).
+
+    Reading the five axes at the envelope level adds no new shape
+    assumption — the exact same five keys and types every registered
+    adapter already enforces on its own contract section. A structurally
+    malformed binding cannot equal any registered adapter's
+    ``supported_bindings`` entry, so it is claimed by NO adapter and the
+    dispatch fails closed with the unregistered-contract error — never
+    best-effort decoded, never reinterpreted (Q3-B5-P5 R1, DEC-9).
+    """
+    contract = payload.get("contract")
+    if not isinstance(contract, dict):
+        return None
+    try:
+        semantic = _dec_str(
+            _dec_required(
+                contract, "semantic_contract_version", "contract"
+            ),
+            "contract.semantic_contract_version",
+            allow_empty=False,
+        )
+        prompt = _dec_str(
+            _dec_required(contract, "prompt_version", "contract"),
+            "contract.prompt_version",
+            allow_empty=False,
+        )
+        input_version = _dec_int(
+            _dec_required(contract, "input_schema_version", "contract"),
+            "contract.input_schema_version",
+        )
+        output_version = _dec_int(
+            _dec_required(contract, "output_schema_version", "contract"),
+            "contract.output_schema_version",
+        )
+        authority = _dec_str(
+            _dec_required(
+                contract, "authority_contract_version", "contract"
+            ),
+            "contract.authority_contract_version",
+            allow_empty=False,
+        )
+    except (SemanticDecisionCodecError, TypeError, ValueError):
+        return None
+    return (semantic, prompt, input_version, output_version, authority)
 
 
 def _decode_envelope(
@@ -392,11 +474,22 @@ def decode_semantic_decision_record(
       envelope version agrees with the row's; the binding is exact and
       valid; the ``contract`` section identifies its semantic contract
       version);
-    * the RECORDED (envelope schema version, semantic contract version)
-      pair must have a registered adapter — unknown or future semantic
-      contracts are refused explicitly ("no registered adapter"), never
-      decoded best-effort and never reinterpreted under a different
-      contract.
+    * the FULL RECORDED five-axis contract binding (semantic contract,
+      prompt, input schema, output schema, authority contract) must be
+      claimed by EXACTLY ONE registered adapter — the claim-based
+      disambiguation (Q3-B5-P5 R1, FIND-1 / DEC-9, mirroring the replay
+      module's existing per-binding selection): ZERO claiming adapters
+      (an unknown / future / cross-binding payload — e.g. 2.1/FU3,
+      2.0/FU4, a misspelled token, or a structurally malformed
+      contract section) is refused with the bounded "no registered
+      contract adapter interprets this payload" error — never decoded
+      best-effort, never reinterpreted under a different contract;
+      MORE THAN ONE claiming adapter is a contract-registry defect and
+      is refused with a distinct bounded error — fail closed, never
+      first-match, never adapter failover. For every registered
+      binding the claiming set is a singleton, so the resolution is
+      identical to the historical first-match resolution (behavior-
+      preserving by construction).
 
     Interpretation of the version-owned sections (their exact shapes,
     enums, contract values, route rules, and integrity) is then delegated
@@ -425,8 +518,15 @@ def decode_semantic_decision_record(
     _run_id, _assessment_index, _source_url, contract_key = (
         _decode_envelope(payload, schema_version=schema_version)
     )
-    adapter = registered_semantic_contract_adapter(schema_version, contract_key)
-    if adapter is None:
+    recorded_binding = _read_recorded_binding(payload)
+    claiming = [
+        adapter
+        for adapter in _REGISTERED_SEMANTIC_CONTRACT_ADAPTERS
+        if adapter.envelope_schema_version == schema_version
+        and recorded_binding is not None
+        and recorded_binding in adapter.supported_bindings
+    ]
+    if not claiming:
         raise SemanticDecisionCodecError(
             f"unsupported semantic contract version {contract_key!r} "
             f"(envelope schema version {schema_version}): no registered "
@@ -434,6 +534,16 @@ def decode_semantic_decision_record(
             "closed (a historical decision is never reinterpreted under "
             "a different contract)"
         )
+    if len(claiming) > 1:
+        raise SemanticDecisionCodecError(
+            f"contract registry defect: {len(claiming)} registered "
+            f"contract adapters claim the recorded binding (envelope "
+            f"schema version {schema_version}, semantic contract "
+            f"{contract_key!r}); exactly one claiming adapter is "
+            "required — decoding fails closed (never first-match, never "
+            "adapter failover)"
+        )
+    adapter = claiming[0]
     try:
         return adapter.decode(payload)
     except SemanticDecisionCodecError:

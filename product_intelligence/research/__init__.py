@@ -457,6 +457,28 @@ from product_intelligence.research.semantic_decision_replay import (
     SUPPORTED_CONTRACT_BINDINGS,
     replay_semantic_decision,
 )
+from product_intelligence.research.semantic_decision_v2_fu4 import (
+    FALLBACK_MODEL_V2_FU4,
+    FALLBACK_PROVIDER_V2_FU4,
+    PRIMARY_MODEL_V2_FU4,
+    PRIMARY_PROVIDER_V2_FU4,
+    PROMPT_VERSION_V2_FU4,
+    SEMANTIC_CONTRACT_VERSION_V2_FU4,
+    SEMANTIC_INPUT_SCHEMA_VERSION_V2_FU4,
+    SEMANTIC_OUTPUT_SCHEMA_VERSION_V2_FU4,
+    SEMANTIC_V2_FU4_ADAPTER,
+    V2_FU4_AUTHORITY_QUALIFIED,
+    V2_FU4_CONTRACT_BINDING,
+    SemanticDecisionReplayV2FU4,
+    SemanticDecisionRecordV2FU4,
+    SemanticV2FU4ContractAdapter,
+    encode_v2_fu4_payload,
+    record_input_digest_v2_fu4,
+    record_output_digest_v2_fu4,
+    reconstruct_identity_context_v2_fu4,
+    reconstruct_semantic_evaluation_v2_fu4,
+    replay_v2_fu4_record,
+)
 from product_intelligence.research.semantic_authority_fu3 import (
     AUTHORITY_CONTRACT_VERSION_V2_FU3,
     AuthorityDecisionV2FU3,
@@ -695,6 +717,36 @@ __all__ = [
     "reconstruct_identity_context_v2",
     "reconstruct_semantic_evaluation_v2",
     "replay_v2_record",
+    # Q3-B5-P5 R1: the FU4 record / replay adapter (the THIRD registered
+    # adapter at the codec's explicit extension point — the separately
+    # versioned FU4 authority binding (V2, 2.1, 1, 1,
+    # SEMANTIC_AUTHORITY_V2_S2A_FU4), the versioned FU4 typed record
+    # (the FU4 derived audit surface + the version-owned authority
+    # evidence section), the strict FU4 payload codec, and the FU4 zero-
+    # live replay). Registration is NOT qualification:
+    # V2_FU4_AUTHORITY_QUALIFIED stays False; the live runtime, the
+    # frozen V1 / V2 adapters, and every historical record are
+    # unchanged.
+    "FALLBACK_MODEL_V2_FU4",
+    "FALLBACK_PROVIDER_V2_FU4",
+    "PRIMARY_MODEL_V2_FU4",
+    "PRIMARY_PROVIDER_V2_FU4",
+    "PROMPT_VERSION_V2_FU4",
+    "SEMANTIC_CONTRACT_VERSION_V2_FU4",
+    "SEMANTIC_INPUT_SCHEMA_VERSION_V2_FU4",
+    "SEMANTIC_OUTPUT_SCHEMA_VERSION_V2_FU4",
+    "SEMANTIC_V2_FU4_ADAPTER",
+    "V2_FU4_AUTHORITY_QUALIFIED",
+    "V2_FU4_CONTRACT_BINDING",
+    "SemanticDecisionReplayV2FU4",
+    "SemanticDecisionRecordV2FU4",
+    "SemanticV2FU4ContractAdapter",
+    "encode_v2_fu4_payload",
+    "record_input_digest_v2_fu4",
+    "record_output_digest_v2_fu4",
+    "reconstruct_identity_context_v2_fu4",
+    "reconstruct_semantic_evaluation_v2_fu4",
+    "replay_v2_fu4_record",
     "AuthorityAttemptResult",
     "AuthorityAuditOutcomeKind",
     "CandidateDisposition",

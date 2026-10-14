@@ -621,14 +621,21 @@ class TestEnvelopeIndependence:
         from product_intelligence.research import (
             SEMANTIC_V1_ADAPTER,
             SEMANTIC_V2_ADAPTER,
+            SEMANTIC_V2_FU4_ADAPTER,
             registered_envelope_schema_versions,
             registered_semantic_contract_adapter,
             supported_contract_bindings,
         )
 
-        # The two registered adapters (S2-C): envelope v1 x semantic
-        # contract V1 and envelope v1 x semantic contract V2 — both on
-        # the same universal envelope format.
+        # The three registered adapters (Q3-B5-P5 R1): envelope v1 x
+        # semantic contract V1, envelope v1 x semantic contract V2 (the
+        # final 2.0/FU2 binding), and envelope v1 x semantic contract
+        # V2 (the separately versioned FU4 binding) — all on the same
+        # universal envelope format. The single-adapter PAIR lookup
+        # KEEPS its historical first-match semantics (registration
+        # order V1, V2, V2-FU4 — (1, "V2") still resolves to the V2
+        # adapter); the universal DECODE path disambiguates on the full
+        # recorded five-axis binding (FIND-1 / DEC-9).
         assert (
             registered_semantic_contract_adapter(1, "V1")
             is SEMANTIC_V1_ADAPTER
@@ -641,10 +648,19 @@ class TestEnvelopeIndependence:
         assert registered_semantic_contract_adapter(2, "V2") is None
         assert registered_envelope_schema_versions() == (1,)
         # The supported bindings are exactly the registered adapters'
-        # bindings — the explicit extension point, no implicit versions.
+        # bindings — the explicit extension point, no implicit
+        # versions. (Q3-B5-P5 R1 re-pinned, recorded: the PREVIOUS
+        # expected tuple was exactly the two historical bindings
+        # (V1, 2.0/FU2); the registration appends the FU4 binding as
+        # the third entry — the 2.1/FU3 harness-only binding is NOT in
+        # the union.)
         assert supported_contract_bindings() == (
             ("V1", "1.1", 1, 1, "SEMANTIC_AUTHORITY_V2_S2A_FU2"),
             ("V2", "2.0", 1, 1, "SEMANTIC_AUTHORITY_V2_S2A_FU2"),
+            ("V2", "2.1", 1, 1, "SEMANTIC_AUTHORITY_V2_S2A_FU4"),
+        )
+        assert SEMANTIC_V2_FU4_ADAPTER.supported_bindings == (
+            ("V2", "2.1", 1, 1, "SEMANTIC_AUTHORITY_V2_S2A_FU4"),
         )
         # Wrong argument types are a caller defect (fail closed).
         with pytest.raises(TypeError):

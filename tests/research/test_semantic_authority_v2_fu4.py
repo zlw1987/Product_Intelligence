@@ -328,6 +328,18 @@ Q_UNDETERMINED = BundleQuantityAxisStateV2FU4.UNDETERMINED
 # working tree; every listed file is a BYTE-FROZEN input of this phase
 # (design section 8), so the working-tree digest IS the starting-SHA
 # digest — any edit to a frozen file fails the pin.
+#
+# Q3-B5-P5 R1 re-pin (design §1.7, recorded): the table re-pins at the
+# registration phase's starting SHA (de3dd950cd5386ffa03806984cb5f0c7a05340eb),
+# EXCLUDING the files R1 owns — the codec (the DEC-9 claim-based
+# disambiguation amendment + the registry's third entry) and the research
+# package export surface (the strictly additive FU4 adapter block). Both
+# are digest-pinned by the R1 suite
+# (tests/research/test_semantic_decision_v2_fu4.py) at the R1 endpoint
+# instead. The codec's frozen-input pin row is therefore removed here —
+# the recorded consequence of the versioned amendment (design §1.7 /
+# §10.1); every other pin is unchanged (the working tree at R1's
+# starting SHA is byte-identical for every file still frozen).
 # ---------------------------------------------------------------------------
 
 FROZEN_MODULE_PINS: dict[str, str] = {
@@ -345,9 +357,6 @@ FROZEN_MODULE_PINS: dict[str, str] = {
     ),
     "product_intelligence/research/semantic_decision_v2.py": (
         "9176380cc67090b1b799e7f9ad1640e5f2858ea1b9680897ff3cb7ad5f4cffeb"
-    ),
-    "product_intelligence/research/semantic_decision_codec.py": (
-        "ef31ef38ca5159c01cbfab9056ae20365c1dd58a8c6fb33b8f45f9f80a03b769"
     ),
     "product_intelligence/research/semantic_decision_replay.py": (
         "481f58aecf08893f0aab683a620bf25a41960e529f40ae197be06be1e272f803"
@@ -437,6 +446,20 @@ FU3_GUARD_RECORDED_LINE = (
     '        allowed_paths = {FU3_MODULE_PATH, '
     'PACKAGE_ROOT / "research" / "__init__.py", '
     'PACKAGE_ROOT / "research" / "semantic_authority_fu4.py"}'
+)
+# Q3-B5-P5 R1 (design §1.7, recorded): the FU3 reachability guard gains
+# the R1-owned successor RECORD ADAPTER module — the same category as
+# the recorded Q3-B5-P4 FU4 allow-line (the FU4 record adapter is
+# research contract surface: it must reference the FU3 frozen target
+# record and the FU3-derived vocabulary by name to carry the derived
+# audit surface; the guard's stated safety property — "no production
+# module OUTSIDE the research contract surface references it" — is
+# unchanged). The guard's line now reads:
+FU3_GUARD_RECORDED_LINE_R1 = (
+    '        allowed_paths = {FU3_MODULE_PATH, '
+    'PACKAGE_ROOT / "research" / "__init__.py", '
+    'PACKAGE_ROOT / "research" / "semantic_authority_fu4.py", '
+    'PACKAGE_ROOT / "research" / "semantic_decision_v2_fu4.py"}'
 )
 
 
@@ -935,37 +958,46 @@ class TestA1FrozenFilePins:
 
     def test_the_fu3_suite_is_unchanged_except_the_recorded_allowline(self) -> None:
         """A3 (suite-level, the recorded exception): the full 98-node
-        FU3 suite passes with EXACTLY ONE mechanical line changed in
-        its reachability guard — the guard's ``allowed_paths`` set
-        recognizes the FU4 successor contract module that the approved
-        design mandates (design D1: the FU4 module lives in research/;
-        D9 / D10 / D11 / T8: it imports the FU3 module, mirrors its
-        rule set, and reuses its frozen vocabulary — the FU3 lexical
-        markers are therefore unavoidable inside the FU4 module). The
-        guard's stated safety property — "no production module OUTSIDE
-        the research contract surface references it" — is unchanged:
-        the FU4 module is research contract surface (the same category
-        as ``research/__init__.py``, already allowed), and the FU4 test
+        FU3 suite passes with EXACTLY the recorded mechanical allow-line
+        changed in its reachability guard. Q3-B5-P4 recorded the first
+        line (the FU4 successor CONTRACT module — design D1 mandates it
+        inside research/, importing the FU3 module and reusing its
+        frozen vocabulary — so the FU3 lexical markers are structurally
+        unavoidable in it); Q3-B5-P5 R1 records the second (the FU4
+        successor RECORD ADAPTER module — the registered persistence
+        surface, which must reference the FU3 frozen target record and
+        the FU3-derived vocabulary by name to carry the derived audit
+        surface). The guard's stated safety property — "no production
+        module OUTSIDE the research contract surface references it" —
+        is unchanged in both: the successor modules ARE research
+        contract surface (the same category as
+        ``research/__init__.py``, already allowed), and the FU4 test
         file's own reachability guard re-pins that no live / persistence
-        / pricing / presentation module references the FU4 surface. This
-        pin proves the working FU3 suite file equals its starting-SHA
-        content plus exactly that one recorded line — no other byte.
-        The 98-node FU3 suite re-runs unmodified by validation."""
+        / pricing / presentation module references the FU4 surface
+        (extended to the adapter at R1). This pin proves the working
+        FU3 suite file equals its starting-SHA content plus exactly
+        those two recorded lines — no other byte. The 98-node FU3 suite
+        re-runs unmodified by validation."""
         text = (
             REPO_ROOT / FU3_SUITE_PATH
         ).read_text(encoding="utf-8")
-        assert text.count(FU3_GUARD_RECORDED_LINE) == 1, (
-            "the FU3 guard's recorded FU4 allow-line must appear exactly "
-            "once"
+        assert text.count(FU3_GUARD_RECORDED_LINE_R1) == 1, (
+            "the FU3 guard's recorded R1 allow-line (the FU4 record "
+            "adapter) must appear exactly once"
         )
-        starting_sha_text = text.replace(
+        after_r1 = text.replace(FU3_GUARD_RECORDED_LINE_R1, FU3_GUARD_RECORDED_LINE)
+        assert after_r1.count(FU3_GUARD_RECORDED_LINE) == 1, (
+            "reverting the R1 line must leave exactly the recorded Q3-"
+            "B5-P4 line"
+        )
+        starting_sha_text = after_r1.replace(
             FU3_GUARD_RECORDED_LINE, FU3_GUARD_ORIGINAL_LINE
         )
         assert hashlib.sha256(starting_sha_text.encode("utf-8")).hexdigest() == (
             FU3_SUITE_STARTING_SHA_DIGEST
         ), (
             "the FU3 suite file differs from its starting-SHA content by "
-            "more than the one recorded guard allow-line (any other edit "
+            "more than the two recorded guard allow-lines (any other edit "
             "to the frozen historical suite is a preservation violation)"
         )
 
@@ -1308,12 +1340,32 @@ class TestA2TokenAndDelegationIdentity:
 
 class TestA4RegistriesAndReachability:
     def test_the_production_codec_registry_is_unchanged(self) -> None:
-        """A4: the production codec knows exactly the V1 + 2.0/FU2
-        bindings; the replay registry is the same union — the FU4
-        contract phase registers NOTHING (§7.2 / D13)."""
+        """A4 (Q3-B5-P5 R1 re-pinned, recorded, design §1.7): the
+        production codec knows exactly the V1 + 2.0/FU2 + 2.1/FU4
+        bindings; the replay registry is the same union.
+
+        PREVIOUS assertion (contract phase, Q3-B5-P4 through Q3-B5-P5
+        design): ``supported_contract_bindings() == (V1, 2.0/FU2)`` and
+        every registered binding's authority axis was the frozen FU2
+        token (the contract phase registered NOTHING — §7.2 / D13).
+        NEW assertion (R1, the record / replay layer of the separately
+        gated registration step): the codec registry gains EXACTLY the
+        FU4 binding as its third entry (in registration order V1,
+        2.0/FU2, 2.1/FU4) and the authority axes are exactly {FU2,
+        FU4}; the 2.1/FU3 binding is STILL not registered (harness-only
+        — unchanged); the replay union is the same. The name is
+        preserved; the intent is strengthened — the pin now asserts a
+        STRICTLY MORE exact registry state (exactly three, no more, no
+        cross-binding combination)."""
+        from product_intelligence.research import V2_FU4_CONTRACT_BINDING
+
         assert supported_contract_bindings() == (
             V1_CONTRACT_BINDING,
             V2_CONTRACT_BINDING,
+            V2_FU4_CONTRACT_BINDING,
+        )
+        assert V2_FU4_CONTRACT_BINDING == (
+            "V2", "2.1", 1, 1, AUTHORITY_CONTRACT_VERSION_V2_FU4
         )
         from product_intelligence.research.semantic_decision_replay import (
             SUPPORTED_CONTRACT_BINDINGS,
@@ -1322,9 +1374,19 @@ class TestA4RegistriesAndReachability:
         assert SUPPORTED_CONTRACT_BINDINGS == (
             V1_CONTRACT_BINDING,
             V2_CONTRACT_BINDING,
+            V2_FU4_CONTRACT_BINDING,
+        )
+        # The harness-only 2.1/FU3 binding is still NOT a registered
+        # record binding (unchanged by R1 — it is the separately gated
+        # qualification lineage's identity, not a codec entry).
+        assert ("V2", "2.1", 1, 1, AUTHORITY_CONTRACT_VERSION_V2_FU3) not in (
+            supported_contract_bindings()
         )
         assert all(
-            binding[4] in (AUTHORITY_CONTRACT_VERSION_V2,)
+            binding[4] in (
+                AUTHORITY_CONTRACT_VERSION_V2,
+                AUTHORITY_CONTRACT_VERSION_V2_FU4,
+            )
             for binding in supported_contract_bindings()
         )
 
@@ -1357,15 +1419,24 @@ class TestA4RegistriesAndReachability:
                       "gated registration step, NOT the contract phase"
 
     def test_an_fu4_bound_payload_is_refused_by_production_replay(self) -> None:
-        """A4 / E3: a record bound to the FU4 token is outside the
-        CURRENT live adapters: the replay registry refuses it (never
-        silently reinterpreted), and the live V2 record type cannot even
-        be constructed under it (the frozen exact-token check)."""
+        """A4 / E3 (Q3-B5-P5 R1 re-pinned, recorded, design §1.7): a
+        record bound to the FU4 token is NOW replayable — the replay
+        registry claims the FU4 binding and dispatches it to the FU4
+        adapter, which accepts only the FU4 typed record.
+
+        PREVIOUS assertion (contract phase): the replay registry refused
+        a FU4-bound payload at the gate (``SemanticDecisionReplayError,
+        match='refuses to reinterpret'``) because no adapter claimed it.
+        NEW assertion (R1): a raw (non-typed) object carrying the FU4
+        binding PASSES the gate and is refused at the FU4 adapter's
+        type gate (``TypeError`` — the FU4 record type is the only
+        decodable shape); the frozen V2 record type still cannot be
+        constructed under the FU4 token (the exact-token check stands);
+        a REAL FU4 record replays through the universal dispatch (the
+        R1 suite exercises the full round trip). The name and the
+        anti-reinterpretation intent are preserved and strengthened."""
         from product_intelligence.research.semantic_decision_replay import (
             replay_semantic_decision,
-        )
-        from product_intelligence.research.semantic_decision_record import (
-            SemanticDecisionReplayError,
         )
 
         class _RawRecord:
@@ -1378,10 +1449,14 @@ class TestA4RegistriesAndReachability:
             raw.input_schema_version,
             raw.output_schema_version,
             raw.authority_contract_version,
-        ) = ("V2", "2.1", 1, 1, AUTHORITY_CONTRACT_VERSION_V2_FU4)
-        with pytest.raises(
-            SemanticDecisionReplayError, match="refuses to reinterpret"
-        ):
+        ) = (
+            "V2",
+            "2.1",
+            1,
+            1,
+            AUTHORITY_CONTRACT_VERSION_V2_FU4,
+        )
+        with pytest.raises(TypeError, match="SemanticDecisionRecordV2FU4"):
             replay_semantic_decision(raw)
 
         from tests.research.test_semantic_decision_v2 import (
@@ -1426,11 +1501,18 @@ class TestA4RegistriesAndReachability:
         self,
     ) -> None:
         from product_intelligence.research import semantic_decision_v2 as sdv2
+        from product_intelligence.research import (
+            semantic_decision_v2_fu4 as sdv2fu4,
+        )
         from product_intelligence.semantic import runtime_v2
 
         assert sdv2.V2_AUTHORITY_QUALIFIED is False
         assert runtime_v2.V2_AUTHORITY_QUALIFIED is False
         assert runtime_v2.SEMANTIC_PROMPT_VERSION_V2 == "2.0"
+        # Q3-B5-P5 R1 (strengthened, design §7 item 1): the FU4 record
+        # adapter carries the SAME explicit qualification-boundary
+        # marker — registration is NOT qualification.
+        assert sdv2fu4.V2_FU4_AUTHORITY_QUALIFIED is False
 
     def _imported_modules(self, path: Path) -> set[str]:
         modules: set[str] = set()
@@ -1461,7 +1543,17 @@ class TestA4RegistriesAndReachability:
             "BundleCompositionStateV2FU4",
             "S2A_FU4",
         )
-        allowed_paths = {FU4_MODULE_PATH, PACKAGE_ROOT / "research" / "__init__.py"}
+        allowed_paths = {
+            FU4_MODULE_PATH,
+            PACKAGE_ROOT / "research" / "__init__.py",
+            # Q3-B5-P5 R1 (recorded, design §1.7): the FU4 successor
+            # RECORD ADAPTER module joins the allowed research contract
+            # surface — it must reference the FU4 contract surface by
+            # name to own the FU4 record / codec / replay; the guard's
+            # stated safety property ("no production module OUTSIDE the
+            # research contract surface references it") is unchanged.
+            PACKAGE_ROOT / "research" / "semantic_decision_v2_fu4.py",
+        }
         for layer in ("research", "execution", "semantic", "runs", "web", "providers"):
             root = PACKAGE_ROOT / layer
             assert root.is_dir()
@@ -4799,13 +4891,24 @@ class TestD3CeilingInvariants:
 
 class TestE1ContractPhaseRegistries:
     def test_the_registries_are_exactly_as_frozen(self) -> None:
-        # A4 / E1: the production codec + replay registries, the live
-        # record pin, the harness registries, and the qualification
-        # marker — all unchanged by the contract phase (the full pin
-        # set lives in TestA4RegistriesAndReachability).
+        # A4 / E1 (Q3-B5-P5 R1 re-pinned, recorded, design §1.7): the
+        # production codec + replay registries, the live record pin, the
+        # harness registries, and the qualification marker.
+        #
+        # PREVIOUS assertion (contract phase): the codec / replay union
+        # was exactly (V1, 2.0/FU2).
+        # NEW assertion (R1): the union is exactly (V1, 2.0/FU2,
+        # 2.1/FU4) — the FU4 record / replay registration. The HARNESS
+        # registries, the committed 2.1 binding, and the qualification
+        # marker are still exactly as frozen (the harness extension is
+        # the separately gated R2 step; the name and intent are
+        # preserved, and the pin asserts a strictly more exact state).
+        from product_intelligence.research import V2_FU4_CONTRACT_BINDING
+
         assert supported_contract_bindings() == (
             V1_CONTRACT_BINDING,
             V2_CONTRACT_BINDING,
+            V2_FU4_CONTRACT_BINDING,
         )
         from product_intelligence.semantic.contract_v2_1 import (
             V2_1_CONTRACT_BINDING,
@@ -4835,10 +4938,22 @@ class TestE1ContractPhaseRegistries:
 
 class TestE2RegistrationStepNotExecuted:
     def test_no_binding_registration_happened_in_the_contract_phase(self) -> None:
-        """E2 (the specified registration step is NOT executed): no
-        FU4 entry in any registry — the harness knows exactly two
-        production bindings; the codec exactly two adapters' bindings;
-        no corpus 1.2.0 artifact; no CORPUS_VERSION_2_1_FU4 constant."""
+        """E2 (Q3-B5-P5 R1 re-pinned, recorded, design §1.7): the
+        CONTRACT phase registered nothing, and the HARNESS-level
+        registration (the R2 step) has NOT happened: no FU4 entry in
+        the harness seal registry; no corpus 1.2.0 artifact; no
+        CORPUS_VERSION_2_1_FU4 constant.
+
+        PREVIOUS assertion (contract phase): "no FU4 entry in any
+        registry" — including the codec.
+        NEW assertion (R1): the record / replay-level registration (R1)
+        HAS happened — the codec + replay union is exactly (V1,
+        2.0/FU2, 2.1/FU4) (pinned by the companion A4 / E1 nodes) —
+        while the harness-level assertions below are UNCHANGED and
+        still hold (the harness seal / corpus 1.2.0 / fixtures constant
+        are the separately gated R2 deliverables). The name and intent
+        are preserved; the pin now separates the R1-registered state
+        from the R2-unregistered state."""
         from product_intelligence.evaluation.semantic_v2 import corpus as harness_corpus
         from product_intelligence.evaluation.semantic_v2 import fixtures as harness_fixtures
 

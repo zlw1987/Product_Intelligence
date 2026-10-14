@@ -9586,3 +9586,150 @@ equivalence; collection non-decreasing (7251 -> 7268); the frozen FU3
 contract, the frozen S2-A / S2-C behavior, the live runtime, the
 corpus labels, the DRAFT policy, the Machine Price / Reviewed Price
 paths, and the V2 authority posture unchanged.
+
+
+### 26.39 SEMANTIC-AUTHORITY-V2-Q3-B5-P5-R1: FU4 Versioned Record,
+Codec and Replay Integration
+
+**Context and status.** Bounded RECORD/REPLAY-LAYER phase (sub-phase
+R1 of the separately gated FU4 registration step, design §10.1) on the
+Q3-B5-P5 design endpoint (starting SHA
+`de3dd950cd5386ffa03806984cb5f0c7a05340eb`; baseline collection 7500),
+executing the CONDITIONALLY APPROVED Q3-B5-P5 design
+(`docs/PRODUCT_INTEL_Q3B5_P5_FU4_BINDING_REPLAY_QUALIFICATION_DESIGN.
+md`, with ChatGPT's review amendments — the codec dispatch amendment
+section of the task briefing restates DEC-9). The Q3-B5-P3 / P4 /
+P4-FU1 / P4-FU2 / P5 lineage (the approved FU4 bundle-composition
+contract, its two corrections, and the registration design) is recorded
+in STATUS; this row is the registration phase's own §26.x row (the
+documented F-3 catch-up). R1 makes FU4-bound records PERSISTABLE,
+DECODEABLE, and REPLAYABLE through the universal semantic-decision
+envelope — NO R2 (no corpus 1.2.0, no harness extension, no binding
+constant in the semantic layer, no baselines), NO qualification, NO
+capture, NO live execution, NO pricing. Collection 7500 -> 7544.
+
+**Delivered.** (1) NEW `product_intelligence/research/semantic_
+decision_v2_fu4.py` — the THIRD registered adapter at the codec's
+explicit extension point (DEC-7): the FU4 contract identity
+(`V2_FU4_CONTRACT_BINDING = ("V2","2.1",1,1,
+"SEMANTIC_AUTHORITY_V2_S2A_FU4")` — composed from the frozen exports,
+no literal token in source; the semantic-layer owner constant is the
+R2 deliverable), the pinned route mirror (the SAME frozen qualified
+route the V2 adapter pins), the explicit `V2_FU4_AUTHORITY_QUALIFIED =
+False` marker (registration is NOT qualification), the versioned
+evidence-schema pins (bundle-composition evidence 3; extraction 1),
+the NEW typed record `SemanticDecisionRecordV2FU4` (the V2 field set +
+the FULL `AuthorityDecisionV2FU4` derived audit surface — the six
+bundle-axis fields explicit null for non-bundle channels — + the NEW
+version-owned `authority` section: the v3 candidate composition record
+with the embedded original `SalesUnitExtractionResult` WITHIN its
+evidence digest, the target evidence under the EXPLICIT bounded
+`absent / frozen_fu3 / fu4_v3` shape discriminator (DEC-8), the
+quantity-completeness attestation; the constructor is the validator —
+the exact FU4 binding pin, the evidence-schema pins, the channel
+coherence (evidence over an UNAVAILABLE / non-BUNDLE channel is
+contract misuse), and the derived section must be a VALID
+`AuthorityDecisionV2FU4` (the firewall invariants are enforced at
+construction — an AI_ASSISTED_COMPARABLE + UNPROVEN / CONTRADICTED
+exposure is un-constructible, hence undecodable)), the strict FU4
+payload codec (exact section key sets; the evidence documents decode
+field-by-field against their EXACT canonical key sets through the FU4
+constructors, with the round-trip document identity — no two
+documents, one record), and the FU4 pure zero-live replay
+(reconstruction + the v3 presentation gate via the derivation itself +
+the FU4 re-derivation + the full derived-agreement proof over the FU4
+audit surface; the human overlay is NOT replayed). (2) MODIFIED
+`semantic_decision_codec.py` — the ONE required versioned amendment
+(FIND-1 / DEC-9): decode dispatch moves from first-match-on-(envelope
+schema version, semantic contract version) to CLAIM-BASED
+disambiguation on the FULL recorded five-axis binding (the claiming
+set must be exactly one; ZERO claims — unknown / future / cross-
+binding / structurally malformed — is refused with the bounded
+"no registered adapter" error; MULTIPLE claims — a registry defect —
+is refused with a distinct bounded error; no adapter-failover
+decoding). Behavior-preserving by construction: for every currently
+decodable payload the claiming set is a singleton, so the resolution
+is identical to the historical first-match resolution (the concrete
+proof is the R1 suite's byte-identical historical round trips). The
+public single-adapter pair lookup KEEPS its first-match semantics
+(introspection helper; registration order V1, V2, V2-FU4 preserved).
+The registry tuple gains the FU4 adapter as its THIRD entry; the
+replay module (`semantic_decision_replay.py`) is BYTE-UNCHANGED — its
+five-tuple gate + per-binding selection already implement the
+post-amendment semantics (the derived union picks up the third
+binding automatically); the persistence service and the runs model
+need no change. (3) MODIFIED `research/__init__.py` — the strictly
+additive FU4 adapter export block (the FU3 / FU2 / V1 / V2 export
+blocks untouched). (4) NEW `tests/research/test_semantic_decision_
+v2_fu4.py` — 37 nodes implementing the mandated §9.1 matrix (rows
+1-16) over the REAL codec / replay entry points: the PROVEN / UNPROVEN
+/ CONTRADICTED paths (independently attested compositions; missing /
+incomplete evidence; materially different established compositions;
+the form axis), the count-only bundle (UNPROVEN under FU4 while the
+SAME input preserves the historical FU3 behavior — three-token
+coexistence), the EXTRACTION_RESULT_V1 basis (complete embedded
+original result round-tripped; conflicting secondary cues; missing /
+tampered / wrong embedded results — the Q3-B5-P4-FU2 false-PROVEN
+shape refused at replay), forged attestations, the target-evidence
+discriminator, wrong bindings / schema versions, duplicate / zero
+claims, altered derived decisions, digest mismatches, byte-identical
+historical V1 / V2 encode/decode/replay, unchanged malformed-payload
+rejection, zero-live sentinels, and the exhaustive restrict-only
+sweep (no automatic comparable tier for UNPROVEN / CONTRADICTED units).
+(5) RECORDED in-place test corrections (design §1.7 + the two
+mechanical discoveries of the same category — none weakens a safety
+property; each pins a strictly more exact state): `test_semantic_
+authority_v2_fu4.py` (A1: the codec — now R1-OWNED — is excluded from
+the frozen-input pin table, removing exactly ONE parameterized pin
+row, its R1-endpoint digest pinned by the new R1 suite instead; A3:
+the FU3 reachability guard's allow-line pin extends from one recorded
+line to two — the FU4 record adapter joins the allowed research
+contract surface, the same category as the recorded Q3-B5-P4 FU4
+line; A4 codec-registry / FU4-replay-refusal / qualification-marker /
+reachability nodes re-pinned to the registered state, name + intent
+preserved or strengthened; E1 registry union re-pinned to exactly
+three; E2 docstring records the R1-registered / R2-unregistered
+split — the harness assertions unchanged); `test_semantic_authority_
+v2_fu3.py` (the guard's `allowed_paths` gains the R1-owned adapter
+module — one recorded line); `test_q3b5_p1_binding_replay.py` (the
+codec-registry node re-pinned to the exact three-binding union with
+the 2.1/FU3 binding STILL absent; the FU3-payload-refusal node's
+docstring records the moved failure point — the codec's
+binding-disambiguation gate instead of the V2 adapter's strict check;
+error class unchanged); `test_semantic_decision_codec.py` (the
+expected `supported_contract_bindings()` tuple gains the third entry;
+the single-lookup assertions stand); `test_semantic_decision_replay.
+py` (the exact-tuple assertion gains the third entry; the length pin
+2 -> 3; the future-bound-payload docstring records the moved failure
+point); `test_semantic_decision_boundaries.py` (the registry-length
+pin 2 -> 3 with the FU4 adapter's identity pinned exactly — the
+design's §1.7 "verified by inspection" inventory missed this node; the
+correction is the same mechanical category); `test_semantic_decision_
+v2.py` (no change needed — its decode-refusal nodes assert error
+class only). No other test deleted, renamed, skipped, xfailed,
+deselected, ignored, or weakened; the Windows subprocess flake
+allowlist NOT expanded.
+
+**Frozen (byte-pinned at the starting SHA).** The FU4 module; the FU2 /
+FU3 modules; the extraction module; `semantic_v2.py`; the V1 / V2
+adapters + record types; the envelope foundation; the REPLAY module
+(digest `481f58aecf08893f0aab683a620bf25a41960e529f40ae197be06be1e
+272f803` unchanged); `contract_v2.py` / `contract_v2_1.py` /
+`runtime_v2.py`; the entire harness; the corpus artifacts (1.0.0 /
+1.1.0); the DRAFT policy. `V2_AUTHORITY_QUALIFIED` stays False in both
+pinned locations + the FU4 adapter's mirror; no live module references
+the FU4 record surface (AST + lexical scan); the pricing surfaces are
+byte-identical; `makemigrations --check --dry-run`: no changes
+detected.
+
+**Acceptance.** The §9.1 matrix passes as NEW nodes; the full
+historical suites pass (the 223-node FU4 suite modulo the §1.7
+re-pins; the 98-node FU3 suite; the 111 + 7 extraction suites; the
+decision-record / codec / replay / V2 suites modulo the §1.7
+corrections; the persistence suite); collection non-decreasing
+(7500 -> 7544 = +37 new-file nodes + 8 auto-expanded parameterized
+boundary scans for the new research file [research-core per-file x4,
+domain +1, providers +1, runs +1, web +1] - 1 recorded A1 codec-pin
+row); skipped / xfailed / deselected 0 / 0 / 0; `manage.py check`
+clean; no model call, no capture, no deployment, no corpus change, no
+policy change.
