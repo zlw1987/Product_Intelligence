@@ -5,6 +5,182 @@
 ## Current state
 
 
+**PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-Q3-C-C0 (FU4 Implementation
+Integrity Pins — the CF-2 Pin-Gap Correction)
+
+— IMPLEMENTED / PENDING INDEPENDENT REVIEW**
+
+Bounded TEST-ONLY correction on the authoritative starting SHA
+`a3134739fdf2531f295744e832099f17f06acfbd` (the Q3-C-D1 design
+endpoint; baseline collection **7574**, re-verified this session),
+executing design §9.2 of
+`docs/PRODUCT_INTEL_Q3C_FU4_BUNDLE_AUTHORITY_QUALIFICATION_DESIGN.md`
+(the C0 scope explicitly approved by the task directive): it closes the
+CF-2 pin gap — at the starting SHA the two frozen FU4 authority
+modules — the deterministic authority derivation
+(`product_intelligence/research/semantic_authority_fu4.py`) and the R1
+record / codec / replay adapter
+(`product_intelligence/research/semantic_decision_v2_fu4.py`) — carried
+NO file-content pin in any test literal or document record (the
+qualified surface was unpinned — the same gap class R1-FU1 and R2-FU1
+closed for the codec and the six R2-owned modules). Test-file
+correction only: NO production code change, NO corpus / manifest
+change, NO qualification-policy change, NO authority-flag flip, NO
+pricing behavior change, NO migration (`makemigrations --check
+--dry-run`: No changes detected), NO Windows flake allowlist change.
+
+**The recorded implementation correction (of record).** A first
+implementation variant of this phase verified the committed identity
+at pytest run time through git subprocess + pure-Python loose-object
+parsing (`zlib` over `.git/objects`). That variant was REJECTED
+before approval: under sustained Windows handle pressure the git
+subprocess itself flakes — the preserved untracked evidence
+`c0_full_run2.txt` records both of its nodes failing alongside the
+fixed eleven-node allowlist set (13 failed) — so the content-integrity
+contract was at risk of becoming a flake-class member. The corrected
+implementation (recorded by this entry) is **SUBPROCESS-FREE**: the
+nodes use `pathlib` (file bytes) + `hashlib` (SHA-256) only; the module
+has NO `subprocess` import, NO git invocation, and NO object-store
+access. Git commands were used EXCLUSIVELY during the setup /
+documentation pass to record the fixed audit metadata below; normal
+pytest execution never touches git.
+
+**The pins (one new file, two nodes, every literal fixed).**
+`tests/research/test_q3c_c0_fu4_implementation_pins.py` — the
+designated C0 pin home (a separate small test module per the task
+directive; NOT added to the FU4 A1 suite) — pins the two modules
+against LITERALS recorded at the starting SHA:
+
+* `semantic_authority_fu4.py` — blob OID
+  `7c1b1c4f8e88b8951e9362087aeb6b40f7aaf8bd`; committed content
+  167,523 bytes (pure LF, 3,614 lines), SHA-256
+  `482a637477dd24dfbb1051f714ab087b96061f80c8617ce8adb421a4edb5c09f`;
+  exact CRLF expansion 171,137 bytes, SHA-256
+  `0a0fb3d7760208b03ca54b7e12e35e8fa9bed81e0e09898252b4cecb2cf81bc4`
+  (the recording machine's checkout state).
+* `semantic_decision_v2_fu4.py` — blob OID
+  `8a4c62c8d360a489740e244f312be1e35ed52fa8`; committed content
+  123,142 bytes (pure LF, 3,030 lines), SHA-256
+  `c1037a5a987ee7a1674de0d9736ec9670ef13737e092a857b643ea70548d1224`
+  (the recording machine's checkout state — byte-identical to the
+  committed blob); exact CRLF expansion 126,172 bytes, SHA-256
+  `f6f0eecf98a544bd70adb1b47203f149b2ee8710a6d19b8e6947d5f681755967`.
+
+Setup-time derivation procedure of record (executed once, documented
+in the module docstring, NEVER executed at pytest run time): blob OID
+via `git rev-parse a3134739...:<path>`; size via `git cat-file -s
+<OID>`; committed SHA-256 via `git cat-file blob <OID> | sha256sum`
+(the stored blob bytes — NO clean / smudge filter applied); the CRLF
+expansion digest via the deterministic expansion of the committed bytes
+(every `\n` -> `\r\n`). Both production files verified
+`git diff`-clean against the starting SHA at preflight, and the
+production tree is byte-identical between the R2-FU1 endpoint
+`3bf6eb29...` and this SHA (`git diff --stat` over
+`product_intelligence/` + `tests/`: empty). (Verified of record: the
+D1 STATUS entry above writes the R2-FU1 endpoint SHA with a
+transposition — `3bf6e3294df3...` — an object that does not exist in
+the repository; the design document's
+`3bf6eb294df3ca83b93665158297f97abf3fba4b` is the real endpoint,
+verified by `git cat-file -e`. The D1 entry's transposed SHA was
+corrected to that real endpoint at C0 delivery; no other D1 content
+changed.)
+
+**CRLF / LF portability (the explicit, bounded normalization policy —
+of record).** The repository is checked out with `core.autocrlf=true`
++ `* text=auto`, so a committed pure-LF blob may legitimately appear
+in the working tree as its exact CRLF expansion. The policy is bounded
+to EXACTLY ONE transformation: `content := raw.replace(b"\r\n",
+b"\n")` — the exact inverse of the autocrlf expansion — applied ONLY
+to derive assertion A. NO arbitrary content normalization: no
+whitespace trimming, no encoding conversion, no lone-CR handling, no
+trailing-newline logic, no content rewriting; any byte difference
+other than line-ending state survives the transformation and changes
+the digest. NO dynamically generated expected digests: every expected
+value is a fixed literal in the module (the committed SHA-256 + size,
+and the two documented checkout-state raw digests), recorded at setup
+and never derived from the file under test at run time.
+
+**What each node asserts (two separate identities, neither conflated,
+neither weakened).** A. **CONTENT IDENTITY** (portable across the two
+documented checkout states): the working-tree bytes after the bounded
+CRLF->LF transformation must be byte-identical to the committed
+approved content — size AND SHA-256 against the fixed literals. This
+is the pin of the task-directive's exact approved content: a content
+change to either module fails its own node in ANY documented checkout
+state. B. **WORKING-TREE STATE** (the house pin convention, design
+§2.7 / R-C1-2): the RAW working-tree bytes (NO transformation) must
+hash to exactly one of the two recorded checkout-state literals (the
+pure-LF committed form or the exact CRLF expansion). A mixed
+line-ending state, a lone-CR residue, or any other byte change is NOT
+a documented state: it fails loudly — a recorded re-pin event, never a
+silent one. A legitimate checkout-state change (a fresh clone under a
+different autocrlf configuration) moves the raw digest to the OTHER
+recorded literal and keeps passing — the intended portability.
+
+**Tests.** 2 NEW nodes (one per module):
+`tests/research/test_q3c_c0_fu4_implementation_pins.py::TestQ3CC0FU4
+ImplementationIntegrityPins::test_pinned_module_implementation_
+identity_is_unchanged[semantic_authority_fu4]` and
+`…[semantic_decision_v2_fu4]`. No other test change.
+
+**Validation.** Independent single-node runs (first, per the task
+directive): node 1 — 1 passed, exit 0 (1.42s); node 2 — 1 passed,
+exit 0 (0.55s); neither exhibits subprocess latency (evidence
+`c0_fix_single_node1.txt` / `c0_fix_single_node2.txt`). Safety
+property demonstrated (the design §9.2 acceptance; the R1-FU1 /
+R2-FU1 precedent — controlled and fully reversible): for EACH module,
+the original bytes + SHA-256 were recorded; a harmless byte-level
+tamper was appended (`b"\n# probe\n"` — never committed); EXACTLY that
+file's node FAILED (assertion A — the recorded content-size mismatch
+naming the blob OID + starting SHA; the other module's node kept
+passing in the same invocation); the exact original bytes were
+restored by direct byte write-back (NO git restore / reset / checkout
+/ stash / clean); the restored digest was verified byte-identical to
+the original and `git diff --quiet` clean against the starting SHA
+(evidence `c0_fix_probe_node1.txt` / `c0_fix_probe_node2.txt` /
+`c0_fix_post_probe.txt` — both nodes green again after restoration).
+Targeted FU4 / R1 / R2 regression batch (`test_semantic_authority_
+v2_fu4` 217 + `test_semantic_decision_v2_fu4` 38 +
+`test_q3b5_p5_fu4_registration` 35 + `test_q3b5_p1_binding_replay`
+20 + `test_q3b5_p1_corpus_2_1` 20 + the new C0 file 2): **332 passed,
+0 failed** (evidence `c0_fix_targeted.txt`). Full suite: **7576
+collected — 7576 passed, 0 failed, exit 0** (evidence
+`c0_fix_full_run1.txt`; zero FAILED lines; 39 subtests passed).
+**Allowlist comparison (task directive item 9):** zero full-suite
+failures — an exact (empty) subset of the original fixed eleven-node
+Windows flake allowlist; the two new integrity nodes are subprocess-
+free (no `subprocess` import, no git invocation, no object-store
+access) and are NOT added to the allowlist, which is UNCHANGED.
+Collection delta (against the re-verified 7574 baseline): 7574 ->
+7576 (**+2** = the two new C0 nodes; **0 removed / 0 renamed / 0
+added** elsewhere; per-file: `test_q3c_c0_fu4_implementation_pins`
+0 -> 2 — no other file changed its node count). Skipped / xfailed /
+deselected: **0 / 0 / 0**. `python manage.py check`: System check
+identified no issues (0 silenced). `python manage.py makemigrations
+--check --dry-run`: No changes detected.
+
+**Invariance (this phase).** No production Python code, historical
+test, corpus or manifest, qualification policy, prompt text, authority
+flag, pricing behavior, or database schema changed: `git diff` over
+`product_intelligence/` is empty against the starting SHA (the only
+file touched this phase is the NEW untracked test file; the two probe
+tampers were restored byte-identical and verified by digest + git
+diff before the targeted and full runs). C0 grants NO qualification:
+pinning the implementation identity does not make the FU4 authority
+qualified, production-approved, or pricing-eligible — the program's
+qualification state of record remains UNAPPROVED / NOT EXECUTED. No
+commit, no push (the task directive holds the endpoint uncommitted
+pending independent review). The unrelated worktree artifacts (the
+pre-existing `tmp_collection.txt` modification; the untracked session
+/ benchmark files; the preserved untracked `c0_full_run1.txt` /
+`c0_full_run2.txt` evidence of the rejected first variant) are
+preserved.
+
+**Next.** Independent review of the C0 correction (the GitHub diff).
+C1 (the corpus schema + integrity validator) is NOT authorized — it
+starts only under its own explicit approval (design §9.3).
+
+
 **PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-Q3-C-D1 (FU4 Bundle Authority
 Qualification Design)
 
@@ -13,7 +189,7 @@ ChatGPT independently reviews the GitHub document and source references
 before authorizing any implementation phase)**
 
 Bounded DESIGN-ONLY phase on the authoritative starting SHA
-`3bf6e3294df3ca83b93665158297f97abf3fba4b` (the Q3-B5-P5-R2-FU1
+`3bf6eb294df3ca83b93665158297f97abf3fba4b` (the Q3-B5-P5-R2-FU1
 endpoint; baseline collection **7574, re-verified this session** by a
 full `pytest --collect-only` over the working tree at this SHA). This is
 the first independent qualification program designed for FU4 Bundle
