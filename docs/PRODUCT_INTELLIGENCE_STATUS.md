@@ -5,6 +5,258 @@
 ## Current state
 
 
+**PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-Q3-C-C1 (FU4 Bundle Authority
+Qualification — Corpus Schema & Integrity Validator)
+
+— IMPLEMENTED / PENDING CHATGPT INDEPENDENT REVIEW**
+
+Bounded implementation on the authoritative starting SHA
+`36d4e8b9716e18295abfcb8e5d8167ad320bd6df` (the Q3-C-C0 endpoint;
+baseline collection **7576**, re-verified this session), executing
+design §9.3 of
+`docs/PRODUCT_INTEL_Q3C_FU4_BUNDLE_AUTHORITY_QUALIFICATION_DESIGN.md`
+(the C1 scope explicitly approved by the task directive). Schema +
+validator only: **NO qualification cases, NO labels, NO evaluator, NO
+capture, NO model call, NO policy, NO authority promotion, NO pricing
+wiring, NO deployment, NO migration** (`makemigrations --check
+--dry-run`: No changes detected; `manage.py check`: 0 issues).
+
+**What C1 implements (of record).** The strictly offline FU4 Bundle
+authority qualification corpus family — the schema, the strict
+decoder, the manifest integrity validator, the builder skeleton, and
+the offline CLI. The family is a SEPARATE corpus identity (`PI-FU4-
+BUNDLE-AUTHORITY-QUALIFICATION`, first version `1.0.0`, schema 1),
+sealed under the registered FU4 binding
+tuple(`V2_FU4_CONTRACT_BINDING`) — the semantic family
+(`PI-SEMANTIC-V2-QUALIFICATION` 1.0.0–1.2.0) is NOT extended and NOT
+touched. The sealed corpus loads ONLY under the exact family seal
+registry (cross-family / cross-binding / cross-version refusal).
+
+**The exact files (design §9.3 scope).**
+
+* NEW `product_intelligence/evaluation/bundle_authority/__init__.py`
+  (family marker; research-independent).
+* NEW `product_intelligence/evaluation/bundle_authority/corpus.py`
+  (the family loader: exact-key-set strict decode of the §4.4
+  per-case document + the corpus document; the seal registry; the
+  per-case / corpus / manifest digests; the manifest builder /
+  verifier; the §4.4 / §4.6 label-governance checks — author ≠
+  reviewer, `REVIEWED` status, the fixed independence attestation,
+  the anti-derivation label-text scan, the expected-axis coherence
+  pre-checks; the evidence construction through the REAL frozen
+  constructors with canonical round-trip identity (constructor-is-
+  validator); the RECORD-surface payload decode through the REAL
+  universal codec; the stable canonical serialization check; the
+  declared source-file digest re-verification).
+* NEW `product_intelligence/evaluation/bundle_authority/fixtures.py`
+  (the auditable case-authoring source: the EMPTY declared case set +
+  the corpus-document builder skeleton; research-independent at C1).
+* NEW `product_intelligence/evaluation/bundle_authority/cli.py`
+  (`corpus-build` / `corpus-digest` / `corpus-manifest` — offline
+  only; explicit `--created-utc`, no clock read).
+* NEW `tests/evaluation/bundle_authority/` (`__init__.py` +
+  `test_q3c_c1_corpus_integrity.py`, 200 nodes — the focused C1
+  adversarial suite; minimal synthetic fixtures only, test-local,
+  never a qualification seal).
+* AMENDED IN PLACE (strictly additive, recorded decision — see
+  "Boundary-guard decision of record" below):
+  `tests/research/test_research_identity_boundaries.py` (+103/-4:
+  the `BUNDLE_AUTHORITY_QUALIFICATION_RESEARCH_EXCEPTION` exact-
+  allowlist entry for `bundle_authority/corpus.py` only, the union
+  update, the new `test_bundle_authority_exception_is_an_exact_
+  allowlist` node, the docstring record).
+* NO other file touched: the byte-pinned semantic_v2 harness, the
+  three committed semantic corpus seals + manifests + the DRAFT
+  policy, the R1 / R2 / C0 pin tables, the FU4 module, the R1
+  adapter, the prompts, the live runtime, the pricing surfaces — all
+  byte-identical to the starting SHA (`git diff` over
+  `product_intelligence/` + `evaluation/` + `tests/evaluation/
+  semantic_v2/` empty against the starting SHA; the C1 suite
+  re-pins the five A1-pinned semantic artifacts by file digest and
+  the 1.2.0 seal by its inner document digests).
+
+**Supported integrity guarantees (what a matching digest proves).**
+Internal structural integrity only (design §3.2 L1): the document is
+exactly the bytes its digests cover (per-case digest over the case
+document minus `case_digest`; corpus digest over the full state view
+including label revisions — case reordering without re-sealing is
+detected; manifest digest over the manifest minus `manifest_digest`),
+in the stable canonical serialization (sorted keys / indent 1 / ASCII
+/ trailing newline; the documented autocrlf working-tree expansion is
+the only tolerated byte variant), under the exact family identity /
+version / binding seal, with every bounded vocabulary drift-pinned to
+the frozen research exports, every evidence document decoded through
+the REAL frozen constructors (canonical round-trip identity), the
+RECORD-surface payload decoded through the REAL universal codec, the
+label governance enforced (§4.6: two distinct identities, `REVIEWED`,
+the fixed independence attestation, the anti-derivation scan, the
+expected-axis coherence pre-checks), and every cited source archive
+re-verified against its declared digest. **Explicit authenticity
+limitations (never claimed):** a valid digest does NOT establish that
+the publisher actually made a claim (L3 — only the recording act's own
+integrity is verifiable), does NOT establish that a published
+completeness statement is physically complete (L4 — it remains a
+published claim), and does NOT establish that a physical bundle
+contains the listed components (L5 — reserved to human verification).
+No cryptographic source-authentication capability exists or is
+invented by C1.
+
+**Sealed-raw defect scoping (the documented rule).** Cases labeled
+`REFUSED` / `NON_CONSTRUCTIBLE` carry the sealed invalid documents of
+the adversarial matrix. The loader runs the real constructors / codec
+/ family checks over every evidence document WITHOUT executing the
+derivation, classifies each observation by layer, and requires the
+labeled refusal stage to be coherent with what is observable:
+`CORPUS_INTEGRITY` requires a case-document-integrity observation;
+`CONSTRUCTION` / `CODEC_DECODE` require a constructor- / codec-level
+observation (a label naming a construction-stage defect over fully
+sound documents is an incoherent label — a corpus-integrity failure,
+never a test failure); `PRESENTATION_GATE` / `REPLAY_AGREEMENT`
+require the documents to be exactly the self-consistent shapes (no
+constructor- / codec- / case-document-integrity observation may fire).
+A sound (`DERIVED`) case must carry zero observations of any layer.
+
+**Boundary-guard decision of record (the one file outside §9.3's
+literal list).** The frozen architecture guard
+(`tests/research/test_research_identity_boundaries.py`) requires a
+recorded, strictly-additive in-place allowlist extension for any new
+evaluation→research importer (its own documented mechanism;
+precedents A1-FU2 / Q3-A / Q3-A-FU1; the file is NOT content-pinned —
+verified by digest grep over `tests/` + `docs/`). C1 extends it for
+EXACTLY `bundle_authority/corpus.py` (the family loader requires the
+real frozen constructors / codec / drift-pinned research public
+surface — design §9.3's own import-scan acceptance); every other
+family module stays research-independent (pinned by the C1 suite),
+and the C1 import-scan suite additionally locks the exact research
+symbol allowlist of `corpus.py` + the label-determining import
+prohibition (no `derive_*` authority derivation, no replay, no
+construction entry point, no semantic_v2 harness module, no execution
+/ runs / web / providers / Django). This decision is recorded here and
+in PLAN §26.42 / AD-084 for the independent reviewer; if the review
+disagrees, the bounded correction is this single test file.
+
+**Interpretations of record (design-internal, not conflicts with the
+frozen implementation).** (1) D1 §2.4 names the harness
+`decode_match_case` as the "public entry the new family reuses
+read-only" while §9.3's mechanically verifiable import-scan acceptance
+forbids semantic_v2 harness imports; resolved by §4.4's own
+"decode_match_case **/ constructor**" wording + §3.3 ("reuses
+patterns and the frozen research public API, never the pinned harness
+files"): the family implements the strict V2 case-document decode
+in-package with the REAL frozen `SemanticMatchCaseV2` constructor as
+final arbiter + canonical round-trip identity. (2) §4.2(f)/(g) over
+sealed-raw defect documents (matrix rows B8/B9/D14/D15/D16 are
+documents the constructors / codec MUST refuse) is scoped by the
+stage-coherence rule above — the loader verifies the sealed documents
+are consistent with the labeled observation point without executing
+the derivation. (3) The family finalizes the design's O-1 items:
+`challenge_tags` = the five tags the design names; the refusal
+`error_type` bounded set = {CONSTRUCTOR, CODEC, PRESENTATION, REPLAY}
+per stage; `surface` = explicit null for track-B cases; the corpus
+digest covers `label_revisions` (per §4.2's state view — the semantic
+family's exclusion of `label_revisions` is NOT adopted); `track A_B`
+cases carry the `semantic_identity_note`.
+
+**Tests.** 200 NEW nodes in `tests/evaluation/bundle_authority/
+test_q3c_c1_corpus_integrity.py` (the focused C1 adversarial suite):
+the structural-integrity matrix (missing / extra keys, wrong types,
+invalid enums, case-id grammar, duplicate ids, cross-family /
+cross-binding / cross-version / schema-version seal refusal, track /
+surface coherence); the digest-integrity matrix (sealed-byte case /
+label / reviewer / source tamper, corpus-digest / manifest tamper
+class incl. statement / lineage / case-count / projection / binding,
+case reordering, non-canonical serialization); the provenance-
+integrity matrix (candidate-evidence-on-target and the reverse,
+cross-listing substitution sealed-raw + sound-label refusal, missing
+original extraction, extraction input-digest mismatch, missing
+completeness attestation, model claim disguised as publisher
+evidence, forged reviewer association, quantity-attestation side /
+axis misuse); the sealed-raw stage-coherence rows (B8 / D14 /
+D15-i / D15-ii / D16 / D6-ii shapes load under their labels; the
+incoherent-label shapes are refused — CONSTRUCTION over sound
+documents, CORPUS_INTEGRITY without a defect, PRESENTATION_GATE over
+a constructor defect, CODEC_DECODE over the derivation surface);
+the label-governance rows (two identities, `REVIEWED`, fixed
+attestation, anti-derivation token scan, the expected-axis coherence
+pre-checks incl. no-implicit-PROVEN / no-pricing-default / ceiling-
+keying / note-track rules); the authority-separation proofs (the
+exact research symbol allowlist, the forbidden label-determining
+surface scan, the monkeypatched no-execution probe, least-privilege
+research-independence of the non-loader family modules); the
+vocabulary drift pins (family sets == frozen exports, incl. the
+evidence-kind equality against the semantic family's set); the
+source-archive digest consistency (verify / substituted file /
+missing file / the per-evidence-kind source-block rules); the
+historical-preservation pins (the five A1-pinned semantic artifacts
+by file digest + the 1.2.0 seal by its inner document digests);
+and the empty-seal demonstration (the 0-case corpus builds, seals,
+loads, and regenerates byte-for-byte; the CLI round trip).
+1 NEW guard node in the amended boundary file
+(`test_bundle_authority_exception_is_an_exact_allowlist`). No test
+deleted, renamed, skipped, xfailed, deselected, ignored, or
+weakened; the fixed eleven-node Windows flake allowlist UNCHANGED.
+
+**Validation (exact).** Focused C1 suite: **200 passed, 0 failed**
+(3.78s). Targeted batch (boundary guards + the 217-node FU4 contract
+suite + the 38-node R1 suite + the 35-node R2 registration suite +
+the 2-node C0 pin suite): **all passed, exit 0**. Full semantic batch
+(`tests/evaluation/semantic_v2/` + the authority-boundary + codec /
+replay / record suites): **all passed, exit 0**. Full suite, three
+recorded runs against the 7793 collection (the documented load-
+sensitive clean-interpreter subprocess guard flake class — every
+failure `OSError [WinError 6] DuplicateHandle` at `subprocess.Popen`
+BEFORE any project code runs; zero assertion failures; the fixed
+eleven-node allowlist UNCHANGED): run 1 (evidence `tmp_c1_full_
+run1.txt`) — **7793 collected, 7793 passed, 0 failed, exit 0**, 0
+skipped / 0 xfailed / 0 deselected; run 2 (evidence `tmp_c1_full_
+run2.txt`) — 7791 passed, 2 failed (the `test_domain_boundaries::
+test_domain_imports_without_django_network_or_llm_dependencies` +
+`test_evaluation_boundaries::test_loading_the_corpus_imports_no_
+framework_or_provider` allowlist members; both re-passed on isolated
+retry); run 3 (evidence `tmp_c1_full_run3.txt`) — 7782 passed,
+11 failed — the SAME 11 fixed-allowlist nodes exactly (node-level
+list in `tmp_c1_run3_failed.txt`), all re-passing on isolated
+retry. An isolated retry does not convert a failed full-suite run
+into a full green result: the recorded full-green full-suite result
+is run 1. Collection delta (against the re-verified 7576 baseline):
+7576 -> 7793 (**+217** = 200 new C1 suite nodes + 1 new boundary
+guard node + 16 auto-expanded per-file boundary scans [4 new family
+production files × (evaluation vendor + evaluation stdlib + provider
+no-wiring + web no-import) — the documented auto-expansion class;
+**0 removed / 0 renamed**; per-file: `test_q3c_c1_corpus_integrity`
+0 -> 200, `test_research_identity_boundaries` 161 -> 162,
+`test_evaluation_boundaries` 64 -> 72, `test_provider_boundaries`
+170 -> 174, `test_web_boundaries` 183 -> 187 — no other file changed
+its node count). `python manage.py check`: System check identified no
+issues (0 silenced). `python manage.py makemigrations --check
+--dry-run`: No changes detected.
+
+**Invariance (this phase).** No production Python code outside the
+NEW family package, no historical test, no corpus or manifest,
+no qualification policy, no prompt text, no authority flag, no
+pricing behavior, no database schema changed: `git diff` over
+`product_intelligence/` (minus the new family package),
+`evaluation/`, and `tests/evaluation/semantic_v2/` is empty against
+the starting SHA; the C1 suite's historical-preservation pins pass.
+No qualification label was created or revised (the 200-suite
+fixtures are synthetic decoder fixtures assembled in the test
+module, never a corpus artifact). No model capture occurred (no
+transport, no provider, no capture runner; zero-live by
+construction). C1 grants NO qualification: the FU4 Bundle authority
+program state of record remains UNAPPROVED / NOT EXECUTED — the
+qualification corpus is NOT sealed, no Bundle authority case is
+independently qualified, and the next phase (C2 — the independently
+labeled v1.0.0 seal) starts only under its own explicit approval
+(design §9.4). The unrelated worktree artifacts (the pre-existing
+`tmp_collection.txt` modification; the untracked session / benchmark
+files; the preserved C0 evidence) are preserved.
+
+**Next.** ChatGPT's independent review of the C1 GitHub diff + tests
++ this record (the delivery report's invariance evidence). C2 is NOT
+started — it requires its own explicit approval (design §9.4) and
+the two-identity review workflow staffed (§8.2).
+
+
 **PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-Q3-C-C0 (FU4 Implementation
 Integrity Pins — the CF-2 Pin-Gap Correction)
 
@@ -168,11 +420,20 @@ tampers were restored byte-identical and verified by digest + git
 diff before the targeted and full runs). C0 grants NO qualification:
 pinning the implementation identity does not make the FU4 authority
 qualified, production-approved, or pricing-eligible — the program's
-qualification state of record remains UNAPPROVED / NOT EXECUTED. No
-commit, no push (the task directive holds the endpoint uncommitted
-pending independent review). The unrelated worktree artifacts (the
-pre-existing `tmp_collection.txt` modification; the untracked session
-/ benchmark files; the preserved untracked `c0_full_run1.txt` /
+qualification state of record remains UNAPPROVED / NOT EXECUTED.
+
+**Endpoint of record (corrected at C1 delivery).** The C0 endpoint WAS
+committed and pushed: ordinary append-only commit
+`36d4e8b9716e18295abfcb8e5d8167ad320bd6df` on `main` (parent
+`a3134739fdf2531f295744e832099f17f06acfbd`, the D1 design endpoint;
+`origin/main` verified at that SHA at the C1 starting point). The
+stale "No commit, no push" wording of this entry (written before the
+deliverable landed) is corrected by this sentence only — no other C0
+content changed, and C0's approval scope is NOT expanded (C0 remains
+the bounded TEST-ONLY CF-2 pin correction; it granted and still grants
+NO qualification). The unrelated worktree artifacts (the pre-existing
+`tmp_collection.txt` modification; the untracked session / benchmark
+files; the preserved untracked `c0_full_run1.txt` /
 `c0_full_run2.txt` evidence of the rejected first variant) are
 preserved.
 

@@ -99,11 +99,38 @@ QUALIFICATION_V2_RESEARCH_EXCEPTION = frozenset(
     }
 )
 
+# Q3-C-C1 recorded decision (least privilege, exact-allowlist mechanism
+# preserved).
+#
+# The FU4 Bundle authority qualification family loader (design of record:
+# docs/PRODUCT_INTEL_Q3C_FU4_BUNDLE_AUTHORITY_QUALIFICATION_DESIGN.md,
+# section 9.3) must verify the sealed evidence documents through the REAL
+# frozen constructors (constructor-is-validator - design section 4.2(f))
+# and the REAL universal codec (design section 4.2(g)), and must reuse the
+# frozen research public surface (bounded vocabularies, the house canonical
+# digest, the exact FU4 binding) drift-pinned, never literal-copied (the P1
+# discipline). The recorded decision authorizes EXACTLY the family loader
+# module (corpus.py) to import the frozen research surface; every other
+# family module (fixtures, cli, __init__) stays research-independent at C1
+# (pinned by the C1 suite), and any future family file that needs a direct
+# research dependency (the C2 case authoring source requires the frozen P2
+# extraction + S2-C types per design section 4.6) requires a NEW explicit
+# recorded decision - no prefix/glob/regex match. The C1 import-scan suite
+# additionally pins the exact research symbol allowlist of corpus.py and
+# the label-determining import prohibition (no authority derivation, no
+# replay, no construction entry point, no semantic_v2 harness module).
+BUNDLE_AUTHORITY_QUALIFICATION_RESEARCH_EXCEPTION = frozenset(
+    {
+        "product_intelligence/evaluation/bundle_authority/corpus.py",
+    }
+)
 
-#: The union of the two explicit reviewer-authorized exceptions.
+
+#: The union of the three explicit reviewer-authorized exceptions.
 AUTHORIZED_RESEARCH_IMPORTERS = frozenset(
     PROMOTION_REGRESSION_RESEARCH_EXCEPTION
     | QUALIFICATION_V2_RESEARCH_EXCEPTION
+    | BUNDLE_AUTHORITY_QUALIFICATION_RESEARCH_EXCEPTION
 )
 
 
@@ -333,6 +360,17 @@ def test_no_outer_layer_is_wired_to_the_identity_primitive_yet(root: Path) -> No
     research-independent; locked by
     ``test_qualification_v2_exception_is_an_exact_allowlist``; PLAN
     26.28 item 9).
+
+    Q3-C-C1 RECORDED DECISION (same least-privilege mechanism): the FU4
+    Bundle authority qualification family loader must verify the sealed
+    evidence through the REAL frozen constructors / universal codec /
+    drift-pinned research public surface (design section 9.3 import-
+    scan acceptance), so exactly ``bundle_authority/corpus.py`` is
+    additionally authorized (every other family module stays
+    research-independent at C1, pinned by the C1 suite; the C1 import-
+    scan suite locks the exact symbol allowlist + the label-determining
+    import prohibition; STATUS Q3-C-C1 entry + PLAN 26.42 record the
+    decision).
     """
     for path in _python_files(root):
         if _is_authorized_research_importer(path):
@@ -401,11 +439,17 @@ def test_only_promotion_regression_may_wire_research() -> None:
         "named qualification harness modules; any other entry requires "
         "a new explicit reviewer decision"
     )
+    assert len(BUNDLE_AUTHORITY_QUALIFICATION_RESEARCH_EXCEPTION) == 1, (
+        "the Q3-C-C1 recorded decision authorizes EXACTLY the family "
+        "loader module to import research; any other entry requires a "
+        "new explicit recorded decision"
+    )
     assert exception_count == len(AUTHORIZED_RESEARCH_IMPORTERS), (
         f"expected exactly the {len(AUTHORIZED_RESEARCH_IMPORTERS)} "
-        "allowlisted evaluation files (1 A1-FU2 + 6 Q3-A) under "
-        f"evaluation/, found {exception_count}; the allowlists must be "
-        "updated through an explicit reviewer decision, never implicitly"
+        "allowlisted evaluation files (1 A1-FU2 + 6 Q3-A + 1 Q3-C-C1) "
+        f"under evaluation/, found {exception_count}; the allowlists "
+        "must be updated through an explicit reviewer decision, never "
+        "implicitly"
     )
 
 
@@ -570,11 +614,66 @@ def test_qualification_v2_exception_is_an_exact_allowlist() -> None:
     assert AUTHORIZED_RESEARCH_IMPORTERS == (
         PROMOTION_REGRESSION_RESEARCH_EXCEPTION
         | QUALIFICATION_V2_RESEARCH_EXCEPTION
+        | BUNDLE_AUTHORITY_QUALIFICATION_RESEARCH_EXCEPTION
     )
     # The promotion-regression exception is untouched by Q3-A.
     assert PROMOTION_REGRESSION_RESEARCH_EXCEPTION == {
         "product_intelligence/evaluation/semantic/promotion_regression.py"
     }
+
+
+def test_bundle_authority_exception_is_an_exact_allowlist() -> None:
+    """Q3-C-C1 recorded decision: the family research exception is
+    EXACTLY the one loader module and cannot expand implicitly.
+
+    Mechanically demonstrates, against the boundary predicate itself:
+
+    A. corpus.py IS authorized and currently imports
+       product_intelligence.research (the exception is load-bearing);
+    B. the other family modules (fixtures, cli, __init__) are NOT
+       authorized and do not import research (least privilege at C1);
+    C. arbitrary other bundle_authority names, other directories, and
+       files outside the repository are NOT covered (no prefix/glob/regex);
+    D. the union allowlist is exactly the three recorded-exception sets.
+    """
+    fa_root = PACKAGE_ROOT / "evaluation" / "bundle_authority"
+    corpus_path = fa_root / "corpus.py"
+    assert BUNDLE_AUTHORITY_QUALIFICATION_RESEARCH_EXCEPTION == {
+        _repo_relative_posix(corpus_path),
+    }
+    assert corpus_path.is_file()
+    assert _is_authorized_research_importer(corpus_path)
+    assert any(
+        module.startswith("product_intelligence.research")
+        for module in _imported_modules(corpus_path)
+    )
+    for name in ("fixtures.py", "cli.py", "__init__.py"):
+        path = fa_root / name
+        assert path.is_file(), name
+        assert not _is_authorized_research_importer(path)
+        assert not any(
+            module.startswith("product_intelligence.research")
+            for module in _imported_modules(path)
+        ), f"{name} imports research without an explicit exception"
+    not_covered = [
+        fa_root / name
+        for name in ("corpus_extra.py", "loader_hack.py", "harness.py")
+    ]
+    not_covered += [
+        PACKAGE_ROOT / "evaluation" / "bundle_authority_nested" / "corpus.py",
+        PACKAGE_ROOT / "evaluation" / "corpus.py",
+        REPO_ROOT / "elsewhere" / "corpus.py",
+    ]
+    for path in not_covered:
+        assert not _is_authorized_research_importer(path), path
+    assert len(PROMOTION_REGRESSION_RESEARCH_EXCEPTION) == 1
+    assert len(QUALIFICATION_V2_RESEARCH_EXCEPTION) == 6
+    assert len(BUNDLE_AUTHORITY_QUALIFICATION_RESEARCH_EXCEPTION) == 1
+    assert AUTHORIZED_RESEARCH_IMPORTERS == (
+        PROMOTION_REGRESSION_RESEARCH_EXCEPTION
+        | QUALIFICATION_V2_RESEARCH_EXCEPTION
+        | BUNDLE_AUTHORITY_QUALIFICATION_RESEARCH_EXCEPTION
+    )
 
 
 def test_the_identity_primitive_adds_no_model_and_no_migration() -> None:
