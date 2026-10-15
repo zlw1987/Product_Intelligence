@@ -46,6 +46,44 @@ statement is physically complete (L4), or that a physical bundle
 contains the listed components (L5). No cryptographic source-
 authentication capability is claimed or invented by this module.
 
+Mandatory provenance binding (Q3-C-C1-FU2, finding F-1). The family
+cross-document validator binds the recorded V2 case document to the
+corresponding sealed source blocks, field by field, over the actual
+canonical document keys (the matrix is recorded in
+``_run_family_checks``): candidate raw title <-> sealed ``title_text``
+(exact codepoint equality or explicit joint absence); candidate source
+URL <-> sealed ``source_url`` (exact equality; retrieved evidence
+kinds only — for SYNTHETIC cases no authoritative URL counterpart
+exists, a documented limitation, never a manufactured comparison);
+candidate MPN field / SKU / offer URL / raw specification text <->
+the name-exact sealed ``structured_fields`` entries (key present ->
+non-null + exact equality; key absent -> the recorded field must be
+null — the recorded case never carries text the sealed source never
+published); target MPN / target raw description <-> the name-exact
+sealed target ``structured_fields`` entries ONLY when the block
+records them (the caller-published request anchor has no authoritative
+counterpart otherwise — documented limitation). Every fired check is
+deterministic and named (the ``CASEDOC_CANDIDATE_*`` /
+``CASEDOC_TARGET_*`` observations at the case-document-integrity
+layer, distinct from the presentation-gate layer): a mismatch is
+rejected for a sound DERIVED case; a REFUSED / NON_CONSTRUCTIBLE case
+is governed by the existing sealed-raw stage-coherence contract
+below. The binding proves INTERNAL provenance consistency only (L1/
+L2) — it is not source authenticity (L3) and confers no trust
+promotion of any kind.
+
+Archive filesystem safety (Q3-C-C1-FU2, findings F-2 / F-5). Every
+cited archive reference is resolved (symlinks followed) and the
+resolved file must stay inside the resolved repository root — archive
+reads cannot escape the authorized source root through symlink
+traversal; REAL_MARKET archives must additionally resolve inside
+their own case's ``sources/<case_id>`` directory (the per-case
+archive association of the approved REAL_MARKET layout: case A's
+archive reference must not resolve to case B's source directory).
+Nonexistent paths keep the established "missing archive" bounded
+error; resolution errors are bounded; the declared-digest
+verification is unchanged and runs over the resolved file.
+
 Sealed-raw defect scope (design section 5 stage semantics (i)-(iv)).
 Cases whose expected outcome is ``REFUSED`` / ``NON_CONSTRUCTIBLE``
 carry the sealed invalid documents of the adversarial matrix rows. The
@@ -1764,26 +1802,11 @@ _SOURCE_BLOCK_KEYS = frozenset(
         "recording_attestation",
     }
 )
-# ---------------------------------------------------------------------------
-# The sealed source blocks (the original published source content +
-# provenance; the L3 recording act)
-# ---------------------------------------------------------------------------
-
-_SOURCE_BLOCK_KEYS = frozenset(
-    {
-        "title_text",
-        "structured_fields",
-        "source_url",
-        "retrieved_utc",
-        "raw_reference",
-        "archive",
-        "archive_digest",
-        "recording_attestation",
-    }
-)
 
 
-def _decode_source_block(doc: Any, *, path: str, kind: str) -> dict[str, Any]:
+def _decode_source_block(
+    doc: Any, *, path: str, kind: str, case_id: str
+) -> dict[str, Any]:
     """Strict-decode one side's sealed source block. The block records
     the ORIGINAL published source content + the retrieval metadata; the
     per-evidence-kind provenance rules of design section 4.4 apply:
@@ -1794,6 +1817,12 @@ def _decode_source_block(doc: Any, *, path: str, kind: str) -> dict[str, Any]:
       instant + raw reference + archive path + archive digest + the
       recording attestation (the L3 recording act), archived under the
       family ``sources/`` layout for REAL_MARKET.
+
+    The per-case archive association (the approved REAL_MARKET layout
+    of design section 4.2, ``sources/<case_id>/``): a REAL_MARKET
+    archive reference for case A must cite A's OWN source directory —
+    never another case's. A cross-case reference is a schema failure
+    (the recorded layout is contract data, not convention).
     """
     _exact_keys(doc, _SOURCE_BLOCK_KEYS, path)
     title_text = _opt_str(doc["title_text"], f"{path}.title_text")
@@ -1851,6 +1880,15 @@ def _decode_source_block(doc: Any, *, path: str, kind: str) -> dict[str, Any]:
                 raise _schema(
                     f"{path}: a REAL_MARKET archive lives under the "
                     f"family sources/ layout ({prefix}...), got {archive!r}"
+                )
+            case_prefix = f"{prefix}{case_id}/"
+            if not archive.startswith(case_prefix):
+                raise _schema(
+                    f"{path}: a REAL_MARKET archive lives under its "
+                    f"own case's sources/{case_id}/ directory (the "
+                    "per-case archive association - one case's archive "
+                    f"reference must not cite another case's source "
+                    f"directory), got {archive!r}"
                 )
     return {
         "title_text": title_text,
@@ -2558,10 +2596,16 @@ def _decode_case_structure(raw: dict[str, Any], *, index: int) -> dict[str, Any]
     spath = f"{cpath}.source"
     _exact_keys(source_doc, _SOURCE_KEYS, spath)
     candidate_block = _decode_source_block(
-        source_doc["candidate"], path=f"{spath}.candidate", kind=kind
+        source_doc["candidate"],
+        path=f"{spath}.candidate",
+        kind=kind,
+        case_id=case_id,
     )
     target_block = _decode_source_block(
-        source_doc["target"], path=f"{spath}.target", kind=kind
+        source_doc["target"],
+        path=f"{spath}.target",
+        kind=kind,
+        case_id=case_id,
     )
 
     # -- recorded_case: the V2 input document (+ the sealed payload on
@@ -2886,6 +2930,191 @@ def _run_family_checks(
     target_block = structured["target_source_block"]
     basis = structured["candidate_basis"]
     published_quantity = structured["published_quantity"]
+
+    # ------------------------------------------------------------------
+    # THE MANDATORY PROVENANCE BINDING (Q3-C-C1-FU2, finding F-1):
+    # the recorded V2 case document is bound field-by-field to the
+    # sealed source blocks. The binding is INTERNAL provenance
+    # consistency (design section 3.2 L1/L2): it proves the recorded
+    # case and the sealed source describe ONE published listing /
+    # request. It does NOT establish that the publisher actually made
+    # the claim (L3), that the published statement is physically
+    # complete (L4), or that a physical bundle contains the listed
+    # components (L5) — no trust promotion, no authenticity claim.
+    #
+    # Field matrix (the actual canonical document keys — no
+    # cross-name equivalence is ever assumed):
+    #
+    #   recorded v2 field                            sealed counterpart
+    #   candidate.product.raw_title_text     <->  source.candidate.title_text
+    #   candidate.source_url                 <->  source.candidate.source_url
+    #                                              (retrieved kinds only)
+    #   candidate.product.raw_specification_ <->  source.candidate.
+    #       text                                structured_fields[
+    #                                              "raw_specification_text"]
+    #   candidate.mpn_field                  <->  source.candidate.
+    #                                              structured_fields["mpn_field"]
+    #   candidate.sku                        <->  source.candidate.
+    #                                              structured_fields["sku"]
+    #   candidate.commercial.offer_url       <->  source.candidate.
+    #                                              structured_fields["offer_url"]
+    #   target.mpn                           <->  source.target.
+    #                                              structured_fields["mpn"]
+    #   target.description_raw_text          <->  source.target.
+    #                                              structured_fields[
+    #                                              "description_raw_text"]
+    #
+    # Semantics (every fired check is one deterministic L_CASE_DOCUMENT
+    # observation — the case-document-integrity layer, distinct from
+    # the presentation-gate layer):
+    #
+    #   title (all evidence kinds): explicit joint absence, or exact
+    #     codepoint equality; one side present / the other absent or
+    #     different is a contradiction (never filled in, never
+    #     normalized).
+    #   candidate source_url: EXACT equality — required for
+    #     RECORDED_FIXTURE / REAL_MARKET (the block's retrieval URL is
+    #     the name-authoritative counterpart of the recorded listing
+    #     URL). DOCUMENTED LIMITATION: for SYNTHETIC cases the sealed
+    #     block carries no URL (by-construction) and the recorded
+    #     listing identifier is part of the by-construction ground
+    #     truth itself — no authoritative counterpart exists, so no
+    #     comparison is manufactured.
+    #   candidate structured keys: the key PRESENT in the sealed
+    #     block -> the recorded field must be non-null and exactly
+    #     equal; the key ABSENT -> the recorded field must be null
+    #     (the recorded case must not carry identifier / commercial /
+    #     spec text the sealed source never published — the
+    #     cross-listing substitution shape).
+    #   target structured keys: the target block records target-SIDE
+    #     published content, while target.mpn / target.description_
+    #     raw_text are the CALLER-published request anchor — a
+    #     counterpart exists ONLY when the block explicitly records
+    #     the name-exact key: key present -> exact equality with the
+    #     non-null recorded MPN (or a non-null equal description);
+    #     key absent -> NO authoritative counterpart, NO comparison
+    #     (documented limitation — the absence of a recording is not
+    #     evidence of absence of the request anchor).
+    #
+    # The binding is unobservable when the recorded v2 case document
+    # was constructor-refused (v2_case is None — the constructor
+    # observation carries the defect), mirroring the existing
+    # CASEDOC_ATTESTATION_SOURCE_BLOCK scoping.
+    # ------------------------------------------------------------------
+    if v2_case is not None:
+        cpath = f"case {case_id}: recorded_case.v2_case_document.candidate"
+        tpath = f"case {case_id}: recorded_case.v2_case_document.target"
+        evidence_kind = structured["evidence_kind"]
+        cand_fields = candidate_block["structured_fields"]
+        tgt_fields = target_block["structured_fields"]
+        # (1) candidate raw title <-> sealed title_text (all kinds).
+        rec_title = v2_case.candidate_product.raw_title_text
+        seal_title = candidate_block["title_text"]
+        if (
+            rec_title is None
+        ) != (seal_title is None) or (
+            rec_title is not None and rec_title != seal_title
+        ):
+            _obs(
+                "CASEDOC_CANDIDATE_TITLE",
+                L_CASE_DOCUMENT,
+                f"{cpath}.product.raw_title_text: CASEDOC_CANDIDATE_TITLE "
+                "(provenance binding - exact codepoint equality or "
+                "explicit joint absence): the recorded raw title "
+                f"({rec_title!r}) is not the sealed candidate source's "
+                f"title_text ({seal_title!r}) (a contradictory value is "
+                "rejected, never filled in)",
+            )
+        # (2) candidate source URL <-> sealed source_url (retrieved
+        #     kinds only; SYNTHETIC = documented limitation).
+        if evidence_kind != "SYNTHETIC":
+            if (
+                v2_case.candidate_source_url
+                != candidate_block["source_url"]
+            ):
+                _obs(
+                    "CASEDOC_CANDIDATE_SOURCE_URL",
+                    L_CASE_DOCUMENT,
+                    f"{cpath}.source_url: CASEDOC_CANDIDATE_SOURCE_URL "
+                    "(provenance binding - exact equality): the recorded "
+                    f"candidate source URL ({v2_case.candidate_source_url!r}) "
+                    "is not the sealed candidate source's URL "
+                    f"({candidate_block['source_url']!r}) (a "
+                    "contradictory value is rejected, never filled in)",
+                )
+        # (3-6) candidate structured-field bindings (key present ->
+        #       non-null + equal; key absent -> recorded must be null).
+        for obs_name, rec_value, key in (
+            (
+                "CASEDOC_CANDIDATE_SPEC_TEXT",
+                v2_case.candidate_product.raw_specification_text,
+                "raw_specification_text",
+            ),
+            ("CASEDOC_CANDIDATE_MPN_FIELD", v2_case.candidate_mpn_field, "mpn_field"),
+            ("CASEDOC_CANDIDATE_SKU", v2_case.candidate_sku, "sku"),
+            (
+                "CASEDOC_CANDIDATE_OFFER_URL",
+                v2_case.candidate_commercial.offer_url,
+                "offer_url",
+            ),
+        ):
+            sealed_value = cand_fields.get(key)
+            if sealed_value is not None:
+                if rec_value is None or rec_value != sealed_value:
+                    _obs(
+                        obs_name,
+                        L_CASE_DOCUMENT,
+                        f"{cpath}: {obs_name} (provenance binding - exact "
+                        "equality when the sealed source records the "
+                        f"field): the recorded field ({rec_value!r}) is "
+                        f"not the sealed candidate source's structured "
+                        f"field {key!r} ({sealed_value!r}) (a "
+                        "contradictory value or a silent omission is "
+                        "rejected)",
+                    )
+            elif rec_value is not None:
+                _obs(
+                    obs_name,
+                    L_CASE_DOCUMENT,
+                    f"{cpath}: {obs_name} (provenance binding - the "
+                    f"recorded case must not carry text the sealed "
+                    "source never published): the recorded field "
+                    f"{key!r} ({rec_value!r}) has no counterpart in "
+                    "the sealed candidate source's structured_fields "
+                    "(the cross-listing substitution shape; never "
+                    "filled in)",
+                )
+        # (7) target MPN: counterpart only when name-exactly recorded.
+        seal_mpn = tgt_fields.get("mpn")
+        if seal_mpn is not None and v2_case.target.mpn != seal_mpn:
+            _obs(
+                "CASEDOC_TARGET_MPN",
+                L_CASE_DOCUMENT,
+                f"{tpath}.mpn: CASEDOC_TARGET_MPN (provenance binding - "
+                "exact equality when the sealed source records the "
+                "field): the recorded target MPN "
+                f"({v2_case.target.mpn!r}) is not the sealed target "
+                f"source's recorded mpn field ({seal_mpn!r}) (a "
+                "contradictory value is rejected)",
+            )
+        # (8) target description: counterpart only when name-exactly
+        #     recorded (the caller-published request anchor).
+        seal_desc = tgt_fields.get("description_raw_text")
+        rec_desc = v2_case.target.description_raw_text
+        if seal_desc is not None and (
+            rec_desc is None or rec_desc != seal_desc
+        ):
+            _obs(
+                "CASEDOC_TARGET_DESCRIPTION",
+                L_CASE_DOCUMENT,
+                f"{tpath}.description_raw_text: CASEDOC_TARGET_DESCRIPTION "
+                "(provenance binding - exact equality when the sealed "
+                "source records the field): the recorded target "
+                f"description ({rec_desc!r}) is not the sealed target "
+                "source's recorded description_raw_text field "
+                f"({seal_desc!r}) (a contradictory value or a silent "
+                "omission is rejected)",
+            )
 
     # CASEDOC_CHANNEL_EQUALITY (design section 4.4: "the loader
     # enforces channel == recorded_case's channel"; D6-ii): the
@@ -3896,8 +4125,34 @@ def _repo_root_of(corpus_path: Path) -> Path:
     """The repository root from the family storage layout (design
     section 4.2): ``<root>/evaluation/fu4_bundle_authority_
     qualification/<name>.json`` - the cited archive paths are
-    repo-relative."""
-    return corpus_path.resolve().parents[2]
+    repo-relative.
+
+    Bounded + deterministic (Q3-C-C1-FU2, finding F-5): a corpus file
+    that is not at least three path components below its repository
+    root cannot locate the repository root; that is a bounded corpus
+    error (the declared source-file digests cannot verify), never an
+    unhandled ``IndexError``. Path-resolution failures are bounded the
+    same way.
+    """
+    try:
+        resolved = corpus_path.resolve()
+    except OSError as exc:
+        raise _digest(
+            f"corpus file {corpus_path}: path resolution failed "
+            f"({type(exc).__name__}); the repository root for the "
+            "repo-relative cited archive paths cannot be located "
+            "(fail closed)"
+        ) from exc
+    if len(resolved.parents) < 3:
+        raise _digest(
+            f"corpus file {corpus_path}: the file is not at least "
+            "three path components below the repository root; the "
+            "family storage layout (<root>/evaluation/fu4_bundle_"
+            "authority_qualification/<name>.json) cannot be located, "
+            "so the repo-relative cited archive paths cannot be "
+            "resolved (fail closed)"
+        )
+    return resolved.parents[2]
 
 
 def _verify_cited_archives(
@@ -3908,7 +4163,30 @@ def _verify_cited_archives(
     equal the declared ``archive_digest`` (a cited file that moved or
     was substituted is a load failure - the case is not reproducible
     offline). The re-verification proves the archive's integrity only
-    (the L3 recording-act boundary - design section 3.2)."""
+    (the L3 recording-act boundary - design section 3.2).
+
+    Filesystem safety contract (Q3-C-C1-FU2, findings F-2 / F-5):
+    every cited archive is RESOLVED (symlinks followed) and the
+    resolved file must stay inside the resolved repository root - an
+    archive read that escapes the authorized source root through
+    symlink traversal (or any path trick) is refused BEFORE the
+    digest read, with a deterministic reason naming the case, the
+    side, the cited path, the resolved path, and the root. A
+    REAL_MARKET archive must additionally resolve inside its OWN
+    case's ``sources/<case_id>`` directory (the per-case archive
+    association: case A's archive reference must not resolve to case
+    B's source directory). Nonexistent paths keep the established
+    "missing archive" bounded error; resolution errors are bounded,
+    never propagated. The digest verification itself is unchanged.
+    """
+    try:
+        resolved_root = repo_root.resolve()
+    except OSError as exc:
+        raise _digest(
+            f"repository root {repo_root}: path resolution failed "
+            f"({type(exc).__name__}); the cited archive paths cannot "
+            "be resolved (fail closed)"
+        ) from exc
     for case in bundle.cases:
         for side in ("candidate", "target"):
             block = case.document["source"][side]
@@ -3916,14 +4194,63 @@ def _verify_cited_archives(
             archive_digest = block.get("archive_digest")
             if archive is None or archive_digest is None:
                 continue
-            file = repo_root / archive
-            if not file.is_file():
+            target = resolved_root / archive
+            if not target.is_file():
                 raise _digest(
                     f"case {case.case_id}: source.{side}.archive: the "
                     f"cited archive file {archive!r} is missing (the "
                     "declared source-file digest cannot verify)"
                 )
-            actual = hashlib.sha256(file.read_bytes()).hexdigest()
+            try:
+                resolved = target.resolve()
+            except OSError as exc:
+                raise _digest(
+                    f"case {case.case_id}: source.{side}.archive: path "
+                    f"resolution of the cited archive {archive!r} "
+                    f"failed ({type(exc).__name__}); the archive read "
+                    "is refused (fail closed)"
+                ) from exc
+            try:
+                resolved.relative_to(resolved_root)
+            except ValueError:
+                raise _digest(
+                    f"case {case.case_id}: source.{side}.archive: the "
+                    f"cited archive {archive!r} resolves outside the "
+                    f"repository root ({resolved_root}) to {resolved} "
+                    "(symlink traversal / path escape refused - "
+                    "archive reads stay inside the authorized source "
+                    "root)"
+                ) from None
+            if case.evidence_kind == "REAL_MARKET":
+                case_dir = (
+                    resolved_root
+                    / "evaluation"
+                    / "fu4_bundle_authority_qualification"
+                    / "sources"
+                    / case.case_id
+                )
+                try:
+                    resolved_case_dir = case_dir.resolve()
+                except OSError as exc:
+                    raise _digest(
+                        f"case {case.case_id}: source.{side}.archive: "
+                        "the case's own sources directory could not "
+                        f"be resolved ({type(exc).__name__}); the "
+                        "archive read is refused (fail closed)"
+                    ) from exc
+                try:
+                    resolved.relative_to(resolved_case_dir)
+                except ValueError:
+                    raise _digest(
+                        f"case {case.case_id}: source.{side}.archive: "
+                        f"the cited archive {archive!r} resolves "
+                        f"outside its own case's sources directory "
+                        f"({resolved_case_dir}) to {resolved} (the "
+                        "per-case archive association - one case's "
+                        "archive must not resolve to another case's "
+                        "source directory)"
+                    ) from None
+            actual = hashlib.sha256(resolved.read_bytes()).hexdigest()
             if actual != archive_digest:
                 raise _digest(
                     f"case {case.case_id}: source.{side}.archive_digest: "

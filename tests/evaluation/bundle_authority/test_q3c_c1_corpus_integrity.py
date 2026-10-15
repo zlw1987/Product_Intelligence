@@ -27,6 +27,22 @@ no-execution probe. The test module itself MAY execute the frozen
 chain to assemble fixtures (the established R1 / R2 pattern) — that is
 fixture assembly, not label determination by the decoder.
 
+F-9 / F-10 trust boundary (Q3-C-C1-FU2): the test-local expected
+values assembled in this module (_expected_from_decision, _payload_
+record, and every helper that reads a frozen FU4 / R1 output) are
+SYNTHETIC DECODER FIXTURES ONLY. They exist to exercise schema /
+validator behavior and the sealed-raw shapes; they are NOT
+independently labeled expected outcomes, and nothing here promotes a
+valid schema or an internally consistent sealed corpus into authentic
+published evidence, independent human review, or physical product
+truth (design section 3.2 - five distinct layers, no automatic trust
+promotion, no qualification case created by this suite). C2 authoring
+and labeling tools MUST NOT reuse these helpers (or their outputs) as
+an independent expected-label source: the C2 label is established
+under the design section 4.6 / 8.2 two-identity workflow from the
+recorded source content + the approved design rows, never from the
+implementation's own output.
+
 Every rejected input produces a deterministic, explicit failure: the
 bounded ``BundleAuthorityCorpusError`` family with a bounded
 ``failure_stage`` + the exact check / path / observed value in the
@@ -37,16 +53,27 @@ from __future__ import annotations
 
 import ast
 import copy
+import dataclasses
 import hashlib
 import json
+import os
 import sys
 from pathlib import Path
 
 import pytest
 
+from product_intelligence.domain import ResearchRequest
 from product_intelligence.research import (
     PRICING_ELIGIBLE_TIERS,
+    ProductEvidenceDimension,
+    ProductEvidenceFactV2,
+    CandidateProductEvidenceSource,
     SemanticEvaluationStateV2,
+    assess_listing_identity,
+    build_semantic_match_case_v2,
+    build_v2_product_evidence_profile,
+    derive_identity_state_v2,
+    normalize_listing_observation,
 )
 from product_intelligence.research import semantic_authority_fu4 as fu4
 from product_intelligence.research import semantic_decision_v2_fu4 as sdv4
@@ -63,6 +90,7 @@ from tests.research.test_semantic_decision_v2_fu4 import (
     COUNT_ONLY_RAW_DETAIL,
     EST_RAW_DETAIL,
     FINISHED,
+    SOURCE_URL,
     STARTED,
     TITLE,
     _base_case,
@@ -533,6 +561,69 @@ def _typed_target_source(value: str):
 # ---------------------------------------------------------------------------
 # The synthetic fixtures (sound shapes + the sealed-raw defect splices)
 # ---------------------------------------------------------------------------
+
+
+def _frozen_case_parts(
+    *,
+    observation=None,
+    request=None,
+    channel=None,
+    case_id="c1-fu2-1",
+):
+    """A REAL frozen-chain V2 case + its deterministic context over a
+    custom observation / request (the R1 ``_base_case`` assembly,
+    parameterized). Fixture assembly only: this MAY execute the frozen
+    chain in this TEST module (the established R1 / R2 pattern); the
+    corpus decoder never does, and the expected values it would produce
+    are SYNTHETIC DECODER FIXTURES ONLY (see the module docstring's
+    F-9 / F-10 warning) - never an independently labeled source.
+    """
+    if observation is None:
+        observation = _observation()
+    if request is None:
+        request = ResearchRequest("ABC-123", "A test product")
+    if channel is None:
+        channel = _bundle_channel(None, EST_RAW_DETAIL)
+    assessment = assess_listing_identity(
+        request, normalize_listing_observation(observation)
+    )
+    context = derive_identity_state_v2(assessment)
+    profile = build_v2_product_evidence_profile(
+        observation=observation,
+        context_provenances=frozenset(),
+        matched_facts=frozenset(
+            {
+                ProductEvidenceFactV2(
+                    ProductEvidenceDimension.CAPACITY,
+                    frozenset(
+                        {CandidateProductEvidenceSource.LISTING_PRODUCT_TITLE}
+                    ),
+                ),
+                ProductEvidenceFactV2(
+                    ProductEvidenceDimension.INTERFACE,
+                    frozenset(
+                        {CandidateProductEvidenceSource.LISTING_PRODUCT_TITLE}
+                    ),
+                ),
+            }
+        ),
+    )
+    case = build_semantic_match_case_v2(
+        case_id=case_id,
+        request=request,
+        assessment=assessment,
+        context=context,
+        product_evidence=profile,
+        context_provenances=frozenset(),
+        reviewed_target_context=None,
+    )
+    case = dataclasses.replace(
+        case,
+        candidate_commercial=dataclasses.replace(
+            case.candidate_commercial, sales_unit=channel
+        ),
+    )
+    return {"case": case, "context": context, "evaluation": _match_evaluation()}
 
 
 def _proven_parts(*, case_id="FA4-PROV-001", channel_kw=None):
@@ -1444,23 +1535,24 @@ def _extraction_case():
     """One sound EXTRACTION-basis fixture: the frozen P2 chain over a
     marker-carrying title (evidence ACQUISITION - the recorded original
     result is the v3 embedding), the mapped channel as the presented
-    channel, the same attested target as the PROVEN fixture."""
+    channel, the same attested target as the PROVEN fixture. The
+    recorded V2 case is built from the SAME extended-title observation
+    the sealed candidate source block records (the mandatory provenance
+    binding: the recorded case and the sealed source describe one
+    listing)."""
     title = f"{TITLE} - bundle: {CLAUSE}, complete list"
     result, channel = extract_and_map_sales_unit_evidence(_observation(title), None)
     candidate = fu4.candidate_composition_from_extraction(result)
-    case = _base_case("c1-extraction-1")
-    import dataclasses
-
+    parts = _frozen_case_parts(observation=_observation(title), case_id="c1-extraction-1")
     case = dataclasses.replace(
-        case,
+        parts["case"],
         candidate_commercial=dataclasses.replace(
-            case.candidate_commercial, sales_unit=channel
+            parts["case"].candidate_commercial, sales_unit=channel
         ),
     )
-    parts = _proven_parts()
-    target = parts["target"]
-    assessment = _context()
-    evaluation = _match_evaluation()
+    target = _proven_parts()["target"]
+    assessment = parts["context"]
+    evaluation = parts["evaluation"]
     decision = fu4.derive_authority_tier_fu4(
         assessment,
         channel,
@@ -2447,7 +2539,16 @@ class TestSourceArchiveDigestConsistency:
         case = _proven_case(case_id="FA4-PROV-001")
         for side in ("candidate", "target"):
             block = case["source"][side]
-            block["source_url"] = "https://example.com/recorded-page"
+            # The candidate side cites the recorded page of the
+            # RECORDED listing itself (the mandatory provenance
+            # binding: the candidate block's source_url is the
+            # name-authoritative counterpart of the recorded case's
+            # candidate URL). The target side cites the recorded
+            # target document (no case-field counterpart - documented
+            # limitation).
+            block["source_url"] = (
+                SOURCE_URL if side == "candidate" else "https://example.com/recorded-page"
+            )
             block["retrieved_utc"] = "2026-01-01T12:00:00Z"
             block["raw_reference"] = "recorded-page-0001"
             block["archive"] = archive_rel
@@ -2676,3 +2777,957 @@ class TestEmptySealDemonstration:
         exit_code = fam_cli.main(["corpus-digest", "--corpus", str(corpus_file)])
         assert exit_code == 1
         assert "corpus_label" in capsys.readouterr().err
+
+
+# ---------------------------------------------------------------------------
+# Q3-C-C1-FU2 (finding F-1): the mandatory provenance binding — the
+# recorded V2 case document is bound field-by-field to the sealed source
+# blocks. EVERY tamper below re-seals the corpus: all per-case / corpus /
+# manifest digests are recomputed over the mutated bytes, so the digests
+# CANNOT catch the substitution — only the field binding can. That is the
+# adversarial property under test.
+# ---------------------------------------------------------------------------
+
+FU2_URL_B = "https://example.com/other-listing"
+FU2_OFFER_B = "https://example.com/other-offer"
+FU2_TITLE_B = "ABC-123 2TB NVMe Drive"
+FU2_TITLE_CODEPOINT = "ABC-123 1TB NVMe Driv\u0435"  # Cyrillic U+0435, visually identical
+
+
+def _recorded_fixture_case_doc(tmp_path, *, observation=None, case_id="FA4-PROV-001"):
+    """A sound RECORDED_FIXTURE family case document: the candidate
+    block cites the recorded listing page with the name-authoritative
+    counterpart URL (source_url == the recorded case's candidate URL),
+    both sides cite the staged archive file by path + declared digest."""
+    if observation is None:
+        observation = _observation()
+    parts = _frozen_case_parts(observation=observation)
+    channel = parts["case"].candidate_commercial.sales_unit
+    archive_rel = "tests/fixtures/pages/fu2-recorded-page.html"
+    page = b"<html><body>recorded page</body></html>"
+    cited = tmp_path / archive_rel
+    cited.parent.mkdir(parents=True, exist_ok=True)
+    cited.write_bytes(page)
+    digest = _sha256_bytes(page)
+    attestation = (
+        "recorded from the cited source at the recorded instant "
+        "(c1-fu2 fixture attestation)"
+    )
+    target = _make_target_fu4(
+        CLAUSE, fu4.BundleCompositionStateV2FU4.ESTABLISHED, None,
+        _make_target_attestation(CLAUSE),
+    )
+    candidate = fu4.candidate_composition_from_channel(channel)
+    decision = fu4.derive_authority_tier_fu4(
+        parts["context"],
+        channel,
+        parts["evaluation"],
+        parts["case"].context_provenances,
+        parts["case"].product_evidence,
+        None,
+        target_unit_evidence=target,
+        candidate_composition=candidate,
+        quantity_attestation=None,
+    )
+    candidate_block = {
+        "title_text": parts["case"].candidate_product.raw_title_text,
+        "structured_fields": {"packaging": EST_RAW_DETAIL},
+        "source_url": parts["case"].candidate_source_url,
+        "retrieved_utc": "2026-01-01T12:00:00Z",
+        "raw_reference": "recorded-page-0002",
+        "archive": archive_rel,
+        "archive_digest": digest,
+        "recording_attestation": attestation,
+    }
+    target_block = {
+        "title_text": "Requested bundle review record (by-construction)",
+        "structured_fields": {"specification": f"Bundle contents: {CLAUSE}"},
+        "source_url": "https://example.com/recorded-page",
+        "retrieved_utc": "2026-01-01T12:00:00Z",
+        "raw_reference": "recorded-page-0003",
+        "archive": archive_rel,
+        "archive_digest": digest,
+        "recording_attestation": attestation,
+    }
+    return _synthesize_case(
+        case_id=case_id,
+        matrix_row="A1",
+        channel=channel,
+        candidate_composition=candidate,
+        candidate_basis="RECORDED_CHANNEL",
+        extraction_evidence=None,
+        target_evidence_schema="fu4_v3",
+        target_evidence_document=_target_sealed_doc(target),
+        quantity_attestation_document=None,
+        case=parts["case"],
+        assessment=parts["context"],
+        evaluation=parts["evaluation"],
+        decision=decision,
+        surface="DERIVATION",
+        evidence_kind="RECORDED_FIXTURE",
+        candidate_source_block=candidate_block,
+        target_source_block=target_block,
+    )
+
+
+def _real_market_case_doc(
+    tmp_path,
+    *,
+    case_id="FA4-PROV-001",
+    rel_dir=None,
+    stage_bytes=b"<html><body>real market page</body></html>",
+):
+    """A REAL_MARKET family case document citing the approved per-case
+    layout ``sources/<case_id>/...`` (the files are staged under the
+    given root unless ``stage_bytes`` is None - the decode-level layout
+    rows need no files)."""
+    parts = _frozen_case_parts()
+    channel = parts["case"].candidate_commercial.sales_unit
+    sources_prefix = "evaluation/fu4_bundle_authority_qualification/sources"
+    if rel_dir is None:
+        rel_dir = f"{sources_prefix}/{case_id}"
+    cand_rel = f"{rel_dir}/candidate_raw_content.html"
+    tgt_rel = f"{rel_dir}/target_raw_content.html"
+    if stage_bytes is not None:
+        for rel in (cand_rel, tgt_rel):
+            file = tmp_path / rel
+            file.parent.mkdir(parents=True, exist_ok=True)
+            file.write_bytes(stage_bytes)
+    digest = _sha256_bytes(stage_bytes) if stage_bytes is not None else "0" * 64
+    attestation = (
+        "recorded from the cited source at the recorded instant "
+        "(c1-fu2 attestation)"
+    )
+    target = _make_target_fu4(
+        CLAUSE, fu4.BundleCompositionStateV2FU4.ESTABLISHED, None,
+        _make_target_attestation(CLAUSE),
+    )
+    candidate = fu4.candidate_composition_from_channel(channel)
+    decision = fu4.derive_authority_tier_fu4(
+        parts["context"],
+        channel,
+        parts["evaluation"],
+        parts["case"].context_provenances,
+        parts["case"].product_evidence,
+        None,
+        target_unit_evidence=target,
+        candidate_composition=candidate,
+        quantity_attestation=None,
+    )
+    candidate_block = {
+        "title_text": parts["case"].candidate_product.raw_title_text,
+        "structured_fields": {"packaging": EST_RAW_DETAIL},
+        "source_url": parts["case"].candidate_source_url,
+        "retrieved_utc": "2026-01-01T12:00:00Z",
+        "raw_reference": "real-market-0001",
+        "archive": cand_rel,
+        "archive_digest": digest,
+        "recording_attestation": attestation,
+    }
+    target_block = {
+        "title_text": "Requested bundle review record (by-construction)",
+        "structured_fields": {"specification": f"Bundle contents: {CLAUSE}"},
+        "source_url": "https://example.com/recorded-page",
+        "retrieved_utc": "2026-01-01T12:00:00Z",
+        "raw_reference": "real-market-0002",
+        "archive": tgt_rel,
+        "archive_digest": digest,
+        "recording_attestation": attestation,
+    }
+    return _synthesize_case(
+        case_id=case_id,
+        matrix_row="A1",
+        channel=channel,
+        candidate_composition=candidate,
+        candidate_basis="RECORDED_CHANNEL",
+        extraction_evidence=None,
+        target_evidence_schema="fu4_v3",
+        target_evidence_document=_target_sealed_doc(target),
+        quantity_attestation_document=None,
+        case=parts["case"],
+        assessment=parts["context"],
+        evaluation=parts["evaluation"],
+        decision=decision,
+        surface="DERIVATION",
+        evidence_kind="REAL_MARKET",
+        candidate_source_block=candidate_block,
+        target_source_block=target_block,
+    )
+
+
+def _seal_document(tmp_path, document):
+    """Seal one corpus document + its manifest under the family layout
+    (all digests recomputed over the exact document bytes)."""
+    base = tmp_path / "evaluation" / "fu4_bundle_authority_qualification"
+    base.mkdir(parents=True, exist_ok=True)
+    corpus_file = base / "corpus_v1.json"
+    manifest_file = base / "manifest_v1.json"
+    corpus_file.write_bytes(fam.canonically_serialize(document))
+    manifest_file.write_bytes(
+        fam.canonically_serialize(fam.build_manifest_document(document))
+    )
+    return corpus_file, manifest_file
+
+
+def _splice_recorded_case(case_doc, new_case, *, new_context=None):
+    """Splice a foreign recorded V2 case document into the family case
+    (the substitution shape) + keep the scripted context coherent with
+    the recorded case when the context changed."""
+    _set_path(case_doc, "recorded_case.v2_case_document", new_case.canonical())
+    if new_context is not None:
+        _set_path(
+            case_doc,
+            "scripted_context.identity_assessment",
+            _identity_assessment_document(new_context),
+        )
+        _set_path(
+            case_doc,
+            "scripted_context.product_evidence",
+            _profile_document(new_case.product_evidence),
+        )
+    return case_doc
+
+
+class TestProvenanceBinding:
+    """F-1: the recorded V2 case document <-> the sealed source blocks.
+    Every row re-seals (digests recomputed) before loading: a mismatch
+    is a case-document-integrity failure (L_CASE_DOCUMENT), rejected for
+    a sound DERIVED case; the sealed-raw stage-coherence rows below
+    preserve the REFUSED contract."""
+
+    def test_candidate_title_substitution_detected_after_full_reseal(self, tmp_path):
+        case = _proven_case(case_id="FA4-PROV-001", surface="DERIVATION")
+        parts_b = _frozen_case_parts(observation=_observation(FU2_TITLE_B))
+        _splice_recorded_case(case, parts_b["case"])
+        corpus_file, manifest_file = _seal(tmp_path, [case])
+        with pytest.raises(fam.BundleAuthorityEvidenceError) as exc:
+            fam.load_bundle(corpus_file, manifest_file)
+        assert "CASEDOC_CANDIDATE_TITLE" in exc.value.reason
+
+    def test_candidate_title_codepoint_substitution_detected(self, tmp_path):
+        # Unicode codepoint distinction (F-7): a visually identical
+        # Cyrillic codepoint in the recorded title is NOT the sealed
+        # title - exact codepoint equality, never normalization.
+        case = _proven_case(case_id="FA4-PROV-001", surface="DERIVATION")
+        parts_b = _frozen_case_parts(
+            observation=_observation(FU2_TITLE_CODEPOINT)
+        )
+        _splice_recorded_case(case, parts_b["case"])
+        corpus_file, manifest_file = _seal(tmp_path, [case])
+        with pytest.raises(fam.BundleAuthorityEvidenceError) as exc:
+            fam.load_bundle(corpus_file, manifest_file)
+        assert "CASEDOC_CANDIDATE_TITLE" in exc.value.reason
+
+    def test_candidate_source_url_substitution_detected_after_full_reseal(self, tmp_path):
+        case = _recorded_fixture_case_doc(tmp_path)  # bound to the recorded URL
+        parts_b = _frozen_case_parts(
+            observation=dataclasses.replace(_observation(), source_url=FU2_URL_B)
+        )
+        _splice_recorded_case(case, parts_b["case"])
+        corpus_file, manifest_file = _seal(tmp_path, [case])
+        with pytest.raises(fam.BundleAuthorityEvidenceError) as exc:
+            fam.load_bundle(corpus_file, manifest_file)
+        assert "CASEDOC_CANDIDATE_SOURCE_URL" in exc.value.reason
+
+    def test_candidate_mpn_field_substitution_detected(self, tmp_path):
+        # The recorded case carries an MPN field the sealed candidate
+        # source never published (the structured_fields key is absent).
+        case = _proven_case(case_id="FA4-PROV-001", surface="DERIVATION")
+        parts_b = _frozen_case_parts(
+            observation=dataclasses.replace(
+                _observation(), manufacturer_part_number_text="ABC-12"
+            )
+        )
+        _splice_recorded_case(case, parts_b["case"], new_context=parts_b["context"])
+        corpus_file, manifest_file = _seal(tmp_path, [case])
+        with pytest.raises(fam.BundleAuthorityEvidenceError) as exc:
+            fam.load_bundle(corpus_file, manifest_file)
+        assert "CASEDOC_CANDIDATE_MPN_FIELD" in exc.value.reason
+
+    def test_candidate_sku_substitution_detected(self, tmp_path):
+        case = _proven_case(case_id="FA4-PROV-001", surface="DERIVATION")
+        parts_b = _frozen_case_parts(
+            observation=dataclasses.replace(_observation(), sku_text="SKU-OTHER")
+        )
+        _splice_recorded_case(case, parts_b["case"], new_context=parts_b["context"])
+        corpus_file, manifest_file = _seal(tmp_path, [case])
+        with pytest.raises(fam.BundleAuthorityEvidenceError) as exc:
+            fam.load_bundle(corpus_file, manifest_file)
+        assert "CASEDOC_CANDIDATE_SKU" in exc.value.reason
+
+    def test_candidate_offer_url_substitution_detected(self, tmp_path):
+        case = _proven_case(case_id="FA4-PROV-001", surface="DERIVATION")
+        parts_b = _frozen_case_parts(
+            observation=dataclasses.replace(_observation(), offer_url_text=FU2_OFFER_B)
+        )
+        _splice_recorded_case(case, parts_b["case"])
+        corpus_file, manifest_file = _seal(tmp_path, [case])
+        with pytest.raises(fam.BundleAuthorityEvidenceError) as exc:
+            fam.load_bundle(corpus_file, manifest_file)
+        assert "CASEDOC_CANDIDATE_OFFER_URL" in exc.value.reason
+
+    def test_candidate_whole_listing_substitution_detected(self, tmp_path):
+        # The composite candidate substitution: the recorded case is
+        # rebuilt from a wholly different listing (URL + title + SKU +
+        # offer). The first binding check (the raw title) reports it.
+        case = _proven_case(case_id="FA4-PROV-001", surface="DERIVATION")
+        parts_b = _frozen_case_parts(
+            observation=dataclasses.replace(
+                _observation(),
+                source_url=FU2_URL_B,
+                product_title=FU2_TITLE_B,
+                sku_text="SKU-OTHER",
+                offer_url_text=FU2_OFFER_B,
+            )
+        )
+        _splice_recorded_case(case, parts_b["case"], new_context=parts_b["context"])
+        corpus_file, manifest_file = _seal(tmp_path, [case])
+        with pytest.raises(fam.BundleAuthorityEvidenceError) as exc:
+            fam.load_bundle(corpus_file, manifest_file)
+        assert "provenance binding" in exc.value.reason
+
+    def test_candidate_spec_text_unpublished_rejected(self, tmp_path):
+        # The recorded case carries raw specification text the sealed
+        # candidate source never published (the name-exact key absent).
+        case = _proven_case(case_id="FA4-PROV-001", surface="DERIVATION")
+        base = _frozen_case_parts()["case"]
+        case_b = dataclasses.replace(
+            base,
+            candidate_product=dataclasses.replace(
+                base.candidate_product,
+                raw_specification_text="2x RAM + 1x CPU (sealed spec)",
+            ),
+        )
+        _splice_recorded_case(case, case_b)
+        corpus_file, manifest_file = _seal(tmp_path, [case])
+        with pytest.raises(fam.BundleAuthorityEvidenceError) as exc:
+            fam.load_bundle(corpus_file, manifest_file)
+        assert "CASEDOC_CANDIDATE_SPEC_TEXT" in exc.value.reason
+
+    def test_candidate_spec_text_structured_field_mapping_sounds(self, tmp_path):
+        # The structured-field mapping positive arm: the sealed candidate
+        # source records the name-exact key + the recorded case carries
+        # the same text -> the binding holds and the corpus loads.
+        case = _proven_case(case_id="FA4-PROV-001", surface="DERIVATION")
+        spec = "2x RAM + 1x CPU (sealed spec)"
+        base = _frozen_case_parts()["case"]
+        case_b = dataclasses.replace(
+            base,
+            candidate_product=dataclasses.replace(
+                base.candidate_product, raw_specification_text=spec
+            ),
+        )
+        _splice_recorded_case(case, case_b)
+        _set_path(
+            case,
+            "source.candidate.structured_fields",
+            {"packaging": EST_RAW_DETAIL, "raw_specification_text": spec},
+        )
+        bundle, _ = _decode_ok([case], tmp_path)
+        assert (
+            bundle.cases[0].evidence.v2_case.candidate_product.raw_specification_text
+            == spec
+        )
+
+    def test_target_mpn_binding_when_recorded_sounds(self, tmp_path):
+        # The target block name-exactly records the request anchor: the
+        # recorded target MPN agrees -> the binding holds.
+        case = _proven_case(case_id="FA4-PROV-001", surface="DERIVATION")
+        _set_path(
+            case,
+            "source.target.structured_fields",
+            {
+                "specification": f"Bundle contents: {CLAUSE}",
+                "mpn": case["recorded_case"]["v2_case_document"]["target"]["mpn"],
+            },
+        )
+        bundle, _ = _decode_ok([case], tmp_path)
+        assert (
+            bundle.cases[0].evidence.v2_case.target.mpn
+            == case["recorded_case"]["v2_case_document"]["target"]["mpn"]
+        )
+
+    def test_target_mpn_contradiction_rejected(self, tmp_path):
+        case = _proven_case(case_id="FA4-PROV-001", surface="DERIVATION")
+        _set_path(
+            case,
+            "source.target.structured_fields",
+            {
+                "specification": f"Bundle contents: {CLAUSE}",
+                "mpn": "ABC-999",
+            },
+        )
+        corpus_file, manifest_file = _seal(tmp_path, [case])
+        with pytest.raises(fam.BundleAuthorityEvidenceError) as exc:
+            fam.load_bundle(corpus_file, manifest_file)
+        assert "CASEDOC_TARGET_MPN" in exc.value.reason
+
+    def test_target_description_contradiction_rejected(self, tmp_path):
+        case = _proven_case(case_id="FA4-PROV-001", surface="DERIVATION")
+        _set_path(
+            case,
+            "source.target.structured_fields",
+            {
+                "specification": f"Bundle contents: {CLAUSE}",
+                "description_raw_text": "A different product",
+            },
+        )
+        corpus_file, manifest_file = _seal(tmp_path, [case])
+        with pytest.raises(fam.BundleAuthorityEvidenceError) as exc:
+            fam.load_bundle(corpus_file, manifest_file)
+        assert "CASEDOC_TARGET_DESCRIPTION" in exc.value.reason
+
+    def test_unrecorded_target_description_is_not_compared(self, tmp_path):
+        # Documented limitation: the caller-published request anchor has
+        # NO authoritative counterpart unless the target block records
+        # the name-exact key. A different recorded description over a
+        # block that records no such key is not a contradiction (the
+        # recorded deterministic context is unchanged - same request MPN).
+        case = _proven_case(case_id="FA4-PROV-001", surface="DERIVATION")
+        parts_b = _frozen_case_parts(
+            request=ResearchRequest("ABC-123", "A different product")
+        )
+        _splice_recorded_case(case, parts_b["case"])
+        bundle, _ = _decode_ok([case], tmp_path)
+        assert (
+            bundle.cases[0].evidence.v2_case.target.description_raw_text
+            == "A different product"
+        )
+
+    def test_null_recorded_title_with_sealed_title_rejected(self, tmp_path):
+        # Nullable-field case: the sealed source published a title, the
+        # recorded case omits it (never silently reconciled).
+        case = _proven_case(case_id="FA4-PROV-001", surface="DERIVATION")
+        base = _frozen_case_parts()["case"]
+        case_b = dataclasses.replace(
+            base,
+            candidate_product=dataclasses.replace(
+                base.candidate_product, raw_title_text=None
+            ),
+        )
+        _splice_recorded_case(case, case_b)
+        corpus_file, manifest_file = _seal(tmp_path, [case])
+        with pytest.raises(fam.BundleAuthorityEvidenceError) as exc:
+            fam.load_bundle(corpus_file, manifest_file)
+        assert "CASEDOC_CANDIDATE_TITLE" in exc.value.reason
+
+    def test_null_sealed_title_with_recorded_title_rejected(self, tmp_path):
+        # Nullable-field case: the recorded case carries a title the
+        # sealed source never published.
+        case = _proven_case(case_id="FA4-PROV-001", surface="DERIVATION")
+        _set_path(case, "source.candidate.title_text", None)
+        corpus_file, manifest_file = _seal(tmp_path, [case])
+        with pytest.raises(fam.BundleAuthorityEvidenceError) as exc:
+            fam.load_bundle(corpus_file, manifest_file)
+        assert "CASEDOC_CANDIDATE_TITLE" in exc.value.reason
+
+    def test_joint_absence_title_loads(self, tmp_path):
+        # Nullable-field case: explicit JOINT absence is the documented
+        # sound shape (neither side carries a title).
+        case = _proven_case(case_id="FA4-PROV-001", surface="DERIVATION")
+        base = _frozen_case_parts()["case"]
+        case_b = dataclasses.replace(
+            base,
+            candidate_product=dataclasses.replace(
+                base.candidate_product, raw_title_text=None
+            ),
+        )
+        _splice_recorded_case(case, case_b)
+        _set_path(case, "source.candidate.title_text", None)
+        bundle, _ = _decode_ok([case], tmp_path)
+        assert bundle.cases[0].evidence.v2_case.candidate_product.raw_title_text is None
+
+    def test_sealed_sku_key_with_null_recorded_sku_rejected(self, tmp_path):
+        # Nullable-field case: the sealed source records the name-exact
+        # sku key, the recorded case omits the SKU (a silent omission is
+        # a contradiction - never filled in).
+        case = _proven_case(case_id="FA4-PROV-001", surface="DERIVATION")
+        _set_path(
+            case,
+            "source.candidate.structured_fields",
+            {"packaging": EST_RAW_DETAIL, "sku": "SKU-1"},
+        )
+        corpus_file, manifest_file = _seal(tmp_path, [case])
+        with pytest.raises(fam.BundleAuthorityEvidenceError) as exc:
+            fam.load_bundle(corpus_file, manifest_file)
+        assert "CASEDOC_CANDIDATE_SKU" in exc.value.reason
+
+    def test_structured_field_mapping_with_changed_context_sounds(self, tmp_path):
+        # The structured-field mapping positive arm over a CHANGED
+        # deterministic context (the recorded MPN near-miss + SKU are
+        # name-exactly recorded by the sealed source).
+        observation = dataclasses.replace(
+            _observation(),
+            manufacturer_part_number_text="ABC-12",
+            sku_text="SKU-OTHER",
+        )
+        parts_b = _frozen_case_parts(observation=observation)
+        case = _proven_case(case_id="FA4-PROV-001", surface="DERIVATION")
+        _splice_recorded_case(case, parts_b["case"], new_context=parts_b["context"])
+        _set_path(
+            case,
+            "source.candidate.structured_fields",
+            {
+                "packaging": EST_RAW_DETAIL,
+                "mpn_field": "ABC-12",
+                "sku": "SKU-OTHER",
+            },
+        )
+        bundle, _ = _decode_ok([case], tmp_path)
+        assert bundle.cases[0].evidence.v2_case.candidate_mpn_field == "ABC-12"
+        assert bundle.cases[0].evidence.v2_case.candidate_sku == "SKU-OTHER"
+
+    # -- sealed-raw stage coherence over a provenance mismatch --------
+
+    def test_provenance_mismatch_loads_as_corpus_integrity_sealed_raw(self, tmp_path):
+        # The REFUSED / NON_CONSTRUCTIBLE contract is preserved: the
+        # same substitution is sealable under the CORPUS_INTEGRITY label
+        # (the defect IS a case-document-integrity observation).
+        parts = _proven_parts()
+        case = _sealed_case(
+            base=parts,
+            case_id="FA4-ADV-101",
+            stage="CORPUS_INTEGRITY",
+            matrix_row="D2",
+        )
+        parts_b = _frozen_case_parts(observation=_observation(FU2_TITLE_B))
+        _splice_recorded_case(case, parts_b["case"])
+        bundle, _ = _decode_ok([case], tmp_path)
+        assert bundle.cases[0].expected["outcome"] == "REFUSED"
+        assert bundle.cases[0].expected["refusal"]["stage"] == "CORPUS_INTEGRITY"
+
+    def test_provenance_mismatch_rejected_under_presentation_gate_label(self, tmp_path):
+        # The distinction between CASE_DOCUMENT integrity and
+        # presentation-gate failures: a provenance mismatch under a
+        # PRESENTATION_GATE label is incoherent (the mismatch is
+        # observed at the loader, earlier than the gate).
+        parts = _proven_parts()
+        case = _sealed_case(
+            base=parts,
+            case_id="FA4-ADV-102",
+            stage="PRESENTATION_GATE",
+            error_type="PRESENTATION",
+            matrix_row="D3",
+        )
+        parts_b = _frozen_case_parts(observation=_observation(FU2_TITLE_B))
+        _splice_recorded_case(case, parts_b["case"])
+        with pytest.raises(fam.BundleAuthorityLabelError) as exc:
+            _decode_ok([case], tmp_path)
+        assert "self-consistent sealed shapes" in exc.value.reason
+
+    def test_provenance_mismatch_rejected_under_construction_label(self, tmp_path):
+        # A CONSTRUCTION label requires a constructor-level observation;
+        # a pure provenance mismatch (fully constructible documents) is
+        # observed at no construction layer - incoherent.
+        parts = _proven_parts()
+        case = _sealed_case(
+            base=parts,
+            case_id="FA4-ADV-103",
+            stage="CONSTRUCTION",
+            error_type="CONSTRUCTOR",
+            matrix_row="D2",
+        )
+        parts_b = _frozen_case_parts(observation=_observation(FU2_TITLE_B))
+        _splice_recorded_case(case, parts_b["case"])
+        with pytest.raises(fam.BundleAuthorityLabelError) as exc:
+            _decode_ok([case], tmp_path)
+        assert "not observable" in exc.value.reason
+
+
+# ---------------------------------------------------------------------------
+# Q3-C-C1-FU2 (findings F-2 / F-5 + the archive filesystem safety): the
+# per-case REAL_MARKET archive association, resolved-path containment,
+# and the bounded shallow-path / resolution handling.
+# ---------------------------------------------------------------------------
+
+
+class TestArchiveAssociationAndSafety:
+    def test_real_market_own_case_layout_loads(self, tmp_path):
+        case = _real_market_case_doc(tmp_path)
+        bundle, _ = _decode_ok([case], tmp_path)
+        assert bundle.cases[0].evidence_kind == "REAL_MARKET"
+
+    def test_real_market_cross_case_reference_rejected(self, tmp_path):
+        # Case A's archive reference cites case B's source directory:
+        # a schema failure at decode (the recorded layout is contract
+        # data - deterministic, no file access needed).
+        prefix = "evaluation/fu4_bundle_authority_qualification/sources"
+        case = _real_market_case_doc(
+            tmp_path, rel_dir=f"{prefix}/FA4-OTHER-001", stage_bytes=None
+        )
+        with pytest.raises(fam.BundleAuthoritySchemaError) as exc:
+            fam.decode_corpus_case_document(_raw_for_decode(case))
+        assert "own case's sources/" in exc.value.reason
+
+    @pytest.mark.parametrize(
+        "archive",
+        [
+            "evaluation/fu4_bundle_authority_qualification/"
+            "sources/FA4-PROV-001/../FA4-OTHER-001/x.html",
+            "/etc/passwd",
+            "C:/temp/x.html",
+            "C:\\temp\\x.html",
+        ],
+        ids=["dotdot-traversal", "absolute", "windows-drive", "windows-backslash"],
+    )
+    def test_archive_path_shape_refused(self, archive):
+        case = _proven_case(case_id="FA4-PROV-001", surface="DERIVATION")
+        case["evidence_kind"] = "REAL_MARKET"
+        for side in ("candidate", "target"):
+            block = case["source"][side]
+            block["source_url"] = SOURCE_URL
+            block["retrieved_utc"] = "2026-01-01T12:00:00Z"
+            block["raw_reference"] = "r"
+            block["archive_digest"] = "0" * 64
+            block["recording_attestation"] = "att"
+        case["source"]["candidate"]["archive"] = archive
+        case["source"]["target"]["archive"] = (
+            "evaluation/fu4_bundle_authority_qualification/"
+            "sources/FA4-PROV-001/target_raw_content.html"
+        )
+        with pytest.raises(fam.BundleAuthoritySchemaError) as exc:
+            fam.decode_corpus_case_document(_raw_for_decode(case))
+        assert "repo-relative POSIX path" in exc.value.reason
+
+    @pytest.mark.parametrize(
+        "raw",
+        (
+            ["C:/fu2_shallow_corpus.json", "C:/one/fu2_shallow_corpus.json"]
+            if os.name == "nt"
+            else ["/fu2_shallow_corpus.json", "/one/fu2_shallow_corpus.json"]
+        ),
+        ids=["depth-1", "depth-2"],
+    )
+    def test_shallow_corpus_path_is_a_bounded_error(self, raw):
+        # F-5: the shallow path used to raise an unhandled IndexError
+        # from the parents[2] repo-root derivation; it is now the
+        # established bounded corpus error (the cited archives cannot
+        # be located -> the declared digests cannot verify).
+        with pytest.raises(fam.BundleAuthorityDigestError) as exc:
+            fam._repo_root_of(Path(raw))
+        assert "three path components" in exc.value.reason
+
+    def test_symlink_escape_outside_root_rejected(self, tmp_path):
+        # The containment defense: a forger who controls the archive can
+        # always match its declared digest - the resolved path must stay
+        # inside the authorized source root. The corpus root here is the
+        # "inner" directory; the symlink target sits OUTSIDE it.
+        inner = tmp_path / "inner"
+        case = _real_market_case_doc(inner)
+        outside_dir = tmp_path / "outside_root"
+        outside_dir.mkdir(parents=True, exist_ok=True)
+        outside = outside_dir / "secret.html"
+        outside.write_bytes(b"outside content")
+        link = inner / case["source"]["candidate"]["archive"]
+        link.unlink()
+        try:
+            os.symlink(outside, link)
+        except OSError:
+            pytest.skip("symlink creation not permitted on this platform")
+        case["source"]["candidate"]["archive_digest"] = _sha256_bytes(
+            outside.read_bytes()
+        )
+        document = fam_fixtures.build_corpus_document(CREATED_UTC, (case,))
+        corpus_file = (
+            inner
+            / "evaluation"
+            / "fu4_bundle_authority_qualification"
+            / "corpus_v1.json"
+        )
+        corpus_file.write_bytes(fam.canonically_serialize(document))
+        with pytest.raises(fam.BundleAuthorityDigestError) as exc:
+            fam.load_corpus(corpus_file)
+        assert "resolves outside the repository root" in exc.value.reason
+
+    def test_symlink_cross_case_association_rejected(self, tmp_path):
+        # F-2 at the load level: case A's archive RESOLVES to case B's
+        # source directory through a symlink (the string cites A's own
+        # path + a matching digest - only the resolved containment can
+        # catch it).
+        case_a = _real_market_case_doc(tmp_path, case_id="FA4-PROV-001")
+        case_b = _real_market_case_doc(tmp_path, case_id="FA4-UNPR-002")
+        sources = "evaluation/fu4_bundle_authority_qualification/sources"
+        b_file = tmp_path / f"{sources}/FA4-UNPR-002/candidate_raw_content.html"
+        a_link = tmp_path / f"{sources}/FA4-PROV-001/candidate_raw_content.html"
+        a_link.unlink()
+        try:
+            os.symlink(b_file, a_link)
+        except OSError:
+            pytest.skip("symlink creation not permitted on this platform")
+        case_a["source"]["candidate"]["archive_digest"] = _sha256_bytes(
+            b_file.read_bytes()
+        )
+        corpus_file, manifest_file = _seal(tmp_path, [case_a, case_b])
+        with pytest.raises(fam.BundleAuthorityDigestError) as exc:
+            fam.load_bundle(corpus_file, manifest_file)
+        assert "resolves outside its own case's sources directory" in exc.value.reason
+
+
+# ---------------------------------------------------------------------------
+# Q3-C-C1-FU2 (findings F-6 / F-7): the committed regression coverage the
+# C1 loader gained over - label revisions, duplicate JSON keys, NaN /
+# Infinity, line-ending states, the manifest byte contract, and Unicode
+# codepoint distinctions. Every row exercises the actual public
+# loader / validator entry points.
+# ---------------------------------------------------------------------------
+
+
+def _valid_revision(case_id="FA4-PROV-001", *, revision=1, reason_class="A"):
+    case_doc = _proven_case(case_id=case_id, surface="DERIVATION")
+    digest = fam.case_state_digest(case_doc)
+    return {
+        "revision": revision,
+        "case_id": case_id,
+        "utc": "2026-01-04T00:00:00Z",
+        "reason_class": reason_class,
+        "statement": "label wording corrected under the two-identity workflow",
+        "digest_before": digest,
+        "digest_after": digest,
+    }
+
+
+class TestLabelRevisionRegression:
+    @pytest.mark.parametrize("count", [1, 2], ids=["one-revision", "two-revisions"])
+    def test_valid_label_revisions_load(self, tmp_path, count):
+        case = _proven_case(case_id="FA4-PROV-001")
+        revisions = [
+            _valid_revision(reason_class="A" if i == 1 else "B", revision=i)
+            for i in range(1, count + 1)
+        ]
+        document = fam_fixtures.build_corpus_document(
+            CREATED_UTC, (case,), tuple(revisions)
+        )
+        corpus_file, manifest_file = _seal_document(tmp_path, document)
+        bundle = fam.load_bundle(corpus_file, manifest_file)
+        assert bundle.document["label_revisions"] == revisions
+
+    def test_label_revision_unknown_case_id_rejected(self, tmp_path):
+        case = _proven_case(case_id="FA4-PROV-001")
+        revisions = [_valid_revision(case_id="FA4-PROV-999")]
+        document = fam_fixtures.build_corpus_document(
+            CREATED_UTC, (case,), tuple(revisions)
+        )
+        corpus_file, _ = _seal_document(tmp_path, document)
+        with pytest.raises(fam.BundleAuthoritySchemaError) as exc:
+            fam.load_corpus(corpus_file)
+        assert "is not a corpus case" in exc.value.reason
+
+    @pytest.mark.parametrize(
+        "reason_class", ["E", None, "a"], ids=["unknown", "null", "lowercase"]
+    )
+    def test_label_revision_invalid_reason_class_rejected(self, tmp_path, reason_class):
+        case = _proven_case(case_id="FA4-PROV-001")
+        revisions = [_valid_revision(reason_class=reason_class)]
+        document = fam_fixtures.build_corpus_document(
+            CREATED_UTC, (case,), tuple(revisions)
+        )
+        corpus_file, _ = _seal_document(tmp_path, document)
+        with pytest.raises(fam.BundleAuthoritySchemaError) as exc:
+            fam.load_corpus(corpus_file)
+        assert "reason_class" in exc.value.reason
+
+    @pytest.mark.parametrize(
+        "numbers",
+        [[2], [1, 3], [1, 1]],
+        ids=["gap-at-start", "gap-in-middle", "duplicate-number"],
+    )
+    def test_label_revision_nonsequential_numbers_rejected(self, tmp_path, numbers):
+        case = _proven_case(case_id="FA4-PROV-001")
+        revisions = [_valid_revision(revision=n) for n in numbers]
+        document = fam_fixtures.build_corpus_document(
+            CREATED_UTC, (case,), tuple(revisions)
+        )
+        corpus_file, _ = _seal_document(tmp_path, document)
+        with pytest.raises(fam.BundleAuthoritySchemaError) as exc:
+            fam.load_corpus(corpus_file)
+        if numbers == [1, 1]:
+            assert "not unique" in exc.value.reason
+        else:
+            assert "numbered 1..N without gaps" in exc.value.reason
+
+    def test_revision_tamper_with_stale_manifest_rejected(self, tmp_path):
+        # The corpus digest covers label_revisions: tampering a revision
+        # and re-sealing the corpus loads the corpus under its own
+        # recomputed digest, but the STALE manifest (bound to the
+        # pre-tamper corpus digest) must fail.
+        case = _proven_case(case_id="FA4-PROV-001")
+        document = fam_fixtures.build_corpus_document(
+            CREATED_UTC, (case,), (_valid_revision(),)
+        )
+        corpus_file, manifest_file = _seal_document(tmp_path, document)
+        tampered = json.loads(corpus_file.read_text(encoding="utf-8"))
+        tampered["label_revisions"][0]["statement"] = "tampered revision"
+        tampered["corpus_digest"] = fam.corpus_state_digest(tampered)
+        corpus_file.write_bytes(fam.canonically_serialize(tampered))
+        # the tampered corpus alone loads under its own recomputed digest
+        fam.load_corpus(corpus_file)
+        # the stale manifest disagrees with the tampered corpus digest
+        with pytest.raises(fam.BundleAuthorityManifestError) as exc:
+            fam.load_bundle(corpus_file, manifest_file)
+        assert "corpus_digest" in exc.value.reason
+
+
+class TestLoaderByteContractRegression:
+    def _sound_corpus_file(self, tmp_path):
+        case = _proven_case(case_id="FA4-PROV-001")
+        document = fam_fixtures.build_corpus_document(CREATED_UTC, (case,))
+        base = tmp_path / "evaluation" / "fu4_bundle_authority_qualification"
+        base.mkdir(parents=True, exist_ok=True)
+        corpus_file = base / "corpus_v1.json"
+        corpus_file.write_bytes(fam.canonically_serialize(document))
+        return corpus_file
+
+    def test_duplicate_json_keys_rejected(self, tmp_path):
+        # A hidden duplicate key (last-wins parse) changes the byte
+        # count: the file no longer equals its own canonical
+        # re-serialization -> a deterministic tamper refusal.
+        corpus_file = self._sound_corpus_file(tmp_path)
+        raw = corpus_file.read_bytes()
+        idx = raw.index(b'"corpus_id"')
+        line = raw[raw.rfind(b"\n", 0, idx) + 1 : raw.index(b"\n", idx) + 1]
+        assert raw.count(line) == 1
+        corpus_file.write_bytes(raw.replace(line, line + line, 1))
+        with pytest.raises(fam.BundleAuthoritySchemaError) as exc:
+            fam.load_corpus(corpus_file)
+        assert "stable canonical serialization" in exc.value.reason
+
+    @pytest.mark.parametrize(
+        "value", [float("nan"), float("inf")], ids=["NaN", "Infinity"]
+    )
+    def test_nan_and_infinity_rejected(self, tmp_path, value):
+        # json.loads accepts the NaN / Infinity tokens; the canonical
+        # re-serialization matches (both sides emit the token); the
+        # strict decode refuses the float value itself - a bounded,
+        # deterministic schema error, never a silent float.
+        case = _proven_case(case_id="FA4-PROV-001", surface="DERIVATION")
+        document = fam_fixtures.build_corpus_document(CREATED_UTC, (case,))
+        document["cases"][0]["published_quantity"]["candidate"] = value
+        raw = (
+            json.dumps(document, indent=1, sort_keys=True, ensure_ascii=True)
+            + "\n"
+        ).encode("utf-8")
+        base = tmp_path / "evaluation" / "fu4_bundle_authority_qualification"
+        base.mkdir(parents=True, exist_ok=True)
+        corpus_file = base / "corpus_v1.json"
+        corpus_file.write_bytes(raw)
+        with pytest.raises(fam.BundleAuthoritySchemaError) as exc:
+            fam.load_corpus(corpus_file)
+        assert "expected an int" in exc.value.reason
+
+    def test_mixed_line_endings_rejected(self, tmp_path):
+        corpus_file = self._sound_corpus_file(tmp_path)
+        raw = corpus_file.read_bytes()
+        corpus_file.write_bytes(raw.replace(b"\n", b"\r\n", 1))
+        with pytest.raises(fam.BundleAuthoritySchemaError) as exc:
+            fam.load_corpus(corpus_file)
+        assert "stable canonical serialization" in exc.value.reason
+
+    def test_exact_crlf_expansion_loads(self, tmp_path):
+        # The documented autocrlf working-tree state: the EXACT CRLF
+        # expansion of the canonical bytes is the only tolerated byte
+        # variant (positive control).
+        corpus_file = self._sound_corpus_file(tmp_path)
+        raw = corpus_file.read_bytes()
+        corpus_file.write_bytes(raw.replace(b"\n", b"\r\n"))
+        bundle = fam.load_corpus(corpus_file)
+        assert bundle.cases[0].case_id == "FA4-PROV-001"
+
+    def test_non_canonical_manifest_bytes_rejected(self, tmp_path):
+        corpus_file, manifest_file = _seal(tmp_path, [_proven_case()])
+        manifest = json.loads(manifest_file.read_text(encoding="utf-8"))
+        manifest_file.write_bytes(
+            (json.dumps(manifest, indent=2, sort_keys=True, ensure_ascii=True) + "\n")
+            .encode("utf-8")
+        )
+        with pytest.raises(fam.BundleAuthorityManifestError) as exc:
+            fam.load_bundle(corpus_file, manifest_file)
+        assert "stable canonical serialization" in exc.value.reason
+
+    def test_non_ascii_bytes_rejected(self, tmp_path):
+        # Unicode codepoint distinction at the FILE level: the canonical
+        # form is ASCII (ensure_ascii); raw UTF-8 codepoints in the file
+        # bytes are a serialization violation.
+        case = _proven_case(case_id="FA4-PROV-001", surface="DERIVATION")
+        case["case_category"] = "caf\u00e9 memory kit"
+        document = fam_fixtures.build_corpus_document(CREATED_UTC, (case,))
+        raw = (
+            json.dumps(document, indent=1, sort_keys=True, ensure_ascii=False)
+            + "\n"
+        ).encode("utf-8")
+        base = tmp_path / "evaluation" / "fu4_bundle_authority_qualification"
+        base.mkdir(parents=True, exist_ok=True)
+        corpus_file = base / "corpus_v1.json"
+        corpus_file.write_bytes(raw)
+        with pytest.raises(fam.BundleAuthoritySchemaError) as exc:
+            fam.load_corpus(corpus_file)
+        assert "stable canonical serialization" in exc.value.reason
+
+
+# ---------------------------------------------------------------------------
+# Q3-C-C1-FU2 (finding F-8): the execution boundary. REFUSED cases over
+# EXACTLY the self-consistent sound shapes (PRESENTATION_GATE /
+# REPLAY_AGREEMENT) load without the decoder executing the derivation /
+# replay - stage coherence proves the documents are self-consistent
+# below the construction layer only; it does NOT prove the actual
+# authority outcome (actual derivation / replay correctness remains an
+# E1 responsibility).
+# ---------------------------------------------------------------------------
+
+
+class TestExecutionBoundaryRefusals:
+    def test_presentation_gate_refusal_over_sound_documents_loads(self, tmp_path):
+        case = _proven_case(case_id="FA4-ADV-110", surface="DERIVATION")
+        expected = _sealed_refusal_expected(
+            stage="PRESENTATION_GATE", error_type="PRESENTATION"
+        )
+        _set_path(case, "expected", expected)
+        bundle, _ = _decode_ok([case], tmp_path)
+        assert bundle.cases[0].expected["outcome"] == "REFUSED"
+        assert bundle.cases[0].expected["refusal"]["stage"] == "PRESENTATION_GATE"
+
+    def test_refused_gate_labels_load_without_executing_the_authority_chain(
+        self, tmp_path, monkeypatch
+    ):
+        # The documents are assembled FIRST (the test module MAY execute
+        # the frozen chain to assemble fixtures); only the LOAD runs
+        # under the sentinels.
+        case_gate = _proven_case(case_id="FA4-ADV-111", surface="DERIVATION")
+        _set_path(
+            case_gate,
+            "expected",
+            _sealed_refusal_expected(
+                stage="PRESENTATION_GATE", error_type="PRESENTATION"
+            ),
+        )
+        case_replay = _proven_case(case_id="FA4-ADV-112", surface="BOTH")
+        _set_path(
+            case_replay,
+            "expected",
+            _sealed_refusal_expected(
+                stage="REPLAY_AGREEMENT",
+                error_type="REPLAY",
+                replay="REPLAY_REFUSED",
+            ),
+        )
+
+        def _sentinel(*args, **kwargs):
+            raise AssertionError(
+                "the corpus decoder invoked a production authority entry "
+                "point (the label-determining surface)"
+            )
+
+        monkeypatch.setattr(fu4, "derive_sales_unit_authority_fu4", _sentinel)
+        monkeypatch.setattr(fu4, "derive_sales_unit_authority_fu4_case", _sentinel)
+        monkeypatch.setattr(fu4, "derive_authority_tier_fu4", _sentinel)
+        monkeypatch.setattr(fu4, "derive_authority_tier_for_contract_fu4", _sentinel)
+        import product_intelligence.research.semantic_decision_replay as replay
+
+        monkeypatch.setattr(replay, "replay_semantic_decision", _sentinel)
+
+        bundle, _ = _decode_ok([case_gate, case_replay], tmp_path)
+        by_id = {case.case_id: case for case in bundle.cases}
+        assert by_id["FA4-ADV-111"].expected["refusal"]["stage"] == "PRESENTATION_GATE"
+        assert by_id["FA4-ADV-112"].expected["refusal"]["stage"] == "REPLAY_AGREEMENT"
+        # Stage coherence over sound documents is NOT an authority
+        # outcome: the loaded expectation is the independently recorded
+        # label, verified for structural coherence only.

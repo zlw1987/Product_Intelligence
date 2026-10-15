@@ -5,6 +5,190 @@
 ## Current state
 
 
+**PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-Q3-C-C1-FU2 (Provenance Binding
+& Integrity Hardening)
+
+— IMPLEMENTED / PENDING CHATGPT INDEPENDENT REVIEW**
+
+Bounded CORRECTIVE implementation on the authoritative starting SHA
+`36ae43e9d268a45d7ea7df1b42125944ca3cbafb` (the Q3-C-C1 endpoint;
+baseline collection **7793, re-verified this session**), correcting
+the confirmed C1 security / integrity gaps identified by the C1-FU1
+investigation (findings F-1..F-10, decision record AD-085 / PLAN
+§26.43). Corrective scope ONLY: the family corpus validator, its
+integrity tests, minimal necessary fixtures, and the STATUS / PLAN
+records — NO qualification cases, NO labels, NO evaluator, NO
+capture, NO model call, NO policy, NO authority promotion, NO
+pricing wiring, NO deployment, NO migration (`makemigrations --check
+--dry-run`: No changes detected; `manage.py check`: 0 issues).
+
+**F-1 — the mandatory provenance binding.** The family cross-document
+validator now binds the recorded V2 case document
+(`recorded_case.v2_case_document`) to the corresponding sealed source
+blocks, field by field, over the ACTUAL canonical document keys (no
+cross-name equivalence assumed): candidate raw title <-> sealed
+title_text (exact codepoint equality or explicit joint absence, all
+evidence kinds); candidate source URL <-> sealed source_url (exact
+equality; RECORDED_FIXTURE / REAL_MARKET only — for SYNTHETIC the
+sealed block carries no URL and no authoritative counterpart exists:
+documented limitation, no manufactured comparison); candidate MPN
+field / SKU / offer URL / raw specification text <-> the name-exact
+sealed structured_fields keys (key present -> recorded non-null +
+exactly equal; key absent -> recorded null — the recorded case never
+carries text the sealed source never published); target MPN / target
+raw description <-> the name-exact sealed target structured_fields
+keys ONLY when the block records them (the caller-published request
+anchor has no counterpart otherwise — documented limitation).
+Eight deterministic, named observations at the case-document-
+integrity layer: `CASEDOC_CANDIDATE_TITLE` / `_SOURCE_URL` /
+`_SPEC_TEXT` / `_MPN_FIELD` / `_SKU` / `_OFFER_URL`,
+`CASEDOC_TARGET_MPN` / `_DESCRIPTION`. A mismatch is rejected for a
+sound DERIVED case; REFUSED / NON_CONSTRUCTIBLE cases remain under
+the existing sealed-raw stage-coherence contract (the mismatch is
+CORPUS_INTEGRITY-grounding and incoherent under PRESENTATION_GATE /
+REPLAY_AGREEMENT / CONSTRUCTION labels — the CASE_DOCUMENT vs
+presentation-gate distinction preserved). The binding proves INTERNAL
+provenance consistency (L1/L2) only — not source authenticity (L3),
+no trust promotion.
+
+**F-2 + archive filesystem safety.** A REAL_MARKET archive must cite
+its OWN case's `sources/<case_id>/` directory (decode-level, the
+approved per-case layout). At load, every cited archive is RESOLVED
+(symlinks followed) and must stay inside the resolved repository
+root — archive reads cannot escape the authorized source root
+through symlink traversal; REAL_MARKET archives must additionally
+resolve inside their own case's sources directory (case A's archive
+reference must not resolve to case B's source directory). Missing
+paths keep the established bounded "missing archive" error; path-
+resolution errors are bounded; the declared-digest verification is
+unchanged (run over the resolved file); error reporting names the
+case, side, cited path, and resolved path (deterministic).
+
+**F-3 / F-4 — duplicate cleanup.** The duplicate `_SOURCE_BLOCK_KEYS`
+definition (family validator) and the duplicated PLAN §26.42
+paragraph removed; the surviving definition / wording preserved
+verbatim; no functional change (the C1 suite + targeted batch pass
+unmodified except the two minimal fixture corrections below).
+
+**F-5 — bounded errors.** A corpus file that is not at least three
+path components below its repository root is now the established
+bounded corpus error (DIGEST_INTEGRITY stage), never an unhandled
+`IndexError`; path-resolution failures are bounded the same way.
+
+**F-6 / F-7 — committed regression coverage.** Valid (1 / 2) and
+invalid label revisions (unknown case id; reason class unknown / null
+/ lowercase); nonsequential revision numbers (gap at start / gap in
+middle / duplicate); revision tamper over a stale manifest (the
+corpus loads under its own recomputed digest; the stale manifest's
+corpus_digest check fails); duplicate JSON keys (a hidden last-wins
+duplicate breaks the canonical byte contract); NaN and Infinity
+(the strict decode refuses the float value); mixed line endings
+(rejected); the valid EXACT CRLF expansion (loads — the documented
+autocrlf state); noncanonical manifest bytes (rejected); Unicode
+codepoint distinctions (raw UTF-8 bytes rejected at file level; a
+visually identical Cyrillic codepoint in the recorded title rejected
+at the binding level). All rows exercise the actual public
+loader / validator entry points.
+
+**F-8 — the execution boundary.** Committed rows document the
+existing behavior: sound documents labeled REFUSED@PRESENTATION_GATE
+(and REFUSED@REPLAY_AGREEMENT) load WITHOUT the decoder invoking the
+frozen authority derivation / replay (monkeypatched sentinel probe
+over every label-determining entry point). Stage coherence over sound
+documents proves ONLY that the sealed shapes are self-consistent
+below the construction layer; it does NOT prove the actual authority
+outcome — actual derivation / replay correctness remains an E1
+responsibility.
+
+**F-9 / F-10 — the trust boundary.** The distinction between a valid
+schema, internally consistent sealed data, authentic published
+evidence, independent human review, and physical product truth is
+maintained; no automatic trust promotion; no qualification cases
+created. WARNING OF RECORD: the test-local expected values derived
+from FU4 output (the C1 suite's `_expected_from_decision` /
+`_payload_record` helpers and every helper that reads a frozen FU4 /
+R1 output) are SYNTHETIC DECODER FIXTURES ONLY — they are NOT
+independently labeled expected outcomes, and C2 authoring and
+labeling tools MUST NOT reuse those helpers (or their outputs) as
+independent expected-label sources; the C2 label is established under
+the design §4.6 / 8.2 two-identity workflow from the recorded source
+content + the approved design rows.
+
+**Minimal necessary fixture corrections (of record; the permitted
+fixture scope).** (1) The recorded-fixture helper's candidate block
+now cites the case's OWN source URL — the name-authoritative
+counterpart the F-1 binding requires (it previously cited a
+different recorded page on the candidate side). (2) `_extraction_case`
+now builds the recorded V2 case from the SAME extended-title
+observation its sealed candidate block records — it previously sealed
+a block title the recorded case never carried, a mismatch the F-1
+binding correctly rejects. No test expectation was weakened; both
+fixtures are now strictly more coherent with the sealed documents.
+
+**Tests.** 50 NEW nodes in `tests/evaluation/bundle_authority/
+test_q3c_c1_corpus_integrity.py` (the C1 suite is now 250):
+TestProvenanceBinding (21 — the substitution / nullable-field /
+structured-mapping / target-anchor / codepoint rows over re-sealed
+corpora + the three sealed-raw stage-coherence rows),
+TestArchiveAssociationAndSafety (11 — the per-case layout, the
+path-shape refusals incl. `..` / absolute / Windows drive /
+backslash, the bounded shallow path, the symlink escape outside the
+root, the symlink cross-case association), TestLabelRevision
+Regression (10), TestLoaderByteContractRegression (7),
+TestExecutionBoundaryRefusals (2). No test deleted, renamed, skipped,
+xfailed, deselected, ignored, or weakened; the fixed eleven-node
+Windows flake allowlist UNCHANGED.
+
+**Validation (exact).** Focused C1 suite: **250 passed, 0 failed**.
+Targeted batch (boundary guards + 217-node FU4 + 38-node R1 +
+35-node R2 registration + 2-node C0 pins): all passed, exit 0 (one
+allowlist member flaked under load with the documented signature and
+re-passed isolated). Full semantic batch (623 nodes): all passed,
+exit 0. Full suite over the 7843 collection, SIX recorded runs (the
+documented load-sensitive clean-interpreter subprocess guard flake
+class — every failure at `subprocess.Popen` / `subprocess.
+_get_handles` BEFORE any project code runs; zero assertion failures;
+the fixed eleven-node allowlist UNCHANGED): run 1 — 7841 passed, 2
+failed (two allowlist members, re-passed isolated); run 2 — 7833
+passed, 10 failed (allowlist members, re-passed isolated); run 3 —
+7832 passed, 11 failed — the SAME 11 fixed-allowlist nodes exactly
+(node-level list in `tmp_fu2_run3_failed.txt`; signatures: 9x
+`OSError [WinError 50] The request is not supported` at
+`subprocess._get_handles` + 2x `OSError [WinError 6] The handle is
+invalid` at `subprocess.Popen` — the load-correlated OS-error-code
+variant of the documented class, confirmed against the allowlist and
+re-passing isolated, NOT an unfamiliar failure); run 4 — 7832
+passed, 11 failed — the SAME 11 nodes, same signature mix;
+run 5 — 7841 passed, 2 failed (two allowlist members); run 6 (evidence
+`tmp_fu2_full_run6.txt`) — **7843 collected, 7843 passed, 0 failed,
+exit 0** (the recorded full-green result), 0 skipped / 0 xfailed / 0
+deselected. An isolated retry does not convert a failed full-suite
+run into a full green result: the recorded full-green result is run
+6. Collection delta (against the re-verified 7793 baseline): 7793 ->
+7843 (**+50**, all in the C1 suite; **0 removed / 0 renamed**; no
+other file changed its node count). `python manage.py check`: System
+check identified no issues (0 silenced). `python manage.py
+makemigrations --check --dry-run`: No changes detected.
+
+**Invariance (this phase).** No frozen research code, no semantic
+authority behavior, no pricing behavior, no corpus or manifest, no
+qualification policy, no prompt text, no authority flag, no database
+schema changed: `git diff` against the starting SHA is confined to
+`product_intelligence/evaluation/bundle_authority/corpus.py`,
+`tests/evaluation/bundle_authority/test_q3c_c1_corpus_integrity.py`,
+and the STATUS / PLAN records. No qualification label was created or
+revised. No model capture occurred (zero-live by construction). C1-
+FU2 grants NO qualification: the FU4 Bundle authority program state
+of record remains UNAPPROVED / NOT EXECUTED — the corpus is NOT
+sealed, no Bundle authority case is independently qualified, and C2
+(the independently labeled v1.0.0 seal) starts only under its own
+explicit approval (design §9.4) with the two-identity workflow
+staffed. The unrelated worktree artifacts are preserved.
+
+**Next.** ChatGPT's independent review of the committed C1-FU2 GitHub
+diff decides whether C1 can be frozen. C2 is NOT started.
+
+
 **PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-Q3-C-C1 (FU4 Bundle Authority
 Qualification — Corpus Schema & Integrity Validator)
 
