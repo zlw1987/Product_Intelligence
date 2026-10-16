@@ -5,6 +5,134 @@
 ## Current state
 
 
+**PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-Q3-C-D1-FU2 (Coverage
+Accounting Consistency Correction)
+
+— DESIGN ONLY / PENDING CHATGPT REVIEW (the correction authorizes
+nothing; the bounded C1-FU3 + C2 corrective implementation remains
+PROPOSED (design §9.11), NOT YET AUTHORIZED; the v1.0.0 seal remains
+FINAL-HOLD)**
+
+Bounded DESIGN-CORRECTION phase on the authoritative starting SHA
+`34ca5edf056c68c1719ed470e832e9f956626c19` (the Q3-C-D1-FU1
+endpoint; baseline collection **8043, re-verified this session**).
+The Q3-C-D1-FU1 revision corrected the operative v1.0.0 coverage
+accounting throughout the design of record, but three stale
+pre-revision `92` references remained in OPERATIVE (not
+historical-labeled) positions; this correction moves them to the
+adjudicated **≥90 Track A** v1.0.0 minimum: (1) design §9.4 scope
+line — `≥92 Track A / ≥21 Track B minimums` → `≥90 Track A / ≥21
+Track B minimums` (the §9.4 acceptance (1) already referenced the
+corrected (Q3-C-D1-FU1) row minimums over the seal population; the
+scope line now agrees with it); (2) + (3) the design §7.6 "why a
+small synthetic corpus cannot qualify a model" bullet — `the 92-case
+floor` → `the 90-case floor` and `The 92-case v1.0.0 floor` → `The
+90-case v1.0.0 floor` (the adjacent §7.6 "case diversity floors"
+bullet already carried the corrected 90 Track A / 21 Track B
+minimums). A short in-document note records the correction in the
+design's revision record. No adjudication is re-opened, no
+acceptance criterion is re-derived, and no other threshold,
+population, obligation, or deferred gate moved.
+
+**Exhaustive reference audit (of record).** Every reference in the
+design + the governance records (STATUS / PLAN) to the adjudicated
+accounting numbers was inspected: 92 / 90 Track A; 96 / 94 total
+draft / seal cases; A1 minimum 2 versus 1; D16 minimum 3 versus 2;
+37 versus 36 D adversarial cases; the 48 matrix rows; the 21 / 18 /
+3 Track B floors; the evidence-kind and category floors. The
+operative post-revision requirements are now uniformly: Track A
+floor 16 (A) + 25 (B) + 13 (C) + 36 (D) = 90 over 48 matrix rows
+(design §5.6); A1 v1.0.0 minimum 1 (the row's "2 incl. the
+C3-deferred recorded variant" is labeled with its destination);
+D16 v1.0.0 minimum 2 (the pre-revision 3 labeled; the third
+obligation is the MANDATORY E1 adversarial-execution assertion —
+design §5 stage semantics (v) / §9.6(2)); category D 36 (the
+pre-revision 37 labeled); Track B 21 (≥18 A_B-shared / ≥3 B-only) —
+unchanged; the v1.0.0 seal population 94 cases = 91 Track A (≥ 90)
++ 3 B-only; Track B 24 (≥ 21; 21 A_B-shared ≥ 18); 88 SYNTHETIC
+(93.6% ≥ 80%) + 6 RECORDED_FIXTURE (≥ 5) + 0 REAL_MARKET; 5
+categories (≥ 4); every bounded vocabulary member projected over
+the 94-case seal population (the W6 adjudication). Historical
+pre-revision numbers are retained only in clearly labeled
+positions: the design revision record (`pre-revision 92`, `17 +
+25 + 13 + 37 = 92`, `A1 2→1`, `D16 3→2`, `17 → 16`, `37 → 36`,
+`96 DRAFT minus ...`); the C2 endpoint records (the STATUS C2
+entry + PLAN §26.44 / AD-086 — the committed 96-case DRAFT
+population, 93 Track A against the then-floor 92, 88 SYNTHETIC
+(91.7%) + 8 RECORDED_FIXTURE, the tester minimum over all 37 D
+rows — the DRAFT state of record, byte-unchanged at this endpoint);
+and the original D1 records (the STATUS D1 entry + PLAN §26.41 /
+AD-083 — `v1.0.0 floor 92 Track A / 21 Track B` as originally
+specified). The family governance artifacts (`challenge_log.md` /
+`reviewer_handoff.md`) still carry the C2-endpoint numbers; they
+are inside the proposed C1-FU3 + C2 corrective implementation's
+scope (design §9.11 file (5)) — NOT inside this design-only
+correction.
+
+**Arithmetic independently re-verified (this session).** 16 + 25 +
+13 + 36 = 90 (the row minimums re-summed over the corrected §5
+matrix: A 1+2+1+1+2+1+2+2+4 = 16; B 2+2+1+1+3+3+2+2+2+3+1+1+2 =
+25; C 2+1+1+2+3+1+1+2 = 13; D 3+1+3+2+2+2+2+2+2+2+2+1+2+3+2+2+2+1
+= 36; 48 rows). 96 DRAFT − D16-iii (E1-only) − A1-ii (C3-deferred),
+with the D11-ii re-authoring (RECORDED_FIXTURE → SYNTHETIC), = the
+94-case seal population = 91 Track A + 3 B-only. 88 + 6 + 0 = 94;
+88/94 = 93.6% ≥ 80%. Track B 24 = 21 A_B-shared + 3 B-only (≥ 21 /
+18 / 3). 5 categories ≥ 4. Every floor holds with the recorded
+margin; no arithmetic correction was required in the §5.6 / §8.2 /
+§9.4 / §9.6 / §9.11 positions the Q3-C-D1-FU1 revision already
+corrected.
+
+**Deferred obligations (preserved, unchanged).** (1) The A1
+recorded PROVEN-shape variant → the C3 acquisition + the additive
+1.1.0 re-seal (P3 D19; the §7.6 distinctness requirements; the
+1.1.0 re-seal verification). (2) The D16-iii FU3-token
+contract-misuse refusal → the MANDATORY E1 adversarial-execution
+assertion (P3 §5.4 / D9; design §9.6(2); the M13 / G6 coverage
+note of the E1 baseline report). (3) The D11 recorded-fixture
+exact-identifier + attested-composition variant → the C3 / 1.1.0
+additive obligation IF AND ONLY IF the recorded source publishes
+both the U1 EXACT identity context's recorded form and the attested
+composition clauses (the §2.5 catalog publishes identifiers only).
+No authority, pricing, or qualification promotion.
+
+**Tests / validation (exact).** Before the edits: collection
+**8043** (183 files); C1 + C2 governance batch **450 passed, 0
+failed, 0 errors, 0 skipped, exit 0** (250 C1 + 200 C2 —
+junit-verified); `python manage.py check` — System check
+identified no issues (0 silenced); `python manage.py
+makemigrations --check --dry-run` — No changes detected. After the
+edits: the same four verifications re-run with IDENTICAL results
+(collection 8043 unchanged — no test node added / removed /
+renamed / skipped / xfailed / deselected / weakened; the 450-node
+batch passed; the Django checks clean) and the frozen-surface
+digest set (the frozen research modules, the C1 family package,
+the C2 DRAFT population source, the C1 / C2 governance suites, the
+semantic-family corpus / manifests / policy, the family governance
+artifacts) verified BYTE-IDENTICAL to the starting SHA. No test is
+deleted, renamed, skipped, xfailed, deselected, or weakened.
+
+**Invariance (this phase).** No production code, no corpus
+fixture, no expected label, no test, no qualification policy, no
+seal changed — the final diff is exactly the three authorized
+documentation files (the design consistency correction + this
+STATUS entry + the PLAN §26.46 / AD-088 records). The unrelated
+worktree artifacts are preserved (the pre-existing
+`tmp_collection.txt` modification + the untracked session /
+benchmark files). No restore / reset / checkout / stash / clean /
+amend / rebase / force-push used.
+
+**Next.** ChatGPT's review of this correction is the design gate
+(C2 state of record: DRAFT ACCEPTED / FINAL HOLD — unchanged; the
+seal remains held). The bounded C1-FU3 + C2 corrective
+implementation (design §9.11 — the proposed exact file set +
+acceptance) is **NOT YET AUTHORIZED**: it starts only under its own
+explicit approval. The v1.0.0 seal requires, in order: the C1-FU3
+corrections, the recorded pre-seal case corrections (the 94-case
+population), the genuine two-identity independent review per
+`reviewer_handoff.md` (now over the corrected rows), and the seal
+procedure of the handoff. C3 / E1 / E2 / P1 / Q1 / W1 NOT STARTED.
+
+
 **PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-Q3-C-D1-FU1 (Adjudication-Driven
 Design Revision — the HELD C2 cases resolved in the design of record)
 

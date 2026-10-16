@@ -180,6 +180,31 @@ D11-ii re-authoring, the B6-ii / B6-iii / C6 re-authorings — under the
 population removals — D16-iii, the A1 recorded variant — under the
 phase-boundary corrections of record).
 
+**Q3-C-D1-FU2 consistency correction (corrected in place, this
+document).** A full audit of the Q3-C-D1-FU1 revised accounting
+found three residual references to the pre-revision `92`-case Track A
+floor stated as OPERATIVE (not labeled historical): (1) the §7.6
+"Why a small synthetic corpus cannot qualify a model" bullet —
+`the 92-case floor` → `the 90-case floor`; (2) the same bullet —
+`The 92-case v1.0.0 floor` → `The 90-case v1.0.0 floor`; (3) the
+§9.4 scope line — `≥92 Track A / ≥21 Track B minimums` → `≥90 Track
+A / ≥21 Track B minimums` (the §9.4 acceptance (1) already referenced
+the corrected (Q3-C-D1-FU1) row minimums over the seal population; the
+scope line now agrees with it). No adjudication, threshold,
+population, obligation, or acceptance criterion was re-derived or
+moved by Q3-C-D1-FU2: the operative accounting is exactly the
+Q3-C-D1-FU1 revised v1.0.0 accounting of record (Track A floor
+16 + 25 + 13 + 36 = 90 over the 48 matrix rows; the 94-case seal
+population = 91 Track A (≥ 90) + 3 B-only; Track B 24 (≥ 21) =
+21 A_B-shared (≥ 18) + 3 B-only; 88 SYNTHETIC (93.6% ≥ 80%) + 6
+RECORDED_FIXTURE (≥ 5) + 0 REAL_MARKET; 5 categories (≥ 4); the
+bounded vocabulary projected over the actual seal population — W6).
+The labeled pre-revision references (the revision record's
+`pre-revision 92`, `17 + 25 + 13 + 37 = 92`, `A1 2→1`, `D16 3→2`,
+`17 → 16`, `37 → 36`; the §5.1 / §5.4 row and category minimum
+notes; the §5.6 pre-revision accounting) remain as historical
+record.
+
 ---
 
 # 1. Executive decision
@@ -1741,7 +1766,7 @@ records every evaluated rung (the semantic family's `decide` pattern).
 * **Why a small synthetic corpus cannot qualify a model (stated).** The
   synthetic population bounds the CONTRACT's behavior (the deterministic
   derivation is total over the bounded vocabularies — full coverage is
-  achievable and is what the 92-case floor is); it does NOT bound the
+  achievable and is what the 90-case floor is); it does NOT bound the
   REAL-WORLD rate of false authority (the publication diversity, the
   truncation / localization / phrasing tails, the adversarial
   publishers). That is why the tiers are stratified by evidence kind
@@ -1750,7 +1775,7 @@ records every evaluated rung (the semantic family's `decide` pattern).
   that qualification is over a FINITE sealed population with recorded
   bounds, monitored by the replay discipline (any post-qualification
   corpus version re-runs the full gate set before it may be the
-  qualification of record). The 92-case v1.0.0 floor is the full
+  qualification of record). The 90-case v1.0.0 floor is the full
   bounded-vocabulary coverage of the deterministic contract (every
   admitted member, every U-row, every refusal stage) — it is a
   contract-completeness floor, not a statistical sample of the real
@@ -1970,7 +1995,7 @@ the implementation failed (CLAUDE.md evaluation-truth rule).
 ## 9.4 Q3-C-C2 — independently labeled bundle cases (the v1.0.0 seal)
 
 * **Scope (exact files).** `fixtures.py` populated with the §5 matrix
-  (≥92 Track A / ≥21 Track B minimums, the §5.6 diversity floors); the
+  (≥90 Track A / ≥21 Track B minimums, the §5.6 diversity floors); the
   sealed `corpus_v1.json` + `manifest_v1.json`; the `sources/` archives
   for the RECORDED_FIXTURE citations (the in-repo fixtures cited by
   path + digest — no new archive files beyond the cited ones); the
