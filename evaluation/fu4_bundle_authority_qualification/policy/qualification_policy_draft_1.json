@@ -1,0 +1,43 @@
+{
+ "applicability": {
+  "corpus_id": "PI-FU4-BUNDLE-AUTHORITY-QUALIFICATION",
+  "corpus_version": "1.0.0"
+ },
+ "approval": {
+  "approved": false,
+  "approved_by": null,
+  "approved_utc": null
+ },
+ "policy_id": "PI-FU4-BUNDLE-AUTHORITY-QUALIFICATION-POLICY",
+ "policy_schema_version": 1,
+ "policy_version": "draft-1",
+ "rationale": "DRAFT proposal for the FU4 Bundle authority qualification thresholds (design section 7.2 vocabulary, DRAFT values). These are NOT finalized acceptance thresholds: the eight hard safety gates G1-G8 (zero false PROVEN_EQUIVALENT, zero unauthorized authority promotion, zero pricing-eligibility leakage, zero evidence-integrity bypass, zero cross-listing substitution, zero historical-binding confusion, full replay conformance for accepted records, no model-recorded attestation treated as publisher evidence) are mandatory, non-configurable, and live in the evaluator, not here. The Track B model-tier gates MB-1..MB-3 are likewise mandatory. The proposed DRAFT values (zero-tolerance items protect against false authority; the non-zero items are evidence-acquisition quality floors) are P1's to approve or move with a recorded rationale (O-7). Until an APPROVED family policy applies to this corpus identity, the computable state is POLICY_PENDING at most - a full pass over this DRAFT policy never qualifies (the semantic family's hypothetical-full-pass discipline, adopted). The existing semantic-family DRAFT policy (corpus 1.0.0-scoped) is UNCHANGED, UNCOPIED, and UNEXTENDED by this family (the F-4 lineage).",
+ "status": "DRAFT",
+ "thresholds": {
+  "track_a": {
+   "false_proven_count_max": 0,
+   "false_contradicted_rate_max": 0.0,
+   "unproven_abstention_min": 1.0,
+   "integrity_rejection_min": 1.0,
+   "replay_agreement_min": 1.0,
+   "substitution_rejection_min": 1.0,
+   "missing_attestation_fail_closed_min": 1.0,
+   "quantity_conflict_detection_min": 1.0,
+   "pricing_leakage_count_max": 0,
+   "historical_confusion_rejection_min": 1.0,
+   "model_independence_invariance_min": 1.0,
+   "tier_axis_min": 1.0,
+   "axis_audit_min": 1.0,
+   "integrity_stage_accuracy_min": null
+  },
+  "track_b": {
+   "hallucination_rate_max": 0.0,
+   "constituent_precision_min": 0.95,
+   "constituent_recall_min": 0.9,
+   "attestation_grounding_min": 1.0,
+   "ambiguous_abstention_min": 0.95,
+   "valid_schema_min": 0.99,
+   "coverage_min": 1.0
+  }
+ }
+}

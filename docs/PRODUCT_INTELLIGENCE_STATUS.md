@@ -5,6 +5,278 @@
 ## Current state
 
 
+**PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-Q3-C-C2 (Independently Labeled
+Bundle Cases — the v1.0.0 DRAFT population + reviewer handoff)
+
+— DRAFT ENDPOINT / INDEPENDENT REVIEW PENDING (the seal is NOT
+authorized at this endpoint; see the gate status below)**
+
+Bounded corpus-authoring phase on the authoritative starting SHA
+`840f7c5d69e5f36bc8c82624d5bbe8079a438470` (the Q3-C-C1-FU2 endpoint;
+baseline collection **7843, re-verified this session**), executing
+design §9.4 of
+`docs/PRODUCT_INTEL_Q3C_FU4_BUNDLE_AUTHORITY_QUALIFICATION_DESIGN.md`
+(the C2 scope explicitly approved by the task directive). Bounded
+scope ONLY: the populated family case-authoring source, the family
+DRAFT governance artifacts (README / policy DRAFT / challenge log /
+reviewer handoff), the C2 label-governance test suite, and the STATUS
+/ PLAN records — **NO sealed corpus, NO qualification, NO evaluator,
+NO capture, NO model call, NO policy approval, NO authority promotion,
+NO pricing wiring, NO deployment, NO migration**
+(`makemigrations --check --dry-run`: No changes detected;
+`manage.py check`: 0 issues).
+
+**The independent-review gate status (of record).** The task's
+independent-review gate (task §5 / §11; design §8.2) could NOT be
+staffed: no genuinely distinct independent label reviewer or
+independent tester exists for this session; the corpus author did not
+impersonate an independent reviewer; no reviewer identity, timestamp,
+signature, or approval was invented. Per the task directive the phase
+therefore delivers the **authoring evidence + the precise reviewer
+handoff WITHOUT a falsely sealed corpus**: every label is in the
+explicit DRAFT state (`reviewer: null`, `review_status: "DRAFT"`), the
+family loader refuses that state by design (`REVIEW_STATUS_VALUES =
+{"REVIEWED"}` — verified: the draft population fails
+`verify_corpus_document` and the CLI `corpus-build` fails closed with
+no artifact written), **NO `corpus_v1.json` / `manifest_v1.json` is
+committed**, and **NO C2 completion is claimed**. The FU4 Bundle
+authority program state of record remains UNAPPROVED / NOT EXECUTED.
+The seal completes only when the two-identity review of design §8.2 is
+genuinely staffed and recorded — `reviewer_handoff.md` names the
+exact per-case work, the tester minimum (≥20% incl. ALL 37
+adversarial D rows), the C2-F adjudications, and the byte-exact seal
+procedure. ChatGPT independently reviews the committed draft, labels,
+handoff, and tests before the seal (task final line).
+
+**The declared population (design §5, complete — 96 DRAFT cases in
+`product_intelligence/evaluation/bundle_authority/fixtures.py`).** All
+48 matrix rows at their design minimums (93 Track A cases — floor 92)
++ 3 Track B-only model controls; Track B population 24 (21 A_B-shared
++ 3 B-only — floors 21 / 18 / 3); 88 SYNTHETIC (91.7% — floor 80%) +
+8 RECORDED_FIXTURE (floor 5) + **ZERO REAL_MARKET** (v1.0.0 — C3's
+separately gated acquisition); five product categories (memory_kit /
+micron_ddr5 / nvme_ssd / workstation_gpu / networking_module — floor
+4); every bounded vocabulary member the contract admits for a bundle
+comparison projected (composition states ×5, quantity-axis states ×5,
+refusal stages ×5, candidate bases incl. NONE, attestation sides +
+states); positive / negative / ambiguous / contradictory /
+missing-evidence / quantity / provenance / injection /
+historical-binding / replay-refusal shapes all instantiated. The
+CF-1..CF-5 interpretations of record are preserved, including the
+frozen duplicate-constituent multiset semantics (A4: identical
+duplicate phrasing is PROVEN-eligible via byte-identity; C2b: the
+non-identical phrasing is T-DIFF-MATERIAL ⇒ CONTRADICTED over attested
+clauses — the frozen grammar does not merge repeated tokens).
+
+**Label independence (design §4.6 — observed, mechanically pinned).**
+Every `expected` block, grounding citation, and rationale is a PURE
+LITERAL grounded in the cited approved-design rows (P3 U-table /
+ten-case matrix / §3.7 grammar / §3.8 attestation rules; Q3-B4 §4.1;
+the Q3-C-D1 matrix rows; the frozen S2-A tier matrix; the R1 stage
+semantics). **No FU4 derivation, R1 record-adapter, or model output
+was read as an answer key.** The committed `fixtures.py` imports NO
+research module (stronger than the §4.6(a) allowlist — the C2 suite
+import-scans it); the evidence documents (channels, v3 composition
+records, attestations, P2 extraction results, the R1 payloads) are
+sealed JSON literals recorded through the frozen constructors / codec
+at authoring time (constructor-is-validator; the untracked authoring
+pass + its contract re-reading probes are recorded in the challenge
+log and are NOT committed). The C1-FU2 F-9/F-10 prohibition is
+honored: the C1 suite's `_expected_from_decision` / `_payload_record`
+helpers were NOT reused as expected-label sources (only the document
+assembly chain); the fixed independence attestation statement is
+carried by every label; the anti-derivation token scan is re-asserted
+case-by-case by the C2 suite.
+
+**The C2-F findings — ten HELD cases (NOT bent, NOT omitted; pinned
+exactly by the C2 suite).** Contract conflicts between valid approved
+cases and the C1 loader / recorded-source ground, recorded
+case-by-case in the challenge log + each case's rationale:
+**C2-F1** (A-DELE U1/U3/U8 — FA4-DELE-001..003): the design row
+expects the frozen FU3 PROVEN delegation with the bundle-axis audit
+fields EXACTLY None (P3 D11 for non-bundle channels); the C1 loader's
+PROVEN coherence pre-check (design §4.4 as implemented) requires a
+satisfied bundle quantity axis + ESTABLISHED states for ANY PROVEN
+expectation — incompatible; the loader refuses the design-grounded
+label (verified). Resolution owner: a design revision (scope the §4.4
+rule to bundle-channel cases) or the C1 schema correction — never a
+bent label. **C2-F2a** (D3-ii — FA4-ADV-006): the design row names
+PRESENTATION_GATE for content-identical channels with different
+embedded originals, but the observable defect over the sealed
+documents is the embedded-vs-recorded-result mismatch (a
+case-document-integrity observation — CORPUS_INTEGRITY), because the
+channel-level gate steps cannot fire over content-identical channels
+(the documented P5 R-5 bound / risk R-C1-10); both readings recorded
+for the reviewer's adjudication. **C2-F2b** (D16-iii — FA4-ADV-034):
+the FU3-token derivation presentation is an EXECUTION-level
+contract-misuse refusal (P3 §5.4); over sound sealed FU4 documents no
+constructor / codec / case-document observation fires, so the labeled
+CONSTRUCTION stage is incoherent per the family's stage rule — the E1
+adversarial re-execution is the observation point the design names.
+**C2-F3** (A1-ii — FA4-PROV-002): no committed recorded source
+publishes bundle contents with a versioned completeness marker (design
+§2.5 verified) — the recorded 0034-shape context carries the clause
+WITHOUT the marker and its title cannot form the family's identity
+context (no candidate MPN token); the row's RECORDED_FIXTURE variant
+is unsealable at v1.0.0. **C2-F5** (D11-ii — FA4-ADV-023): the
+recorded Micron 7500 catalog grounds the exact-identifier family shape
+(the one-character-different part numbers) but publishes no bundle
+contents, so the attested-CONTRADICTED expectation's clauses cannot be
+span-grounded without manufacturing recorded content. **C2-F6**
+(B6-ii/iii + C6 — FA4-UNPR-011/012, FA4-CONTR-011): the row's
+REQUIRED recorded extraction result (AMBIGUOUS_CUE / CONTRADICTED_
+CUES) cannot be sealed with a DERIVED outcome — the family's
+basis-coherence rule fires a case-document-mirror observation for any
+basis over (no candidate record + recorded result); authored with the
+documented lighter shape (the canonical recorded-absence channel + the
+sealed published text) — the U0 expectation is re-derivable over it,
+the evidence gap is recorded, not papered over (C6 is the CF-1
+documented-conflict row: the frozen P2→FU4 chain records UNPROVEN
+over the recorded absence; the task matrix's CONTRADICTED placement is
+overridden by the frozen contract, O-3). **Review readiness (the C2
+suite's case-by-case dry-run over the REAL family loader, with a
+test-local reviewer fill — a decoder fixture, never a committed
+review claim): 89 of 96 cases LOAD with the two-identity review
+fields filled (the 86 non-held + the 3 C2-F6 lighter shapes); the 7
+loader-held cases fail for the recorded reason; the seal is thus
+mechanically achievable the moment the genuine review is recorded.**
+
+**Deliverables (design §9.4 file set, draft-state).** (1)
+`fixtures.py` populated (the DRAFT population — byte-pinned by the C2
+suite's source-digest node: any modified expected label / forged
+reviewer field / stale digest moves the pin). (2)
+`evaluation/fu4_bundle_authority_qualification/`: `README.md` (the
+family statement + the draft state of record);
+`policy/qualification_policy_draft_1.json` (**DRAFT status only** —
+the design §7.2 threshold vocabulary with the DRAFT values,
+`approved: false`; the existing semantic-family DRAFT policy is
+UNCHANGED, UNCOPIED, UNEXTENDED — the F-4 lineage); `challenge_log.md`
+(the author pass per case — grounding citation + re-derivation
+statement; the C2-F findings; the agreements / disagreements /
+corrections log incl. the D17-i stage-reading correction (CONSTRUCTION
+→ the stage-semantics (iii) CODEC_DECODE reading, both recorded) and
+the D6 surface deviation (BOTH → DERIVATION for the corpus-level
+defects, recorded); every reviewer cell PENDING);
+`reviewer_handoff.md` (the precise per-case worklist — all 96 case
+IDs; the tester minimum; the C2-F adjudications; the exact seal
+procedure). (3) `corpus_v1.json` / `manifest_v1.json`: **ABSENT by
+design at this endpoint** (the seal gate — pinned by both the C1
+corrected node and the C2 suite). (4) `sources/`: ABSENT (zero
+REAL_MARKET cases). (5) NEW
+`tests/evaluation/bundle_authority/test_q3c_c2_label_governance.py`
+(**200 nodes**). (6) **Recorded in-place corrections of FIVE C1
+nodes** whose phase-state pins the C2 endpoint legitimately moves
+(house precedent R2-FU1 / C1-FU2; intent preserved or strengthened;
+no rename / skip / xfail / deselect / weakening):
+`test_zero_case_corpus_builds_seals_loads_and_regenerates` (the 0-case
+builder property over the EXPLICIT empty case set — the declared set
+is now the 96-case DRAFT population); `test_cli_corpus_build_writes_
+the_seal` (STRENGTHENED: the CLI corpus-build over the DRAFT
+population must FAIL CLOSED with the bounded error naming the
+unreviewed label state, and must write NO artifacts — a seal command
+that wrote over an unreviewed population would be a false seal);
+`test_cli_corpus_digest_and_manifest_verify` +
+`test_cli_corpus_digest_refuses_tampered_seal` (the round trip over
+the explicit 0-case seal — the CLI build path is fail-closed at this
+endpoint); `test_no_corpus_artifact_is_committed_at_c1` (TIGHTENED:
+the family directory may now exist with the non-seal governance
+artifacts, and the SEALED corpus / manifest must be ABSENT — pinning
+"no false seal").
+
+**Tests / validation (exact).** 200 NEW C2 nodes: matrix coverage +
+the 48 row minimums (parameterized), the track A/B populations +
+overlap (93 / 24 / 21 / 3), the evidence-kind composition (88 / 8 / 0;
+91.7% / floor 80% / 5 / 0), the category floor (5 / floor 4), the
+bounded-vocabulary projection (states ×5, axes ×5, stages ×5, bases,
+attestation sides + states), the gate-denominator tag populations, the
+draft state (every label DRAFT + reviewer null + the recorded author
+identity / instant), the seal-gate closure (no seal artifact; the
+loader refuses the draft population; the CLI fails closed), the
+case-by-case review-readiness dry-run (89 loader-passes parameterized
++ the 7 loader-holds pinned exactly + the 3 evidence-holds pinned),
+the label governance (the fixed attestation; the anti-derivation scan
+case-by-case; the grounding-citation source rule; the provenance-row
+coherence; the A_B note rule; the author≠reviewer gate over a forged
+self-review; the missing-review refusal), the challenge-log + handoff
+completeness (every case ID; every finding; the reviewer column all
+PENDING; the tester scope incl. all 37 D rows), the integrity pins
+(the fixtures source digest; a modified expected label moves the case
+digest; the tampered sealed case fails the loader at the case digest;
+the byte-stable corpus build; the missing-matrix-row gate; the forged-
+review-metadata gate — including the recorded caveat that the LOADER
+accepts a forged two-identity state, which is exactly why the
+qualification gate adds the recorded-registry + review-record checks,
+and why a matching digest never authenticates a human review), the
+authoring import prohibition (no research module in `fixtures.py`;
+the import set is exactly the family + stdlib allowlist; no forbidden
+module name in the source; the family package surface is pinned to the
+C1 file set — no evaluator surface exists), the historical
+preservation (the five semantic-family artifacts by file digest + the
+1.2.0 seal by its inner digests; the C1 family package files
+corpus.py / cli.py / __init__.py byte-frozen; the C0-pinned FU4 module
++ R1 adapter content identity; the four family governance artifacts
+byte-pinned), and the DRAFT-only policy state (status / approval /
+applicability / the §7.2 vocabulary + zero-tolerance invariants; the
+semantic-family DRAFT policy unchanged). The C1 suite keeps **250
+nodes** (the five recorded corrections in place — no node deleted /
+renamed / skipped / xfailed / deselected). **Targeted batch: C1 250 +
+C2 200 + C0 2 + FU4 217 + R1 38 + R2 35 = 742 passed, 0 failed, exit
+0.** **Boundary guards (research / web / providers / evaluation): 595
+passed, exit 0.** **Full suite over the 8043 collection — four
+recorded attempts** (the documented load-sensitive clean-interpreter
+subprocess guard flake class — every failure at `subprocess.Popen` /
+`subprocess._get_handles` BEFORE any project code runs; zero assertion
+failures; the fixed eleven-node allowlist UNCHANGED): run 2 (evidence
+`tmp_c2_full_junit.xml`) — 1 failed
+(`tests/domain/test_domain_boundaries.py::test_domain_imports_without_
+django_network_or_llm_dependencies` — a fixed allowlist member;
+re-passed isolated); run 3 (evidence `tmp_c2_full_run3.txt`) — 2
+failed (the same allowlist member + `tests/evaluation/
+test_evaluation_boundaries.py::test_loading_the_corpus_imports_no_
+framework_or_provider` — the documented WinError-6 pair; re-passed
+isolated); run 4 (evidence `tmp_c2_full_run4.txt`) — exit 0, 8043
+executed (the environment dropped the terminal summary line in this
+capture — the junit-less run); **run 5 (evidence `tmp_c2_full_run5.
+txt` + `tmp_c2_full_junit2.xml`) — FULL GREEN: 8043 executed (8082
+junit test cases incl. the 39 subtests), 0 failed, 0 errors, 0
+skipped, PYTEST_EXIT=0**. An isolated retry does not convert a failed
+full-suite run into a full green result: the recorded full-green
+result is run 5. **Collection delta (against the re-verified 7843
+baseline): 7843 -> 8043 (+200, all in the NEW C2 suite; 0 removed / 0
+renamed; no other file changed its node count).** `python manage.py
+check`: System check identified no issues (0 silenced). `python
+manage.py makemigrations --check --dry-run`: No changes detected.
+
+**Invariance (this phase).** No frozen authority implementation
+change (the C0-pinned `semantic_authority_fu4.py` +
+`semantic_decision_v2_fu4.py` content-verified by the C2 suite; the
+C1-pinned family package files corpus.py / cli.py / __init__.py
+byte-frozen); no production integration; no model capture or model
+call (zero-live by construction — the authoring probes read the
+frozen contract's stated behavior for cited rows, never the
+implementation's output as an answer key); no live network retrieval;
+no real-market case acquisition; no Track A or B evaluation (the
+evaluator does not exist — the family package surface is pinned to
+the C1 file set); no policy approval (the family policy is DRAFT
+only); no qualification marker change; no pricing change; no database
+migration; no C3/E1/E2/P1/Q1/W1 work. The historical semantic corpus
+/ manifests / DRAFT policy are byte-pinned by both suites. The
+unrelated worktree artifacts are preserved. **C2 grants NO
+qualification at this endpoint**: the corpus is NOT sealed, no Bundle
+authority case is independently qualified, and the state of record
+remains UNAPPROVED / NOT EXECUTED.
+
+**Next.** The genuine two-identity independent review per
+`reviewer_handoff.md` (the independent label reviewer re-derives every
+case from the citations; the independent tester re-derives ≥20% incl.
+ALL 37 D rows; the C2-F findings are adjudicated). ChatGPT
+independently reviews the actual GitHub diff, corpus, labels,
+reviewer record, and tests before approving C2. The seal (the v1.0.0
+`corpus_v1.json` + `manifest_v1.json` from the reviewed
+`fixtures.py`, byte-for-byte) is a C2-completion step under that
+review — or a recorded correction phase if the review finds a label
+defect. Do not start C3 or E1.
+
 **PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-Q3-C-C1-FU2 (Provenance Binding
 & Integrity Hardening)
 

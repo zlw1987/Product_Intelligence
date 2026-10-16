@@ -2687,12 +2687,35 @@ class TestHistoricalPreservation:
             )
 
     def test_no_corpus_artifact_is_committed_at_c1(self):
-        # C1 seals nothing: the family artifact directory does not exist
-        # in the repository (the 0-case demonstration is the test's
-        # temp tree; the v1.0.0 seal is the C2 deliverable).
-        assert not (
+        # Recorded C2 correction (in place, intent preserved +
+        # tightened): the C1 state pin ("the family artifact directory
+        # does not exist") is stale at the C2 endpoint - C2 creates the
+        # family directory with the DRAFT governance artifacts (the
+        # DRAFT policy, the family README, the challenge log, the
+        # reviewer handoff). The preserved contract, tightened for the
+        # C2 draft endpoint: NO SEALED corpus artifact is committed
+        # before the independent review completes - corpus_v1.json and
+        # manifest_v1.json must be ABSENT (a seal over the unreviewed
+        # DRAFT population would be a false seal; the family loader
+        # refuses DRAFT labels by design, so no loadable draft corpus
+        # can be committed).
+        family_dir = (
             REPO_ROOT / "evaluation" / "fu4_bundle_authority_qualification"
-        ).exists()
+        )
+        if family_dir.exists():
+            # The C2 draft endpoint: governance artifacts present, the
+            # seal absent.
+            assert not (family_dir / "corpus_v1.json").exists(), (
+                "a sealed corpus_v1.json is committed before the "
+                "independent review completes (a false seal)"
+            )
+            assert not (family_dir / "manifest_v1.json").exists(), (
+                "a sealed manifest_v1.json is committed before the "
+                "independent review completes (a false seal)"
+            )
+        # The C1 endpoint state (directory absent) is still the valid
+        # alternative - either state satisfies "no false seal".
+
 
 
 # ---------------------------------------------------------------------------
@@ -2703,7 +2726,12 @@ class TestHistoricalPreservation:
 
 class TestEmptySealDemonstration:
     def test_zero_case_corpus_builds_seals_loads_and_regenerates(self, tmp_path):
-        document = fam_fixtures.build_corpus_document(CREATED_UTC)
+        # Recorded C2 correction (in place, intent preserved): at the
+        # C2 endpoint the declared fixtures case set is the DRAFT
+        # population (96 cases, review pending), so the 0-case
+        # builder property is demonstrated over the EXPLICIT empty
+        # case set (the builder's own integrity property, unchanged).
+        document = fam_fixtures.build_corpus_document(CREATED_UTC, cases=())
         assert document["cases"] == []
         bytes_ = fam_fixtures.corpus_bytes(document)
         base = tmp_path / "evaluation" / "fu4_bundle_authority_qualification"
@@ -2724,25 +2752,53 @@ class TestEmptySealDemonstration:
         ) == fam.canonically_serialize(manifest)
 
     def test_cli_corpus_build_writes_the_seal(self, tmp_path, capsys):
+        # Recorded C2 correction (in place, intent preserved +
+        # strengthened): at the C2 endpoint the declared case set is
+        # the DRAFT population (independent review pending), so the
+        # CLI corpus-build MUST REFUSE to seal it (fail closed - the
+        # seal gate is closed until the two-identity review of design
+        # section 8.2 completes). A seal command that wrote artifacts
+        # over the unreviewed population would be a false seal.
         out_dir = tmp_path / "out"
         exit_code = fam_cli.main(
             ["corpus-build", "--out-dir", str(out_dir), "--created-utc", CREATED_UTC]
         )
-        assert exit_code == 0
-        corpus_file = out_dir / "corpus_v1.json"
-        manifest_file = out_dir / "manifest_v1.json"
-        assert corpus_file.is_file()
-        assert manifest_file.is_file()
-        bundle = fam.load_bundle(corpus_file, manifest_file)
-        assert bundle.cases == ()
-        printed = capsys.readouterr().out
-        assert f"corpus digest: {bundle.corpus_digest}" in printed
+        assert exit_code == 1, (
+            "corpus-build over the DRAFT population must fail closed "
+            "(the seal gate is closed until independent review)"
+        )
+        err = capsys.readouterr().err
+        assert "DRAFT" in err or "review" in err.lower(), (
+            f"the bounded refusal must name the unreviewed label "
+            f"state, got: {err!r}"
+        )
+        assert not (out_dir / "corpus_v1.json").exists(), (
+            "no corpus artifact may be written over an unreviewed "
+            "population (no false seal)"
+        )
+        assert not (out_dir / "manifest_v1.json").exists()
+
+    def _zero_case_seal(self, out_dir: Path) -> Path:
+        # The 0-case seal written directly (the CLI corpus-build path
+        # over the DRAFT population is fail-closed at the C2 endpoint -
+        # see test_cli_corpus_build_writes_the_seal). Recorded C2
+        # correction: the digest / manifest round-trip property is
+        # demonstrated over the explicit 0-case seal (intent
+        # preserved).
+        document = fam_fixtures.build_corpus_document(CREATED_UTC, cases=())
+        base = out_dir
+        base.mkdir(parents=True, exist_ok=True)
+        corpus_file = base / "corpus_v1.json"
+        corpus_file.write_bytes(fam_fixtures.corpus_bytes(document))
+        manifest = fam.build_manifest_document(document)
+        (base / "manifest_v1.json").write_bytes(
+            fam.canonically_serialize(manifest)
+        )
+        return corpus_file
 
     def test_cli_corpus_digest_and_manifest_verify(self, tmp_path, capsys):
         out_dir = tmp_path / "out"
-        fam_cli.main(
-            ["corpus-build", "--out-dir", str(out_dir), "--created-utc", CREATED_UTC]
-        )
+        self._zero_case_seal(out_dir)
         capsys.readouterr()
         exit_code = fam_cli.main(
             ["corpus-digest", "--corpus", str(out_dir / "corpus_v1.json")]
@@ -2765,9 +2821,7 @@ class TestEmptySealDemonstration:
 
     def test_cli_corpus_digest_refuses_tampered_seal(self, tmp_path, capsys):
         out_dir = tmp_path / "out"
-        fam_cli.main(
-            ["corpus-build", "--out-dir", str(out_dir), "--created-utc", CREATED_UTC]
-        )
+        self._zero_case_seal(out_dir)
         capsys.readouterr()
         corpus_file = out_dir / "corpus_v1.json"
         document = json.loads(corpus_file.read_text(encoding="utf-8"))
