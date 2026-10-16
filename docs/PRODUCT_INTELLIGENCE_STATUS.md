@@ -5,6 +5,362 @@
 ## Current state
 
 
+
+**PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-Q3-C-C1-FU3 + C2 CORRECTIVE
+IMPLEMENTATION (the seven loader-held cases resolved; the corrected
+94-case DRAFT population; the strengthened qualification-ready gate)
+
+— IMPLEMENTED / PENDING CHATGPT INDEPENDENT REVIEW (C2 state of record:
+DRAFT ACCEPTED / FINAL HOLD — unchanged; no independent reviewer
+signoff yet; the v1.0.0 seal remains FINAL-HOLD)**
+
+Bounded CORRECTIVE implementation + pre-seal corpus correction phase
+on the authoritative starting SHA
+`4f53538f34c588c6f2b5e66a237f40acae2b5995` (the Q3-C-D1-FU2 endpoint;
+baseline collection **8043, re-verified this session** (183 files)),
+executing the approved design of record **Q3-C-D1 §9.11 ONLY**
+(`docs/PRODUCT_INTEL_Q3C_FU4_BUNDLE_AUTHORITY_QUALIFICATION_
+DESIGN.md` — the proposed bounded C1-FU3 + C2 corrective scope,
+ratified at the Q3-C-D1-FU2 design gate). Scope: the C1-FU3 validator
+corrections (a)-(d), the pre-seal population corrections (the seven
+loader-held cases resolved + the two removals with their obligation
+destinations), the strengthened qualification-ready gate (W2 / W4 /
+W6), the re-pinned governance artifacts, and the STATUS / PLAN
+records — **NO seal (no corpus_v1.json / manifest_v1.json), NO
+independent reviewer signoff, NO evaluation, NO model capture, NO
+model call, NO policy, NO authority promotion, NO pricing wiring, NO
+migration** (`manage.py check` 0 issues; `makemigrations
+--check --dry-run` No changes detected).
+
+**The C1-FU3 validator corrections (design §9.11 file (1);
+`product_intelligence/evaluation/bundle_authority/corpus.py`).**
+(a) **C2-F1 — the §4.4 PROVEN coherence scoping.** The Bundle-specific
+quantity / composition coherence checks now apply ONLY to Bundle-
+channel cases (the presented channel's 5-field document names the
+frozen `BUNDLE` form — the frozen P3 D6 conjunction); for non-Bundle
+channels the delegated FU3 PROVEN expectations retain the frozen P3
+D11 audit-field semantics: the Bundle-axis fields (quantity axis,
+candidate / target composition states, textual relation) are EXACTLY
+null on the expected axes, and a non-Bundle PROVEN expectation
+carrying a non-null Bundle axis is refused with the named
+deterministic reason (the misstated delegation). The byte-identical
+delegation (P3 D9) is preserved; a structurally malformed channel
+document (kind outside the frozen vocabulary) is form-undeterminable
+and carries no scoping decision — its defect is the phase-2 channel
+decode's (a loadable case can never present it). (b) **The identity-
+context defect.** The identity-assessment decode (the scripted context
++ the recorded V2 case's `deterministic_identity_context`) permits the
+EMPTY normalized part numbers exactly where the frozen
+`IdentityStateAssessmentV2` constructor permits them (type check
+only): the U4_NO_MPN substate (empty normalized candidate part number)
+and, symmetrically, the E1_NO_TARGET_MPN substate (empty normalized
+requested part number). Strict type validation, the frozen
+constructor, the substate / signal table, and the round-trip
+projection identity are preserved (a non-string is still refused);
+the frozen constructor is NOT modified. (c) **C2-F6 — the allowed
+NONE-basis recorded-extraction-result state + the new named
+refusal.** A case MAY carry the candidate composition record NULL +
+the candidate basis `NONE` + a PRESENT recorded extraction result,
+with the presented channel EXACTLY the frozen P2 mapping of that
+result (`sales_unit_channel_from_extraction` — the frozen lossy map:
+OBSERVED_UNAMBIGUOUS over the primary established cue's published
+text; every other state over the canonical UNAVAILABLE). The new
+case-document-integrity refusal `CASEDOC_RECORDED_RESULT_CHANNEL_
+MAPPING` (the L_CASE_DOCUMENT layer — the CORPUS_INTEGRITY
+observation) fires when, in that state, the presented channel is not
+the frozen P2 mapping of the recorded result (the recorded result was
+not the result the presented channel was mapped from — the loader is
+the only surface that sees both documents). The existing negative
+contracts are PRESERVED: `EXTRACTION_RESULT_V1` requires the record +
+the recorded evidence with the embedded original equal to the
+recorded result; `RECORDED_CHANNEL` carries no extraction evidence;
+`NONE` carries no candidate composition record. (d) **W9 — the
+coherence-separation statement, named in the module contract.** The
+expected-axis / sealed-evidence coherence checks use FROZEN CONTRACT
+DATA AND CONSTRUCTORS ONLY (the drift-pinned bounded vocabularies,
+the frozen `PRICING_ELIGIBLE_TIERS` set, the frozen ceiling-to-unit
+keying, the frozen constructors as validators, and the frozen P2
+channel mapping as the deterministic contract function the design
+names) — they NEVER calculate an expected label from the FU4
+derivation, the R1 replay, or any model output (the §4.6
+implementation-output prohibition extends to the loader's own
+coherence checks — structurally pinned by the C1 import scan + the
+sentinel no-execution probe, now re-asserted over the allowed
+recorded-result state).
+
+**The pre-seal population corrections (design §9.11 file (3); the
+§4.6 item 5 governance — the case IDs stable; recorded in the
+challenge log §4 / §6 + the reviewer handoff §4).** Only the
+adjudicated cases were touched; no other expected label was moved to
+match implementation behavior; no publisher completeness statement or
+source provenance was fabricated.
+
+* **FA4-ADV-006 (D3-ii — C2-F2a).** The D3-ii stage + surface
+  corrected to the adjudicated observation point: stage
+  `PRESENTATION_GATE` → **CORPUS_INTEGRITY** (error_type → null; the
+  record's embedded original != the case's recorded extraction
+  evidence is observable ONLY by the family loader — over content-
+  identical channels the channel-content binding + all four frozen
+  presentation-gate steps pass, the P5 R-5 bound); surface `BOTH` →
+  **DERIVATION**; replay → NOT_APPLICABLE; the self-consistent RECORD
+  twin **removed** (it decodes and replays cleanly — the (ii)
+  variant is surface DERIVATION, no record twin). The evidence
+  documents are byte-unchanged; the separate D3-i PRESENTATION_GATE
+  case (FA4-ADV-005) is preserved.
+* **FA4-ADV-023 (D11-ii — C2-F5 / W8).** Re-authored
+  **RECORDED_FIXTURE → SYNTHETIC** with the row's EXACT U1 EXACT
+  identity context: U1_TITLE_MPN (identity_state
+  DETERMINISTIC_UNCERTAIN), the normalized candidate part number
+  EQUAL and NON-EMPTY against the normalized requested part number
+  (the recorded identifier family's own part-number shape —
+  MTFDKCC1T9TGP-1BK1DABYY), primary signal TITLE_MPN_TOKEN,
+  relationship requirement NOT_REQUIRED; by-construction attested
+  compositions (candidate '2x SSD + 1x RAM' vs target '2x SSD + 1x
+  GPU' — materially different) over the U1 EXACT context; expected
+  unchanged (CONTRADICTED / BOTH_UNPUBLISHED / ESTABLISHED,
+  ESTABLISHED / T-DIFF-MATERIAL / NEEDS_REVIEW +
+  CEILING_SALES_UNIT_CONTRADICTED / pricing non-eligible). The
+  recorded Micron 7500 catalog (cited by path + digest) is
+  documented as the row's identifier-shape CONTEXT only — it is NOT
+  claimed to publish Bundle compositions (design §2.5); a truthful
+  RECORDED_FIXTURE D11 instantiation is the C3 / 1.1.0 additive
+  obligation. The pre-correction U4_NO_MPN recorded context (no
+  candidate identifier) is NOT the row's shape (W8) and the hybrid
+  variant cannot be represented truthfully by the existing schema
+  (the span-grounding provenance rule — the second boundary verified
+  at the Q3-C-D1-FU1 revision).
+* **FA4-UNPR-011 + FA4-UNPR-012 (B6-ii / B6-iii — C2-F6).** Re-
+  authored over the **allowed recorded-extraction-result state**
+  (candidate composition record null, basis NONE, the GENUINE frozen
+  P2 results recorded over the sealed texts — AMBIGUOUS_CUE
+  BUNDLE_WITHOUT_CONTENTS over the count-only 'bundle of 3' and the
+  bare 'bundle' shapes; the committed examined-input documents + the
+  sealed self-verifying result documents; the presented channel
+  EXACTLY the frozen P2 lossy mapping — the canonical UNAVAILABLE).
+  The expectations are unchanged (U0 UNPROVEN, independently derived
+  from the frozen P2-to-FU4 chain over the recorded absence).
+* **FA4-CONTR-011 (C6 — C2-F6 / W7).** Re-authored with the
+  **GENUINE CONTRADICTED_CUES instantiation**: the sealed candidate
+  text now publishes the two ESTABLISHED incompatible cues across
+  fields the recorded result carries (the title's established
+  bundle-with-contents clause 'bundle: 2x RAM + 1x CPU' vs the
+  structured pack-of-N field 'pack of 3' — verified over the frozen
+  P2 cue table at the correction); the recorded result is the genuine
+  frozen P2 instantiation over that sealed text (state
+  CONTRADICTED_CUES); the presented channel is exactly the frozen P2
+  mapping (the canonical UNAVAILABLE); the recorded V2 case + the
+  scripted identity context are re-recorded over the corrected text
+  (the U1_TITLE_MPN context is unchanged in shape). The expectation
+  is UNCHANGED (U0 UNPROVEN over the recorded absence — the CF-1
+  documented-conflict row, the frozen contract governing over the
+  task matrix's CONTRADICTED placement, O-3); the pre-correction text
+  ('bundle of 2: ...') was an AMBIGUOUS_CUE shape whose rationale
+  claimed the state it did not carry (the W7 label defect).
+* **FA4-ADV-034 (D16-iii — C2-F2b).** **REMOVED** from the v1.0.0
+  declared population (case ID retired): the FU3-token contract-
+  misuse refusal is an EXECUTION-level observation point only (over
+  the sealed sound FU4 documents no constructor / codec / case-
+  document observation fires — verified); the v1.0.0 D16 corpus
+  minimum is recorded as 2 (the explicit phase-boundary correction of
+  Q3-C-D1-FU1). The MANDATORY E1 adversarial-execution assertion is
+  preserved (design §9.6; the M13 / G6 coverage note of the E1
+  baseline report); the frozen FU3 / FU4 token boundary is NOT
+  weakened.
+* **FA4-PROV-002 (A1-ii — C2-F3).** **REMOVED** from the v1.0.0
+  declared population (case ID retired): no committed recorded source
+  publishes the required complete Bundle composition (design §2.5
+  verified; past the identity-context defect, the span-grounding
+  refusal is the second boundary). The A1 recorded PROVEN-shape
+  variant is the additive 1.1.0 obligation over the C3-acquired
+  recorded source (P3 D19 independently evidenced publisher
+  completeness preserved — recorded evidence is never replaced with
+  invented text); the v1.0.0 A1 corpus minimum is recorded as 1 (the
+  explicit phase-boundary correction of Q3-C-D1-FU1).
+
+**The corrected coverage of record (design §5.6 / §9.4 acceptance
+(1)-(3), verified over the corrected 94-case DRAFT population).** 94
+total DRAFT cases (96 DRAFT − FA4-ADV-034 − FA4-PROV-002); 91 Track A
+(≥ 90 — the corrected floor 16 (A) + 25 (B) + 13 (C) + 36 (D) over
+the 48 matrix rows at their CORRECTED minimums, A1 1 / D16 2); 24
+Track B (≥ 21; 21 A_B-shared ≥ 18; 3 B-only); 88 SYNTHETIC (93.6% ≥
+80%) + 6 RECORDED_FIXTURE (≥ 5) + ZERO REAL_MARKET; 5 product
+categories (≥ 4); every bounded vocabulary member the contract admits
+for a bundle comparison projected (composition states ×5, quantity-
+axis states ×5, refusal stages ×5 — the CORPUS_INTEGRITY stage by
+D6-ii / D3-ii, candidate bases incl. NONE, attestation sides +
+states). The seven loader-held releases are verified case-by-case by
+the C2 suite (the exact corrected behavior over each: the five
+released cases load under the corrected loader with stable case IDs;
+the two removed cases are absent with their recorded obligation
+destinations). All 94 cases load under the corrected family loader
+with the test-local reviewer fill (the dry-run, case-by-case — the
+fill is a decoder fixture, NEVER a committed review claim; no fake
+review attestation enters the corpus — every label remains
+`reviewer: null` / `review_status: DRAFT`).
+
+**The governance-test strengthening (design §9.11 files (2) / (4);
+the 8043 original collected nodes preserved — 0 removed / 0 renamed
+OUTSIDE the recorded in-place corrections; 0 / 0 / 0 skips).**
+C1 suite 250 → **276** (+26 NEW nodes, `TestC1FU3Corrections`: the
+non-Bundle PROVEN over the exactly-null Bundle axes loads (every
+non-Bundle form: SINGLE_UNIT / PACK_QUANTITY / TRAY_OR_FACTORY_PACK);
+the non-Bundle PROVEN over a forged non-null Bundle axis is refused
+(each of the four axis fields, the W1 exact reason pinned); the
+Bundle-channel PROVEN branch is NOT weakened (null axis /
+unestablished state still refused); the U4_NO_MPN identity context
+decodes over a full loadable case (empty normalized candidate part
+number); the E1_NO_TARGET_MPN identity context decodes over the
+identity-decode surface (the frozen case constructor admits the
+semantic entry point only — the decode-level observation point); the
+part-number type validation is preserved (non-string refused, 3
+nodes); the allowed NONE-basis recorded-result state loads over the
+matching frozen P2 mapping + is refused (CORPUS_INTEGRITY, the exact
+named observation) over the mismatching one (strict + sealed-raw +
+the W1 incoherent-gate-label exact reason); the preserved negative
+contracts (EXTRACTION_RESULT_V1 / RECORDED_CHANNEL / NONE); the W1
+exact-reason pins over the stage-coherence rejections (3 nodes); the
+W9 no-implementation-oracle boundary (the module-contract statement +
+the sentinel probe over the allowed recorded-result load)). ONE
+recorded in-place comment-only correction (the 0-case demonstration's
+population note 96 → 94; no assertion moved). C2 suite 200 →
+**210** (13 recorded in-place corrections — the intent preserved or
+strengthened, each with its before/after node ID: `test_row_minimum
+[A1-2]` → `[A1-1]`; `test_row_minimum [D16-3]` → `[D16-2]` (the
+corrected Q3-C-D1-FU1 row minimums, the sum assertion 92 → 90);
+`test_track_a_population_meets_the_92_minimum` →
+`test_track_a_population_meets_the_90_minimum` (the corrected floor);
+`test_held_case_fails_the_loader[...]` ×7 →
+`test_released_held_case_behavior_is_pinned[...]` ×7 (the SAME seven
+case-finding parameter IDs — the W3 monotonic release verified
+case-by-case over the exact corrected behavior: the five released
+cases load with stable IDs + the HELD marker gone, the two removed
+cases absent + their recorded obligation destinations);
+`test_held_evidence_case_loads_with_the_gap_recorded[...]` ×3 →
+`test_released_evidence_case_carries_the_genuine_recorded_result
+[...]` ×3 (the SAME three parameter IDs — STRENGTHENED: the allowed
+state pinned + the recorded result's genuine cue state (AMBIGUOUS_
+CUE / the W7 CONTRADICTED_CUES) + the presented channel == the frozen
+P2 mapping re-verified as a contract datum); the fixtures source-
+digest pin re-recorded (the pin's own stated contract); the
+C1-package corpus.py pin re-recorded (the C1-FU3 endpoint of record);
+the family-governance-artifact pins re-recorded (the adjudication
+record + the corrected worklist); `test_handoff_tester_scope_includes
+_all_d_rows` 37 → 36 D rows + the removed case's E1 obligation
+named) + 23 NEW nodes: the 5 released cases join
+`test_case_loads_with_the_review_fill` (the 94-case loader-pass
+expectation under the corrected loader); `test_changelog_records_the_
+adjudication_identity_and_instant` (the W3 adjudication record names
+the adjudicator's endpoint SHAs + UTC instants + states the review
+has still not occurred); `test_qualification_ready_gate_passes_over_
+the_corrected_seal_population` (W2: EVERY §5.6 composition floor
+holds on the ACTUAL 94-case seal population — the gate now enforces
+the corrected row minimums, the 90 / 21 / 18 / 3 track floors, the
+evidence-kind composition, the category floor, and the bounded-
+vocabulary projection (W6) over the seal population, not the draft
+authoring population); `test_gate_refuses_a_missing_review_with_the_
+pinned_reason` (W4: the missing review is rejected with the PINNED
+deterministic reason — 'no review record in the challenge log under
+the case's reviewer identity'); `test_gate_refuses_a_below_track_a_
+floor_population` + `test_gate_refuses_a_below_evidence_kind_floor_
+population` (the below-floor adversarial demonstrations fail closed
+with the floor named). No test is deleted, renamed, skipped, xfailed,
+deselected, or weakened outside the recorded in-place corrections; no
+allowlist entry replaces a failure.
+
+**The re-pinned digests of record (the pin's own stated contract — a
+pin move is a recorded re-pin event, never a silent one).**
+`corpus.py` → `aa09d2a58d6f71cc2a4b201155e6c859d1e34fc6552bde55e4131f95a40f157d`
+(the C1-FU3 corrected validator); `fixtures.py` (working tree) →
+`d1ded1246d27febfc802e465e7b61d7314bff35d41f971b910103b55c59410a7`
+(the corrected 94-case DRAFT population of record);
+`challenge_log.md` → `8fce4e052f6d5d7a13bfdb46109eac461ab23e81ad7c667a07ea6adf9b3458b3`
++ `reviewer_handoff.md` →
+`dfdef84ab144ae4900b214d25dc7093cec5ad934f6a8468dc7c117933b12b8fb`
+(the adjudication record under the reviewer / adjudicator identity +
+instant + the corrected rows' worklist). `cli.py` / `__init__.py` /
+the family README / the DRAFT policy are UNCHANGED (byte-identical to
+the C1 / C2 pins). The authoring pass + its contract re-reading
+probes (the untracked tooling) are recorded in the challenge log and
+are NOT committed.
+
+**Tests / validation (exact).** Before the edits: collection
+**8043** (183 files, node-level list of record); C1 + C2 governance
+batch **450 passed, 0 failed, 0 errors, 0 skipped, exit 0** (250 C1 +
+200 C2 — junit-verified); `manage.py check` 0 issues;
+`makemigrations --check --dry-run` No changes detected. After the
+edits: (1) full collection compared node-by-node against the 8043
+baseline — **8043 → 8079 (+36: 26 C1 + 10 C2 net; 0 removed / 0
+renamed outside the 13 recorded in-place node-ID moves; every other
+file's node count unchanged)**; (2) the complete C1 + C2 governance
+suites — **486 passed, 0 failed, 0 errors, 0 skipped, exit 0**
+(276 C1 + 210 C2 — junit-verified); (3) the FU4 / R1 / R2 + frozen
+research + semantic-authority-firewall + C0 integrity-pin
+regressions — batch 1 (FU4 217 + R1 38 + C0 2 + P1 adversarial 19 +
+P1 binding-replay 20 + live-capture-safety 16 + the domain +
+evaluation-boundary guards) **492 passed, exit 0**; batch 2 (the
+complete `tests/evaluation/semantic_v2/` firewall suite + the frozen
+semantic authority / decision / replay / sales-unit research
+regressions + the C0 pins) **1110 passed, exit 0**; (4) the FULL
+pytest suite over the 8079 collection — **ONE RUN, FULL GREEN:
+8079 passed, 39 subtests passed, 0 failed, 0 errors, 0 skipped, exit
+0 in 392.53s** (junit: 8118 test cases incl. the 39 subtests; the
+documented load-sensitive clean-interpreter subprocess guard flake
+class did not occur in this run — no isolated retries were needed);
+(5) `python manage.py check` — System check identified no issues (0
+silenced); (6) `python manage.py makemigrations --check --dry-run` —
+No changes detected.
+
+**Invariance (this phase).** No frozen research code changed (the
+C0-pinned modules + the semantic family's frozen surface
+byte-verified by the re-run pin suites — batch 2); no pricing
+behavior, no production integration, no prompt, no authority flag, no
+database schema changed (`git diff` over the starting SHA confined to
+the eight authorized files). No model capture or model call (zero-
+live by construction — the re-authoring probes read the frozen
+contract's stated behavior for the cited rows and record the sealed
+evidence documents; they are NOT expected-label sources — the labels
+are the adjudicated design-grounded literals, and the expectations of
+the five re-labeled / re-released cases are UNCHANGED except the
+D3-ii stage / surface re-label the adjudication names). No corpus /
+manifest seal artifact exists or was created (the family directory
+carries exactly the non-seal governance artifacts — pinned). The
+DRAFT family policy is unchanged. The unrelated worktree artifacts
+are preserved (the pre-existing `tmp_collection.txt` modification +
+the untracked session / benchmark files). No restore / reset /
+checkout / stash / clean / amend / rebase / force-push used. **C2
+grants NO qualification at this endpoint**: the corpus is NOT
+sealed, no Bundle authority case is independently qualified, and the
+FU4 Bundle authority program state of record remains UNAPPROVED /
+NOT EXECUTED.
+
+**Final governance state (of record).** C2 DRAFT ACCEPTED / FINAL
+HOLD (unchanged); NO genuine independent reviewer signoff yet (every
+label `reviewer: null` / `review_status: DRAFT`; the reviewer column
+of the challenge log all PENDING); NO corpus_v1.json seal; NO
+manifest_v1.json seal; NO Track A / B execution; NO model calls; NO
+C3 / E1 / E2 / P1 / Q1 / W1. Deferred obligations preserved with
+their recorded destinations: (1) the A1 recorded PROVEN-shape variant
+→ the C3 acquisition + the additive 1.1.0 re-seal (P3 D19; the §7.6
+distinctness requirements; the 1.1.0 re-seal verification); (2) the
+D16-iii FU3-token contract-misuse refusal → the MANDATORY E1
+adversarial-execution assertion (P3 §5.4 / D9; design §9.6(2); the
+M13 / G6 coverage note of the E1 baseline report); (3) the D11
+recorded-fixture exact-identifier + attested-composition variant →
+the C3 / 1.1.0 additive obligation IF AND ONLY IF the recorded source
+publishes both the U1 EXACT identity context's recorded form and the
+attested composition clauses (the §2.5 catalog publishes identifiers
+only).
+
+**Next.** ChatGPT's independent review of the committed GitHub diff,
+changed tests, actual case evidence, and acceptance results is the
+gate for the corrective endpoint (per the task's final line). The
+v1.0.0 seal requires, in order: the genuine two-identity independent
+review per `reviewer_handoff.md` (NOW OVER THE CORRECTED ROWS — the
+eight corrected rows are flagged CORRECTED-VERIFY; the tester
+minimum is ≥20% incl. ALL 36 D rows + the D16-iii E1 obligation is
+named), and the seal procedure of the handoff. Do not start C3 / E1
+/ E2 / P1 / Q1 / W1.
+
 **PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-Q3-C-D1-FU2 (Coverage
 Accounting Consistency Correction)
 

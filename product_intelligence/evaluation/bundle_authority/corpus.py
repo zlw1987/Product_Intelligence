@@ -39,12 +39,76 @@ converted into ``PROVEN_EQUIVALENT`` here, and no pricing eligibility is
 ever determined (the frozen ``PRICING_ELIGIBLE_TIERS`` constant is used
 only to coherence-check a labeled consequence, never to derive one).
 
+W9 coherence separation (the Q3-C-D1-FU1 adjudication of record, named
+in this module contract): the DERIVED expected-axis / sealed-evidence
+coherence checks (the section 4.4 pre-checks + the family
+cross-document checks, including the C1-FU3 channel-form scoping and
+the recorded-result / presented-channel mapping refusal) use FROZEN
+CONTRACT DATA AND CONSTRUCTORS ONLY - the bounded vocabularies
+drift-pinned to the frozen research exports, the frozen
+``PRICING_ELIGIBLE_TIERS`` set, the frozen ceiling-to-unit keying, the
+frozen constructors as validators, and the frozen P2 channel mapping
+(``sales_unit_channel_from_extraction``) as the deterministic contract
+function the design names for the allowed recorded-result state. They
+NEVER calculate an expected label from the FU4 derivation, the R1
+replay, or any model output (the section 4.6 implementation-output
+prohibition extends to the loader's own coherence checks -
+structurally pinned by the C1 import scan + the sentinel no-execution
+probe).
+
 Trust boundary (design section 3). A valid digest proves INTERNAL
 structural integrity only (layer L1). It does not establish that the
 publisher actually made a claim (L3), that a published completeness
 statement is physically complete (L4), or that a physical bundle
 contains the listed components (L5). No cryptographic source-
 authentication capability is claimed or invented by this module.
+
+C1-FU3 corrections of record (Q3-C-D1-FU1 adjudications, design
+sections 4.4 / 9.11): (a) the section 4.4 PROVEN coherence checks are
+SCOPED to Bundle-channel cases (C2-F1) - `unit == PROVEN_EQUIVALENT`
+requires the satisfied quantity axis + both composition states
+ESTABLISHED only when the case's presented channel is the BUNDLE form
+(the frozen P3 D6 conjunction); over a non-Bundle channel the
+delegated FU3 PROVEN expectation retains the frozen P3 D11 audit-field
+semantics - the Bundle-axis fields (quantity axis, candidate / target
+composition states, textual relation) are EXACTLY null on the expected
+axes, and a non-Bundle PROVEN expectation carrying a non-null
+Bundle axis is incoherent (the misstated delegation); the byte-
+identical delegation requirement (P3 D9) is preserved. (b) the
+identity-assessment decode permits the EMPTY normalized part numbers
+exactly where the frozen `IdentityStateAssessmentV2` constructor
+permits them (the C1 identity-context defect): the U4_NO_MPN substate
+("no candidate identifier exists") and, symmetrically, the
+E1_NO_TARGET_MPN substate - the frozen constructor (type check only)
++ the round-trip projection remain the final arbiter; no other
+identity constraint is weakened; the frozen constructor is NOT
+modified. (c) the allowed recorded-extraction-result state (C2-F6):
+a case MAY carry the candidate composition record NULL + the
+candidate basis `NONE` + a PRESENT recorded extraction result, with
+the presented channel EXACTLY the frozen P2 mapping of that result
+(`sales_unit_channel_from_extraction` - the frozen lossy map); the
+new case-document-integrity refusal `CASEDOC_RECORDED_RESULT_
+CHANNEL_MAPPING` fires when, in that state, the presented channel is
+not the frozen P2 mapping of the recorded result (the recorded result
+was not the result the presented channel was mapped from - the
+cross-listing / wrong-result shape at the case-document layer; the
+loader is the only surface that sees both documents). The existing
+negative contracts are PRESERVED: `EXTRACTION_RESULT_V1` requires the
+candidate composition record + the recorded extraction evidence with
+the record's embedded original equal to the recorded result;
+`RECORDED_CHANNEL` carries no extraction evidence; `NONE` carries no
+candidate composition record. (d) the W9 coherence-separation
+statement: the expected-axis / sealed-evidence coherence checks use
+FROZEN CONTRACT DATA ONLY (the bounded vocabularies drift-pinned to
+the frozen research exports, the frozen `PRICING_ELIGIBLE_TIERS` set,
+the frozen ceiling-to-unit keying, the frozen constructors as
+validators, and the frozen P2 channel mapping as the deterministic
+contract function the design names for the recorded-result state) -
+the loader NEVER invokes the FU4 authority derivation, the R1 replay,
+or any model to compute, fill, or check an expected axis (the section
+4.6 implementation-output prohibition extends to the loader's own
+coherence checks - structurally pinned by the C1 import scan + the
+sentinel no-execution probe).
 
 Mandatory provenance binding (Q3-C-C1-FU2, finding F-1). The family
 cross-document validator binds the recorded V2 case document to the
@@ -93,7 +157,9 @@ the labeled refusal stage to be coherent with what is observable
 WITHOUT executing the derivation:
 
 * ``CORPUS_INTEGRITY`` — at least one case-document-integrity
-  observation must fire (the defect is a case-internal inconsistency);
+  observation must fire (the defect is a case-internal inconsistency
+  — including the C1-FU3 recorded-result / presented-channel mapping
+  refusal over the allowed NONE-basis recorded-extraction state)
 * ``CONSTRUCTION`` — at least one frozen-constructor or codec-level
   observation must fire;
 * ``CODEC_DECODE`` — the record surface must be present and at least
@@ -1173,13 +1239,23 @@ def decode_v2_case_document(doc: Any, *, path: str = "v2_case_document") -> Sema
         _REQUIREMENT_VALUES,
         f"{dpath}.relationship_requirement",
     )
+    # The normalized part-number fields may be EMPTY exactly where the
+    # frozen constructor permits (the C1 identity-context defect /
+    # Q3-C-D1-FU1): the U4_NO_MPN substate ("no candidate identifier
+    # exists" - the normalized candidate part number is the empty
+    # string) and, symmetrically, the E1_NO_TARGET_MPN substate (the
+    # normalized requested part number). The frozen constructor + the
+    # round-trip projection below remain the final arbiter; no other
+    # identity constraint is weakened.
     normalized_requested = _str(
         dic["normalized_requested_part_number"],
         f"{dpath}.normalized_requested_part_number",
+        allow_empty=True,
     )
     normalized_candidate = _str(
         dic["normalized_candidate_part_number"],
         f"{dpath}.normalized_candidate_part_number",
+        allow_empty=True,
     )
     try:
         assessment = IdentityStateAssessmentV2(
@@ -1953,10 +2029,12 @@ def _decode_identity_assessment(
     normalized_requested = _str(
         doc["normalized_requested_part_number"],
         f"{path}.normalized_requested_part_number",
+        allow_empty=True,
     )
     normalized_candidate = _str(
         doc["normalized_candidate_part_number"],
         f"{path}.normalized_candidate_part_number",
+        allow_empty=True,
     )
     try:
         assessment = IdentityStateAssessmentV2(
@@ -2264,14 +2342,31 @@ def _decode_expected(
     }
 
 
-def _check_expected_coherence(expected: dict[str, Any], *, case_id: str) -> None:
+def _check_expected_coherence(
+    expected: dict[str, Any], *, case_id: str, channel_is_bundle: bool | None
+) -> None:
     """The expected-axis coherence pre-checks of design section 4.4 —
     the label is checked for obvious incoherence BEFORE the
     implementation is ever run; an incoherent label is a
     corpus-integrity failure, never a test failure. The checks use the
     frozen contract DATA (the bounded vocabularies, the frozen
     pricing-eligible tier set, the frozen ceiling-to-unit keying) —
-    they never derive an outcome."""
+    they never derive an outcome. W9 (the Q3-C-D1-FU1 adjudication of
+    record): the coherence checks use frozen contract data and
+    constructors ONLY - they never calculate an expected label from
+    the FU4 derivation, the R1 replay, or any model output.
+
+    The Bundle-specific PROVEN checks are SCOPED to Bundle-channel
+    cases (the C2-F1 adjudication of record): over a non-Bundle
+    channel the delegated FU3 PROVEN expectation retains the frozen
+    P3 D11 audit-field semantics - the Bundle-axis fields are EXACTLY
+    null on the expected axes (a non-Bundle PROVEN expectation
+    carrying a non-null Bundle axis would misstate the frozen
+    delegation and mislabel the E1 axis-audit comparison). A
+    structurally malformed channel document (form undeterminable -
+    ``channel_is_bundle is None``) carries no PROVEN-axis scoping
+    decision: its defect is the phase-2 channel decode's, and a
+    loadable case can never present it."""
     path = f"case {case_id}: expected"
     outcome = expected["outcome"]
     replay = expected["replay"]
@@ -2311,29 +2406,54 @@ def _check_expected_coherence(expected: dict[str, Any], *, case_id: str) -> None
                 f"{path}: a DERIVED derivation-surface expectation names "
                 f"replay NOT_APPLICABLE, got {replay!r}"
             )
-        # The stated coherence rules (design section 4.4).
-        if unit == "PROVEN_EQUIVALENT":
-            if expected["quantity_axis"] not in (
-                "CONSISTENT",
-                "BOTH_UNPUBLISHED",
-                "ATTESTED_NOT_MATERIAL",
-            ):
-                raise _label(
-                    f"{path}: unit PROVEN_EQUIVALENT requires the "
-                    "quantity axis CONSISTENT / BOTH_UNPUBLISHED / "
-                    "ATTESTED_NOT_MATERIAL, got "
-                    f"{expected['quantity_axis']!r}"
-                )
-            if (
-                expected["candidate_composition_state"] != "ESTABLISHED"
-                or expected["target_composition_state"] != "ESTABLISHED"
-            ):
-                raise _label(
-                    f"{path}: unit PROVEN_EQUIVALENT requires both "
-                    "composition states ESTABLISHED, got "
-                    f"({expected['candidate_composition_state']!r}, "
-                    f"{expected['target_composition_state']!r})"
-                )
+        # The stated coherence rules (design section 4.4), scoped to
+        # the case's presented channel form (the C2-F1 adjudication of
+        # record): the Bundle-specific quantity / composition checks
+        # apply ONLY to Bundle-channel cases; the non-Bundle delegated
+        # FU3 PROVEN expectation carries the frozen P3 D11 exactly-
+        # null Bundle-axis audit fields.
+        if unit == "PROVEN_EQUIVALENT" and channel_is_bundle is not None:
+            if channel_is_bundle:
+                if expected["quantity_axis"] not in (
+                    "CONSISTENT",
+                    "BOTH_UNPUBLISHED",
+                    "ATTESTED_NOT_MATERIAL",
+                ):
+                    raise _label(
+                        f"{path}: unit PROVEN_EQUIVALENT over a "
+                        "Bundle-channel case requires the "
+                        "quantity axis CONSISTENT / BOTH_UNPUBLISHED / "
+                        "ATTESTED_NOT_MATERIAL, got "
+                        f"{expected['quantity_axis']!r}"
+                    )
+                if (
+                    expected["candidate_composition_state"] != "ESTABLISHED"
+                    or expected["target_composition_state"] != "ESTABLISHED"
+                ):
+                    raise _label(
+                        f"{path}: unit PROVEN_EQUIVALENT over a "
+                        "Bundle-channel case requires both "
+                        "composition states ESTABLISHED, got "
+                        f"({expected['candidate_composition_state']!r}, "
+                        f"{expected['target_composition_state']!r})"
+                    )
+            else:
+                for axis_field in (
+                    "quantity_axis",
+                    "candidate_composition_state",
+                    "target_composition_state",
+                    "textual_relation",
+                ):
+                    if expected[axis_field] is not None:
+                        raise _label(
+                            f"{path}: unit PROVEN_EQUIVALENT over a "
+                            "non-Bundle channel (the frozen P3 D11 "
+                            "delegation) requires the Bundle-axis "
+                            "fields EXACTLY null on the expected "
+                            f"axes; {axis_field} must be null, got "
+                            f"{expected[axis_field]!r} (the misstated "
+                            "delegation)"
+                        )
         if pricing_eligible is True:
             if unit != "PROVEN_EQUIVALENT":
                 raise _label(
@@ -2669,7 +2789,29 @@ def _decode_case_structure(raw: dict[str, Any], *, index: int) -> dict[str, Any]
     expected = _decode_expected(
         raw["expected"], case_id=case_id, track=track, surface=surface
     )
-    _check_expected_coherence(expected, case_id=case_id)
+    # The C2-F1 scoping input: whether the case's presented channel is
+    # the BUNDLE form (the frozen P3 D6 conjunction). The form is
+    # DETERMINABLE only when the raw 5-field channel document names a
+    # kind inside the frozen S2-C kind vocabulary: "BUNDLE" is the
+    # Bundle form, every other frozen kind (SINGLE_UNIT /
+    # PACK_QUANTITY / TRAY_OR_FACTORY_PACK) is a non-Bundle form. A
+    # document whose kind is outside the vocabulary (or that is not a
+    # document at all) is structurally malformed - its defect is the
+    # phase-2 channel decode's (a loadable case can never carry a
+    # malformed channel), and the coherence pre-check manufactures no
+    # label error over it (the scoping stays neutral).
+    channel_doc = di_doc["channel"]
+    channel_is_bundle: bool | None
+    channel_kind = (
+        channel_doc.get("kind") if isinstance(channel_doc, dict) else None
+    )
+    if channel_kind in _CHANNEL_KIND_VALUES:
+        channel_is_bundle = channel_kind == "BUNDLE"
+    else:
+        channel_is_bundle = None
+    _check_expected_coherence(
+        expected, case_id=case_id, channel_is_bundle=channel_is_bundle
+    )
     label = _decode_label(raw["label"], case_id=case_id)
     _sha256(raw["case_digest"], f"{cpath}.case_digest")
 
@@ -3130,12 +3272,16 @@ def _run_family_checks(
             )
 
     # CASEDOC_BASIS_COHERENCE: the recorded basis matches the documents
-    # it claims (a NONE basis carries no candidate evidence; an
-    # EXTRACTION basis carries the extraction evidence + the matching
-    # embedded original; a RECORDED_CHANNEL basis carries the record
-    # alone). The presence variants mirror the constructor's own basis /
-    # embedded-original requirements (the loader observes them earlier -
-    # the CASE_DOCUMENT_MIRROR layer).
+    # it claims (a NONE basis carries no candidate composition record;
+    # an EXTRACTION basis carries the extraction evidence + the
+    # matching embedded original; a RECORDED_CHANNEL basis carries the
+    # record alone and no extraction evidence). The presence variants
+    # mirror the constructor's own basis / embedded-original
+    # requirements (the loader observes them earlier - the
+    # CASE_DOCUMENT_MIRROR layer). The NONE basis MAY carry a recorded
+    # extraction result (the allowed C1-FU3 / C2-F6 state - its
+    # channel binding is the CASEDOC_RECORDED_RESULT_CHANNEL_MAPPING
+    # observation below).
     if candidate_composition is not None and basis == "NONE":
         _obs(
             "CASEDOC_BASIS_COHERENCE",
@@ -3174,13 +3320,55 @@ def _run_family_checks(
             "extraction evidence (the record is built from the recorded "
             "channel alone)",
         )
-    if basis == "NONE" and extraction_result is not None:
-        _obs(
-            "CASEDOC_BASIS_COHERENCE",
-            L_CASE_DOCUMENT_MIRROR,
-            f"{dipath}.candidate_basis: NONE carries no extraction "
-            "evidence",
-        )
+    # CASEDOC_RECORDED_RESULT_CHANNEL_MAPPING (the C1-FU3 / C2-F6
+    # adjudication of record): the allowed recorded-extraction-result
+    # state carries the candidate composition record NULL + the basis
+    # NONE + a PRESENT recorded extraction result. In that state the
+    # loader is the ONLY surface that sees both the recorded result
+    # and the presented channel (no composition record exists to carry
+    # the observation at the gate layer), so it enforces their
+    # binding: the presented channel must equal the FROZEN P2 mapping
+    # of the recorded result (``sales_unit_channel_from_extraction`` -
+    # the frozen lossy map: OBSERVED_UNAMBIGUOUS over the primary
+    # established cue's published text; every other state over the
+    # canonical UNAVAILABLE). A mismatch (the recorded result was not
+    # the result the presented channel was mapped from - the
+    # cross-listing / wrong-result shape at the case-document layer)
+    # is the named CORPUS_INTEGRITY refusal. The existing negative
+    # contracts are PRESERVED: EXTRACTION_RESULT_V1 requires the
+    # record + the recorded extraction evidence with the embedded
+    # original equal to the recorded result (over that basis the same
+    # channel relation is already observed at the gate layer - the
+    # embedded original, not the case's recorded evidence);
+    # RECORDED_CHANNEL carries no extraction evidence; NONE carries no
+    # candidate composition record.
+    if basis == "NONE" and extraction_result is not None and channel is not None:
+        try:
+            mapped = sales_unit_channel_from_extraction(extraction_result)
+        except (
+            SalesUnitExtractionIntegrityError,
+            ValueError,
+            TypeError,
+        ) as exc:
+            _obs(
+                "CASEDOC_RECORDED_RESULT_CHANNEL_MAPPING",
+                L_CASE_DOCUMENT,
+                f"{dipath}: the frozen P2 mapping refused the case's "
+                f"recorded extraction result ({exc})",
+            )
+        else:
+            if mapped.canonical() != channel.canonical():
+                _obs(
+                    "CASEDOC_RECORDED_RESULT_CHANNEL_MAPPING",
+                    L_CASE_DOCUMENT,
+                    f"{dipath}: the presented channel is not the frozen "
+                    "P2 mapping of the case's recorded extraction "
+                    "result (the recorded result was not the result "
+                    "the presented channel was mapped from - the "
+                    "cross-listing / wrong-result shape at the case-"
+                    "document layer; the loader is the only surface "
+                    "that sees both documents)",
+                )
     if candidate_composition is not None and basis in (
         "EXTRACTION_RESULT_V1",
         "RECORDED_CHANNEL",

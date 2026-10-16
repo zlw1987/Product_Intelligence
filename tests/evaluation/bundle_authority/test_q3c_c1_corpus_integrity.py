@@ -57,6 +57,7 @@ import dataclasses
 import hashlib
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -74,11 +75,19 @@ from product_intelligence.research import (
     build_v2_product_evidence_profile,
     derive_identity_state_v2,
     normalize_listing_observation,
+    TargetSalesUnitEvidenceV2,
+    TargetSalesUnitFormV2,
+    TargetSalesUnitEvidenceSourceV2,
 )
 from product_intelligence.research import semantic_authority_fu4 as fu4
 from product_intelligence.research import semantic_decision_v2_fu4 as sdv4
+from product_intelligence.research import semantic_v2 as s2c
+from product_intelligence.research.listings import ListingObservation
+from product_intelligence.research.extraction import ExtractionMethod
 from product_intelligence.research.sales_unit_extraction import (
     extract_and_map_sales_unit_evidence,
+    extract_sales_unit_evidence,
+    sales_unit_channel_from_extraction,
 )
 from product_intelligence.research import SemanticReasonCodeV2
 from product_intelligence.research.semantic_decision_codec import (
@@ -2728,9 +2737,10 @@ class TestEmptySealDemonstration:
     def test_zero_case_corpus_builds_seals_loads_and_regenerates(self, tmp_path):
         # Recorded C2 correction (in place, intent preserved): at the
         # C2 endpoint the declared fixtures case set is the DRAFT
-        # population (96 cases, review pending), so the 0-case
-        # builder property is demonstrated over the EXPLICIT empty
-        # case set (the builder's own integrity property, unchanged).
+        # population (the corrected 94-case population of record at the
+        # C1-FU3 endpoint, review pending), so the 0-case builder
+        # property is demonstrated over the EXPLICIT empty case set
+        # (the builder's own integrity property, unchanged).
         document = fam_fixtures.build_corpus_document(CREATED_UTC, cases=())
         assert document["cases"] == []
         bytes_ = fam_fixtures.corpus_bytes(document)
@@ -3785,3 +3795,742 @@ class TestExecutionBoundaryRefusals:
         # Stage coherence over sound documents is NOT an authority
         # outcome: the loaded expectation is the independently recorded
         # label, verified for structural coherence only.
+
+
+# ---------------------------------------------------------------------------
+# Q3-C-C1-FU3 (the Q3-C-D1-FU1 adjudications of record, design section
+# 9.11): the validator corrections - (a) the section 4.4 PROVEN
+# coherence scoping over the presented channel form (C2-F1); (b) the
+# identity-assessment decode over the empty normalized part numbers
+# where the frozen constructor permits (the C1 identity-context
+# defect); (c) the allowed NONE-basis recorded-extraction-result state
+# + the new case-document-integrity refusal over the recorded-result /
+# presented-channel mismatch (C2-F6); (d) the W9 coherence-separation
+# statement (the checks use frozen contract data only); the W1
+# exact-reason pins over the stage-coherence rejections.
+# ---------------------------------------------------------------------------
+
+_NONBUNDLE_FORMS = (
+    # (kind, quantity, raw_detail, target form, target quantity, target
+    # schema) - the three OBSERVED non-Bundle channel forms + their
+    # frozen FU3 delegation rows (U1 / U3 / U8 PROVEN).
+    (
+        "SINGLE_UNIT", None, "single unit",
+        "SINGLE_UNIT", None, "absent",
+    ),
+    (
+        "PACK_QUANTITY", 4, "pack of 4",
+        "PACK_QUANTITY", 4, "frozen_fu3",
+    ),
+    (
+        "TRAY_OR_FACTORY_PACK", 25, "tray of 25",
+        "TRAY_OR_FACTORY_PACK", 25, "frozen_fu3",
+    ),
+)
+
+
+def _nonbundle_channel(kind, quantity, raw_detail):
+    return s2c.CandidateSalesUnitEvidenceV2(
+        state=s2c.PackagingEvidenceStateV2.OBSERVED,
+        kind=s2c.SalesUnitKindV2(kind),
+        quantity=quantity,
+        raw_detail=raw_detail,
+        source=s2c.CandidateEvidenceSourceV2.PUBLISHED_STRUCTURED_FIELD,
+    )
+
+
+def _unavailable_channel():
+    return s2c.CandidateSalesUnitEvidenceV2(
+        state=s2c.PackagingEvidenceStateV2.UNAVAILABLE,
+        kind=None,
+        quantity=None,
+        raw_detail=None,
+        source=None,
+    )
+
+
+def _fu3_target(form, quantity):
+    return TargetSalesUnitEvidenceV2(
+        TargetSalesUnitFormV2(form),
+        quantity,
+        TargetSalesUnitEvidenceSourceV2.REVIEWED_TARGET_CONTEXT,
+    )
+
+
+def _nonbundle_proven_parts(kind, quantity, raw_detail, form, tqty, case_id):
+    """A sound non-Bundle-channel delegated FU3 PROVEN case (the
+    A-DELE row shape) - fixture assembly over the frozen chain (the
+    recorded FU3 row: U1 / U3 / U8 PROVEN under the FU4 token)."""
+    channel = _nonbundle_channel(kind, quantity, raw_detail)
+    base = _frozen_case_parts(channel=channel, case_id=case_id)
+    evaluation = base["evaluation"]
+    target = _fu3_target(form, tqty)
+    decision = fu4.derive_authority_tier_fu4(
+        base["context"],
+        channel,
+        evaluation,
+        base["case"].context_provenances,
+        base["case"].product_evidence,
+        None,
+        target_unit_evidence=target,
+        candidate_composition=None,
+        quantity_attestation=None,
+    )
+    # Contract re-reading (recorded, never a label source): the frozen
+    # non-bundle delegation rows are PROVEN (P3 U1 / U3 / U8) with the
+    # bundle-axis audit fields EXACTLY None (P3 D11).
+    assert decision.sales_unit_authority.value == "PROVEN_EQUIVALENT", (
+        f"the frozen non-bundle row over {kind} is not PROVEN "
+        f"(got {decision.sales_unit_authority.value})"
+    )
+    assert decision.quantity_axis_state is None
+    assert decision.candidate_composition_state is None
+    assert decision.target_composition_state is None
+    return {
+        "case": base["case"],
+        "channel": channel,
+        "target": target,
+        "assessment": base["context"],
+        "evaluation": evaluation,
+        "decision": decision,
+    }
+
+
+def _nonbundle_proven_case(idx, case_id, *, expected=None):
+    kind, quantity, raw_detail, form, tqty, schema = _NONBUNDLE_FORMS[idx]
+    parts = _nonbundle_proven_parts(kind, quantity, raw_detail, form, tqty, case_id)
+    if expected is None:
+        # The frozen P3 D11 delegation: the non-bundle PROVEN expected
+        # carries EXACTLY null on the Bundle-axis fields (incl. the
+        # textual-relation axis) - the C2-F1 adjudicated shape.
+        expected = _expected_from_decision(
+            parts["decision"], replay="NOT_APPLICABLE", textual_relation=None
+        )
+    target_doc = (
+        None
+        if schema == "absent"
+        else {
+            "form": form,
+            "quantity": tqty,
+            "source": TargetSalesUnitEvidenceSourceV2.REVIEWED_TARGET_CONTEXT.value,
+        }
+    )
+    candidate_source_block = {
+        "title_text": TITLE,
+        "structured_fields": {"packaging": raw_detail},
+        "source_url": None,
+        "retrieved_utc": None,
+        "raw_reference": None,
+        "archive": None,
+        "archive_digest": None,
+        "recording_attestation": fam.SYNTHETIC_RECORDING_ATTESTATION,
+    }
+    target_source_block = {
+        "title_text": "Requested product specification (by-construction)",
+        "structured_fields": {"specification": f"sales unit: {raw_detail}"},
+        "source_url": None,
+        "retrieved_utc": None,
+        "raw_reference": None,
+        "archive": None,
+        "archive_digest": None,
+        "recording_attestation": fam.SYNTHETIC_RECORDING_ATTESTATION,
+    }
+    return _synthesize_case(
+        case_id=case_id,
+        matrix_row="A-DELE",
+        channel=parts["channel"],
+        candidate_composition=None,
+        candidate_basis="NONE",
+        extraction_evidence=None,
+        target_evidence_schema=schema,
+        target_evidence_document=target_doc,
+        quantity_attestation_document=None,
+        case=parts["case"],
+        assessment=parts["assessment"],
+        evaluation=parts["evaluation"],
+        decision=parts["decision"],
+        surface="DERIVATION",
+        expected=expected,
+        candidate_source_block=candidate_source_block,
+        target_source_block=target_source_block,
+    )
+
+
+
+def _genuine_extraction(title, structured):
+    """The genuine frozen P2 recorded extraction over the sealed text
+    (evidence acquisition - design section 4.6 item 3): the canonical
+    examined-input document + the sealed self-verifying result."""
+    observation = _observation(title)
+    result = extract_sales_unit_evidence(observation, structured)
+    input_document = {
+        "extraction_method": observation.extraction_method.value,
+        "fields": {
+            name: getattr(observation, name)
+            for name in (
+                "availability_text",
+                "brand_text",
+                "condition_text",
+                "currency_text",
+                "manufacturer_part_number_text",
+                "offer_url_text",
+                "price_text",
+                "product_title",
+                "sku_text",
+                "source_url",
+            )
+        },
+        "structured_packaging_field": structured,
+    }
+    assert fam.canonical_sha256(input_document) == result.input_digest
+    return (
+        {
+            "input_document": input_document,
+            "result_document": _result_sealed_doc(result),
+        },
+        result,
+    )
+
+
+def _recorded_result_case(
+    case_id, *, title, structured, presented_channel, extra_structured=None
+):
+    """The allowed C2-F6 state shape: candidate composition record
+    NULL + basis NONE + a PRESENT recorded extraction result over
+    (title, structured) + the presented channel (sound or mismatching
+    against the frozen P2 mapping of the result)."""
+    parts = _frozen_case_parts(channel=presented_channel, case_id=case_id)
+    evaluation = parts["evaluation"]
+    target = _make_target_fu4(
+        CLAUSE, fu4.BundleCompositionStateV2FU4.ESTABLISHED, None,
+        _make_target_attestation(CLAUSE),
+    )
+    decision = fu4.derive_authority_tier_fu4(
+        parts["context"],
+        presented_channel,
+        evaluation,
+        parts["case"].context_provenances,
+        parts["case"].product_evidence,
+        None,
+        target_unit_evidence=target,
+        candidate_composition=None,
+        quantity_attestation=None,
+    )
+    expected = _expected_from_decision(
+        decision, replay="NOT_APPLICABLE", textual_relation=None
+    )
+    evidence, result = _genuine_extraction(title, structured)
+    structured_fields = {
+        "packaging": presented_channel.raw_detail
+        if presented_channel.raw_detail is not None
+        else structured
+    }
+    if extra_structured is not None:
+        structured_fields["alternate_listing_text"] = extra_structured
+    candidate_source_block = {
+        "title_text": title,
+        "structured_fields": structured_fields,
+        "source_url": None,
+        "retrieved_utc": None,
+        "raw_reference": None,
+        "archive": None,
+        "archive_digest": None,
+        "recording_attestation": fam.SYNTHETIC_RECORDING_ATTESTATION,
+    }
+    target_source_block = {
+        "title_text": "Requested product specification (by-construction)",
+        "structured_fields": {"specification": f"Bundle contents: {CLAUSE}"},
+        "source_url": None,
+        "retrieved_utc": None,
+        "raw_reference": None,
+        "archive": None,
+        "archive_digest": None,
+        "recording_attestation": fam.SYNTHETIC_RECORDING_ATTESTATION,
+    }
+    case = _synthesize_case(
+        case_id=case_id,
+        matrix_row="B6",
+        channel=presented_channel,
+        candidate_composition=None,
+        candidate_basis="NONE",
+        extraction_evidence=evidence,
+        target_evidence_schema="fu4_v3",
+        target_evidence_document=_target_sealed_doc(target),
+        quantity_attestation_document=None,
+        case=parts["case"],
+        assessment=parts["context"],
+        evaluation=evaluation,
+        decision=decision,
+        surface="DERIVATION",
+        expected=expected,
+        candidate_source_block=candidate_source_block,
+        target_source_block=target_source_block,
+    )
+    return case, result
+
+
+class TestC1FU3Corrections:
+    # -- (a) the C2-F1 PROVEN coherence scoping -------------------------
+
+    @pytest.mark.parametrize(
+        "idx", range(len(_NONBUNDLE_FORMS)), ids=lambda i: _NONBUNDLE_FORMS[i][0]
+    )
+    def test_nonbundle_proven_over_exactly_null_bundle_axes_loads(
+        self, idx, tmp_path
+    ):
+        case = _nonbundle_proven_case(idx, f"FA4-ADV-{130 + idx}")
+        bundle, _ = _decode_ok([case], tmp_path)
+        loaded = bundle.cases[0]
+        assert loaded.expected["unit"] == "PROVEN_EQUIVALENT"
+        # The frozen P3 D11 delegation: the Bundle-axis fields are
+        # EXACTLY null on the expected axes.
+        for field in (
+            "quantity_axis",
+            "candidate_composition_state",
+            "target_composition_state",
+            "textual_relation",
+        ):
+            assert loaded.expected[field] is None, field
+
+    @pytest.mark.parametrize(
+        "field, value",
+        [
+            ("quantity_axis", "BOTH_UNPUBLISHED"),
+            ("candidate_composition_state", "ESTABLISHED"),
+            ("target_composition_state", "ESTABLISHED"),
+            ("textual_relation", "T-AGREE"),
+        ],
+        ids=lambda v: v,
+    )
+    def test_nonbundle_proven_over_nonnull_bundle_axis_is_refused(
+        self, field, value, tmp_path
+    ):
+        case = _nonbundle_proven_case(1, "FA4-ADV-134")
+        _set_path(case, f"expected.{field}", value)
+        with pytest.raises(fam.BundleAuthorityLabelError) as exc:
+            _decode_ok([case], tmp_path)
+        # The W1 exact-reason pin: the misstated delegation is named.
+        assert (
+            f"unit PROVEN_EQUIVALENT over a non-Bundle channel (the "
+            f"frozen P3 D11 delegation) requires the Bundle-axis "
+            f"fields EXACTLY null on the expected axes; {field} must "
+            f"be null, got {value!r} (the misstated delegation)"
+        ) in exc.value.reason
+
+    def test_bundle_proven_over_null_bundle_axis_is_still_refused(
+        self, tmp_path
+    ):
+        # The scoping does not weaken the Bundle-channel branch: a
+        # BUNDLE-form PROVEN expectation with an unsatisfied quantity
+        # axis is still incoherent (the pre-C1-FU3 contract stands).
+        case = _proven_case(case_id="FA4-ADV-135", surface="DERIVATION")
+        _set_path(case, "expected.quantity_axis", None)
+        with pytest.raises(fam.BundleAuthorityLabelError) as exc:
+            _decode_ok([case], tmp_path)
+        assert (
+            "unit PROVEN_EQUIVALENT over a Bundle-channel case "
+            "requires the quantity axis"
+        ) in exc.value.reason
+
+    def test_bundle_proven_over_unestablished_state_is_still_refused(
+        self, tmp_path
+    ):
+        case = _proven_case(case_id="FA4-ADV-136", surface="DERIVATION")
+        _set_path(case, "expected.target_composition_state", "ABSENT")
+        with pytest.raises(fam.BundleAuthorityLabelError) as exc:
+            _decode_ok([case], tmp_path)
+        assert (
+            "unit PROVEN_EQUIVALENT over a Bundle-channel case requires "
+            "both composition states ESTABLISHED"
+        ) in exc.value.reason
+
+    # -- (b) the identity-context decode over the empty normalized
+    #      part numbers (the C1 identity-context defect) ---------------
+
+    def test_u4_no_mpn_identity_context_decodes(self, tmp_path):
+        # The frozen derivation over a no-identifier observation yields
+        # U4_NO_MPN with the EMPTY normalized candidate part number
+        # (the constructor is the arbiter - type check only).
+        observation = _observation("1TB NVMe Drive")
+        parts = _frozen_case_parts(
+            observation=observation, channel=_unavailable_channel()
+        )
+        assert parts["context"].substate.value == "U4_NO_MPN"
+        assert parts["context"].normalized_candidate_part_number == ""
+        evaluation = parts["evaluation"]
+        target = _make_target_fu4(
+            CLAUSE, fu4.BundleCompositionStateV2FU4.ESTABLISHED, None,
+            _make_target_attestation(CLAUSE),
+        )
+        decision = fu4.derive_authority_tier_fu4(
+            parts["context"],
+            _unavailable_channel(),
+            evaluation,
+            parts["case"].context_provenances,
+            parts["case"].product_evidence,
+            None,
+            target_unit_evidence=target,
+            candidate_composition=None,
+            quantity_attestation=None,
+        )
+        case = _synthesize_case(
+            case_id="FA4-ADV-137",
+            matrix_row="B-DELE",
+            channel=_unavailable_channel(),
+            candidate_composition=None,
+            candidate_basis="NONE",
+            extraction_evidence=None,
+            target_evidence_schema="fu4_v3",
+            target_evidence_document=_target_sealed_doc(target),
+            quantity_attestation_document=None,
+            case=parts["case"],
+            assessment=parts["context"],
+            evaluation=evaluation,
+            decision=decision,
+            surface="DERIVATION",
+            candidate_source_block={
+                "title_text": "1TB NVMe Drive",
+                "structured_fields": {},
+                "source_url": None,
+                "retrieved_utc": None,
+                "raw_reference": None,
+                "archive": None,
+                "archive_digest": None,
+                "recording_attestation": fam.SYNTHETIC_RECORDING_ATTESTATION,
+            },
+        )
+        bundle, _ = _decode_ok([case], tmp_path)
+        identity = bundle.cases[0].evidence.identity_assessment
+        assert identity.substate.value == "U4_NO_MPN"
+        assert identity.normalized_candidate_part_number == ""
+
+    def test_e1_no_target_mpn_identity_context_decodes(self):
+        # Symmetrically: the empty normalized REQUESTED part number
+        # (E1_NO_TARGET_MPN) the frozen IdentityStateAssessmentV2
+        # constructor permits (type check only) decodes over the
+        # loader's identity-assessment surface. (A complete V2 case
+        # document can never carry the E1 state - the frozen case
+        # constructor admits the semantic entry point only - so the
+        # decode-level surface is the correct observation point.)
+        doc = {
+            "state": "DETERMINISTIC_UNEVALUABLE",
+            "substate": "E1_NO_TARGET_MPN",
+            "relationship_signals": ["NO_RELATION"],
+            "normalized_requested_part_number": "",
+            "normalized_candidate_part_number": "ABC-123",
+        }
+        assessment = fam._decode_identity_assessment(doc, path="identity")
+        assert assessment.substate.value == "E1_NO_TARGET_MPN"
+        assert assessment.normalized_requested_part_number == ""
+        # The round-trip projection identity holds over the empty
+        # normalized requested part number (the constructor is the
+        # arbiter - no other identity constraint moved).
+        projection = {
+            "state": assessment.state.value,
+            "substate": assessment.substate.value,
+            "relationship_signals": sorted(
+                s.value for s in assessment.relationship_signals
+            ),
+            "normalized_requested_part_number": assessment.normalized_requested_part_number,
+            "normalized_candidate_part_number": assessment.normalized_candidate_part_number,
+        }
+        assert projection == doc
+
+    @pytest.mark.parametrize(
+        "path",
+        [
+            "scripted_context.identity_assessment.normalized_candidate_part_number",
+            "recorded_case.v2_case_document.deterministic_identity_context."
+            "normalized_candidate_part_number",
+            "scripted_context.identity_assessment.normalized_requested_part_number",
+        ],
+        ids=lambda p: p.split(".")[-1] + "@" + p.split(".")[0],
+    )
+    def test_identity_part_number_type_validation_is_preserved(
+        self, path, tmp_path
+    ):
+        # The correction permits the empty STRING exactly where the
+        # frozen constructor permits it; the strict type validation
+        # stands (a non-string is still refused).
+        case = _proven_case(case_id="FA4-ADV-139", surface="DERIVATION")
+        _set_path(case, path, 123)
+        with pytest.raises(fam.BundleAuthoritySchemaError) as exc:
+            _decode_ok([case], tmp_path)
+        assert "expected a str" in exc.value.reason
+
+    # -- (c) the C2-F6 allowed recorded-extraction-result state --------
+
+    def test_none_basis_recorded_result_over_matching_mapping_loads(
+        self, tmp_path
+    ):
+        # The allowed state: candidate composition record null, basis
+        # NONE, the recorded result present, the presented channel
+        # EXACTLY the frozen P2 mapping of that result (the canonical
+        # UNAVAILABLE over AMBIGUOUS_CUE).
+        case, result = _recorded_result_case(
+            "FA4-ADV-140",
+            title=TITLE,
+            structured="bundle of 3",
+            presented_channel=_unavailable_channel(),
+        )
+        assert result.state.value == "AMBIGUOUS_CUE"
+        assert (
+            sales_unit_channel_from_extraction(result).canonical()
+            == case["derivation_inputs"]["channel"]
+        )
+        bundle, _ = _decode_ok([case], tmp_path)
+        loaded = bundle.cases[0]
+        assert loaded.evidence.candidate_composition is None
+        assert loaded.evidence.extraction_result is not None
+        assert loaded.evidence.extraction_result.state is result.state
+        assert loaded.expected["unit"] == "UNPROVEN"
+
+    def test_none_basis_recorded_result_over_mismatching_mapping_rejected(
+        self, tmp_path
+    ):
+        # The recorded result was not the result the presented channel
+        # was mapped from - a sound DERIVED case is refused (strict).
+        case, _ = _recorded_result_case(
+            "FA4-ADV-141",
+            title=TITLE,
+            structured="bundle of 3",
+            presented_channel=_bundle_channel(
+                None, "bundle: 2x RAM + 1x CPU, complete list"
+            ),
+            extra_structured="bundle of 3",
+        )
+        with pytest.raises(fam.BundleAuthorityEvidenceError) as exc:
+            _decode_ok([case], tmp_path)
+        assert (
+            "the presented channel is not the frozen P2 mapping of the "
+            "case's recorded extraction result"
+        ) in exc.value.reason
+
+    def test_recorded_result_mismatch_sealed_raw_corpus_integrity_loads(
+        self, tmp_path
+    ):
+        # The mismatch labeled CORPUS_INTEGRITY (the loader-only
+        # observation point) is coherent over the sealed documents.
+        case, _ = _recorded_result_case(
+            "FA4-ADV-142",
+            title=TITLE,
+            structured="bundle of 3",
+            presented_channel=_bundle_channel(
+                None, "bundle: 2x RAM + 1x CPU, complete list"
+            ),
+            extra_structured="bundle of 3",
+        )
+        _set_path(
+            case, "expected", _sealed_refusal_expected(stage="CORPUS_INTEGRITY")
+        )
+        bundle, _ = _decode_ok([case], tmp_path)
+        assert (
+            bundle.cases[0].expected["refusal"]["stage"] == "CORPUS_INTEGRITY"
+        )
+
+    def test_recorded_result_mismatch_under_gate_label_is_incoherent(
+        self, tmp_path
+    ):
+        # W1 exact-reason pin: the stage-coherence refusal over the
+        # mismatch names the fired observation deterministically.
+        case, _ = _recorded_result_case(
+            "FA4-ADV-143",
+            title=TITLE,
+            structured="bundle of 3",
+            presented_channel=_bundle_channel(
+                None, "bundle: 2x RAM + 1x CPU, complete list"
+            ),
+            extra_structured="bundle of 3",
+        )
+        _set_path(
+            case,
+            "expected",
+            _sealed_refusal_expected(
+                stage="PRESENTATION_GATE", error_type="PRESENTATION"
+            ),
+        )
+        with pytest.raises(fam.BundleAuthorityLabelError) as exc:
+            _decode_ok([case], tmp_path)
+        assert (
+            "case FA4-ADV-143: the labeled PRESENTATION_GATE defect "
+            "requires exactly the self-consistent sealed shapes (no "
+            "constructor- / codec- / case-document-integrity "
+            "observation), but fired: CASEDOC_RECORDED_RESULT_CHANNEL_"
+            "MAPPING (CASE_DOCUMENT) (incoherent label)"
+        ) == exc.value.reason
+
+    # -- (c) the preserved negative contracts --------------------------
+
+    def test_extraction_basis_still_requires_the_record_and_evidence(
+        self, tmp_path
+    ):
+        # EXTRACTION_RESULT_V1 without the candidate composition record
+        # is still incoherent (the negative contract stands).
+        case, _ = _recorded_result_case(
+            "FA4-ADV-144",
+            title=TITLE,
+            structured="bundle of 3",
+            presented_channel=_unavailable_channel(),
+        )
+        _set_path(case, "derivation_inputs.candidate_basis", "EXTRACTION_RESULT_V1")
+        with pytest.raises(fam.BundleAuthorityEvidenceError) as exc:
+            _decode_ok([case], tmp_path)
+        assert "EXTRACTION_RESULT_V1" in exc.value.reason
+
+    def test_recorded_channel_basis_still_carries_no_extraction_evidence(
+        self, tmp_path
+    ):
+        # RECORDED_CHANNEL + a present recorded result is still
+        # incoherent (the negative contract stands).
+        case, _ = _recorded_result_case(
+            "FA4-ADV-145",
+            title=TITLE,
+            structured="bundle of 3",
+            presented_channel=_unavailable_channel(),
+        )
+        _set_path(case, "derivation_inputs.candidate_basis", "RECORDED_CHANNEL")
+        with pytest.raises(fam.BundleAuthorityEvidenceError) as exc:
+            _decode_ok([case], tmp_path)
+        assert "RECORDED_CHANNEL" in exc.value.reason
+
+    def test_none_basis_still_carries_no_candidate_record(self, tmp_path):
+        # NONE + a present candidate composition record is still
+        # incoherent (the negative contract stands).
+        case, _ = _recorded_result_case(
+            "FA4-ADV-146",
+            title=TITLE,
+            structured="bundle of 3",
+            presented_channel=_unavailable_channel(),
+        )
+        record = fu4.candidate_composition_from_channel(
+            _bundle_channel(None, EST_RAW_DETAIL)
+        )
+        _set_path(
+            case, "derivation_inputs.candidate_composition", _candidate_sealed_doc(record)
+        )
+        with pytest.raises(fam.BundleAuthorityEvidenceError) as exc:
+            _decode_ok([case], tmp_path)
+        assert "NONE carries no candidate composition record" in exc.value.reason
+
+    # -- (d) the W1 exact-reason pins over the stage-coherence rule ----
+
+    def test_corpus_integrity_label_without_defect_is_incoherent(self, tmp_path):
+        case = _proven_case(case_id="FA4-ADV-147", surface="DERIVATION")
+        _set_path(
+            case, "expected", _sealed_refusal_expected(stage="CORPUS_INTEGRITY")
+        )
+        with pytest.raises(fam.BundleAuthorityLabelError) as exc:
+            _decode_ok([case], tmp_path)
+        assert (
+            "case FA4-ADV-147: the labeled CORPUS_INTEGRITY defect is "
+            "not present - no case-document-integrity check fired over "
+            "the sealed documents (an incoherent label is a "
+            "corpus-integrity failure, never a test failure)"
+        ) == exc.value.reason
+
+    def test_codec_decode_label_over_derivation_surface_is_incoherent(
+        self, tmp_path
+    ):
+        case = _proven_case(case_id="FA4-ADV-148", surface="DERIVATION")
+        _set_path(
+            case,
+            "expected",
+            _sealed_refusal_expected(stage="CODEC_DECODE", error_type="CODEC"),
+        )
+        with pytest.raises(fam.BundleAuthorityLabelError) as exc:
+            _decode_ok([case], tmp_path)
+        assert (
+            "case FA4-ADV-148: the CODEC_DECODE stage requires the "
+            "record surface, got 'DERIVATION'"
+        ) == exc.value.reason
+
+    def test_construction_label_over_case_document_defect_is_incoherent(
+        self, tmp_path
+    ):
+        # The D6-ii shape: the channel mismatch is the loader's
+        # case-document-integrity observation (a gate-layer
+        # corroboration may also fire) - no construction-layer
+        # observation fires, so a CONSTRUCTION label is incoherent
+        # (the W1 exact reason pin).
+        parts = _proven_parts()
+        channel_b = _bundle_channel(
+            None, "bundle: 1x SSD + 1x cable, complete list"
+        )
+        case = _sealed_case(
+            base=parts,
+            case_id="FA4-ADV-149",
+            stage="CONSTRUCTION",
+            error_type="CONSTRUCTOR",
+            matrix_row="D6",
+            candidate_source_block={
+                "title_text": TITLE,
+                "structured_fields": {
+                    "packaging": "bundle: 1x SSD + 1x cable, complete list"
+                },
+                "source_url": None,
+                "retrieved_utc": None,
+                "raw_reference": None,
+                "archive": None,
+                "archive_digest": None,
+                "recording_attestation": fam.SYNTHETIC_RECORDING_ATTESTATION,
+            },
+            candidate_att_source={
+                "state": "ABSENT", "verbatim": None, "location": None
+            },
+            target_att_source={"state": "ABSENT", "verbatim": None, "anchor": None},
+        )
+        _set_path(case, "derivation_inputs.channel", channel_b.canonical())
+        _set_path(
+            case,
+            "derivation_inputs.candidate_composition",
+            _candidate_sealed_doc(parts["candidate"]),
+        )
+        with pytest.raises(fam.BundleAuthorityLabelError) as exc:
+            _decode_ok([case], tmp_path)
+        assert (
+            "case FA4-ADV-149: the labeled CONSTRUCTION defect is not "
+            "observable - no frozen constructor / codec / "
+            "construction-level coherence check fired over the "
+            "sealed documents (the defect would be caught at no "
+            "construction layer; incoherent label)"
+        ) == exc.value.reason
+
+    # -- (e) the W9 no-implementation-oracle boundary -------------------
+
+    def test_coherence_checks_name_the_frozen_contract_data_only(self):
+        # The W9 adjudication of record, named in the module contract:
+        # the coherence checks use frozen contract data only - never
+        # the FU4 derivation, the R1 replay, or any model.
+        doc = re.sub(r"\s+", " ", fam.__doc__ or "")
+        assert "W9 coherence separation" in doc
+        assert "FROZEN CONTRACT DATA AND CONSTRUCTORS ONLY" in doc
+        assert "NEVER calculate an expected label from the FU4 derivation" in doc
+
+    def test_derived_load_invokes_no_authority_oracle(self, tmp_path, monkeypatch):
+        # A sound DERIVED case over the allowed C2-F6 state loads with
+        # the derivation / replay / model sentinels in place: the
+        # coherence checks read the frozen contract data (incl. the
+        # frozen P2 mapping) only - never an implementation oracle.
+        case, _ = _recorded_result_case(
+            "FA4-ADV-150",
+            title=TITLE,
+            structured="bundle of 3",
+            presented_channel=_unavailable_channel(),
+        )
+
+        def _sentinel(*args, **kwargs):
+            raise AssertionError(
+                "the corpus decoder invoked a production authority entry "
+                "point (the label-determining surface)"
+            )
+
+        monkeypatch.setattr(fu4, "derive_sales_unit_authority_fu4", _sentinel)
+        monkeypatch.setattr(fu4, "derive_sales_unit_authority_fu4_case", _sentinel)
+        monkeypatch.setattr(fu4, "derive_authority_tier_fu4", _sentinel)
+        monkeypatch.setattr(fu4, "derive_authority_tier_for_contract_fu4", _sentinel)
+        import product_intelligence.research.semantic_decision_replay as replay
+
+        monkeypatch.setattr(replay, "replay_semantic_decision", _sentinel)
+
+        bundle, _ = _decode_ok([case], tmp_path)
+        assert bundle.cases[0].expected["unit"] == "UNPROVEN"

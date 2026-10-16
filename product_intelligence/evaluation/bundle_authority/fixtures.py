@@ -6,40 +6,56 @@ case set + the corpus document builder, and (at the sealed endpoint)
 regeneration from this module must reproduce the corpus artifact
 byte-for-byte (the P1 regeneration property, family version).
 
-C2 DRAFT ENDPOINT (of record): the declared case set is the
-independently grounded v1.0.0 DRAFT population - the complete design
-section 5 matrix (all 48 rows at their minimums; 93 Track A cases) + 3
-Track B-only model controls (96 cases total). EVERY label is in the
-explicit DRAFT state (reviewer null, reviewer_utc null,
-review_status DRAFT): the family loader refuses the DRAFT state by
-design (REVIEW_STATUS_VALUES = {"REVIEWED"}), so NO loadable corpus can
-be sealed from this module until the two-identity review of design
-section 8.2 completes. This is the seal gate, mechanically closed. No
-sealed corpus_v1.json / manifest_v1.json is committed at this endpoint
-- a seal over the unreviewed population would be a false seal.
+C2 DRAFT ENDPOINT (of record, corrected): the declared case set is the
+independently grounded v1.0.0 DRAFT population of record - the complete
+design section 5 matrix over all 48 rows at the corrected (Q3-C-D1-FU1)
+minimums (90 Track A floor) + 3 Track B-only model controls (94 cases
+total: 91 Track A, 24 Track B = 21 A_B-shared + 3 B-only; 88
+SYNTHETIC + 6 RECORDED_FIXTURE + ZERO REAL_MARKET; five product
+categories). EVERY label is in the explicit DRAFT state (reviewer
+null, reviewer_utc null, review_status DRAFT): the family loader
+refuses the DRAFT state by design (REVIEW_STATUS_VALUES = {"REVIEWED"}),
+so NO loadable corpus can be sealed from this module until the
+two-identity review of design section 8.2 completes. This is the seal
+gate, mechanically closed. No sealed corpus_v1.json / manifest_v1.json
+is committed at this endpoint - a seal over the unreviewed population
+would be a false seal.
 
-The ten HELD cases (the C2-F contract conflicts - C2-F1 the loader's
-PROVEN coherence rule vs the frozen non-bundle audit field set;
-C2-F2a/b the stage semantics vs the content-identical bound and the
-execution-level contract misuse; C2-F3 the recorded source ground vs
-the A1 RF variant; C2-F5 the exact-identifier family context; C2-F6
-the basis-coherence rule vs the required recorded extraction result)
-are authored with their design-grounded expectations and documented
-case-by-case in the family challenge log + reviewer handoff; they seal
-only after the design revision / schema correction the findings name.
+The ten HELD cases of the C2 endpoint (the C2-F contract conflicts) are
+RESOLVED at this endpoint under the recorded Q3-C-D1-FU1 adjudication
++ the C1-FU3 loader correction (design section 9.11; the adjudication
+history is in the family challenge log sections 4 / 6 + the reviewer
+handoff): (1) C2-F1 (FA4-DELE-001..003) - released by the C1-FU3
+PROVEN-coherence scoping (the labels were already the frozen P3 D11
+exactly-null non-bundle shapes - not bent); (2) C2-F2a (FA4-ADV-006) -
+the D3-ii re-label to the adjudicated CORPUS_INTEGRITY observation
+point + surface DERIVATION + the self-consistent record twin removed;
+(3) C2-F2b (FA4-ADV-034) - REMOVED from the declared population (the
+E1-only adversarial-execution obligation - design section 9.6);
+(4) C2-F3 (FA4-PROV-002) - REMOVED from the declared population (the
+C3 / additive 1.1.0 obligation - design section 5.6); (5) C2-F5 + W8
+(FA4-ADV-023) - the D11-ii SYNTHETIC re-authoring over the row's exact
+U1 EXACT identity context (the recorded Micron identifier family
+documented as the row's context, not claimed to publish Bundle
+compositions); (6) C2-F6 + W7 (FA4-UNPR-011 / FA4-UNPR-012 /
+FA4-CONTR-011) - the re-authoring over the allowed
+recorded-extraction-result state (candidate composition record null,
+basis NONE, the GENUINE frozen P2 results over the sealed texts, the
+presented channel exactly the frozen P2 mapping). The case IDs of the
+released cases are stable; no other expected label was moved.
 
 INDEPENDENCE DISCIPLINE (design section 4.6, binding): the expected
 blocks and the label text (grounding citations + rationales) in this
 module are PURE LITERALS grounded in the approved design rows (P3
 U-table / ten-case matrix / grammar / attestation rules; Q3-B4
-firewall; the Q3-C-D1 matrix rows; the frozen S2-A tier matrix; the R1
-stage semantics). No expected value was derived from the FU4
-implementation, the R1 record adapter, or any model. The evidence
-documents (channels, composition records, attestations, extraction
-results, the R1 payloads) are sealed JSON literals recorded through the
-frozen constructors / codec at authoring time (the constructor-is-
-validator discipline; the authoring pass and its contract re-reading
-probes are recorded in the challenge log).
+firewall; the Q3-C-D1 matrix rows + the Q3-C-D1-FU1 revision record;
+the frozen S2-A tier matrix; the R1 stage semantics). No expected value
+was derived from the FU4 implementation, the R1 record adapter, or any
+model. The evidence documents (channels, composition records,
+attestations, extraction results, the R1 payloads) are sealed JSON
+literals recorded through the frozen constructors / codec at authoring
+time (the constructor-is-validator discipline; the authoring pass and
+its contract re-reading probes are recorded in the challenge log).
 
 Import discipline (design section 4.6 item 2(a)): this module imports
 the family loader ONLY (the digest + identity primitives) - no
@@ -65,12 +81,16 @@ __all__ = [
     'corpus_document_bytes',
 ]
 
-#: The declared family case set - the C2 DRAFT population (96 cases; the
-#: section 5 matrix over all 48 rows + 3 Track B-only model controls).
-#: Every label is in the DRAFT state (reviewer null, review_status
-#: DRAFT): the family loader refuses the DRAFT state by design - the
-#: corpus seals only after the two-identity review of design section 8.2
-#: completes (the reviewer handoff names the exact per-case work).
+#: The declared family case set - the C2 DRAFT population of record
+#: (94 cases; the section 5 matrix over all 48 rows at the corrected
+#: (Q3-C-D1-FU1) minimums + 3 Track B-only model controls; the ten
+#: HELD cases of the C2 endpoint resolved under the recorded
+#: adjudication - the challenge log sections 4 / 6). Every label is in
+#: the DRAFT state (reviewer null, review_status DRAFT): the family
+#: loader refuses the DRAFT state by design - the corpus seals only
+#: after the two-identity review of design section 8.2 completes (the
+#: reviewer handoff names the exact per-case work over the corrected
+#: rows).
 CASES: Final[tuple[dict[str, Any], ...]] = (
     {
         "case_category": "memory_kit",
@@ -2310,10 +2330,10 @@ CASES: Final[tuple[dict[str, Any], ...]] = (
             "pricing_eligible": None,
             "quantity_axis": None,
             "refusal": {
-                "error_type": "PRESENTATION",
-                "stage": "PRESENTATION_GATE"
+                "error_type": None,
+                "stage": "CORPUS_INTEGRITY"
             },
-            "replay": "REPLAY_REFUSED",
+            "replay": "NOT_APPLICABLE",
             "semantic_identity_note": None,
             "target_composition_state": None,
             "textual_relation": None,
@@ -2323,10 +2343,10 @@ CASES: Final[tuple[dict[str, Any], ...]] = (
         "label": {
             "author": "PRODUCT-INTEL.Q3C-C2.CORPUS-AUTHOR",
             "author_utc": "2026-10-15T23:22:50Z",
-            "grounding_citation": "Q3-C-D1 matrix row D3; P3 Revision record 3 (the v3 four-step original-result chain; the channel_content_digest binding); P4-FU1 Blocker 1 (listing A's record over listing B's channel); P5 R-5 (the frozen channel-granularity bound); R1 matrix row 9 (the record-surface swap is surfaced at the re-derivation)",
+            "grounding_citation": "Q3-C-D1 matrix row D3 (ii) as adjudicated by the Q3-C-D1-FU1 / C2-F2a revision record; P3 Revision record 3 (the v3 four-step original-result chain; the channel_content_digest binding); P5 R-5 (the frozen channel-granularity bound: over content-identical channels the channel-content binding + all four presentation-gate steps pass - the derivation presentation gate CANNOT detect the substitution); Q3-C-D1 section 5 stage semantics (iv) (the CORPUS_INTEGRITY loader-only observation point)",
             "independence_attestation": "This expected outcome was established from the recorded source content and the cited approved-design rows without executing or reading the output of the FU4 derivation, the R1 record adapter, or any model",
             "labeling_provenance": "ADVERSARIAL_CONSTRUCTION",
-            "rationale": "HELD (C2-F2a). Cross-listing substitution (ii): content-IDENTICAL channels (same raw_detail / quantity / source - the frozen channel-granularity bound, P5 R-5: two content-identical publications are indistinguishable at channel level) with DIFFERENT embedded original results: the record embeds listing A's original while the case's recorded extraction evidence is listing B's own original. The design row names PRESENTATION_GATE (detected at the v3 embedding level); over the sealed documents the observable defect is the embedded-vs-recorded result mismatch - a case-document-integrity observation (CORPUS_INTEGRITY) - because the channel-level gate steps cannot fire over content-identical channels (the documented bound). The label carries the design row's stage; the dry-run confirms the incoherence, and the CORPUS_INTEGRITY reading is recorded for the reviewer's adjudication. The dangerous direction (a different-content substitution) IS closed by the v3 embedding (rows D3-i / D5).The expected axes follow the cited approved-design rows over the sealed recorded evidence; the label was fixed from the contract semantics before any implementation behavior was consulted. The scripted context is the recorded V2 case's own deterministic identity side (the loader enforces context-case equality).",
+            "rationale": "Cross-listing substitution (ii) - the adjudicated CORPUS_INTEGRITY observation point (Q3-C-D1-FU1 / C2-F2a): content-IDENTICAL channels (same raw_detail / quantity / source - the frozen channel-granularity bound, P5 R-5: two content-identical publications are indistinguishable at channel level) with DIFFERENT embedded original results: the record embeds listing A's original while the case's recorded extraction evidence is listing B's own original. Over content-identical channels the channel-content binding + all four frozen presentation-gate steps pass (verified over the sealed documents at the revision), so the observable defect is the record's embedded original != the case's recorded extraction evidence - a case-document-integrity observation only the family loader sees (CASEDOC_EMBEDDED_RESULT_EQUALITY). The pre-adjudication PRESENTATION_GATE label and the self-consistent record twin are removed under the recorded adjudication (the twin decodes and replays cleanly - the (ii) variant is surface DERIVATION, no record twin); the separate D3-i PRESENTATION_GATE case (FA4-ADV-005) is preserved.",
             "review_status": "DRAFT",
             "reviewer": None,
             "reviewer_utc": None
@@ -2338,214 +2358,6 @@ CASES: Final[tuple[dict[str, Any], ...]] = (
             "target": None
         },
         "recorded_case": {
-            "payload_document": {
-                "authority": {
-                    "candidate_composition": {
-                        "additional_clauses": [],
-                        "basis": "EXTRACTION_RESULT_V1",
-                        "channel_content_digest": "a76d85dcc6eda612255446c6479936a0c5c36c547b26f63955f1f7e81163a6df",
-                        "channel_quantity": None,
-                        "completeness_attestation": None,
-                        "composition_clause": "2x RAM + 1x CPU",
-                        "evidence_digest": "630a4df638134984e443a1f63cdabeb4fb74ec06f5ec0edfcbb2cf2edee1d41d",
-                        "extraction_input_digest": "98383c18c86d9c59b14533787cc7a7511a6d12890581c9d0e03ae9971e78a4e1",
-                        "extraction_result": {
-                            "cues": [
-                                {
-                                    "cue_end": 23,
-                                    "cue_start": 0,
-                                    "cue_text": "bundle: 2x RAM + 1x CPU",
-                                    "disposition": "ESTABLISHED",
-                                    "field": "STRUCTURED_PACKAGING_FIELD",
-                                    "kind": "BUNDLE",
-                                    "quantity": None,
-                                    "raw_field_value": "bundle: 2x RAM + 1x CPU",
-                                    "reason": None,
-                                    "source": "PUBLISHED_STRUCTURED_FIELD"
-                                }
-                            ],
-                            "established_kind": "BUNDLE",
-                            "established_quantity": None,
-                            "identifier_field_notes": [],
-                            "input_digest": "98383c18c86d9c59b14533787cc7a7511a6d12890581c9d0e03ae9971e78a4e1",
-                            "result_digest": "171f15e772fb52a997be55f874d4077117e36f5f69f2c9b97c1c41fa57ca0950",
-                            "schema_version": 1,
-                            "state": "OBSERVED_UNAMBIGUOUS"
-                        },
-                        "extraction_result_digest": "171f15e772fb52a997be55f874d4077117e36f5f69f2c9b97c1c41fa57ca0950",
-                        "schema_version": 3,
-                        "source": "PUBLISHED_STRUCTURED_FIELD",
-                        "state": "SYNTACTICALLY_VALID"
-                    },
-                    "quantity_attestation": None,
-                    "target_evidence": {
-                        "document": {
-                            "completeness_attestation": {
-                                "attestation_digest": "5fbff8ff2a50a13b0e8a1ca5e327bbb28dfcb9a046edbc9363e2a8fd37768515",
-                                "attestation_text": "review determination: the requested part is sold as exactly this bundle",
-                                "basis": "REVIEWED_COMPOSITION_ATTESTATION",
-                                "clause_digest": "c58bd68a17fe19e4e68483362f97de9d71fecb920af516947c31e7637671f67f",
-                                "schema_version": 3,
-                                "source": "REVIEWED_TARGET_CONTEXT",
-                                "subject_side": "TARGET"
-                            },
-                            "composition_clause": "2x RAM + 1x CPU",
-                            "composition_state": "ESTABLISHED",
-                            "evidence_digest": "9815a3da33a9442235a2b8d80a610c38a7dbe232ba35634f753654a78f7d7fec",
-                            "form": "BUNDLE",
-                            "quantity": None,
-                            "schema_version": 3,
-                            "source": "REVIEWED_TARGET_CONTEXT"
-                        },
-                        "schema": "fu4_v3"
-                    }
-                },
-                "binding": {
-                    "assessment_index": 0,
-                    "run_id": "3f2c1a9e-6b4d-4e8f-9a2c-1d5e7f9b3c6a",
-                    "source_url": "https://example.com/test-product"
-                },
-                "case": {
-                    "candidate": {
-                        "commercial": {
-                            "availability": {
-                                "source": "PUBLISHED_STRUCTURED_FIELD",
-                                "value": "In stock"
-                            },
-                            "condition": {
-                                "source": "PUBLISHED_STRUCTURED_FIELD",
-                                "value": "New"
-                            },
-                            "currency": {
-                                "source": "PUBLISHED_STRUCTURED_FIELD",
-                                "value": "USD"
-                            },
-                            "offer_url": None,
-                            "price": {
-                                "source": "PUBLISHED_STRUCTURED_FIELD",
-                                "value": "100"
-                            },
-                            "sales_unit": {
-                                "kind": "BUNDLE",
-                                "quantity": None,
-                                "raw_detail": "bundle: 2x RAM + 1x CPU",
-                                "source": "PUBLISHED_STRUCTURED_FIELD",
-                                "state": "OBSERVED"
-                            },
-                            "seller": None
-                        },
-                        "evidence_source": "TITLE_TEXT",
-                        "mpn_field": None,
-                        "product": {
-                            "accessory_relation": None,
-                            "brand": None,
-                            "capacity": None,
-                            "form_factor": None,
-                            "generation": None,
-                            "interface": None,
-                            "product_family": None,
-                            "product_role": None,
-                            "raw_specification_text": None,
-                            "raw_title_text": "ABC-123 2TB NVMe Drive",
-                            "revision_or_suffix": None
-                        },
-                        "sku": None,
-                        "source_url": "https://example.com/test-product"
-                    },
-                    "case_id": "case-c2-d3-2",
-                    "context_provenance": [],
-                    "deterministic_identity_context": {
-                        "identity_state": "DETERMINISTIC_UNCERTAIN",
-                        "normalized_candidate_part_number": "ABC-123",
-                        "normalized_requested_part_number": "ABC-123",
-                        "primary_relationship_signal": "TITLE_MPN_TOKEN",
-                        "relationship_requirement": "NOT_REQUIRED",
-                        "relationship_signals": [
-                            "TITLE_MPN_TOKEN"
-                        ],
-                        "substate": "U1_TITLE_MPN"
-                    },
-                    "product_evidence": {
-                        "has_usable_product_title": True,
-                        "matched_facts": [
-                            {
-                                "dimension": "CAPACITY",
-                                "sources": [
-                                    "LISTING_PRODUCT_TITLE"
-                                ]
-                            },
-                            {
-                                "dimension": "INTERFACE",
-                                "sources": [
-                                    "LISTING_PRODUCT_TITLE"
-                                ]
-                            }
-                        ]
-                    },
-                    "target": {
-                        "description_raw_text": "A test product",
-                        "mpn": "ABC-123",
-                        "reviewed_context": None
-                    }
-                },
-                "contract": {
-                    "authority_contract_version": "SEMANTIC_AUTHORITY_V2_S2A_FU4",
-                    "input_schema_version": 1,
-                    "output_schema_version": 1,
-                    "prompt_version": "2.1",
-                    "semantic_contract_version": "V2"
-                },
-                "derived": {
-                    "authority_tier": "NEEDS_REVIEW",
-                    "candidate_completeness_attestation_digest": None,
-                    "candidate_composition_state": "SYNTACTICALLY_VALID",
-                    "fired_rules": [
-                        "CEILING_SALES_UNIT_NOT_PROVEN",
-                        "SEMANTIC_OUTCOME_MATRIX"
-                    ],
-                    "identity_resolution_bound": "PART_NUMBER",
-                    "product_evidence_quality": "STRONG",
-                    "quantity_attestation_digest": None,
-                    "quantity_axis_state": "BOTH_UNPUBLISHED",
-                    "relationship_authority": "NOT_ESTABLISHED",
-                    "sales_unit_authority": "UNPROVEN",
-                    "target_completeness_attestation_digest": "5fbff8ff2a50a13b0e8a1ca5e327bbb28dfcb9a046edbc9363e2a8fd37768515",
-                    "target_composition_state": "ESTABLISHED"
-                },
-                "evaluation": {
-                    "confidence": "HIGH",
-                    "conflict_classes": [],
-                    "conflicting_attributes": [],
-                    "decision": "MATCH",
-                    "evaluation_state": "EVALUATED",
-                    "matched_attributes": [],
-                    "missing_critical_attributes": [],
-                    "reason_code": "MATCH_DESCRIPTION_AND_ATTRIBUTES"
-                },
-                "execution": {
-                    "actual_model": "qwen3.8-27b",
-                    "actual_provider": "amax",
-                    "attempts": [
-                        {
-                            "attempt_number": 1,
-                            "model": "qwen3.8-27b",
-                            "outcome": "OK",
-                            "provider": "amax",
-                            "role": "PRIMARY"
-                        }
-                    ],
-                    "error_type": None,
-                    "evaluation_finished_at": "2026-02-10T12:00:03.250000Z",
-                    "evaluation_started_at": "2026-02-10T12:00:00Z",
-                    "fallback_reason": None,
-                    "fallback_used": False
-                },
-                "integrity": {
-                    "input_digest": "051eb50ca90a37c0634a1875fcf08c0e5c32fa49103bbc5094eef08d84d83ab1",
-                    "output_digest": "b23321ceb12718291bfab4da77f6682d0794ed67885b96d398efc9597444b29d"
-                },
-                "schema_version": 1
-            },
             "v2_case_document": {
                 "candidate": {
                     "commercial": {
@@ -2692,7 +2504,7 @@ CASES: Final[tuple[dict[str, Any], ...]] = (
                 "title_text": "Requested product specification (by-construction)"
             }
         },
-        "surface": "BOTH",
+        "surface": "DERIVATION",
         "track": "A"
     },
     {
@@ -9118,9 +8930,9 @@ CASES: Final[tuple[dict[str, Any], ...]] = (
         ],
         "completeness_attestation_source": {
             "candidate": {
-                "location": None,
-                "state": "ABSENT",
-                "verbatim": None
+                "location": "structured field 'packaging'",
+                "state": "PUBLISHED_STATEMENT",
+                "verbatim": ", complete list"
             },
             "target": {
                 "anchor": "manufacturer bundle specification (recorded review anchor)",
@@ -9133,19 +8945,19 @@ CASES: Final[tuple[dict[str, Any], ...]] = (
             "candidate_composition": {
                 "additional_clauses": [],
                 "basis": "RECORDED_CHANNEL",
-                "channel_content_digest": "3b26355abbdae49cdbd2806fbbfe682a62ca7e6ca9a491fc0b026e5c9fe40e44",
+                "channel_content_digest": "15bf027218477ba6880d3b94da877d3457e1efda397a97695fd70646de326ee6",
                 "channel_quantity": None,
                 "completeness_attestation": {
-                    "attestation_digest": "f7e47cc771e868ae610ad1227484e4afa69a5ab3ec65a2bdb4f82c657fdeefa5",
+                    "attestation_digest": "5404ab8406a40cdf8df80dbdda6eff501a82f09fd70e9204906e4f4155d50f18",
                     "attestation_text": ", complete list",
                     "basis": "PUBLISHED_COMPLETENESS_STATEMENT",
-                    "clause_digest": "c58bd68a17fe19e4e68483362f97de9d71fecb920af516947c31e7637671f67f",
+                    "clause_digest": "91b0ca00437d4313e2a247d1607cf34b6cdea3bec9ea9f650f5811fec7329e79",
                     "schema_version": 3,
                     "source": "PUBLISHED_STRUCTURED_FIELD",
                     "subject_side": "CANDIDATE"
                 },
-                "composition_clause": "2x RAM + 1x CPU",
-                "evidence_digest": "fa54d989d1b55352059e0cecf5e5bdab090eb432932e4527ec10c766d36331ea",
+                "composition_clause": "2x SSD + 1x RAM",
+                "evidence_digest": "8da03cb8ddde08bc964a9bdc3117a6cbdd9629dd3490124cd887f0cc12eddabb",
                 "extraction_input_digest": None,
                 "extraction_result": None,
                 "extraction_result_digest": None,
@@ -9156,7 +8968,7 @@ CASES: Final[tuple[dict[str, Any], ...]] = (
             "channel": {
                 "kind": "BUNDLE",
                 "quantity": None,
-                "raw_detail": "bundle: 2x RAM + 1x CPU, complete list",
+                "raw_detail": "bundle: 2x SSD + 1x RAM, complete list",
                 "source": "PUBLISHED_STRUCTURED_FIELD",
                 "state": "OBSERVED"
             },
@@ -9165,17 +8977,17 @@ CASES: Final[tuple[dict[str, Any], ...]] = (
             "target_evidence": {
                 "document": {
                     "completeness_attestation": {
-                        "attestation_digest": "ab481dd8cca7787df3300f26cade7b7048239ee22ca9bcc7098ef537e2679fb5",
+                        "attestation_digest": "cc48f4d7c69bd703c790bae7560cbd18b7a11ff5226acccf6f21dde224f47a5c",
                         "attestation_text": "review determination: the requested part is sold as exactly this bundle",
                         "basis": "REVIEWED_COMPOSITION_ATTESTATION",
-                        "clause_digest": "b0a3f1d7d7ebfe8f52eb0de5189c124aea562f7ebddf4b5d04501c32a1a4ae1f",
+                        "clause_digest": "6bdfb6824fb104c2b91dab94df554e229115d1ad1bcba8d01d83ceebc892efe0",
                         "schema_version": 3,
                         "source": "REVIEWED_TARGET_CONTEXT",
                         "subject_side": "TARGET"
                     },
-                    "composition_clause": "2x RAM + 1x SSD",
+                    "composition_clause": "2x SSD + 1x GPU",
                     "composition_state": "ESTABLISHED",
-                    "evidence_digest": "55e6e7cdb84df920230b65771bd453907f1af9f495f2568d350e114ceff86910",
+                    "evidence_digest": "9531730af53a36a590b174a3017c3fdf1dfde312ef02cf2a4921bc84ec903f2b",
                     "form": "BUNDLE",
                     "quantity": None,
                     "schema_version": 3,
@@ -9184,7 +8996,7 @@ CASES: Final[tuple[dict[str, Any], ...]] = (
                 "schema": "fu4_v3"
             }
         },
-        "evidence_kind": "RECORDED_FIXTURE",
+        "evidence_kind": "SYNTHETIC",
         "expected": {
             "candidate_composition_state": "ESTABLISHED",
             "expected_ceiling": "CEILING_SALES_UNIT_CONTRADICTED",
@@ -9202,10 +9014,10 @@ CASES: Final[tuple[dict[str, Any], ...]] = (
         "label": {
             "author": "PRODUCT-INTEL.Q3C-C2.CORPUS-AUTHOR",
             "author_utc": "2026-10-15T23:22:50Z",
-            "grounding_citation": "Q3-C-D1 matrix row D11; invariant I-1 (exact identity never implies unit equivalence - Q3-C-D1 section 3.1); P3 U17 (two attested materially different compositions); the recorded Micron base/R/T exact-identifier family context (tests/fixtures/pages/micron_7500_part_catalog.json)",
+            "grounding_citation": "Q3-C-D1 matrix row D11 (ii) as adjudicated by the Q3-C-D1-FU1 / C2-F5 / W8 revision record; invariant I-1 (exact identity never implies unit equivalence - Q3-C-D1 section 3.1); P3 U17 (two attested materially different compositions); the recorded Micron 7500 identifier family (tests/fixtures/pages/micron_7500_part_catalog.json - the one-character-different part numbers) is the row's documented identifier-shape CONTEXT only (the catalog publishes part numbers / specifications, NOT Bundle compositions - verified Q3-C-D1 section 2.5)",
             "independence_attestation": "This expected outcome was established from the recorded source content and the cited approved-design rows without executing or reading the output of the FU4 derivation, the R1 record adapter, or any model",
-            "labeling_provenance": "REVIEWED_SOURCE_GROUNDED",
-            "rationale": "HELD (C2-F5). Exact-MPN match but Bundle composition mismatch (ii): the RECORDED_FIXTURE variant grounds the exact-identifier shape in the recorded Micron 7500 catalog (the committed fixture cited by path + digest - the one character different part numbers are recorded catalog entries: MTFDKCC1T9TGP-1BK1DABYY vs MTFDKCC1T9TGP-1BK1JABYY - one character is a different product). The attested-CONTRADICTED expectation requires both composition clauses span-grounded in the sealed blocks; the recorded catalog publishes part numbers and specifications, no bundle contents (design section 2.5), so the clauses cannot be grounded in the recorded source without manufacturing recorded content. The authored document carries the recorded identity context + the by-construction composition axis (the candidate record is the marker-bearing construction; the sealed blocks record the catalog's own content); the dry-run confirms the hold at two boundaries: first, the recorded catalog part-number title does not yield the family's non-empty normalized candidate part number under the one-character-different request (the exact-identifier separation IS the point - the recorded context cannot double as the identity context); second, the composition clauses are not span-grounded in the recorded catalog content. The row is held for the design revision / the C3 recorded-market bundle page.The expected axes follow the cited approved-design rows over the sealed recorded evidence; the label was fixed from the contract semantics before any implementation behavior was consulted. The scripted context is the recorded V2 case's own deterministic identity side (the loader enforces context-case equality).",
+            "labeling_provenance": "ADVERSARIAL_CONSTRUCTION",
+            "rationale": "Exact-MPN match but Bundle composition mismatch (ii) - the Q3-C-D1-FU1 / C2-F5 adjudicated SYNTHETIC re-authoring: the row's exact U1 EXACT identity context (U1_TITLE_MPN, the normalized candidate part number EQUAL and NON-EMPTY against the normalized requested part number, TITLE_MPN_TOKEN, NOT_REQUIRED) is instantiated by-construction over the recorded identifier family's own part-number shape (the one-character-different Micron 7500 catalog part numbers, cited by path + digest) - the pre-correction recorded context is U4_NO_MPN (no candidate identifier), which is NOT this row's shape (W8: the recorded context cannot double as the identity context), and the recorded catalog does not publish Bundle compositions, so the RECORDED_FIXTURE hybrid variant CANNOT be represented truthfully by the existing schema (the span-grounding provenance rule - verified at the Q3-C-D1-FU1 revision); a truthful RECORDED_FIXTURE instantiation is the C3 / 1.1.0 additive obligation, only over a recorded source that publishes BOTH the U1 EXACT identity context's recorded form and the attested composition clauses. By-construction attested compositions (candidate '2x SSD + 1x RAM' vs target '2x SSD + 1x GPU' - materially different) over the U1 EXACT context + scripted MATCH+HIGH+STRONG+clean => U17 CONTRADICTED + CEILING_SALES_UNIT_CONTRADICTED, pricing non-eligible - the 'exact identity never implies unit equivalence' row (the row's 2-case adversarial coverage is retained with FA4-ADV-022).",
             "review_status": "DRAFT",
             "reviewer": None,
             "reviewer_utc": None
@@ -9222,19 +9034,19 @@ CASES: Final[tuple[dict[str, Any], ...]] = (
                     "candidate_composition": {
                         "additional_clauses": [],
                         "basis": "RECORDED_CHANNEL",
-                        "channel_content_digest": "3b26355abbdae49cdbd2806fbbfe682a62ca7e6ca9a491fc0b026e5c9fe40e44",
+                        "channel_content_digest": "15bf027218477ba6880d3b94da877d3457e1efda397a97695fd70646de326ee6",
                         "channel_quantity": None,
                         "completeness_attestation": {
-                            "attestation_digest": "f7e47cc771e868ae610ad1227484e4afa69a5ab3ec65a2bdb4f82c657fdeefa5",
+                            "attestation_digest": "5404ab8406a40cdf8df80dbdda6eff501a82f09fd70e9204906e4f4155d50f18",
                             "attestation_text": ", complete list",
                             "basis": "PUBLISHED_COMPLETENESS_STATEMENT",
-                            "clause_digest": "c58bd68a17fe19e4e68483362f97de9d71fecb920af516947c31e7637671f67f",
+                            "clause_digest": "91b0ca00437d4313e2a247d1607cf34b6cdea3bec9ea9f650f5811fec7329e79",
                             "schema_version": 3,
                             "source": "PUBLISHED_STRUCTURED_FIELD",
                             "subject_side": "CANDIDATE"
                         },
-                        "composition_clause": "2x RAM + 1x CPU",
-                        "evidence_digest": "fa54d989d1b55352059e0cecf5e5bdab090eb432932e4527ec10c766d36331ea",
+                        "composition_clause": "2x SSD + 1x RAM",
+                        "evidence_digest": "8da03cb8ddde08bc964a9bdc3117a6cbdd9629dd3490124cd887f0cc12eddabb",
                         "extraction_input_digest": None,
                         "extraction_result": None,
                         "extraction_result_digest": None,
@@ -9246,17 +9058,17 @@ CASES: Final[tuple[dict[str, Any], ...]] = (
                     "target_evidence": {
                         "document": {
                             "completeness_attestation": {
-                                "attestation_digest": "ab481dd8cca7787df3300f26cade7b7048239ee22ca9bcc7098ef537e2679fb5",
+                                "attestation_digest": "cc48f4d7c69bd703c790bae7560cbd18b7a11ff5226acccf6f21dde224f47a5c",
                                 "attestation_text": "review determination: the requested part is sold as exactly this bundle",
                                 "basis": "REVIEWED_COMPOSITION_ATTESTATION",
-                                "clause_digest": "b0a3f1d7d7ebfe8f52eb0de5189c124aea562f7ebddf4b5d04501c32a1a4ae1f",
+                                "clause_digest": "6bdfb6824fb104c2b91dab94df554e229115d1ad1bcba8d01d83ceebc892efe0",
                                 "schema_version": 3,
                                 "source": "REVIEWED_TARGET_CONTEXT",
                                 "subject_side": "TARGET"
                             },
-                            "composition_clause": "2x RAM + 1x SSD",
+                            "composition_clause": "2x SSD + 1x GPU",
                             "composition_state": "ESTABLISHED",
-                            "evidence_digest": "55e6e7cdb84df920230b65771bd453907f1af9f495f2568d350e114ceff86910",
+                            "evidence_digest": "9531730af53a36a590b174a3017c3fdf1dfde312ef02cf2a4921bc84ec903f2b",
                             "form": "BUNDLE",
                             "quantity": None,
                             "schema_version": 3,
@@ -9267,8 +9079,8 @@ CASES: Final[tuple[dict[str, Any], ...]] = (
                 },
                 "binding": {
                     "assessment_index": 0,
-                    "run_id": "3f2c1a9e-6b4d-4e8f-9a2c-1d5e7f9b3c6a",
-                    "source_url": "https://www.micron.com/products/storage/ssd/data-center-ssd/7500-ssd"
+                    "run_id": "7c2e91f4-5a3b-4d8e-9f0c-1b6d2e8a4f53",
+                    "source_url": "https://example.com/test-product"
                 },
                 "case": {
                     "candidate": {
@@ -9293,13 +9105,13 @@ CASES: Final[tuple[dict[str, Any], ...]] = (
                             "sales_unit": {
                                 "kind": "BUNDLE",
                                 "quantity": None,
-                                "raw_detail": "bundle: 2x RAM + 1x CPU, complete list",
+                                "raw_detail": "bundle: 2x SSD + 1x RAM, complete list",
                                 "source": "PUBLISHED_STRUCTURED_FIELD",
                                 "state": "OBSERVED"
                             },
                             "seller": None
                         },
-                        "evidence_source": "NONE",
+                        "evidence_source": "TITLE_TEXT",
                         "mpn_field": None,
                         "product": {
                             "accessory_relation": None,
@@ -9315,20 +9127,20 @@ CASES: Final[tuple[dict[str, Any], ...]] = (
                             "revision_or_suffix": None
                         },
                         "sku": None,
-                        "source_url": "https://www.micron.com/products/storage/ssd/data-center-ssd/7500-ssd"
+                        "source_url": "https://example.com/test-product"
                     },
                     "case_id": "case-c2-d11-2",
                     "context_provenance": [],
                     "deterministic_identity_context": {
                         "identity_state": "DETERMINISTIC_UNCERTAIN",
-                        "normalized_candidate_part_number": "",
-                        "normalized_requested_part_number": "MTFDKCC1T9TGP-1BK1JABYY",
-                        "primary_relationship_signal": "NO_RELATION",
-                        "relationship_requirement": "NOT_APPLICABLE",
+                        "normalized_candidate_part_number": "MTFDKCC1T9TGP-1BK1DABYY",
+                        "normalized_requested_part_number": "MTFDKCC1T9TGP-1BK1DABYY",
+                        "primary_relationship_signal": "TITLE_MPN_TOKEN",
+                        "relationship_requirement": "NOT_REQUIRED",
                         "relationship_signals": [
-                            "NO_RELATION"
+                            "TITLE_MPN_TOKEN"
                         ],
-                        "substate": "U4_NO_MPN"
+                        "substate": "U1_TITLE_MPN"
                     },
                     "product_evidence": {
                         "has_usable_product_title": True,
@@ -9348,8 +9160,8 @@ CASES: Final[tuple[dict[str, Any], ...]] = (
                         ]
                     },
                     "target": {
-                        "description_raw_text": "Micron 7500 SSD (the one-character-different part)",
-                        "mpn": "MTFDKCC1T9TGP-1BK1JABYY",
+                        "description_raw_text": "A test product",
+                        "mpn": "MTFDKCC1T9TGP-1BK1DABYY",
                         "reviewed_context": None
                     }
                 },
@@ -9362,19 +9174,19 @@ CASES: Final[tuple[dict[str, Any], ...]] = (
                 },
                 "derived": {
                     "authority_tier": "NEEDS_REVIEW",
-                    "candidate_completeness_attestation_digest": "f7e47cc771e868ae610ad1227484e4afa69a5ab3ec65a2bdb4f82c657fdeefa5",
+                    "candidate_completeness_attestation_digest": "5404ab8406a40cdf8df80dbdda6eff501a82f09fd70e9204906e4f4155d50f18",
                     "candidate_composition_state": "ESTABLISHED",
                     "fired_rules": [
                         "CEILING_SALES_UNIT_CONTRADICTED",
                         "SEMANTIC_OUTCOME_MATRIX"
                     ],
-                    "identity_resolution_bound": "DESCRIPTION",
+                    "identity_resolution_bound": "PART_NUMBER",
                     "product_evidence_quality": "STRONG",
                     "quantity_attestation_digest": None,
                     "quantity_axis_state": "BOTH_UNPUBLISHED",
-                    "relationship_authority": "NOT_APPLICABLE",
+                    "relationship_authority": "NOT_ESTABLISHED",
                     "sales_unit_authority": "CONTRADICTED",
-                    "target_completeness_attestation_digest": "ab481dd8cca7787df3300f26cade7b7048239ee22ca9bcc7098ef537e2679fb5",
+                    "target_completeness_attestation_digest": "cc48f4d7c69bd703c790bae7560cbd18b7a11ff5226acccf6f21dde224f47a5c",
                     "target_composition_state": "ESTABLISHED"
                 },
                 "evaluation": {
@@ -9406,8 +9218,8 @@ CASES: Final[tuple[dict[str, Any], ...]] = (
                     "fallback_used": False
                 },
                 "integrity": {
-                    "input_digest": "218367bd3bfa1222f4ef441be8460f14b7fe410156824b91be06147971723610",
-                    "output_digest": "05a6445d0afa3e75e5b262626be640ba2e6485b7951581a3811d389174445581"
+                    "input_digest": "3c85f4946f8b1620ac259ee0f80cd3119db060f32c6168de365c14a21b8071bd",
+                    "output_digest": "13dd891906139f12ab48d745dc4cb59048838cacedc96dfa636b622094f33951"
                 },
                 "schema_version": 1
             },
@@ -9434,13 +9246,13 @@ CASES: Final[tuple[dict[str, Any], ...]] = (
                         "sales_unit": {
                             "kind": "BUNDLE",
                             "quantity": None,
-                            "raw_detail": "bundle: 2x RAM + 1x CPU, complete list",
+                            "raw_detail": "bundle: 2x SSD + 1x RAM, complete list",
                             "source": "PUBLISHED_STRUCTURED_FIELD",
                             "state": "OBSERVED"
                         },
                         "seller": None
                     },
-                    "evidence_source": "NONE",
+                    "evidence_source": "TITLE_TEXT",
                     "mpn_field": None,
                     "product": {
                         "accessory_relation": None,
@@ -9456,20 +9268,20 @@ CASES: Final[tuple[dict[str, Any], ...]] = (
                         "revision_or_suffix": None
                     },
                     "sku": None,
-                    "source_url": "https://www.micron.com/products/storage/ssd/data-center-ssd/7500-ssd"
+                    "source_url": "https://example.com/test-product"
                 },
                 "case_id": "case-c2-d11-2",
                 "context_provenance": [],
                 "deterministic_identity_context": {
                     "identity_state": "DETERMINISTIC_UNCERTAIN",
-                    "normalized_candidate_part_number": "",
-                    "normalized_requested_part_number": "MTFDKCC1T9TGP-1BK1JABYY",
-                    "primary_relationship_signal": "NO_RELATION",
-                    "relationship_requirement": "NOT_APPLICABLE",
+                    "normalized_candidate_part_number": "MTFDKCC1T9TGP-1BK1DABYY",
+                    "normalized_requested_part_number": "MTFDKCC1T9TGP-1BK1DABYY",
+                    "primary_relationship_signal": "TITLE_MPN_TOKEN",
+                    "relationship_requirement": "NOT_REQUIRED",
                     "relationship_signals": [
-                        "NO_RELATION"
+                        "TITLE_MPN_TOKEN"
                     ],
-                    "substate": "U4_NO_MPN"
+                    "substate": "U1_TITLE_MPN"
                 },
                 "product_evidence": {
                     "has_usable_product_title": True,
@@ -9489,8 +9301,8 @@ CASES: Final[tuple[dict[str, Any], ...]] = (
                     ]
                 },
                 "target": {
-                    "description_raw_text": "Micron 7500 SSD (the one-character-different part)",
-                    "mpn": "MTFDKCC1T9TGP-1BK1JABYY",
+                    "description_raw_text": "A test product",
+                    "mpn": "MTFDKCC1T9TGP-1BK1DABYY",
                     "reviewed_context": None
                 }
             }
@@ -9505,13 +9317,13 @@ CASES: Final[tuple[dict[str, Any], ...]] = (
             },
             "human_review": None,
             "identity_assessment": {
-                "normalized_candidate_part_number": "",
-                "normalized_requested_part_number": "MTFDKCC1T9TGP-1BK1JABYY",
+                "normalized_candidate_part_number": "MTFDKCC1T9TGP-1BK1DABYY",
+                "normalized_requested_part_number": "MTFDKCC1T9TGP-1BK1DABYY",
                 "relationship_signals": [
-                    "NO_RELATION"
+                    "TITLE_MPN_TOKEN"
                 ],
                 "state": "DETERMINISTIC_UNCERTAIN",
-                "substate": "U4_NO_MPN"
+                "substate": "U1_TITLE_MPN"
             },
             "product_evidence": {
                 "has_usable_product_title": True,
@@ -9533,30 +9345,28 @@ CASES: Final[tuple[dict[str, Any], ...]] = (
         },
         "source": {
             "candidate": {
-                "archive": "tests/fixtures/pages/micron_7500_part_catalog.json",
-                "archive_digest": "160d4fe97a5df5249e8f6404f6b005c0515fab4def1b4668fdaf87c727600743",
-                "raw_reference": "micron_7500_part_catalog (details[].part-number)",
-                "recording_attestation": "recorded from the cited in-repository source at the recorded instant; the archive bytes are the committed fixture",
-                "retrieved_utc": "2026-09-22T23:20:25Z",
-                "source_url": "https://www.micron.com/products/storage/ssd/data-center-ssd/7500-ssd",
+                "archive": None,
+                "archive_digest": None,
+                "raw_reference": None,
+                "recording_attestation": "by-construction",
+                "retrieved_utc": None,
+                "source_url": None,
                 "structured_fields": {
-                    "catalog_date": "2026-09-22 23:20:25.319",
-                    "part_number": "MTFDKCC1T9TGP-1BK1DABYY"
+                    "packaging": "bundle: 2x SSD + 1x RAM, complete list"
                 },
                 "title_text": "Micron 7500 SSD MTFDKCC1T9TGP-1BK1DABYY"
             },
             "target": {
-                "archive": "tests/fixtures/pages/micron_7500_part_catalog.json",
-                "archive_digest": "160d4fe97a5df5249e8f6404f6b005c0515fab4def1b4668fdaf87c727600743",
-                "raw_reference": "micron_7500_part_catalog (details[].part-number)",
-                "recording_attestation": "recorded from the cited in-repository source at the recorded instant; the archive bytes are the committed fixture",
-                "retrieved_utc": "2026-09-22T23:20:25Z",
-                "source_url": "https://www.micron.com/products/storage/ssd/data-center-ssd/7500-ssd",
+                "archive": None,
+                "archive_digest": None,
+                "raw_reference": None,
+                "recording_attestation": "by-construction",
+                "retrieved_utc": None,
+                "source_url": None,
                 "structured_fields": {
-                    "catalog_date": "2026-09-22 23:20:25.319",
-                    "part_number": "MTFDKCC1T9TGP-1BK1JABYY"
+                    "specification": "Bundle contents: 2x SSD + 1x GPU"
                 },
-                "title_text": "Micron 7500 SSD MTFDKCC1T9TGP-1BK1JABYY"
+                "title_text": "Requested product specification (by-construction)"
             }
         },
         "surface": "BOTH",
@@ -12992,265 +12802,6 @@ CASES: Final[tuple[dict[str, Any], ...]] = (
             }
         },
         "surface": "RECORD",
-        "track": "A"
-    },
-    {
-        "case_category": "workstation_gpu",
-        "case_id": "FA4-ADV-034",
-        "challenge_tags": [
-            "historical_binding_confusion"
-        ],
-        "completeness_attestation_source": {
-            "candidate": {
-                "location": "structured field 'packaging'",
-                "state": "PUBLISHED_STATEMENT",
-                "verbatim": ", complete list"
-            },
-            "target": {
-                "anchor": "manufacturer bundle specification (recorded review anchor)",
-                "state": "REVIEWED_DETERMINATION",
-                "verbatim": "review determination: the requested part is sold as exactly this bundle"
-            }
-        },
-        "derivation_inputs": {
-            "candidate_basis": "RECORDED_CHANNEL",
-            "candidate_composition": {
-                "additional_clauses": [],
-                "basis": "RECORDED_CHANNEL",
-                "channel_content_digest": "3b26355abbdae49cdbd2806fbbfe682a62ca7e6ca9a491fc0b026e5c9fe40e44",
-                "channel_quantity": None,
-                "completeness_attestation": {
-                    "attestation_digest": "f7e47cc771e868ae610ad1227484e4afa69a5ab3ec65a2bdb4f82c657fdeefa5",
-                    "attestation_text": ", complete list",
-                    "basis": "PUBLISHED_COMPLETENESS_STATEMENT",
-                    "clause_digest": "c58bd68a17fe19e4e68483362f97de9d71fecb920af516947c31e7637671f67f",
-                    "schema_version": 3,
-                    "source": "PUBLISHED_STRUCTURED_FIELD",
-                    "subject_side": "CANDIDATE"
-                },
-                "composition_clause": "2x RAM + 1x CPU",
-                "evidence_digest": "fa54d989d1b55352059e0cecf5e5bdab090eb432932e4527ec10c766d36331ea",
-                "extraction_input_digest": None,
-                "extraction_result": None,
-                "extraction_result_digest": None,
-                "schema_version": 3,
-                "source": "PUBLISHED_STRUCTURED_FIELD",
-                "state": "ESTABLISHED"
-            },
-            "channel": {
-                "kind": "BUNDLE",
-                "quantity": None,
-                "raw_detail": "bundle: 2x RAM + 1x CPU, complete list",
-                "source": "PUBLISHED_STRUCTURED_FIELD",
-                "state": "OBSERVED"
-            },
-            "extraction_evidence": None,
-            "quantity_attestation": None,
-            "target_evidence": {
-                "document": {
-                    "completeness_attestation": {
-                        "attestation_digest": "5fbff8ff2a50a13b0e8a1ca5e327bbb28dfcb9a046edbc9363e2a8fd37768515",
-                        "attestation_text": "review determination: the requested part is sold as exactly this bundle",
-                        "basis": "REVIEWED_COMPOSITION_ATTESTATION",
-                        "clause_digest": "c58bd68a17fe19e4e68483362f97de9d71fecb920af516947c31e7637671f67f",
-                        "schema_version": 3,
-                        "source": "REVIEWED_TARGET_CONTEXT",
-                        "subject_side": "TARGET"
-                    },
-                    "composition_clause": "2x RAM + 1x CPU",
-                    "composition_state": "ESTABLISHED",
-                    "evidence_digest": "9815a3da33a9442235a2b8d80a610c38a7dbe232ba35634f753654a78f7d7fec",
-                    "form": "BUNDLE",
-                    "quantity": None,
-                    "schema_version": 3,
-                    "source": "REVIEWED_TARGET_CONTEXT"
-                },
-                "schema": "fu4_v3"
-            }
-        },
-        "evidence_kind": "SYNTHETIC",
-        "expected": {
-            "candidate_composition_state": None,
-            "expected_ceiling": None,
-            "outcome": "REFUSED",
-            "pricing_eligible": None,
-            "quantity_axis": None,
-            "refusal": {
-                "error_type": "CONSTRUCTOR",
-                "stage": "CONSTRUCTION"
-            },
-            "replay": "NOT_APPLICABLE",
-            "semantic_identity_note": None,
-            "target_composition_state": None,
-            "textual_relation": None,
-            "tier": None,
-            "unit": None
-        },
-        "label": {
-            "author": "PRODUCT-INTEL.Q3C-C2.CORPUS-AUTHOR",
-            "author_utc": "2026-10-15T23:22:50Z",
-            "grounding_citation": "Q3-C-D1 matrix row D16; P5 section 4.2a + the codec registry (the production codec claims exactly the V1 / 2.0-FU2 / 2.1-FU4 bindings - the forged mixed axis and the harness-only 2.1-FU3 axis are refused at decode); P3 section 5.4 (the FU3 arm: composition / attestation inputs are contract misuse under the historical token - the frozen entry point refuses)",
-            "independence_attestation": "This expected outcome was established from the recorded source content and the cited approved-design rows without executing or reading the output of the FU4 derivation, the R1 record adapter, or any model",
-            "labeling_provenance": "ADVERSARIAL_CONSTRUCTION",
-            "rationale": "HELD (C2-F2b). Historical binding confusion (iii): the derivation-surface presentation of composition / attestation inputs under the FROZEN FU3 token (the contract-misuse refusal: the FU3 contract has no composition axis; the FU4 superset dispatch's FU3 arm delegates to the frozen function, which refuses - P3 section 5.4). Over the sealed corpus documents (which are SOUND FU4 documents - the FU3-token presentation is an execution-level act, not a document defect) NO constructor / codec / case-document observation fires, so the labeled CONSTRUCTION stage is incoherent per the family's stage rule - the defect is observable only at the E1 adversarial re-execution presenting the inputs under the historical token. The row is held for the design revision (the stage semantics do not cover execution-level contract misuse); the authored document carries the sound inputs + the design row's label, and the dry-run confirms the incoherence.The expected axes follow the cited approved-design rows over the sealed recorded evidence; the label was fixed from the contract semantics before any implementation behavior was consulted. The scripted context is the recorded V2 case's own deterministic identity side (the loader enforces context-case equality).",
-            "review_status": "DRAFT",
-            "reviewer": None,
-            "reviewer_utc": None
-        },
-        "matrix_row": "D16",
-        "published_quantity": {
-            "candidate": None,
-            "citation": "the channel + target record quantity fields (verbatim, never inferred)",
-            "target": None
-        },
-        "recorded_case": {
-            "v2_case_document": {
-                "candidate": {
-                    "commercial": {
-                        "availability": {
-                            "source": "PUBLISHED_STRUCTURED_FIELD",
-                            "value": "In stock"
-                        },
-                        "condition": {
-                            "source": "PUBLISHED_STRUCTURED_FIELD",
-                            "value": "New"
-                        },
-                        "currency": {
-                            "source": "PUBLISHED_STRUCTURED_FIELD",
-                            "value": "USD"
-                        },
-                        "offer_url": None,
-                        "price": {
-                            "source": "PUBLISHED_STRUCTURED_FIELD",
-                            "value": "100"
-                        },
-                        "sales_unit": {
-                            "kind": "BUNDLE",
-                            "quantity": None,
-                            "raw_detail": "bundle: 2x RAM + 1x CPU, complete list",
-                            "source": "PUBLISHED_STRUCTURED_FIELD",
-                            "state": "OBSERVED"
-                        },
-                        "seller": None
-                    },
-                    "evidence_source": "TITLE_TEXT",
-                    "mpn_field": None,
-                    "product": {
-                        "accessory_relation": None,
-                        "brand": None,
-                        "capacity": None,
-                        "form_factor": None,
-                        "generation": None,
-                        "interface": None,
-                        "product_family": None,
-                        "product_role": None,
-                        "raw_specification_text": None,
-                        "raw_title_text": "ABC-123 1TB NVMe Drive",
-                        "revision_or_suffix": None
-                    },
-                    "sku": None,
-                    "source_url": "https://example.com/test-product"
-                },
-                "case_id": "c2-d16-3",
-                "context_provenance": [],
-                "deterministic_identity_context": {
-                    "identity_state": "DETERMINISTIC_UNCERTAIN",
-                    "normalized_candidate_part_number": "ABC-123",
-                    "normalized_requested_part_number": "ABC-123",
-                    "primary_relationship_signal": "TITLE_MPN_TOKEN",
-                    "relationship_requirement": "NOT_REQUIRED",
-                    "relationship_signals": [
-                        "TITLE_MPN_TOKEN"
-                    ],
-                    "substate": "U1_TITLE_MPN"
-                },
-                "product_evidence": {
-                    "has_usable_product_title": True,
-                    "matched_facts": [
-                        {
-                            "dimension": "CAPACITY",
-                            "sources": [
-                                "LISTING_PRODUCT_TITLE"
-                            ]
-                        },
-                        {
-                            "dimension": "INTERFACE",
-                            "sources": [
-                                "LISTING_PRODUCT_TITLE"
-                            ]
-                        }
-                    ]
-                },
-                "target": {
-                    "description_raw_text": "A test product",
-                    "mpn": "ABC-123",
-                    "reviewed_context": None
-                }
-            }
-        },
-        "scripted_context": {
-            "context_provenances": [],
-            "evaluation": {
-                "confidence": "HIGH",
-                "conflict_classes": [],
-                "decision": "MATCH",
-                "evaluation_state": "EVALUATED"
-            },
-            "human_review": None,
-            "identity_assessment": {
-                "normalized_candidate_part_number": "ABC-123",
-                "normalized_requested_part_number": "ABC-123",
-                "relationship_signals": [
-                    "TITLE_MPN_TOKEN"
-                ],
-                "state": "DETERMINISTIC_UNCERTAIN",
-                "substate": "U1_TITLE_MPN"
-            },
-            "product_evidence": {
-                "has_usable_product_title": True,
-                "matched_facts": [
-                    {
-                        "dimension": "CAPACITY",
-                        "sources": [
-                            "LISTING_PRODUCT_TITLE"
-                        ]
-                    },
-                    {
-                        "dimension": "INTERFACE",
-                        "sources": [
-                            "LISTING_PRODUCT_TITLE"
-                        ]
-                    }
-                ]
-            }
-        },
-        "source": {
-            "candidate": {
-                "archive": None,
-                "archive_digest": None,
-                "raw_reference": None,
-                "recording_attestation": "by-construction",
-                "retrieved_utc": None,
-                "source_url": None,
-                "structured_fields": {
-                    "packaging": "bundle: 2x RAM + 1x CPU, complete list"
-                },
-                "title_text": "ABC-123 1TB NVMe Drive"
-            },
-            "target": {
-                "archive": None,
-                "archive_digest": None,
-                "raw_reference": None,
-                "recording_attestation": "by-construction",
-                "retrieved_utc": None,
-                "source_url": None,
-                "structured_fields": {
-                    "specification": "Bundle contents: 2x RAM + 1x CPU"
-                },
-                "title_text": "Requested product specification (by-construction)"
-            }
-        },
-        "surface": "DERIVATION",
         "track": "A"
     },
     {
@@ -18299,7 +17850,59 @@ CASES: Final[tuple[dict[str, Any], ...]] = (
                 "source": None,
                 "state": "UNAVAILABLE"
             },
-            "extraction_evidence": None,
+            "extraction_evidence": {
+                "input_document": {
+                    "extraction_method": "JSON_LD",
+                    "fields": {
+                        "availability_text": "In stock",
+                        "brand_text": None,
+                        "condition_text": "New",
+                        "currency_text": "USD",
+                        "manufacturer_part_number_text": None,
+                        "offer_url_text": None,
+                        "price_text": "100",
+                        "product_title": "ABC-123 1TB NVMe Drive: bundle: 2x RAM + 1x CPU",
+                        "sku_text": None,
+                        "source_url": "https://example.com/test-product"
+                    },
+                    "structured_packaging_field": "pack of 3"
+                },
+                "result_document": {
+                    "cues": [
+                        {
+                            "cue_end": 9,
+                            "cue_start": 0,
+                            "cue_text": "pack of 3",
+                            "disposition": "ESTABLISHED",
+                            "field": "STRUCTURED_PACKAGING_FIELD",
+                            "kind": "PACK_QUANTITY",
+                            "quantity": 3,
+                            "raw_field_value": "pack of 3",
+                            "reason": None,
+                            "source": "PUBLISHED_STRUCTURED_FIELD"
+                        },
+                        {
+                            "cue_end": 47,
+                            "cue_start": 24,
+                            "cue_text": "bundle: 2x RAM + 1x CPU",
+                            "disposition": "ESTABLISHED",
+                            "field": "PRODUCT_TITLE",
+                            "kind": "BUNDLE",
+                            "quantity": None,
+                            "raw_field_value": "ABC-123 1TB NVMe Drive: bundle: 2x RAM + 1x CPU",
+                            "reason": None,
+                            "source": "LISTING_TITLE"
+                        }
+                    ],
+                    "established_kind": None,
+                    "established_quantity": None,
+                    "identifier_field_notes": [],
+                    "input_digest": "5fed0cf3c5164efb939134ba60c3e01795a5e334cbabea5cb03cc8df77b308cd",
+                    "result_digest": "f1bac31007462bff09532518eddc2c546378bbfd8094579d11bc8476a66074db",
+                    "schema_version": 1,
+                    "state": "CONTRADICTED_CUES"
+                }
+            },
             "quantity_attestation": None,
             "target_evidence": {
                 "document": {
@@ -18341,10 +17944,10 @@ CASES: Final[tuple[dict[str, Any], ...]] = (
         "label": {
             "author": "PRODUCT-INTEL.Q3C-C2.CORPUS-AUTHOR",
             "author_utc": "2026-10-15T23:22:50Z",
-            "grounding_citation": "Q3-C-D1 matrix row C6 (CF-1 documented): the frozen P2 rule - a kind or quantity conflict across fields records absence (CONTRADICTED_CUES => the canonical UNAVAILABLE channel) => U0 UNPROVEN under the frozen P2-to-FU4 chain; recorded against the task matrix's CONTRADICTED placement, which the frozen contract (P3 D8 / U12; R1 matrix row 8) overrides",
+            "grounding_citation": "Q3-C-D1 matrix row C6 (CF-1 documented) as adjudicated by the Q3-C-D1-FU1 / C2-F6 / W7 revision record: the frozen P2 rule - a kind or quantity conflict across fields records absence (CONTRADICTED_CUES => the canonical UNAVAILABLE channel) => U0 UNPROVEN under the frozen P2-to-FU4 chain (P3 U0 / D8); recorded against the task matrix's CONTRADICTED placement, which the frozen contract (P3 D8 / U12; R1 matrix row 8) overrides (O-3)",
             "independence_attestation": "This expected outcome was established from the recorded source content and the cited approved-design rows without executing or reading the output of the FU4 derivation, the R1 record adapter, or any model",
             "labeling_provenance": "DESIGN_TABLE_GROUNDED",
-            "rationale": "HELD (C2-F6). CF-1 documented conflict row: a GENUINE contradictory-cues extraction (the title's bundle-of-2 clause vs the structured field's pack-of-3 - a kind conflict across fields) records the absence under the frozen P2 rule (the conflicting cues map to the canonical UNAVAILABLE channel) => U0 UNPROVEN under the frozen P2-to-FU4 chain - recorded against the task matrix's CONTRADICTED placement, which the frozen contract (P3 D8 / U12; R1 matrix row 8) overrides (O-3). The row's required evidence - the recorded extraction result - cannot be sealed with a DERIVED outcome (the family's basis-coherence rule, C2-F6); the authored document carries the canonical absence + the sealed conflicting fields so the reviewer re-derives the U0 expectation.The expected axes follow the cited approved-design rows over the sealed recorded evidence; the label was fixed from the contract semantics before any implementation behavior was consulted. The scripted context is the recorded V2 case's own deterministic identity side (the loader enforces context-case equality).",
+            "rationale": "Released by the recorded Q3-C-D1-FU1 / C2-F6 / W7 adjudication (the C1-FU3 loader correction admits the allowed recorded-extraction-result state; the W7 cue-state accuracy correction): CF-1 documented conflict row - the GENUINE CONTRADICTED_CUES instantiation: the sealed candidate text publishes two ESTABLISHED incompatible cues across fields (the title's established bundle-with-contents clause 'bundle: 2x RAM + 1x CPU' vs the structured pack-of-N field 'pack of 3' - verified over the frozen P2 cue table at the correction), and the recorded extraction result is the genuine frozen P2 instantiation over that sealed text (state CONTRADICTED_CUES). The case carries the allowed state of Q3-C-D1 section 4.4: the candidate composition record is null, the candidate basis is NONE, and the presented channel is EXACTLY the frozen P2 lossy mapping of the recorded result (the canonical UNAVAILABLE). The expected U0 UNPROVEN is independently derived from the frozen P2-to-FU4 chain (P3 U0 / D8; R1 matrix row 8) over the recorded absence - the pre-correction sealed text ('bundle of 2: ...') was an AMBIGUOUS_CUE shape whose rationale claimed the CONTRADICTED_CUES state it did not carry (the label defect the W7 adjudication names); the expectation is unchanged, the evidence now carries the state the row requires.",
             "review_status": "DRAFT",
             "reviewer": None,
             "reviewer_utc": None
@@ -18397,7 +18000,7 @@ CASES: Final[tuple[dict[str, Any], ...]] = (
                         "product_family": None,
                         "product_role": None,
                         "raw_specification_text": None,
-                        "raw_title_text": "ABC-123 1TB NVMe Drive: bundle of 2: 2x RAM + 1x CPU",
+                        "raw_title_text": "ABC-123 1TB NVMe Drive: bundle: 2x RAM + 1x CPU",
                         "revision_or_suffix": None
                     },
                     "sku": None,
@@ -18487,7 +18090,7 @@ CASES: Final[tuple[dict[str, Any], ...]] = (
                 "structured_fields": {
                     "packaging": "pack of 3"
                 },
-                "title_text": "ABC-123 1TB NVMe Drive: bundle of 2: 2x RAM + 1x CPU"
+                "title_text": "ABC-123 1TB NVMe Drive: bundle: 2x RAM + 1x CPU"
             },
             "target": {
                 "archive": None,
@@ -19468,7 +19071,7 @@ CASES: Final[tuple[dict[str, Any], ...]] = (
             "grounding_citation": "Q3-C-D1 matrix row A-DELE; P3 section 5 U0-U8 (the frozen FU3 rows, delegation byte-identity D9); P3 D18 (frozen target records read composition-ABSENT); P3 D11 (non-bundle audit fields exactly None)",
             "independence_attestation": "This expected outcome was established from the recorded source content and the cited approved-design rows without executing or reading the output of the FU4 derivation, the R1 record adapter, or any model",
             "labeling_provenance": "DESIGN_TABLE_GROUNDED",
-            "rationale": "HELD (C2-F1). Non-bundle delegation preservation at corpus scale: pack of 4 vs the same-count frozen FU3 target record derives the frozen FU3 row U3 PROVEN_EQUIVALENT under the FU4 token (D9 - the non-bundle arms are byte-identical to the frozen FU3 derivation); the frozen FU4 decision record carries EXACTLY None on every bundle-axis audit field for non-bundle channels (D11). The C1 loader's PROVEN coherence pre-check (design section 4.4) requires a satisfied bundle quantity axis + ESTABLISHED composition states - incompatible with the frozen non-bundle audit recording; the row is held for the design / schema correction (never a bent label). Expected axes recorded per the frozen contract: unit PROVEN, axis / states / relation None, tier stands (AI_ASSISTED_COMPARABLE), pricing consequence true.The expected axes follow the cited approved-design rows over the sealed recorded evidence; the label was fixed from the contract semantics before any implementation behavior was consulted. The scripted context is the recorded V2 case's own deterministic identity side (the loader enforces context-case equality).",
+            "rationale": "Released by the recorded Q3-C-D1-FU1 / C2-F1 adjudication (the C1-FU3 validator correction - the section 4.4 PROVEN coherence checks are scoped to Bundle-channel cases; the non-Bundle delegated FU3 PROVEN expectation retains the frozen P3 D11 exactly-null Bundle-axis audit fields; the byte-identical delegation P3 D9 is preserved). Non-bundle delegation preservation at corpus scale: pack of 4 vs the same-count frozen FU3 target record derives the frozen FU3 row U3 PROVEN_EQUIVALENT under the FU4 token (D9 - the non-bundle arms are byte-identical to the frozen FU3 derivation); the frozen FU4 decision record carries EXACTLY None on every bundle-axis audit field for non-bundle channels (D11). The C1 loader's PROVEN coherence pre-check (design section 4.4) requires a satisfied bundle quantity axis + ESTABLISHED composition states - incompatible with the frozen non-bundle audit recording; the row is held for the design / schema correction (never a bent label). Expected axes recorded per the frozen contract: unit PROVEN, axis / states / relation None, tier stands (AI_ASSISTED_COMPARABLE), pricing consequence true.The expected axes follow the cited approved-design rows over the sealed recorded evidence; the label was fixed from the contract semantics before any implementation behavior was consulted. The scripted context is the recorded V2 case's own deterministic identity side (the loader enforces context-case equality).",
             "review_status": "DRAFT",
             "reviewer": None,
             "reviewer_utc": None
@@ -19687,7 +19290,7 @@ CASES: Final[tuple[dict[str, Any], ...]] = (
             "grounding_citation": "Q3-C-D1 matrix row A-DELE; P3 section 5 U0-U8 (the frozen FU3 rows, delegation byte-identity D9); P3 D18 (frozen target records read composition-ABSENT); P3 D11 (non-bundle audit fields exactly None)",
             "independence_attestation": "This expected outcome was established from the recorded source content and the cited approved-design rows without executing or reading the output of the FU4 derivation, the R1 record adapter, or any model",
             "labeling_provenance": "DESIGN_TABLE_GROUNDED",
-            "rationale": "HELD (C2-F1). Non-bundle delegation preservation at corpus scale: tray of 25 vs the same-count frozen FU3 target record derives the frozen FU3 row U8 PROVEN_EQUIVALENT under the FU4 token (D9 - the non-bundle arms are byte-identical to the frozen FU3 derivation); the frozen FU4 decision record carries EXACTLY None on every bundle-axis audit field for non-bundle channels (D11). The C1 loader's PROVEN coherence pre-check (design section 4.4) requires a satisfied bundle quantity axis + ESTABLISHED composition states - incompatible with the frozen non-bundle audit recording; the row is held for the design / schema correction (never a bent label). Expected axes recorded per the frozen contract: unit PROVEN, axis / states / relation None, tier stands (AI_ASSISTED_COMPARABLE), pricing consequence true.The expected axes follow the cited approved-design rows over the sealed recorded evidence; the label was fixed from the contract semantics before any implementation behavior was consulted. The scripted context is the recorded V2 case's own deterministic identity side (the loader enforces context-case equality).",
+            "rationale": "Released by the recorded Q3-C-D1-FU1 / C2-F1 adjudication (the C1-FU3 validator correction - the section 4.4 PROVEN coherence checks are scoped to Bundle-channel cases; the non-Bundle delegated FU3 PROVEN expectation retains the frozen P3 D11 exactly-null Bundle-axis audit fields; the byte-identical delegation P3 D9 is preserved). Non-bundle delegation preservation at corpus scale: tray of 25 vs the same-count frozen FU3 target record derives the frozen FU3 row U8 PROVEN_EQUIVALENT under the FU4 token (D9 - the non-bundle arms are byte-identical to the frozen FU3 derivation); the frozen FU4 decision record carries EXACTLY None on every bundle-axis audit field for non-bundle channels (D11). The C1 loader's PROVEN coherence pre-check (design section 4.4) requires a satisfied bundle quantity axis + ESTABLISHED composition states - incompatible with the frozen non-bundle audit recording; the row is held for the design / schema correction (never a bent label). Expected axes recorded per the frozen contract: unit PROVEN, axis / states / relation None, tier stands (AI_ASSISTED_COMPARABLE), pricing consequence true.The expected axes follow the cited approved-design rows over the sealed recorded evidence; the label was fixed from the contract semantics before any implementation behavior was consulted. The scripted context is the recorded V2 case's own deterministic identity side (the loader enforces context-case equality).",
             "review_status": "DRAFT",
             "reviewer": None,
             "reviewer_utc": None
@@ -19902,7 +19505,7 @@ CASES: Final[tuple[dict[str, Any], ...]] = (
             "grounding_citation": "Q3-C-D1 matrix row A-DELE; P3 section 5 U0-U8 (the frozen FU3 rows, delegation byte-identity D9); P3 D18 (frozen target records read composition-ABSENT); P3 D11 (non-bundle audit fields exactly None)",
             "independence_attestation": "This expected outcome was established from the recorded source content and the cited approved-design rows without executing or reading the output of the FU4 derivation, the R1 record adapter, or any model",
             "labeling_provenance": "DESIGN_TABLE_GROUNDED",
-            "rationale": "HELD (C2-F1). Non-bundle delegation preservation at corpus scale: single unit vs the same-count frozen FU3 target record derives the frozen FU3 row U1 PROVEN_EQUIVALENT under the FU4 token (D9 - the non-bundle arms are byte-identical to the frozen FU3 derivation); the frozen FU4 decision record carries EXACTLY None on every bundle-axis audit field for non-bundle channels (D11). The C1 loader's PROVEN coherence pre-check (design section 4.4) requires a satisfied bundle quantity axis + ESTABLISHED composition states - incompatible with the frozen non-bundle audit recording; the row is held for the design / schema correction (never a bent label). Expected axes recorded per the frozen contract: unit PROVEN, axis / states / relation None, tier stands (AI_ASSISTED_COMPARABLE), pricing consequence true.The expected axes follow the cited approved-design rows over the sealed recorded evidence; the label was fixed from the contract semantics before any implementation behavior was consulted. The scripted context is the recorded V2 case's own deterministic identity side (the loader enforces context-case equality).",
+            "rationale": "Released by the recorded Q3-C-D1-FU1 / C2-F1 adjudication (the C1-FU3 validator correction - the section 4.4 PROVEN coherence checks are scoped to Bundle-channel cases; the non-Bundle delegated FU3 PROVEN expectation retains the frozen P3 D11 exactly-null Bundle-axis audit fields; the byte-identical delegation P3 D9 is preserved). Non-bundle delegation preservation at corpus scale: single unit vs the same-count frozen FU3 target record derives the frozen FU3 row U1 PROVEN_EQUIVALENT under the FU4 token (D9 - the non-bundle arms are byte-identical to the frozen FU3 derivation); the frozen FU4 decision record carries EXACTLY None on every bundle-axis audit field for non-bundle channels (D11). The C1 loader's PROVEN coherence pre-check (design section 4.4) requires a satisfied bundle quantity axis + ESTABLISHED composition states - incompatible with the frozen non-bundle audit recording; the row is held for the design / schema correction (never a bent label). Expected axes recorded per the frozen contract: unit PROVEN, axis / states / relation None, tier stands (AI_ASSISTED_COMPARABLE), pricing consequence true.The expected axes follow the cited approved-design rows over the sealed recorded evidence; the label was fixed from the contract semantics before any implementation behavior was consulted. The scripted context is the recorded V2 case's own deterministic identity side (the loader enforces context-case equality).",
             "review_status": "DRAFT",
             "reviewer": None,
             "reviewer_utc": None
@@ -21390,398 +20993,6 @@ CASES: Final[tuple[dict[str, Any], ...]] = (
         },
         "surface": "BOTH",
         "track": "A_B"
-    },
-    {
-        "case_category": "workstation_gpu",
-        "case_id": "FA4-PROV-002",
-        "challenge_tags": [],
-        "completeness_attestation_source": {
-            "candidate": {
-                "location": None,
-                "state": "ABSENT",
-                "verbatim": None
-            },
-            "target": {
-                "anchor": "manufacturer bundle specification (recorded review anchor)",
-                "state": "REVIEWED_DETERMINATION",
-                "verbatim": "review determination: the requested part is sold as exactly this bundle"
-            }
-        },
-        "derivation_inputs": {
-            "candidate_basis": "RECORDED_CHANNEL",
-            "candidate_composition": {
-                "additional_clauses": [],
-                "basis": "RECORDED_CHANNEL",
-                "channel_content_digest": "e9b21a25156b03211a6feadce9e3515145e1c2d1614f56dc3d2c510d75718b48",
-                "channel_quantity": None,
-                "completeness_attestation": None,
-                "composition_clause": "GPU + power cables + bracket kit",
-                "evidence_digest": "58431634ca7e3af26c5671484d78b1c473d5ae429c970b0278333aede60f7414",
-                "extraction_input_digest": None,
-                "extraction_result": None,
-                "extraction_result_digest": None,
-                "schema_version": 3,
-                "source": "PUBLISHED_STRUCTURED_FIELD",
-                "state": "SYNTACTICALLY_VALID"
-            },
-            "channel": {
-                "kind": "BUNDLE",
-                "quantity": None,
-                "raw_detail": "GPU + power cables + bracket kit",
-                "source": "PUBLISHED_STRUCTURED_FIELD",
-                "state": "OBSERVED"
-            },
-            "extraction_evidence": None,
-            "quantity_attestation": None,
-            "target_evidence": {
-                "document": {
-                    "completeness_attestation": {
-                        "attestation_digest": "5fbff8ff2a50a13b0e8a1ca5e327bbb28dfcb9a046edbc9363e2a8fd37768515",
-                        "attestation_text": "review determination: the requested part is sold as exactly this bundle",
-                        "basis": "REVIEWED_COMPOSITION_ATTESTATION",
-                        "clause_digest": "c58bd68a17fe19e4e68483362f97de9d71fecb920af516947c31e7637671f67f",
-                        "schema_version": 3,
-                        "source": "REVIEWED_TARGET_CONTEXT",
-                        "subject_side": "TARGET"
-                    },
-                    "composition_clause": "2x RAM + 1x CPU",
-                    "composition_state": "ESTABLISHED",
-                    "evidence_digest": "9815a3da33a9442235a2b8d80a610c38a7dbe232ba35634f753654a78f7d7fec",
-                    "form": "BUNDLE",
-                    "quantity": None,
-                    "schema_version": 3,
-                    "source": "REVIEWED_TARGET_CONTEXT"
-                },
-                "schema": "fu4_v3"
-            }
-        },
-        "evidence_kind": "RECORDED_FIXTURE",
-        "expected": {
-            "candidate_composition_state": "ESTABLISHED",
-            "expected_ceiling": None,
-            "outcome": "DERIVED",
-            "pricing_eligible": True,
-            "quantity_axis": "BOTH_UNPUBLISHED",
-            "refusal": None,
-            "replay": "REPLAY_PASS",
-            "semantic_identity_note": None,
-            "target_composition_state": "ESTABLISHED",
-            "textual_relation": "T-AGREE",
-            "tier": "AI_ASSISTED_COMPARABLE",
-            "unit": "PROVEN_EQUIVALENT"
-        },
-        "label": {
-            "author": "PRODUCT-INTEL.Q3C-C2.CORPUS-AUTHOR",
-            "author_utc": "2026-10-15T23:22:50Z",
-            "grounding_citation": "Q3-C-D1 matrix row A1; P3 section 5 U19 / ten-case matrix case 4; P3 section 3.8 (independent attestations); Q3-B4 section 4.1 + P3 section 5.3 (tier consequence)",
-            "independence_attestation": "This expected outcome was established from the recorded source content and the cited approved-design rows without executing or reading the output of the FU4 derivation, the R1 record adapter, or any model",
-            "labeling_provenance": "REVIEWED_SOURCE_GROUNDED",
-            "rationale": "HELD (C2-F3). The RECORDED_FIXTURE-shape variant: authored over the closest recorded ground - the candidate block cites the recorded 0034-shape context (the committed semantic corpus case V2Q-GPU-SU-BUNDLE-0034, path + digest) and the target block cites the recorded OEMPCWorld PM9A3 page (the requested part's own recorded source). The row's shape requires the candidate's PUBLISHED marker detected from RECORDED text + a byte-identical attested clause on both sides; verified: no committed recorded source publishes bundle contents with a versioned completeness marker (design section 2.5) - the recorded 0034 context's clause carries no marker (SYNTACTICALLY_VALID) and the recorded page publishes no clause at all. The row's expectation (PROVEN / EST / EST / T-AGREE) is authored per the matrix row; the dry-run confirms the hold at two boundaries: first, the recorded 0034 title carries no candidate MPN token, so the family's recorded identity context (which requires a non-empty normalized candidate part number) cannot be formed from the recorded 0034 context; second, the recorded page publishes no bundle clause for the target's span-grounding, and the candidate's recorded clause carries no marker (SYNTACTICALLY_VALID, not the row's attested shape). The row is held for the design revision or the C3 recorded-market bundle page - never bent to the recorded context.The expected axes follow the cited approved-design rows over the sealed recorded evidence; the label was fixed from the contract semantics before any implementation behavior was consulted. The scripted context is the recorded V2 case's own deterministic identity side (the loader enforces context-case equality).",
-            "review_status": "DRAFT",
-            "reviewer": None,
-            "reviewer_utc": None
-        },
-        "matrix_row": "A1",
-        "published_quantity": {
-            "candidate": None,
-            "citation": "the channel + target record quantity fields (verbatim, never inferred)",
-            "target": None
-        },
-        "recorded_case": {
-            "payload_document": {
-                "authority": {
-                    "candidate_composition": None,
-                    "quantity_attestation": None,
-                    "target_evidence": None
-                },
-                "binding": {
-                    "assessment_index": 0,
-                    "run_id": "3f2c1a9e-6b4d-4e8f-9a2c-1d5e7f9b3c6a",
-                    "source_url": "https://example.com/v2q-cases/v2q-gpu-su-bundle-0034"
-                },
-                "case": {
-                    "candidate": {
-                        "commercial": {
-                            "availability": {
-                                "source": "PUBLISHED_STRUCTURED_FIELD",
-                                "value": "In stock"
-                            },
-                            "condition": None,
-                            "currency": {
-                                "source": "PUBLISHED_STRUCTURED_FIELD",
-                                "value": "USD"
-                            },
-                            "offer_url": None,
-                            "price": {
-                                "source": "PUBLISHED_STRUCTURED_FIELD",
-                                "value": "100"
-                            },
-                            "sales_unit": {
-                                "kind": "BUNDLE",
-                                "quantity": None,
-                                "raw_detail": "GPU + power cables + bracket kit",
-                                "source": "PUBLISHED_STRUCTURED_FIELD",
-                                "state": "OBSERVED"
-                            },
-                            "seller": None
-                        },
-                        "evidence_source": "NONE",
-                        "mpn_field": None,
-                        "product": {
-                            "accessory_relation": None,
-                            "brand": None,
-                            "capacity": None,
-                            "form_factor": None,
-                            "generation": None,
-                            "interface": None,
-                            "product_family": None,
-                            "product_role": None,
-                            "raw_specification_text": None,
-                            "raw_title_text": "Workstation GPU 24GB + 2x Power Cable + Bracket Kit",
-                            "revision_or_suffix": None
-                        },
-                        "sku": None,
-                        "source_url": "https://example.com/v2q-cases/v2q-gpu-su-bundle-0034"
-                    },
-                    "case_id": "case-c2-a1-2",
-                    "context_provenance": [],
-                    "deterministic_identity_context": {
-                        "identity_state": "DETERMINISTIC_UNCERTAIN",
-                        "normalized_candidate_part_number": "",
-                        "normalized_requested_part_number": "SYN-GPU-24G",
-                        "primary_relationship_signal": "NO_RELATION",
-                        "relationship_requirement": "NOT_APPLICABLE",
-                        "relationship_signals": [
-                            "NO_RELATION"
-                        ],
-                        "substate": "U4_NO_MPN"
-                    },
-                    "product_evidence": {
-                        "has_usable_product_title": True,
-                        "matched_facts": [
-                            {
-                                "dimension": "CAPACITY",
-                                "sources": [
-                                    "LISTING_PRODUCT_TITLE"
-                                ]
-                            },
-                            {
-                                "dimension": "INTERFACE",
-                                "sources": [
-                                    "LISTING_PRODUCT_TITLE"
-                                ]
-                            }
-                        ]
-                    },
-                    "target": {
-                        "description_raw_text": "24GB workstation GPU, standalone card",
-                        "mpn": "SYN-GPU-24G",
-                        "reviewed_context": None
-                    }
-                },
-                "contract": {
-                    "authority_contract_version": "SEMANTIC_AUTHORITY_V2_S2A_FU4",
-                    "input_schema_version": 1,
-                    "output_schema_version": 1,
-                    "prompt_version": "2.1",
-                    "semantic_contract_version": "V2"
-                },
-                "derived": {
-                    "authority_tier": "NEEDS_REVIEW",
-                    "candidate_completeness_attestation_digest": None,
-                    "candidate_composition_state": "ABSENT",
-                    "fired_rules": [
-                        "CEILING_SALES_UNIT_CONTRADICTED",
-                        "SEMANTIC_OUTCOME_MATRIX"
-                    ],
-                    "identity_resolution_bound": "DESCRIPTION",
-                    "product_evidence_quality": "STRONG",
-                    "quantity_attestation_digest": None,
-                    "quantity_axis_state": None,
-                    "relationship_authority": "NOT_APPLICABLE",
-                    "sales_unit_authority": "CONTRADICTED",
-                    "target_completeness_attestation_digest": None,
-                    "target_composition_state": None
-                },
-                "evaluation": {
-                    "confidence": "HIGH",
-                    "conflict_classes": [],
-                    "conflicting_attributes": [],
-                    "decision": "MATCH",
-                    "evaluation_state": "EVALUATED",
-                    "matched_attributes": [],
-                    "missing_critical_attributes": [],
-                    "reason_code": "MATCH_DESCRIPTION_AND_ATTRIBUTES"
-                },
-                "execution": {
-                    "actual_model": "qwen3.8-27b",
-                    "actual_provider": "amax",
-                    "attempts": [
-                        {
-                            "attempt_number": 1,
-                            "model": "qwen3.8-27b",
-                            "outcome": "OK",
-                            "provider": "amax",
-                            "role": "PRIMARY"
-                        }
-                    ],
-                    "error_type": None,
-                    "evaluation_finished_at": "2026-02-10T12:00:03.250000Z",
-                    "evaluation_started_at": "2026-02-10T12:00:00Z",
-                    "fallback_reason": None,
-                    "fallback_used": False
-                },
-                "integrity": {
-                    "input_digest": "e3e7d94575b3e0e97e76b0a063096fe1c0bed7720923319114d92f2a8e0ec03e",
-                    "output_digest": "6eaf9973699dc7854a1c528d7d25ff1606d388854130675ef336afd0b873fa0c"
-                },
-                "schema_version": 1
-            },
-            "v2_case_document": {
-                "candidate": {
-                    "commercial": {
-                        "availability": {
-                            "source": "PUBLISHED_STRUCTURED_FIELD",
-                            "value": "In stock"
-                        },
-                        "condition": None,
-                        "currency": {
-                            "source": "PUBLISHED_STRUCTURED_FIELD",
-                            "value": "USD"
-                        },
-                        "offer_url": None,
-                        "price": {
-                            "source": "PUBLISHED_STRUCTURED_FIELD",
-                            "value": "100"
-                        },
-                        "sales_unit": {
-                            "kind": "BUNDLE",
-                            "quantity": None,
-                            "raw_detail": "GPU + power cables + bracket kit",
-                            "source": "PUBLISHED_STRUCTURED_FIELD",
-                            "state": "OBSERVED"
-                        },
-                        "seller": None
-                    },
-                    "evidence_source": "NONE",
-                    "mpn_field": None,
-                    "product": {
-                        "accessory_relation": None,
-                        "brand": None,
-                        "capacity": None,
-                        "form_factor": None,
-                        "generation": None,
-                        "interface": None,
-                        "product_family": None,
-                        "product_role": None,
-                        "raw_specification_text": None,
-                        "raw_title_text": "Workstation GPU 24GB + 2x Power Cable + Bracket Kit",
-                        "revision_or_suffix": None
-                    },
-                    "sku": None,
-                    "source_url": "https://example.com/v2q-cases/v2q-gpu-su-bundle-0034"
-                },
-                "case_id": "case-c2-a1-2",
-                "context_provenance": [],
-                "deterministic_identity_context": {
-                    "identity_state": "DETERMINISTIC_UNCERTAIN",
-                    "normalized_candidate_part_number": "",
-                    "normalized_requested_part_number": "SYN-GPU-24G",
-                    "primary_relationship_signal": "NO_RELATION",
-                    "relationship_requirement": "NOT_APPLICABLE",
-                    "relationship_signals": [
-                        "NO_RELATION"
-                    ],
-                    "substate": "U4_NO_MPN"
-                },
-                "product_evidence": {
-                    "has_usable_product_title": True,
-                    "matched_facts": [
-                        {
-                            "dimension": "CAPACITY",
-                            "sources": [
-                                "LISTING_PRODUCT_TITLE"
-                            ]
-                        },
-                        {
-                            "dimension": "INTERFACE",
-                            "sources": [
-                                "LISTING_PRODUCT_TITLE"
-                            ]
-                        }
-                    ]
-                },
-                "target": {
-                    "description_raw_text": "24GB workstation GPU, standalone card",
-                    "mpn": "SYN-GPU-24G",
-                    "reviewed_context": None
-                }
-            }
-        },
-        "scripted_context": {
-            "context_provenances": [],
-            "evaluation": {
-                "confidence": "HIGH",
-                "conflict_classes": [],
-                "decision": "MATCH",
-                "evaluation_state": "EVALUATED"
-            },
-            "human_review": None,
-            "identity_assessment": {
-                "normalized_candidate_part_number": "",
-                "normalized_requested_part_number": "SYN-GPU-24G",
-                "relationship_signals": [
-                    "NO_RELATION"
-                ],
-                "state": "DETERMINISTIC_UNCERTAIN",
-                "substate": "U4_NO_MPN"
-            },
-            "product_evidence": {
-                "has_usable_product_title": True,
-                "matched_facts": [
-                    {
-                        "dimension": "CAPACITY",
-                        "sources": [
-                            "LISTING_PRODUCT_TITLE"
-                        ]
-                    },
-                    {
-                        "dimension": "INTERFACE",
-                        "sources": [
-                            "LISTING_PRODUCT_TITLE"
-                        ]
-                    }
-                ]
-            }
-        },
-        "source": {
-            "candidate": {
-                "archive": "evaluation/semantic_v2_qualification/corpus_2_1_fu4.json",
-                "archive_digest": "7475334a009b5b63dbeabf15bc11ced077862acb66472df7997f22becfe8ce3e",
-                "raw_reference": "V2Q-GPU-SU-BUNDLE-0034",
-                "recording_attestation": "recorded from the cited in-repository source at the recorded instant; the archive bytes are the committed fixture",
-                "retrieved_utc": "2026-10-08T00:00:00Z",
-                "source_url": "https://example.com/v2q-cases/v2q-gpu-su-bundle-0034",
-                "structured_fields": {
-                    "packaging": "GPU + power cables + bracket kit"
-                },
-                "title_text": "Workstation GPU 24GB + 2x Power Cable + Bracket Kit"
-            },
-            "target": {
-                "archive": "tests/fixtures/pages/oempcworld_pm9a3_mz_ql23t800.html",
-                "archive_digest": "66700f57e7813166c8abfaee110c70a3a592a27d44d393fa813f85e7a4a3544b",
-                "raw_reference": "oempcworld_pm9a3_mz_ql23t800.html",
-                "recording_attestation": "recorded from the cited in-repository source at the recorded instant; the archive bytes are the committed fixture",
-                "retrieved_utc": "2026-09-22T00:00:00Z",
-                "source_url": "https://oempcworld.com/products/samsung-pm9a3-3-84tb-mz-ql23t800-nvme-pcie-4-0-x4",
-                "structured_fields": {
-                    "packaging_context": "recorded non-bundle product page (no packaging field published)"
-                },
-                "title_text": "Samsung PM9A3 3.84TB MZ-QL23T800 NVMe PCIe 4.0 x4"
-            }
-        },
-        "surface": "BOTH",
-        "track": "A"
     },
     {
         "case_category": "memory_kit",
@@ -31107,7 +30318,47 @@ CASES: Final[tuple[dict[str, Any], ...]] = (
                 "source": None,
                 "state": "UNAVAILABLE"
             },
-            "extraction_evidence": None,
+            "extraction_evidence": {
+                "input_document": {
+                    "extraction_method": "JSON_LD",
+                    "fields": {
+                        "availability_text": "In stock",
+                        "brand_text": None,
+                        "condition_text": "New",
+                        "currency_text": "USD",
+                        "manufacturer_part_number_text": None,
+                        "offer_url_text": None,
+                        "price_text": "100",
+                        "product_title": "ABC-123 1TB NVMe Drive",
+                        "sku_text": None,
+                        "source_url": "https://example.com/test-product"
+                    },
+                    "structured_packaging_field": "bundle of 3"
+                },
+                "result_document": {
+                    "cues": [
+                        {
+                            "cue_end": 11,
+                            "cue_start": 0,
+                            "cue_text": "bundle of 3",
+                            "disposition": "AMBIGUOUS",
+                            "field": "STRUCTURED_PACKAGING_FIELD",
+                            "kind": "BUNDLE",
+                            "quantity": None,
+                            "raw_field_value": "bundle of 3",
+                            "reason": "BUNDLE_WITHOUT_CONTENTS",
+                            "source": "PUBLISHED_STRUCTURED_FIELD"
+                        }
+                    ],
+                    "established_kind": None,
+                    "established_quantity": None,
+                    "identifier_field_notes": [],
+                    "input_digest": "589e93cea3a3752a38da64930234d87eab0862771e2b2220b3cbd4d4ecf4e189",
+                    "result_digest": "adc65e7f2e676859ea5e893fcc8631ac1713fccf4fcdf4c6050df88cb9af0b12",
+                    "schema_version": 1,
+                    "state": "AMBIGUOUS_CUE"
+                }
+            },
             "quantity_attestation": None,
             "target_evidence": {
                 "document": {
@@ -31152,7 +30403,7 @@ CASES: Final[tuple[dict[str, Any], ...]] = (
             "grounding_citation": "Q3-C-D1 matrix row B6; P3 U12 / D8 (candidate self-contradiction fails closed to UNPROVEN - the CF-1 documented row: the frozen contract governs over the task matrix's CONTRADICTED placement); P3 section 4 (contradictory published contents row); P3 section 5.3",
             "independence_attestation": "This expected outcome was established from the recorded source content and the cited approved-design rows without executing or reading the output of the FU4 derivation, the R1 record adapter, or any model",
             "labeling_provenance": "DESIGN_TABLE_GROUNDED",
-            "rationale": "HELD (C2-F6). (ii) extraction AMBIGUOUS_CUE (the count-only phrase): the frozen P2 records the ambiguous cue, the mapped channel is the canonical UNAVAILABLE => U0 UNPROVEN. The row's required evidence - the RECORDED extraction result - cannot be sealed with a DERIVED outcome: the family's basis-coherence rule fires a case-document-mirror observation for any basis over (no candidate record + recorded result), and a DERIVED case admits no observation. The documented lighter shape (canonical UNAVAILABLE channel + the sealed published text, no extraction evidence) is authored here so the reviewer re-derives the U0 expectation; the row's full evidence requirement is reported as the C2-F6 contract conflict.The expected axes follow the cited approved-design rows over the sealed recorded evidence; the label was fixed from the contract semantics before any implementation behavior was consulted. The scripted context is the recorded V2 case's own deterministic identity side (the loader enforces context-case equality).",
+            "rationale": "Released by the recorded Q3-C-D1-FU1 / C2-F6 adjudication (the C1-FU3 loader correction admits the allowed recorded-extraction-result state): (ii) extraction AMBIGUOUS_CUE (the count-only phrase 'bundle of 3' - the frozen P2 cue table records the BUNDLE_WITHOUT_CONTENTS ambiguous cue: a published count is never the complete identity of a bundle). The case carries the allowed state of Q3-C-D1 section 4.4: the candidate composition record is null, the candidate basis is NONE, the recorded extraction result is the GENUINE frozen P2 instantiation over the sealed candidate text (the committed examined-input document + the sealed self-verifying result), and the presented channel is EXACTLY the frozen P2 lossy mapping of that result (the canonical UNAVAILABLE over AMBIGUOUS_CUE). The expected U0 UNPROVEN (P3 U0 / D8) is independently derived from the frozen P2-to-FU4 chain over the recorded absence - (ii) extraction AMBIGUOUS_CUE (the count-only phrase): the frozen P2 records the ambiguous cue, the mapped channel is the canonical UNAVAILABLE => U0 UNPROVEN. The row's required evidence - the RECORDED extraction result - cannot be sealed with a DERIVED outcome: the family's basis-coherence rule fires a case-document-mirror observation for any basis over (no candidate record + recorded result), and a DERIVED case admits no observation. The documented lighter shape (canonical UNAVAILABLE channel + the sealed published text, no extraction evidence) is authored here so the reviewer re-derives the U0 expectation; the row's full evidence requirement is reported as the C2-F6 contract conflict.The expected axes follow the cited approved-design rows over the sealed recorded evidence; the label was fixed from the contract semantics before any implementation behavior was consulted. The scripted context is the recorded V2 case's own deterministic identity side (the loader enforces context-case equality).",
             "review_status": "DRAFT",
             "reviewer": None,
             "reviewer_utc": None
@@ -31511,7 +30762,47 @@ CASES: Final[tuple[dict[str, Any], ...]] = (
                 "source": None,
                 "state": "UNAVAILABLE"
             },
-            "extraction_evidence": None,
+            "extraction_evidence": {
+                "input_document": {
+                    "extraction_method": "JSON_LD",
+                    "fields": {
+                        "availability_text": "In stock",
+                        "brand_text": None,
+                        "condition_text": "New",
+                        "currency_text": "USD",
+                        "manufacturer_part_number_text": None,
+                        "offer_url_text": None,
+                        "price_text": "100",
+                        "product_title": "ABC-123 1TB NVMe Drive",
+                        "sku_text": None,
+                        "source_url": "https://example.com/test-product"
+                    },
+                    "structured_packaging_field": "bundle"
+                },
+                "result_document": {
+                    "cues": [
+                        {
+                            "cue_end": 6,
+                            "cue_start": 0,
+                            "cue_text": "bundle",
+                            "disposition": "AMBIGUOUS",
+                            "field": "STRUCTURED_PACKAGING_FIELD",
+                            "kind": "BUNDLE",
+                            "quantity": None,
+                            "raw_field_value": "bundle",
+                            "reason": "BUNDLE_WITHOUT_CONTENTS",
+                            "source": "PUBLISHED_STRUCTURED_FIELD"
+                        }
+                    ],
+                    "established_kind": None,
+                    "established_quantity": None,
+                    "identifier_field_notes": [],
+                    "input_digest": "c1a914aa80a47ead1d7835f81837cded7375656e16976facff8b87dcd8b68d74",
+                    "result_digest": "5cb2bf10005373a5d89f519d7b7379fc37f4099f6acda378292ab1cec4661bc6",
+                    "schema_version": 1,
+                    "state": "AMBIGUOUS_CUE"
+                }
+            },
             "quantity_attestation": None,
             "target_evidence": {
                 "document": {
@@ -31556,7 +30847,7 @@ CASES: Final[tuple[dict[str, Any], ...]] = (
             "grounding_citation": "Q3-C-D1 matrix row B6; P3 U12 / D8 (candidate self-contradiction fails closed to UNPROVEN - the CF-1 documented row: the frozen contract governs over the task matrix's CONTRADICTED placement); P3 section 4 (contradictory published contents row); P3 section 5.3",
             "independence_attestation": "This expected outcome was established from the recorded source content and the cited approved-design rows without executing or reading the output of the FU4 derivation, the R1 record adapter, or any model",
             "labeling_provenance": "DESIGN_TABLE_GROUNDED",
-            "rationale": "HELD (C2-F6). (iii) bare 'bundle': the frozen P2 records the BUNDLE_WITHOUT_CONTENTS ambiguous cue, the mapped channel is the canonical UNAVAILABLE => U0 UNPROVEN. The row's required evidence - the RECORDED extraction result - cannot be sealed with a DERIVED outcome: the family's basis-coherence rule fires a case-document-mirror observation for any basis over (no candidate record + recorded result), and a DERIVED case admits no observation. The documented lighter shape (canonical UNAVAILABLE channel + the sealed published text, no extraction evidence) is authored here so the reviewer re-derives the U0 expectation; the row's full evidence requirement is reported as the C2-F6 contract conflict.The expected axes follow the cited approved-design rows over the sealed recorded evidence; the label was fixed from the contract semantics before any implementation behavior was consulted. The scripted context is the recorded V2 case's own deterministic identity side (the loader enforces context-case equality).",
+            "rationale": "Released by the recorded Q3-C-D1-FU1 / C2-F6 adjudication (the C1-FU3 loader correction admits the allowed recorded-extraction-result state): (iii) extraction AMBIGUOUS_CUE (the bare word 'bundle' - the frozen P2 cue table records the BUNDLE_WITHOUT_CONTENTS ambiguous cue: a bare bundle word is never an established unit). The case carries the allowed state of Q3-C-D1 section 4.4: the candidate composition record is null, the candidate basis is NONE, the recorded extraction result is the GENUINE frozen P2 instantiation over the sealed candidate text (the committed examined-input document + the sealed self-verifying result), and the presented channel is EXACTLY the frozen P2 lossy mapping of that result (the canonical UNAVAILABLE over AMBIGUOUS_CUE). The expected U0 UNPROVEN (P3 U0 / D8) is independently derived from the frozen P2-to-FU4 chain over the recorded absence - (iii) bare 'bundle': the frozen P2 records the BUNDLE_WITHOUT_CONTENTS ambiguous cue, the mapped channel is the canonical UNAVAILABLE => U0 UNPROVEN. The row's required evidence - the RECORDED extraction result - cannot be sealed with a DERIVED outcome: the family's basis-coherence rule fires a case-document-mirror observation for any basis over (no candidate record + recorded result), and a DERIVED case admits no observation. The documented lighter shape (canonical UNAVAILABLE channel + the sealed published text, no extraction evidence) is authored here so the reviewer re-derives the U0 expectation; the row's full evidence requirement is reported as the C2-F6 contract conflict.The expected axes follow the cited approved-design rows over the sealed recorded evidence; the label was fixed from the contract semantics before any implementation behavior was consulted. The scripted context is the recorded V2 case's own deterministic identity side (the loader enforces context-case equality).",
             "review_status": "DRAFT",
             "reviewer": None,
             "reviewer_utc": None
