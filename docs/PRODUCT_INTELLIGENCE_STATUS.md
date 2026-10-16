@@ -5,6 +5,196 @@
 ## Current state
 
 
+**PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-Q3-C-D1-FU1 (Adjudication-Driven
+Design Revision — the HELD C2 cases resolved in the design of record)
+
+— DESIGN ONLY / PENDING CHATGPT REVIEW (the revision authorizes
+nothing; the bounded C1-FU3 + C2 corrective implementation is
+PROPOSED (design §9.11), NOT YET AUTHORIZED; the v1.0.0 seal remains
+FINAL-HOLD)**
+
+Bounded DESIGN-CORRECTION phase on the authoritative starting SHA
+`df91e4908dc538b6cad5ea7a218f32100e441ecd` (the Q3-C-C2 endpoint;
+baseline collection **8043, re-verified this session**). Per the
+independent C2-F1 adjudication of the ten HELD C2 cases (the
+challenge log §4 findings, adjudicated case-by-case), the approved
+Q3-C-D1 design of record is revised in place
+(`docs/PRODUCT_INTEL_Q3C_FU4_BUNDLE_AUTHORITY_QUALIFICATION_
+DESIGN.md` — the new revision record + the corrected §4.4 / §4.6 /
+§5 / §6.1 / §7.6 / §8.2 / §9.4 / §9.6 / §10 / §11 + the NEW §9.11
+proposed scope + the NEW O-10). Design-only: NO production code, NO
+corpus fixture, NO expected label, NO test, NO qualification policy,
+NO seal changed (verified byte-identical to the starting SHA — the
+frozen research modules, the C1 family package, the 96-case DRAFT
+population, the family governance artifacts, and the semantic-family
+corpus / manifests / policy over the 23-file digest set). The
+adjudication report was NOT treated as authority over the frozen
+contracts — every proposed correction was independently verified
+against the cited evidence at the starting SHA (probes recorded per
+finding below).
+
+**The adjudicated corrections of record.** **C2-F1** (A-DELE U1 / U3 /
+U8 — FA4-DELE-001..003): design §4.4 — the Bundle-specific quantity /
+composition coherence checks apply ONLY to Bundle-channel cases; the
+non-Bundle delegated FU3 PROVEN expectations retain the frozen P3 D11
+audit-field semantics (the six Bundle-axis fields EXACTLY null); the
+byte-identical delegation (P3 D9) is preserved (verified: the frozen
+non-Bundle audit fields are exactly None; the unscoped C1 check
+refused the design-grounded label with the quantity-axis coherence
+reason). **C2-F2a** (D3-ii — FA4-ADV-006): the content-identical-
+channel substitution stage is CORPUS_INTEGRITY — over content-
+identical channels the channel-content binding + all four presentation-
+gate steps pass (the frozen P5 R-5 channel-granularity bound), so the
+derivation presentation gate CANNOT detect the substitution; the
+observable defect is the record's embedded original ≠ the case's
+recorded extraction evidence — a case-document-integrity observation
+only the family loader sees (verified: the labeled PRESENTATION_GATE
+expectation is incoherent — `CASEDOC_EMBEDDED_RESULT_EQUALITY` fired —
+and the self-consistent payload twin DECODES and REPLAYS cleanly,
+so the (ii) variant is surface DERIVATION, no record twin); the
+separate D3-i PRESENTATION_GATE case is preserved. **C2-F2b**
+(D16-iii — FA4-ADV-034): recorded as an E1-only adversarial-execution
+observation (verified: over the sealed documents — sound FU4
+documents — no constructor / codec / case-document observation fires,
+so no C2 refusal stage is coherent); the v1.0.0 D16 corpus minimum is
+recorded as 2 (the explicit phase-boundary correction of record), the
+FU3 contract-misuse assertion is MANDATORY in E1 (design §9.6 /
+stage semantics (v)); the frozen FU3 / FU4 token boundary is NOT
+weakened. **C2-F3** (A1-ii — FA4-PROV-002): the current recorded
+fixture sources do NOT publish the required complete Bundle
+composition (verified past the identity-context defect: the second
+boundary is the span-grounding refusal — the attested target clause
+is not published in the recorded target block); the A1 recorded
+PROVEN-shape variant is adjudicated C3-deferred: v1.0.0 A1 minimum
+1 (the SYNTHETIC case), the RECORDED_FIXTURE variant an additive
+1.1.0 obligation over the C3-acquired recorded source (the
+independently evidenced publisher completeness of P3 D19 preserved —
+recorded evidence is never replaced with invented text). **C2-F5**
+(D11-ii — FA4-ADV-023): the recorded identifier-family evidence (the
+one-character-different Micron 7500 part numbers) is separated from
+the by-construction Bundle composition evidence; the hybrid variant
+CANNOT be represented truthfully by the existing schema (verified at
+both boundaries: past the identity-context defect, the candidate
+composition clause is not span-grounded in the recorded catalog);
+the re-authored case is SYNTHETIC with the EXACT U1 EXACT identity
+context of the row (U1_TITLE_MPN, equal non-empty normalized part
+numbers, TITLE_MPN_TOKEN, NOT_REQUIRED); the Micron recorded catalog
+is NOT claimed to publish Bundle compositions; the D11 material-
+contradiction authority contract (P3 U17) + its 2-case adversarial
+coverage are retained. **C2-F6** (B6-ii / B6-iii / C6 — FA4-UNPR-
+011/012, FA4-CONTR-011): the allowed state — candidate composition
+record null, candidate basis NONE, recorded extraction result
+present, presented channel EXACTLY the frozen P2 mapping of that
+result, expected authority independently derived from the frozen
+contract (U0 UNPROVEN over the canonical UNAVAILABLE mapping); the
+new loader-visible case-document-integrity refusal when the recorded
+result and the presented channel do not match; the existing
+EXTRACTION_RESULT_V1 / RECORDED_CHANNEL / NONE negative contracts
+preserved. **C1 identity-context defect** (G): the loader's identity
+decode allows the empty normalized candidate part number exactly
+where the frozen V2 constructor permits (verified: the frozen
+`IdentityStateAssessmentV2` accepts the empty string — type check
+only — and the C1 loader refused it: the first boundary over both
+held recorded-context cases; U4_NO_MPN, symmetrically E1_NO_
+TARGET_MPN for the requested part number); the frozen constructor +
+the round-trip projection remain the arbiter; no other identity
+constraint weakened; the frozen constructor NOT modified. **W1–W9**:
+W1 the E1 adversarial re-execution asserts the exact bounded refusal
+reason (the named observation over the loader-observation stages);
+W2 the qualification-ready gate enforces EVERY §5.6 composition floor
+on the actual seal population (design §8.2 item 7 / §9.4);
+W3 held-set changes are explicitly adjudicated + monotonic (pinned
+by the C2 suite; release only via the recorded adjudication + the
+verified correction — design §8.2 item 6); W4 the missing-review
+rejection reason is pinned (the W4 reason-pinning, design §8.2 item
+7(2)); W5 preserved as a documented maintenance issue — no immediate
+code change is warranted at this endpoint, no threshold or contract
+move, carried to the owning phase's maintenance scope; W6 the
+bounded vocabulary is projected over the seal population (design
+§5.6 / §8.2 item 7(3)); W7 FA4-CONTR-011 must accurately instantiate
+its cue state — the frozen P2 over the current sealed text is
+AMBIGUOUS_CUE (verified: the established pack-of-3 structured cue +
+the ambiguous count-only "bundle of 2" title cue), NOT the
+rationale's claimed CONTRADICTED_CUES; the re-authored case carries
+the genuine frozen CONTRADICTED_CUES instantiation (verified at the
+revision: the title's established bundle-with-contents clause vs the
+structured pack-of-N field ⇒ CONTRADICTED_CUES, the mapped channel
+the canonical UNAVAILABLE) or describes the exact cue state of the
+instantiation it carries (design §5.3 C6); W8 FA4-ADV-023's identity
+context is corrected to the row's exact U1 EXACT shape (a U4_NO_MPN
+context is NOT the row's shape — the recorded context cannot double
+as the identity context; design §5.4 D11); W9 the DERIVED expected-
+axis / sealed-evidence coherence checks use frozen contract data
+only — never implementation output (the §4.6 item 2(d) loader-
+coherence separation; structurally pinned by the C1 import scan +
+sentinel no-execution probe).
+
+**The revised v1.0.0 accounting of record (no threshold moved
+silently; both row-minimum movements are the explicit phase-boundary
+corrections of record with destinations).** Track A floor: 16 (A) +
+25 (B) + 13 (C) + 36 (D) = **90** (pre-revision 92 — A1 2→1, D16
+3→2); Track B floor 21 (≥18 shared / ≥3 B-only) — unchanged (both
+v1.0.0 removals are Track A cases; the A_B population is untouched).
+The v1.0.0 seal population of record: **94 cases** (96 DRAFT −
+D16-iii (E1-only) − A1-ii (C3-deferred); the D3-ii re-label + the
+D11-ii / B6-ii / B6-iii / C6 re-authorings are pre-seal case
+corrections under the §4.6 item 5 governance, the case IDs stable) =
+91 Track A (≥ 90) + 3 B-only; Track B 24 (≥ 21; 21 A_B-shared ≥
+18); 88 SYNTHETIC (93.6% ≥ 80%) + 6 RECORDED_FIXTURE (≥ 5) + 0
+REAL_MARKET; 5 categories (≥ 4); every bounded vocabulary member
+projected over the 94-case population (the CORPUS_INTEGRITY stage by
+the D6-ii / D3-ii cases). Deferred / moved obligations (each with
+destination, rationale, governing citation, later gate): (1) the A1
+recorded PROVEN-shape variant → the C3 acquisition + the additive
+1.1.0 re-seal (P3 D19; the §7.6 distinctness requirements; the 1.1.0
+re-seal verification); (2) the D16-iii FU3-token contract-misuse
+refusal → the MANDATORY E1 adversarial-execution assertion (P3 §5.4 /
+D9; the §9.6 acceptance; the M13 / G6 coverage note of the E1
+baseline report); (3) the D11 recorded-fixture exact-identifier +
+attested-composition variant → a C3 / 1.1.0 additive obligation IF
+AND ONLY IF the recorded source publishes both the U1 EXACT identity
+context's recorded form and the attested composition clauses (the
+§2.5 catalog publishes identifiers only — no case may claim
+otherwise).
+
+**Tests / validation (exact).** Before the edits: collection
+**8043**; C1 + C2 governance batch **450 passed, 0 failed, exit 0**
+(250 C1 + 200 C2); `python manage.py check` — System check
+identified no issues (0 silenced); `python manage.py makemigrations
+--check --dry-run` — No changes detected. After the edits: the same
+four verifications re-run with IDENTICAL results (collection 8043
+unchanged — no test node added / removed / renamed / skipped /
+xfailed / deselected / weakened; the 450-node batch passed; the
+Django checks clean) and the 23-file frozen-surface digest set
+(frozen research modules, the C1 family package, the C2 DRAFT
+population source, the C1 / C2 governance suites, the semantic-family
+corpus / manifests / policy, the family governance artifacts) verified
+BYTE-IDENTICAL to the starting SHA — no corpus or manifest seal
+artifact exists or was created. No test is deleted, renamed, skipped,
+xfailed, deselected, or weakened.
+
+**Invariance (this phase).** No production code, no corpus fixture, no
+expected label, no test, no qualification policy, no seal changed —
+the final diff is exactly the three authorized documentation files
+(the design revision + this STATUS entry + the PLAN §26.45 /
+AD-087 records). The unrelated worktree artifacts are preserved (the
+pre-existing `tmp_collection.txt` modification + the untracked
+session / benchmark files). No restore / reset / checkout / stash /
+clean / amend / rebase / force-push used.
+
+**Next.** ChatGPT's review of this revision is the design gate
+(C2 state of record: DRAFT ACCEPTED / FINAL HOLD — the revision
+resolves the ten HELD cases at the design level; the seal remains
+held). The bounded C1-FU3 + C2 corrective implementation (design
+§9.11 — the proposed exact file set + acceptance) is **NOT YET
+AUTHORIZED**: it starts only under its own explicit approval. The
+v1.0.0 seal requires, in order: the C1-FU3 corrections, the recorded
+pre-seal case corrections (the 94-case population), the genuine two-
+identity independent review per `reviewer_handoff.md` (now over the
+corrected rows), and the seal procedure of the handoff. C3 / E1 / E2
+/ P1 / Q1 / W1 NOT STARTED.
+
+
 **PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-Q3-C-C2 (Independently Labeled
 Bundle Cases — the v1.0.0 DRAFT population + reviewer handoff)
 
