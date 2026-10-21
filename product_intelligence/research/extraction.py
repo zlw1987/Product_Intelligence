@@ -32,6 +32,45 @@ overwrites a structured MPN, never reads a visible price, and fails closed when
 authoritative visible labels disagree. Retailer identifiers such as `Item #`
 and `SKU` are explicitly not manufacturer-part-number labels.
 
+**Which product a visible label is about — the primary-product association.**
+A page can carry visible identifiers for *other* products (recommendation
+rails, cross-sells, navigation filters) alongside its own. The association of
+a visible labeled field with the page's primary product is established only
+by the page's own declarations and exact co-references — never by a CSS
+class, never by position, never by similarity:
+
+* A region the page declares non-primary — `<nav>`, `<aside>`,
+  `role="navigation"`, `role="complementary"` — is other-product content and
+  is never main-product identity evidence. Excluded content also remains a
+  *structural barrier* to label/value pairing: a label and a value separated
+  in the DOM by an excluded region (or by any unrecorded element) are not
+  siblings and never pair, so removing the region cannot manufacture a
+  pairing the DOM does not contain.
+* A region the page declares primary — `<main>` or `role="main"` — is the
+  page's own dominant content. When the document declares one, visible
+  identity evidence is eligible only from inside it; undeclared content
+  outside it is not primary-product evidence.
+* When the document declares no primary region, the FU2 page-level contract
+  applies: the visible field is associated with the single primary product
+  only when the page itself co-references it — the field's value exactly
+  equals an identifier the structured product published (SKU / title), a
+  visible retailer-identifier field (`Item #` / `Item Number` / `SKU`) whose
+  value exactly equals a published identifier is present on the page, the
+  field shares a non-document-level block container with a visible occurrence
+  of the product's own published title, or the undeclared visible stream
+  contains nothing but the product's own fields (a page whose visible body
+  publishes only that labeled field is a page about one product). A visible
+  labeled value with none of those associations — an unrelated product's
+  identifier riding in undeclared body content — is never assigned to the
+  primary product, and the enrichment fails closed to no MPN.
+
+None of this adds an identity authority: the structured offer remains the
+sole declaration of which product the page is about, the visible label
+grammar remains the sole authority for the MPN value, and the association
+signals above only decide which product a visible label is about. Every one
+of them is an exact, page-published fact (a declaration or a string
+equality); none infers.
+
 Both were added because sampled real pages publish them. The meta mechanism in
 particular is not speculative: one retailer page in the recorded fixtures
 carries **no JSON-LD at all** and publishes its entire product record —
@@ -173,9 +212,24 @@ _VISIBLE_MPN_INLINE_RE = re.compile(
     r"^(?P<label>manufacturer\s+part\s+number|manufacturer\s+part\s+#|"
     r"mfr\s+part\s+number|mfr\s+part\s+#|model\s+number|model\s+#|mpn)"
     r"\s*:\s*(?P<value>[A-Za-z0-9][A-Za-z0-9._/#-]{0,127})"
-    r"(?:\s+(?:item\s+#|item\s+number|sku)\s*:\s*.+)?$",
+    r"(?:\s+(?P<identifier>(?:item\s+#|item\s+number|sku)\s*:\s*.+))?$",
     re.IGNORECASE,
 )
+
+#: Retailer-local identifier labels, recognized ONLY as association anchors
+#: (a visible `Item #`/`SKU` field re-publishing the primary product's own
+#: structured identifier) and never as MPN authority.
+_IDENTIFIER_LABEL_KEYS = frozenset({"item #", "item number", "sku"})
+_VISIBLE_IDENTIFIER_INLINE_RE = re.compile(
+    r"^(?P<label>item\s+#|item\s+number|sku)"
+    r"\s*:\s*(?P<value>[A-Za-z0-9][A-Za-z0-9._/#-]{0,127})$",
+    re.IGNORECASE,
+)
+
+#: Block-level ancestors that are the document itself, not a product
+#: container. Sharing only these between a title occurrence and a labeled
+#: field does not associate them (that is the whole body, not a region).
+_DOCUMENT_LEVEL_TAGS = frozenset({"html", "body"})
 _VISIBLE_MPN_VALUE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/#-]{0,127}$")
 _IGNORED_VISIBLE_TEXT_TAGS = frozenset({"script", "style", "noscript", "template"})
 _VOID_VISIBLE_TAGS = frozenset({
@@ -188,12 +242,54 @@ _INLINE_IDENTITY_CHILD_TAGS = frozenset({
 _SPLIT_IDENTITY_TAG_PAIRS = frozenset({
     ("span", "span"),
     ("th", "td"),
+    # Definition-table cell pair: a label cell followed by a value cell in the
+    # same row. Verified live (2026-10-20) on the Central Computer product
+    # pages, whose visible specification table renders the manufacturer part
+    # number as `<td>Manufacturer Part Number</td><td><MPN></td>` — the same
+    # local sibling-cell shape as `th`/`td`, which this allowlist already
+    # admits. Cross-row cells never pair: both must share the row parent.
+    # Tag pair alone is NOT sufficient — the two elements must also be true
+    # DOM siblings (the value element's immediately preceding recorded
+    # sibling is the label element). An unrecorded element between them —
+    # an excluded non-primary region, a container, an over-long element —
+    # is a structural barrier that no allowlist entry overrides.
+    ("td", "td"),
     ("dt", "dd"),
     ("strong", "span"),
     ("label", "span"),
 })
 
-MAX_VISIBLE_IDENTITY_ELEMENTS = 2048
+#: Element and ARIA-role declarations that mark a region non-primary.
+#:
+#: `<nav>` is the HTML navigation landmark; `<aside>` is content
+#: "tangentially related to the page's main content" (HTML spec) — the
+#: declared home of recommendation rails and sidebars. `role="navigation"`
+#: and `role="complementary"` carry the same declarations on any element.
+#: The structured offer is the page's primary product, and the visible
+#: labeled-MPN path may only enrich that product from primary content. A
+#: labeled identifier inside a declared non-primary region belongs to whatever
+#: other product the region is about (verified 2026-10-20: a recommendation
+#: `<aside>` carrying its own `Manufacturer Part Number` row must not be read
+#: as the main product's MPN). Exclusion is by declaration only — never by
+#: CSS class — so a class like `recommended` neither helps nor hurts; and a
+#: page that declares nothing keeps exactly the FU2 behavior.
+_NON_PRIMARY_REGION_TAGS = frozenset({"nav", "aside"})
+_NON_PRIMARY_REGION_ROLES = frozenset({"navigation", "complementary"})
+
+#: How many bounded visible identity elements one document may record. The
+#: bound's job is to refuse pathological element proliferation — a 5 MiB
+#: document can carry millions of one-character leaf elements — not to
+#: fine-tune per-site chrome. Calibration of record (2026-10-20): the heaviest
+#: committed product fixture records 519 elements; the verified live product
+#: pages record 384 (ServerOrbit) and 2,704 / 2,706 (Central Computer, both
+#: Samsung DDR5 module pages). The previous bound of 2,048 sat between real
+#: product pages and rejected them wholesale, erasing the visible labeled MPN
+#: that the pages publish after their navigation chrome. 16,384 is 6x the
+#: heaviest verified live product page and 32x the heaviest committed fixture,
+#: still 300x below the pathological worst case, and a page that saturates it
+#: fails closed for visible identity exactly as before (no other behavior
+#: changes: the structured offer mechanisms are untouched).
+MAX_VISIBLE_IDENTITY_ELEMENTS = 16384
 MAX_VISIBLE_IDENTITY_ELEMENT_TEXT = 256
 MAX_VISIBLE_IDENTITY_DEPTH = 64
 
@@ -208,6 +304,53 @@ class _VisibleTextFrame:
     parts: list[str]
     text_len: int = 0
     child_tags: list[str] | None = None
+    #: Inside a declared non-primary region (nav/aside/role): this element
+    #: records nothing and contributes no text, so other-product labels
+    #: cannot enter the visible identity stream.
+    excluded: bool = False
+    #: This frame itself opened a declared non-primary region; its end tag
+    #: decrements the region depth exactly once, when the frame is popped.
+    is_region: bool = False
+    #: This frame itself opened a declared PRIMARY region (`<main>` or
+    #: `role="main"`); its end tag decrements the primary depth exactly once.
+    is_primary_region: bool = False
+    #: Opened inside a declared primary region: this element is eligible
+    #: primary-product evidence when the document declares a primary region.
+    inside_primary: bool = False
+    #: The enclosing frame, kept so a recorded element can prove DOM
+    #: containment (primary-region scope, title/field shared-container
+    #: association). `None` at the document root.
+    parent: "_VisibleTextFrame | None" = None
+    #: Frame id of the last completed DOM child that was recorded — or
+    #: `None` when that child was not recorded (excluded region, container,
+    #: over-long text, empty) or no child has completed yet. A `None` here
+    #: is a structural barrier: the next child is not a true sibling of any
+    #: earlier recorded child.
+    last_recorded_child: int | None = None
+
+
+@dataclass
+class _VisibleIdentityElement:
+    """One recorded bounded visible element, in document order.
+
+    Carries the pairing structure (true DOM sibling adjacency) and the
+    association facts (primary-region scope, containment) the primary-product
+    evidence gate needs. It is not itself identity evidence: only an approved
+    label on it, or a label adjacent to a value on it, ever is.
+    """
+
+    frame_id: int
+    parent_id: int | None
+    tag: str
+    text: str
+    inside_primary_region: bool
+    #: The immediately preceding recorded DOM sibling (same parent), or
+    #: `None` when there was none or an unrecorded element sat between —
+    #: the structural barrier that keeps excluded regions (and containers)
+    #: from collapsing nonadjacent siblings into a fake pairing.
+    prev_sibling_frame_id: int | None
+    #: The element's frame, retained for DOM-containment walks only.
+    frame: _VisibleTextFrame
 
 
 class _StructuredDataCollector(HTMLParser):
@@ -223,13 +366,21 @@ class _StructuredDataCollector(HTMLParser):
         super().__init__(convert_charrefs=True)
         self.json_ld_blocks: list[str] = []
         self.meta_tags: list[dict[str, str]] = []
-        self.visible_identity_elements: list[tuple[int | None, str, str]] = []
+        self.visible_identity_elements: list[_VisibleIdentityElement] = []
         self._in_json_ld = False
         self._buffer: list[str] = []
         self._ignored_visible_text_depth = 0
         self._visible_frames: list[_VisibleTextFrame] = []
         self._next_visible_frame_id = 1
         self._visible_capture_disabled = False
+        self._non_primary_region_depth = 0
+        self._primary_region_depth = 0
+        #: The document declares at least one primary region (`<main>` or
+        #: `role="main"`); when so, visible identity evidence is eligible
+        #: only from inside a declared primary region.
+        self.primary_region_declared = False
+        #: Document-level (no enclosing frame) sibling state.
+        self._root_last_recorded_child: int | None = None
 
     def _disable_visible_capture(self) -> None:
         self._visible_capture_disabled = True
@@ -254,31 +405,56 @@ class _StructuredDataCollector(HTMLParser):
     def _finalize_visible_frame(self, frame: _VisibleTextFrame) -> None:
         if self._visible_capture_disabled:
             return
-        if frame.text_len > MAX_VISIBLE_IDENTITY_ELEMENT_TEXT:
-            return
-        text = " ".join(frame.parts).strip()
-        if not text:
-            return
+        recorded_frame_id: int | None = None
+        if not frame.excluded:
+            # Declared non-primary regions record nothing and contribute no
+            # text, so other-product labels cannot enter the visible identity
+            # stream; failing closed, the enrichment simply never sees them.
+            if frame.text_len <= MAX_VISIBLE_IDENTITY_ELEMENT_TEXT:
+                text = " ".join(frame.parts).strip()
+                if text:
+                    child_tags = frame.child_tags or []
+                    should_record = (
+                        not child_tags
+                        or all(tag in _INLINE_IDENTITY_CHILD_TAGS for tag in child_tags)
+                    )
+                    if should_record:
+                        if len(self.visible_identity_elements) >= MAX_VISIBLE_IDENTITY_ELEMENTS:
+                            self._disable_visible_capture()
+                            return
+                        prev_sibling = (
+                            frame.parent.last_recorded_child
+                            if frame.parent is not None
+                            else self._root_last_recorded_child
+                        )
+                        self.visible_identity_elements.append(
+                            _VisibleIdentityElement(
+                                frame_id=frame.frame_id,
+                                parent_id=frame.parent_id,
+                                tag=frame.tag,
+                                text=text,
+                                inside_primary_region=frame.inside_primary,
+                                prev_sibling_frame_id=prev_sibling,
+                                frame=frame,
+                            )
+                        )
+                        recorded_frame_id = frame.frame_id
 
-        child_tags = frame.child_tags or []
-        should_record = (
-            not child_tags
-            or all(tag in _INLINE_IDENTITY_CHILD_TAGS for tag in child_tags)
-        )
-        if should_record:
-            if len(self.visible_identity_elements) >= MAX_VISIBLE_IDENTITY_ELEMENTS:
-                self._disable_visible_capture()
-                return
-            self.visible_identity_elements.append(
-                (frame.parent_id, frame.tag, text)
-            )
-
-        # Propagate leaf text one level only. This lets inline children combine
-        # inside their immediate field container, but prevents a body/section
-        # ancestor from concatenating unrelated product facts into fake MPN
-        # evidence.
-        if not child_tags:
-            self._append_visible_piece(text)
+                    # Propagate leaf text one level only. This lets inline
+                    # children combine inside their immediate field container,
+                    # but prevents a body/section ancestor from concatenating
+                    # unrelated product facts into fake MPN evidence.
+                    if not child_tags:
+                        self._append_visible_piece(text)
+        # Every completed DOM child updates its parent's sibling state —
+        # recorded children link the chain, unrecorded ones (excluded
+        # regions, containers, over-long or empty elements) break it. That
+        # is what keeps an excluded region a structural barrier to pairing.
+        state = recorded_frame_id
+        if frame.parent is not None:
+            frame.parent.last_recorded_child = state
+        else:
+            self._root_last_recorded_child = state
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         attributes = {name.lower(): (value or "") for name, value in attrs}
@@ -310,13 +486,37 @@ class _StructuredDataCollector(HTMLParser):
             self._disable_visible_capture()
             return
 
+        # A declared non-primary region opens here (element tag or ARIA
+        # role). Everything from this frame down the stack is excluded from
+        # visible identity evidence; the depth is returned when the region
+        # frame is popped. See `_NON_PRIMARY_REGION_TAGS` for why.
+        declares_region = (
+            tag in _NON_PRIMARY_REGION_TAGS
+            or attributes.get("role", "").strip().casefold()
+            in _NON_PRIMARY_REGION_ROLES
+        )
+        if declares_region:
+            self._non_primary_region_depth += 1
+
+        # A declared primary region opens here (`<main>` or `role="main"`).
+        # The HTML spec reserves `<main>` for the dominant content of the
+        # document — the page's own declaration of where the primary product
+        # lives. See the module docstring's association rules for why.
+        declares_primary = (
+            tag == "main"
+            or attributes.get("role", "").strip().casefold() == "main"
+        )
+        if declares_primary:
+            self._primary_region_depth += 1
+            self.primary_region_declared = True
+
         parent_id = (
             self._visible_frames[-1].frame_id
             if self._visible_frames
             else None
         )
-        if self._visible_frames:
-            parent = self._visible_frames[-1]
+        parent = self._visible_frames[-1] if self._visible_frames else None
+        if parent is not None:
             if parent.child_tags is None:
                 parent.child_tags = []
             parent.child_tags.append(tag)
@@ -327,6 +527,11 @@ class _StructuredDataCollector(HTMLParser):
             parent_id=parent_id,
             parts=[],
             child_tags=[],
+            excluded=self._non_primary_region_depth > 0,
+            is_region=declares_region,
+            is_primary_region=declares_primary,
+            inside_primary=self._primary_region_depth > 0,
+            parent=parent,
         )
         self._next_visible_frame_id += 1
         self._visible_frames.append(frame)
@@ -375,6 +580,10 @@ class _StructuredDataCollector(HTMLParser):
         while len(self._visible_frames) > match_index:
             frame = self._visible_frames.pop()
             self._finalize_visible_frame(frame)
+            if frame.is_region:
+                self._non_primary_region_depth -= 1
+            if frame.is_primary_region:
+                self._primary_region_depth -= 1
 
 def _parse_document(document: str) -> _StructuredDataCollector:
     """Run the collector over untrusted markup, keeping whatever it reached.
@@ -403,42 +612,48 @@ def _bounded_visible_mpn_value(value: str) -> str | None:
 
 
 def _extract_visible_mpn_evidence(
-    elements: list[tuple[int | None, str, str]],
+    elements: list[_VisibleIdentityElement],
 ) -> tuple[str, str] | None:
     """Extract one unambiguous MPN from exact bounded visible field labels.
 
     An inline element containing an approved label, colon, and identifier is
     accepted. A split label and value are accepted only for a small allowlist
-    of local sibling tag pairs sharing the same parent. Generic Part Number and
-    retailer identifiers such as Item # or SKU are intentionally not
-    authoritative. A trailing Item #/SKU after an inline Model # is ignored
-    rather than being mistaken for part of the MPN.
+    of local sibling tag pairs that are TRUE DOM siblings: the value element's
+    immediately preceding recorded sibling must be the label element. An
+    excluded region or any other unrecorded element between the two is a
+    structural barrier — removing an element can never manufacture a pairing
+    the DOM does not contain. Generic Part Number and retailer identifiers
+    such as Item # or SKU are intentionally not authoritative. A trailing
+    Item #/SKU after an inline Model # is ignored rather than being mistaken
+    for part of the MPN.
 
     Different authoritative labeled values fail closed.
     """
     found: list[tuple[str, str]] = []
+    next_by_prev: dict[int, _VisibleIdentityElement] = {
+        element.prev_sibling_frame_id: element
+        for element in elements
+        if element.prev_sibling_frame_id is not None
+    }
 
-    for index, (parent_id, tag, text) in enumerate(elements):
-        inline = _VISIBLE_MPN_INLINE_RE.fullmatch(text)
+    for element in elements:
+        inline = _VISIBLE_MPN_INLINE_RE.fullmatch(element.text)
         if inline is not None:
             value = _bounded_visible_mpn_value(inline.group("value"))
             if value is not None:
                 found.append((inline.group("label").strip(), value))
             continue
 
-        label = text.rstrip(":").strip()
+        label = element.text.rstrip(":").strip()
         if label.casefold() not in _VISIBLE_MPN_LABEL_KEYS:
             continue
-        if index + 1 >= len(elements):
+        partner = next_by_prev.get(element.frame_id)
+        if partner is None:
+            continue
+        if (element.tag, partner.tag) not in _SPLIT_IDENTITY_TAG_PAIRS:
             continue
 
-        next_parent_id, next_tag, next_text = elements[index + 1]
-        if next_parent_id != parent_id:
-            continue
-        if (tag, next_tag) not in _SPLIT_IDENTITY_TAG_PAIRS:
-            continue
-
-        value = _bounded_visible_mpn_value(next_text)
+        value = _bounded_visible_mpn_value(partner.text)
         if value is not None:
             found.append((label, value))
 
@@ -454,24 +669,160 @@ def _extract_visible_mpn_evidence(
 
     return next(iter(by_value.values()))
 
-def _page_visible_mpn_is_unambiguous(
-    observations: list[ListingObservation],
-) -> bool:
-    """Return whether one page-level visible MPN can safely enrich all rows.
+def _visible_labeled_fields(
+    elements: list[_VisibleIdentityElement],
+) -> list[tuple[str, tuple[_VisibleIdentityElement, ...]]]:
+    """Every complete approved labeled field: (value, its elements).
 
-    A visible field is page-level evidence. It may be applied only when every
-    structured observation lacks an MPN and all observations identify the same
-    product by the non-price tuple (title, SKU, brand). Multiple offers for that
-    same product remain eligible; multiple Product nodes or an identity-free
-    set fail closed.
+    A field is one inline labeled element, or a true-adjacent split label +
+    value pair. An incomplete label (no adjacent value partner) is not a
+    field: it carries no value and does not count as product content.
+    """
+    next_by_prev: dict[int, _VisibleIdentityElement] = {
+        element.prev_sibling_frame_id: element
+        for element in elements
+        if element.prev_sibling_frame_id is not None
+    }
+    fields: list[tuple[str, tuple[_VisibleIdentityElement, ...]]] = []
+    for element in elements:
+        inline = _VISIBLE_MPN_INLINE_RE.fullmatch(element.text)
+        if inline is not None:
+            value = _bounded_visible_mpn_value(inline.group("value"))
+            if value is not None:
+                fields.append((value, (element,)))
+            continue
+        label = element.text.rstrip(":").strip()
+        if label.casefold() not in _VISIBLE_MPN_LABEL_KEYS:
+            continue
+        partner = next_by_prev.get(element.frame_id)
+        if partner is None:
+            continue
+        if (element.tag, partner.tag) not in _SPLIT_IDENTITY_TAG_PAIRS:
+            continue
+        value = _bounded_visible_mpn_value(partner.text)
+        if value is not None:
+            fields.append((value, (element, partner)))
+    return fields
+
+
+def _visible_identifier_anchor(
+    elements: list[_VisibleIdentityElement], targets: frozenset[str]
+) -> bool:
+    """Whether the page visibly re-publishes the primary product's own
+    structured identifier in a retailer-identifier field.
+
+    An `Item #:` / `Item Number:` / `SKU:` field whose value exactly equals one
+    of the product's published identifiers — or the trailing `Item #` group of
+    an inline labeled field — is the page's own co-reference tying the visible
+    body to the structured product. It is an association anchor only: these
+    labels never gain MPN authority.
+    """
+    next_by_prev: dict[int, _VisibleIdentityElement] = {
+        element.prev_sibling_frame_id: element
+        for element in elements
+        if element.prev_sibling_frame_id is not None
+    }
+    for element in elements:
+        inline = _VISIBLE_MPN_INLINE_RE.fullmatch(element.text)
+        if inline is not None:
+            trailing = inline.group("identifier")
+            if (
+                trailing is not None
+                and trailing.rstrip().rsplit(":", 1)[-1].strip() in targets
+            ):
+                return True
+            continue
+        ident = _VISIBLE_IDENTIFIER_INLINE_RE.fullmatch(element.text)
+        if ident is not None and ident.group("value") in targets:
+            return True
+        label = element.text.rstrip(":").strip().casefold()
+        if label in _IDENTIFIER_LABEL_KEYS:
+            partner = next_by_prev.get(element.frame_id)
+            if (
+                partner is not None
+                and (element.tag, partner.tag) in _SPLIT_IDENTITY_TAG_PAIRS
+                and partner.text in targets
+            ):
+                return True
+    return False
+
+
+def _identifier_field_element_ids(
+    elements: list[_VisibleIdentityElement], targets: frozenset[str]
+) -> set[int]:
+    """Frame ids of the elements that form a product identifier field (both
+    halves of a split field, the one element of an inline field) — product
+    content for the product-only test, never MPN evidence by themselves."""
+    ids: set[int] = set()
+    next_by_prev: dict[int, _VisibleIdentityElement] = {
+        element.prev_sibling_frame_id: element
+        for element in elements
+        if element.prev_sibling_frame_id is not None
+    }
+    for element in elements:
+        if _VISIBLE_MPN_INLINE_RE.fullmatch(element.text) is not None:
+            continue  # a labeled-field element; covered by the fields themselves
+        ident = _VISIBLE_IDENTIFIER_INLINE_RE.fullmatch(element.text)
+        if ident is not None and ident.group("value") in targets:
+            ids.add(element.frame_id)
+            continue
+        label = element.text.rstrip(":").strip().casefold()
+        if label in _IDENTIFIER_LABEL_KEYS:
+            partner = next_by_prev.get(element.frame_id)
+            if (
+                partner is not None
+                and (element.tag, partner.tag) in _SPLIT_IDENTITY_TAG_PAIRS
+                and partner.text in targets
+            ):
+                ids.add(element.frame_id)
+                ids.add(partner.frame_id)
+    return ids
+
+
+def _shares_non_document_block_ancestor(
+    a: _VisibleIdentityElement, b: _VisibleIdentityElement
+) -> bool:
+    """Whether two elements sit inside one common block container that is not
+    the document itself (`<html>`/`<body>`).
+
+    The locality test for the title co-reference: a visible occurrence of the
+    product's own published title associates a labeled field only when the two
+    are in the same region of the page, not merely on the same body.
+    """
+    ancestors: set[int] = set()
+    node: _VisibleTextFrame | None = a.frame.parent
+    while node is not None:
+        ancestors.add(node.frame_id)
+        node = node.parent
+    node = b.frame.parent
+    while node is not None:
+        if node.frame_id in ancestors:
+            while node is not None and node.tag in _INLINE_IDENTITY_CHILD_TAGS:
+                node = node.parent
+            return node is not None and node.tag not in _DOCUMENT_LEVEL_TAGS
+        node = node.parent
+    return False
+
+
+def _primary_product_targets(
+    observations: list[ListingObservation],
+) -> tuple[bool, frozenset[str]]:
+    """The frozen page-level gate, plus the primary product's published
+    identifiers (title, SKU) used only as exact co-reference targets.
+
+    Eligible only when every structured observation lacks an MPN, all
+    observations identify the same product by the non-price tuple (title, SKU,
+    brand), and that product publishes at least one identifier. Multiple offers
+    for the same product remain eligible; multiple Product nodes or an
+    identity-free set fail closed.
     """
     if not observations:
-        return False
+        return False, frozenset()
     if any(
         observation.manufacturer_part_number_text is not None
         for observation in observations
     ):
-        return False
+        return False, frozenset()
 
     signatures = {
         (
@@ -482,10 +833,114 @@ def _page_visible_mpn_is_unambiguous(
         for observation in observations
     }
     if len(signatures) != 1:
-        return False
+        return False, frozenset()
 
-    only_signature = next(iter(signatures))
-    return any(value is not None for value in only_signature)
+    title, sku, _brand = next(iter(signatures))
+    if title is None and sku is None:
+        return False, frozenset()
+
+    return True, frozenset(value for value in (title, sku) if value)
+
+
+def _page_visible_mpn_is_unambiguous(
+    observations: list[ListingObservation],
+) -> bool:
+    """Return whether one page-level visible MPN can safely enrich all rows."""
+    ok, _targets = _primary_product_targets(observations)
+    return ok
+
+
+def _visible_mpn_for_primary_product(
+    elements: list[_VisibleIdentityElement],
+    observations: list[ListingObservation],
+    primary_region_declared: bool,
+) -> tuple[str, str] | None:
+    """The visible labeled MPN, restricted to evidence the page associates
+    with its primary product — or `None` when it does not (fail closed).
+
+    When the document declares a primary region, the association IS the
+    declaration: only evidence inside `<main>`/`role="main"` is eligible. When
+    it does not, the FU2 page-level contract applies and an undeclared labeled
+    field is eligible only through an exact page-published co-reference: its
+    value equals a published identifier; the page re-publishes a published
+    identifier in a visible `Item #`/`SKU` field; the field shares a
+    non-document block container with a visible occurrence of the published
+    title; or the undeclared visible stream contains nothing but the product's
+    own fields. A value with no such association is another product's evidence
+    and is never assigned to the primary product.
+    """
+    ok, targets = _primary_product_targets(observations)
+    if not ok or not elements:
+        return None
+
+    if primary_region_declared:
+        pool = [e for e in elements if e.inside_primary_region]
+        if not pool:
+            return None
+        return _extract_visible_mpn_evidence(pool)
+
+    fields = _visible_labeled_fields(elements)
+    if not fields:
+        return None
+
+    title = next(
+        (
+            observation.product_title
+            for observation in observations
+            if observation.product_title
+        ),
+        None,
+    )
+    identifier_anchor = _visible_identifier_anchor(elements, targets)
+    title_anchors = [e for e in elements if title is not None and e.text == title]
+
+    covered: set[int] = set()
+    for _value, field_elements in fields:
+        covered.update(e.frame_id for e in field_elements)
+    covered.update(_identifier_field_element_ids(elements, targets))
+    bare_targets = [e for e in elements if e.text in targets]
+    covered.update(e.frame_id for e in bare_targets)
+    # Region coverage, scoped to one table: an element that sits inside the
+    # same <table> as an anchor element is part of that table's product data
+    # display (the other rows of the specification table beside the MPN row),
+    # so it counts as product content for the product-only test. A generic
+    # wrapper div does NOT count: chrome and a recommendation rail sharing an
+    # arbitrary container are still unassociated body content.
+    element_by_id = {e.frame_id: e for e in elements}
+    anchor_frames = [element_by_id[fid].frame for fid in covered]
+    table_ids: set[int] = set()
+    for frame in anchor_frames:
+        node: _VisibleTextFrame | None = frame.parent
+        while node is not None:
+            if node.tag == "table":
+                table_ids.add(node.frame_id)
+            node = node.parent
+    if table_ids:
+        for element in elements:
+            node = element.frame.parent
+            while node is not None:
+                if node.frame_id in table_ids:
+                    covered.add(element.frame_id)
+                    break
+                node = node.parent
+    product_only = all(e.frame_id in covered for e in elements)
+
+    eligible: list[_VisibleIdentityElement] = []
+    for value, field_elements in fields:
+        if value in targets or identifier_anchor or product_only:
+            eligible.extend(field_elements)
+            continue
+        if title_anchors and any(
+            _shares_non_document_block_ancestor(e, anchor)
+            for e in field_elements
+            for anchor in title_anchors
+        ):
+            eligible.extend(field_elements)
+
+    if not eligible:
+        return None
+
+    return _extract_visible_mpn_evidence(eligible)
 
 
 def _enrich_observation_with_visible_mpn(
@@ -810,15 +1265,17 @@ def extract_listing_observations(
     # identifier as a visible labeled field (for example Model #:) while their
     # JSON-LD exposes only the retailer-local SKU/Item number. The visible pass
     # may fill ONLY a missing MPN on an observation that already exists. It
-    # cannot create an offer, cannot alter price/currency/condition, and fails
-    # closed on conflicting labeled values.
-    visible_mpn = _extract_visible_mpn_evidence(
-        collector.visible_identity_elements
+    # cannot create an offer, cannot alter price/currency/condition, fails
+    # closed on conflicting labeled values, and — because the visible stream
+    # is page-level — admits only evidence the page's own declarations and
+    # exact co-references associate with the primary product (see
+    # `_visible_mpn_for_primary_product`).
+    visible_mpn = _visible_mpn_for_primary_product(
+        collector.visible_identity_elements,
+        observations,
+        primary_region_declared=collector.primary_region_declared,
     )
-    if (
-        visible_mpn is not None
-        and _page_visible_mpn_is_unambiguous(observations)
-    ):
+    if visible_mpn is not None:
         label, value = visible_mpn
         observations = [
             _enrich_observation_with_visible_mpn(
