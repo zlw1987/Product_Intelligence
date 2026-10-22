@@ -1359,3 +1359,163 @@ class TestFU3LocalAssociationBarriers:
         assert assessments[0].candidate_part_number_raw == "MAIN-SKU-1"
         assert result.buckets == ()
         assert result.exclusions[0].reason is PriceAggregationExclusionReason.IDENTITY_NOT_ACCEPTED
+
+
+# ---------------------------------------------------------------------------
+# PRODUCT-INTEL.PILOT-VALUE-EVIDENCE-A1-FU3-C2 — the container boundary
+# ---------------------------------------------------------------------------
+# The FU3-C1 final product-association boundary review held the candidate
+# with two remaining container-association defects, both over the
+# committed bounded-container contract:
+#
+# D1 — the main landmark reused as an association container. The declared
+# primary region `<main>` is the immediate parent of the title occurrence,
+# and the region itself is not document-level (`<html>`/`<body>`), so it
+# became the anchor's "bounded product-detail container" and authorized the
+# unrelated section's `Model #: OTHER-22` as the primary product's MPN.
+# The committed contract states the declaration scopes the evidence pool
+# and is not itself a co-reference; the correction makes the code agree:
+# the declared primary region itself (`<main>`/`role="main"`) is never an
+# anchor container.
+#
+# D2 — a generic section reused as a container. A `<section>` directly
+# holding the title occurrence and another product's content one level
+# deeper became the anchor's container, and a shared generic section does
+# not establish that both elements describe the same product. The
+# correction rejects HTML sectioning content (`<section>`/`<article>` —
+# the same spec category whose `nav`/`aside`/`main` members the extractor
+# already handles as excluded or primary regions) as an anchor container.
+#
+# Both variants fail before the correction: the committed extractor
+# assigned `OTHER-22` to MAIN PRODUCT A (JSON_LD_WITH_VISIBLE_MPN, 3C
+# ACCEPTED EXACT for a request of OTHER-22, 4A bucket USD/NEW count 1
+# median 299) through `_field_locally_tied_to_any_anchor` over the
+# landmark/section container.
+
+def _d1_main_landmark_document() -> str:
+    """D1 verbatim: the `<main>` landmark directly holds the title anchor
+    and a sibling section with the other product's labeled field."""
+    return (
+        "<html><head>"
+        + _json_ld(_main_product_node())
+        + "</head><body>"
+        + "<main>"
+        + "<h1>MAIN PRODUCT A</h1>"
+        + "<section>"
+        + "<h2>Related products</h2>"
+        + "<span>Model #: " + ADVERSARIAL_SIDEBAR_MPN + "</span>"
+        + "</section>"
+        + "</main>"
+        + "</body></html>"
+    )
+
+
+def _d2_generic_section_document() -> str:
+    """D2 verbatim: a shared `<section>` directly holds the title anchor
+    and another product's labeled field one level deeper."""
+    return (
+        "<html><head>"
+        + _json_ld(_main_product_node())
+        + "</head><body>"
+        + "<main>"
+        + "<section>"
+        + "<h1>MAIN PRODUCT A</h1>"
+        + "<div>"
+        + "<h2>Related products</h2>"
+        + "<span>Model #: " + ADVERSARIAL_SIDEBAR_MPN + "</span>"
+        + "</div>"
+        + "</section>"
+        + "</main>"
+        + "</body></html>"
+    )
+
+
+class TestFU3C2ContainerBoundaryBarriers:
+    """A1-FU3-C2: the main landmark and a generic section are never the
+    anchor's bounded product-detail container."""
+
+    def test_main_landmark_itself_is_never_the_association_container(self) -> None:
+        """D1 — the title's immediate parent is the declared primary region
+        itself; the region scopes the evidence pool and is not a
+        co-reference, so the sibling section's labeled field is never
+        associated. The other product's MPN is never assigned, and the
+        original structured offer remains intact.
+        """
+        observation = _extract(_d1_main_landmark_document())[0]
+
+        assert observation.manufacturer_part_number_text is None
+        assert observation.manufacturer_part_number_text != ADVERSARIAL_SIDEBAR_MPN
+        assert observation.extraction_method is ExtractionMethod.JSON_LD
+        assert observation.product_title == "MAIN PRODUCT A"
+        assert observation.sku_text == "MAIN-SKU-1"
+        assert observation.price_text == "299"
+        assert observation.currency_text == "USD"
+        assert observation.condition_text == "https://schema.org/NewCondition"
+        assert observation.availability_text == "https://schema.org/InStock"
+
+    def test_main_landmark_container_is_rejected_over_the_frozen_pipeline(self) -> None:
+        """D1 end-to-end over the frozen 3C / 4A policies: a request for the
+        sibling section's MPN yields no acceptance, and the primary
+        product's 299 USD price never enters a Machine Price bucket for it.
+        Fails before the correction (the committed extractor ACCEPTED the
+        request against ``OTHER-22`` at 299 USD over this exact document).
+        """
+        request = ResearchRequest(
+            manufacturer_part_number=ADVERSARIAL_SIDEBAR_MPN,
+            description="unrelated related-products item",
+        )
+        normalized = normalize_listing_observations(
+            _extract(_d1_main_landmark_document())
+        )
+        assessments = assess_listing_identities(request, normalized)
+        result = aggregate_listing_prices(request, assessments)
+
+        assert assessments[0].decision is EvidenceDecision.REJECTED
+        assert assessments[0].rejection_reason.value == "NO_EXPLICIT_MPN_EVIDENCE"
+        assert assessments[0].candidate_evidence_source is EvidenceSource.SKU_FIELD
+        assert assessments[0].candidate_part_number_raw == "MAIN-SKU-1"
+        assert result.buckets == ()
+        assert result.exclusions[0].reason is PriceAggregationExclusionReason.IDENTITY_NOT_ACCEPTED
+
+    def test_generic_section_is_never_the_association_container(self) -> None:
+        """D2 — the title's immediate parent is a shared generic
+        `<section>`; a sectioning element claims a thematic grouping of the
+        page, not a bounded product-detail container, so the field one level
+        deeper is never associated. The other product's MPN is never
+        assigned, and the original structured offer remains intact.
+        """
+        observation = _extract(_d2_generic_section_document())[0]
+
+        assert observation.manufacturer_part_number_text is None
+        assert observation.manufacturer_part_number_text != ADVERSARIAL_SIDEBAR_MPN
+        assert observation.extraction_method is ExtractionMethod.JSON_LD
+        assert observation.product_title == "MAIN PRODUCT A"
+        assert observation.sku_text == "MAIN-SKU-1"
+        assert observation.price_text == "299"
+        assert observation.currency_text == "USD"
+        assert observation.condition_text == "https://schema.org/NewCondition"
+        assert observation.availability_text == "https://schema.org/InStock"
+
+    def test_generic_section_container_is_rejected_over_the_frozen_pipeline(self) -> None:
+        """D2 end-to-end over the frozen 3C / 4A policies: a request for the
+        section's other-product MPN yields no acceptance, and the primary
+        product's 299 USD price never enters a Machine Price bucket for it.
+        Fails before the correction (the committed extractor ACCEPTED the
+        request against ``OTHER-22`` at 299 USD over this exact document).
+        """
+        request = ResearchRequest(
+            manufacturer_part_number=ADVERSARIAL_SIDEBAR_MPN,
+            description="unrelated related-products item",
+        )
+        normalized = normalize_listing_observations(
+            _extract(_d2_generic_section_document())
+        )
+        assessments = assess_listing_identities(request, normalized)
+        result = aggregate_listing_prices(request, assessments)
+
+        assert assessments[0].decision is EvidenceDecision.REJECTED
+        assert assessments[0].rejection_reason.value == "NO_EXPLICIT_MPN_EVIDENCE"
+        assert assessments[0].candidate_evidence_source is EvidenceSource.SKU_FIELD
+        assert assessments[0].candidate_part_number_raw == "MAIN-SKU-1"
+        assert result.buckets == ()
+        assert result.exclusions[0].reason is PriceAggregationExclusionReason.IDENTITY_NOT_ACCEPTED

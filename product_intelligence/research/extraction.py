@@ -66,11 +66,16 @@ class, never by position, never by similarity:
   labeled fields, and anchor content in the field's own bounded container
   (a page whose visible body publishes only that labeled field is a page
   about one product). The bounded container of an anchor is the anchor's
-  immediate non-document-level parent: an arbitrary wrapper that merely
-  holds the field and the anchor as separate child subtrees (a page-layout
-  div with one field per child div) is not the anchor's container, and a
-  title in one section does not make a labeled field in another section
-  the product's own display. A visible labeled value with none of those
+  immediate non-document-level parent — except that the document itself
+  (`<html>`/`<body>`), the page's declared primary region itself
+  (`<main>`/`role="main"`), and a sectioning element (`<section>`/
+  `<article>`) are never the anchor's container: an arbitrary wrapper that
+  merely holds the field and the anchor as separate child subtrees (a
+  page-layout div with one field per child div) is not the anchor's
+  container, a title directly under the declared region does not bind a
+  labeled field in a sibling section of that region, and a title in one
+  section does not make a labeled field in another section the product's
+  own display. A visible labeled value with none of those
   associations — an unrelated product's identifier riding in body content
   — is never assigned to the primary product, and the enrichment fails
   closed to no MPN.
@@ -241,6 +246,18 @@ _VISIBLE_IDENTIFIER_INLINE_RE = re.compile(
 #: container. Sharing only these between a title occurrence and a labeled
 #: field does not associate them (that is the whole body, not a region).
 _DOCUMENT_LEVEL_TAGS = frozenset({"html", "body"})
+
+#: HTML "sectioning content" (spec category: `section`, `article`, `nav`,
+#: `aside`, `main`) that declares a thematic grouping of the page rather
+#: than a bounded product-detail container. The remaining category members
+#: are already handled: `nav` / `aside` record no visible identity content
+#: (declared non-primary regions), and `main` is the declared primary region
+#: (rejected via the frame's primary-region declaration, which also covers
+#: `role="main"` on any element). A `section` or `article` that directly
+#: holds an anchor beside another product's content (its own "Related
+#: products" subsection included) does not establish that both describe the
+#: primary product.
+_SECTIONING_CONTENT_TAGS = frozenset({"section", "article"})
 _VISIBLE_MPN_VALUE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/#-]{0,127}$")
 _IGNORED_VISIBLE_TEXT_TAGS = frozenset({"script", "style", "noscript", "template"})
 _VOID_VISIBLE_TAGS = frozenset({
@@ -803,15 +820,23 @@ def _anchor_container(
     occurrence — the immediate recorded parent of its elements.
 
     A split field's two elements are true DOM siblings (one parent) by
-    construction; an inline occurrence is a single element. The document
-    itself (`<html>`/`<body>`) is not a container: a co-reference visible
-    only "somewhere in the body" is not a local association.
+    construction; an inline occurrence is a single element. Three kinds of
+    ancestor are not containers: the document itself (`<html>`/`<body>`) —
+    a co-reference visible only "somewhere in the body" is not a local
+    association; the page's declared primary region itself (`<main>` /
+    `role="main"`) — the declaration scopes the evidence pool and is not
+    itself a co-reference, so a title directly under the region does not
+    bind a labeled field anywhere else in it; and a sectioning element
+    (`<section>`/`<article>`) — it claims a thematic grouping of the page,
+    and that grouping may hold unrelated product content beside the anchor.
     """
     first = anchor[0].frame.parent
     for element in anchor[1:]:
         if element.frame.parent is not first:
             return None
     if first is None or first.tag in _DOCUMENT_LEVEL_TAGS:
+        return None
+    if first.is_primary_region or first.tag in _SECTIONING_CONTENT_TAGS:
         return None
     return first
 
@@ -936,8 +961,9 @@ def _visible_mpn_for_primary_product(
     * it sits in the same bounded product-detail container as a visible
       retailer-identifier field (`Item #` / `Item Number` / `SKU`) that
       re-publishes a published identifier — the container is the anchor's
-      immediate non-document-level parent, and it must contain every
-      element of the field;
+      immediate non-document-level parent (the document, the declared
+      primary region itself, and sectioning elements are never the
+      container), and it must contain every element of the field;
     * it sits in the same bounded product-detail container as a visible
       occurrence of the product's own published title;
     * the pool contains nothing but the product's own display: the field's
