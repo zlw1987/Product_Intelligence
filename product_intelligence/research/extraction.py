@@ -48,21 +48,32 @@ class, never by position, never by similarity:
   pairing the DOM does not contain.
 * A region the page declares primary — `<main>` or `role="main"` — is the
   page's own dominant content. When the document declares one, visible
-  identity evidence is eligible only from inside it; undeclared content
-  outside it is not primary-product evidence.
-* When the document declares no primary region, the FU2 page-level contract
-  applies: the visible field is associated with the single primary product
-  only when the page itself co-references it — the field's value exactly
-  equals an identifier the structured product published (SKU / title), a
-  visible retailer-identifier field (`Item #` / `Item Number` / `SKU`) whose
-  value exactly equals a published identifier is present on the page, the
-  field shares a non-document-level block container with a visible occurrence
-  of the product's own published title, or the undeclared visible stream
-  contains nothing but the product's own fields (a page whose visible body
-  publishes only that labeled field is a page about one product). A visible
-  labeled value with none of those associations — an unrelated product's
-  identifier riding in undeclared body content — is never assigned to the
-  primary product, and the enrichment fails closed to no MPN.
+  identity evidence is eligible only from inside it; content outside it is
+  not primary-product evidence. The declaration scopes the evidence pool;
+  it is not itself a co-reference, so the association contract below still
+  applies to the in-region fields.
+* The association contract (page-level when no primary region is declared,
+  pool-level when one is): the visible field is associated with the single
+  primary product only when the page itself co-references it — the field's
+  value exactly equals an identifier the structured product published
+  (SKU / title); the field sits in the same bounded product-detail
+  container as a visible retailer-identifier field (`Item #` /
+  `Item Number` / `SKU`) whose value exactly equals a published identifier;
+  the field sits in the same bounded product-detail container as a visible
+  occurrence of the product's own published title; or the visible stream
+  (or in-region pool) contains nothing but the product's own display — the
+  field itself, the other rows of the field's specification table, other
+  labeled fields, and anchor content in the field's own bounded container
+  (a page whose visible body publishes only that labeled field is a page
+  about one product). The bounded container of an anchor is the anchor's
+  immediate non-document-level parent: an arbitrary wrapper that merely
+  holds the field and the anchor as separate child subtrees (a page-layout
+  div with one field per child div) is not the anchor's container, and a
+  title in one section does not make a labeled field in another section
+  the product's own display. A visible labeled value with none of those
+  associations — an unrelated product's identifier riding in body content
+  — is never assigned to the primary product, and the enrichment fails
+  closed to no MPN.
 
 None of this adds an identity authority: the structured offer remains the
 sole declaration of which product the page is about, the visible label
@@ -705,16 +716,52 @@ def _visible_labeled_fields(
     return fields
 
 
-def _visible_identifier_anchor(
-    elements: list[_VisibleIdentityElement], targets: frozenset[str]
-) -> bool:
-    """Whether the page visibly re-publishes the primary product's own
-    structured identifier in a retailer-identifier field.
+def _shadowed_frame_ids(
+    elements: list[_VisibleIdentityElement],
+) -> set[int]:
+    """Frame ids of recorded elements whose exact text is re-published by a
+    recorded descendant.
 
-    An `Item #:` / `Item Number:` / `SKU:` field whose value exactly equals one
-    of the product's published identifiers — or the trailing `Item #` group of
-    an inline labeled field — is the page's own co-reference tying the visible
-    body to the structured product. It is an association anchor only: these
+    Leaf text propagates one level up through inline children, so a wrapper
+    that holds one labeled span records the span's text again. The descendant
+    is the occurrence: the ancestor's copy must not create a second,
+    higher-level field or anchor, or a wrapper one level up could borrow an
+    arbitrary shared container as the occurrence's own.
+    """
+    by_frame_id = {e.frame_id: e for e in elements}
+    shadowed: set[int] = set()
+    for descendant in elements:
+        node: _VisibleTextFrame | None = descendant.frame.parent
+        while node is not None:
+            ancestor = by_frame_id.get(node.frame_id)
+            if ancestor is not None and ancestor.text == descendant.text:
+                shadowed.add(ancestor.frame_id)
+            node = node.parent
+    return shadowed
+
+
+def _occurrence_elements(
+    elements: list[_VisibleIdentityElement],
+) -> list[_VisibleIdentityElement]:
+    """The recorded elements that publish an occurrence of their text (the
+    shadowed duplicates removed)."""
+    shadowed = _shadowed_frame_ids(elements)
+    return [e for e in elements if e.frame_id not in shadowed]
+
+
+def _identifier_anchor_fields(
+    elements: list[_VisibleIdentityElement], targets: frozenset[str]
+) -> list[tuple[_VisibleIdentityElement, ...]]:
+    """The anchor occurrences: every place the page visibly re-publishes the
+    primary product's own structured identifier in a retailer-identifier
+    field.
+
+    An `Item #:` / `Item Number:` / `SKU:` field whose value exactly equals
+    one of the product's published identifiers — or the trailing `Item #`
+    group of an inline labeled field — is the page's own co-reference tying
+    visible body content to the structured product. Each occurrence is
+    returned as its elements (one for an inline field, both for a
+    true-adjacent split field). These are association anchors only: these
     labels never gain MPN authority.
     """
     next_by_prev: dict[int, _VisibleIdentityElement] = {
@@ -722,6 +769,7 @@ def _visible_identifier_anchor(
         for element in elements
         if element.prev_sibling_frame_id is not None
     }
+    anchors: list[tuple[_VisibleIdentityElement, ...]] = []
     for element in elements:
         inline = _VISIBLE_MPN_INLINE_RE.fullmatch(element.text)
         if inline is not None:
@@ -730,41 +778,11 @@ def _visible_identifier_anchor(
                 trailing is not None
                 and trailing.rstrip().rsplit(":", 1)[-1].strip() in targets
             ):
-                return True
+                anchors.append((element,))
             continue
         ident = _VISIBLE_IDENTIFIER_INLINE_RE.fullmatch(element.text)
         if ident is not None and ident.group("value") in targets:
-            return True
-        label = element.text.rstrip(":").strip().casefold()
-        if label in _IDENTIFIER_LABEL_KEYS:
-            partner = next_by_prev.get(element.frame_id)
-            if (
-                partner is not None
-                and (element.tag, partner.tag) in _SPLIT_IDENTITY_TAG_PAIRS
-                and partner.text in targets
-            ):
-                return True
-    return False
-
-
-def _identifier_field_element_ids(
-    elements: list[_VisibleIdentityElement], targets: frozenset[str]
-) -> set[int]:
-    """Frame ids of the elements that form a product identifier field (both
-    halves of a split field, the one element of an inline field) — product
-    content for the product-only test, never MPN evidence by themselves."""
-    ids: set[int] = set()
-    next_by_prev: dict[int, _VisibleIdentityElement] = {
-        element.prev_sibling_frame_id: element
-        for element in elements
-        if element.prev_sibling_frame_id is not None
-    }
-    for element in elements:
-        if _VISIBLE_MPN_INLINE_RE.fullmatch(element.text) is not None:
-            continue  # a labeled-field element; covered by the fields themselves
-        ident = _VISIBLE_IDENTIFIER_INLINE_RE.fullmatch(element.text)
-        if ident is not None and ident.group("value") in targets:
-            ids.add(element.frame_id)
+            anchors.append((element,))
             continue
         label = element.text.rstrip(":").strip().casefold()
         if label in _IDENTIFIER_LABEL_KEYS:
@@ -774,34 +792,81 @@ def _identifier_field_element_ids(
                 and (element.tag, partner.tag) in _SPLIT_IDENTITY_TAG_PAIRS
                 and partner.text in targets
             ):
-                ids.add(element.frame_id)
-                ids.add(partner.frame_id)
-    return ids
+                anchors.append((element, partner))
+    return anchors
 
 
-def _shares_non_document_block_ancestor(
-    a: _VisibleIdentityElement, b: _VisibleIdentityElement
-) -> bool:
-    """Whether two elements sit inside one common block container that is not
-    the document itself (`<html>`/`<body>`).
+def _anchor_container(
+    anchor: tuple[_VisibleIdentityElement, ...],
+) -> _VisibleTextFrame | None:
+    """The bounded product-detail container that directly holds an anchor
+    occurrence — the immediate recorded parent of its elements.
 
-    The locality test for the title co-reference: a visible occurrence of the
-    product's own published title associates a labeled field only when the two
-    are in the same region of the page, not merely on the same body.
+    A split field's two elements are true DOM siblings (one parent) by
+    construction; an inline occurrence is a single element. The document
+    itself (`<html>`/`<body>`) is not a container: a co-reference visible
+    only "somewhere in the body" is not a local association.
     """
-    ancestors: set[int] = set()
-    node: _VisibleTextFrame | None = a.frame.parent
-    while node is not None:
-        ancestors.add(node.frame_id)
-        node = node.parent
-    node = b.frame.parent
-    while node is not None:
-        if node.frame_id in ancestors:
-            while node is not None and node.tag in _INLINE_IDENTITY_CHILD_TAGS:
-                node = node.parent
-            return node is not None and node.tag not in _DOCUMENT_LEVEL_TAGS
-        node = node.parent
+    first = anchor[0].frame.parent
+    for element in anchor[1:]:
+        if element.frame.parent is not first:
+            return None
+    if first is None or first.tag in _DOCUMENT_LEVEL_TAGS:
+        return None
+    return first
+
+
+def _elements_inside_container(
+    elements: tuple[_VisibleIdentityElement, ...],
+    container: _VisibleTextFrame,
+) -> bool:
+    """Whether every element is a strict DOM descendant of the container."""
+    for element in elements:
+        node: _VisibleTextFrame | None = element.frame.parent
+        while node is not None:
+            if node is container:
+                break
+            node = node.parent
+        if node is None:
+            return False
+    return True
+
+
+def _field_locally_tied_to_any_anchor(
+    field_elements: tuple[_VisibleIdentityElement, ...],
+    anchors: list[tuple[_VisibleIdentityElement, ...]],
+) -> bool:
+    """Whether the field and some anchor occurrence sit in the same bounded
+    product-detail container: the container that directly holds the anchor
+    must also contain every element of the field.
+
+    Sibling subtrees under an arbitrary wrapper do not qualify: a
+    page-layout div holding one field per child div is not the anchor's
+    container, and the anchor's own container does not contain the field.
+    """
+    for anchor in anchors:
+        container = _anchor_container(anchor)
+        if container is not None and _elements_inside_container(
+            field_elements, container
+        ):
+            return True
     return False
+
+
+def _table_frame_ids(frame: _VisibleTextFrame) -> set[int]:
+    """The ids of every `<table>` frame strictly above this element's frame.
+
+    The table scope of the product-only test: the other rows of the same
+    specification table are part of the field's own data display. A generic
+    wrapper div does not count.
+    """
+    tables: set[int] = set()
+    node: _VisibleTextFrame | None = frame.parent
+    while node is not None:
+        if node.tag == "table":
+            tables.add(node.frame_id)
+        node = node.parent
+    return tables
 
 
 def _primary_product_targets(
@@ -858,28 +923,49 @@ def _visible_mpn_for_primary_product(
     """The visible labeled MPN, restricted to evidence the page associates
     with its primary product — or `None` when it does not (fail closed).
 
-    When the document declares a primary region, the association IS the
-    declaration: only evidence inside `<main>`/`role="main"` is eligible. When
-    it does not, the FU2 page-level contract applies and an undeclared labeled
-    field is eligible only through an exact page-published co-reference: its
-    value equals a published identifier; the page re-publishes a published
-    identifier in a visible `Item #`/`SKU` field; the field shares a
-    non-document block container with a visible occurrence of the published
-    title; or the undeclared visible stream contains nothing but the product's
-    own fields. A value with no such association is another product's evidence
-    and is never assigned to the primary product.
+    The evidence pool is the visible stream, scoped to the page's declared
+    primary region (`<main>`/`role="main"`) when the document declares one:
+    the declaration says where the page's own content lives, and it is not
+    itself a co-reference, so a labeled field inside the region is still
+    associated only through the contract below. Inside the pool, a labeled
+    field is associated with the primary product only through an exact
+    page-published co-reference:
+
+    * its value exactly equals an identifier the structured product
+      published (SKU / title);
+    * it sits in the same bounded product-detail container as a visible
+      retailer-identifier field (`Item #` / `Item Number` / `SKU`) that
+      re-publishes a published identifier — the container is the anchor's
+      immediate non-document-level parent, and it must contain every
+      element of the field;
+    * it sits in the same bounded product-detail container as a visible
+      occurrence of the product's own published title;
+    * the pool contains nothing but the product's own display: the field's
+      own elements, the other rows of the field's specification table,
+      other labeled fields, and anchor content (a re-publishing identifier
+      field or a title occurrence) in the field's own bounded container.
+
+    Sibling subtrees under an arbitrary wrapper (a page-layout div with one
+    field per child div) are not the anchor's container, and a title in one
+    section does not make a labeled field in a different section the
+    product's own display. A value with none of those associations is
+    another product's evidence and is never assigned to the primary
+    product.
     """
     ok, targets = _primary_product_targets(observations)
     if not ok or not elements:
         return None
 
-    if primary_region_declared:
-        pool = [e for e in elements if e.inside_primary_region]
-        if not pool:
-            return None
-        return _extract_visible_mpn_evidence(pool)
+    pool = (
+        [e for e in elements if e.inside_primary_region]
+        if primary_region_declared
+        else list(elements)
+    )
+    if not pool:
+        return None
 
-    fields = _visible_labeled_fields(elements)
+    occurrences = _occurrence_elements(pool)
+    fields = _visible_labeled_fields(occurrences)
     if not fields:
         return None
 
@@ -891,49 +977,63 @@ def _visible_mpn_for_primary_product(
         ),
         None,
     )
-    identifier_anchor = _visible_identifier_anchor(elements, targets)
-    title_anchors = [e for e in elements if title is not None and e.text == title]
+    identifier_anchors = _identifier_anchor_fields(occurrences, targets)
+    title_anchors: list[tuple[_VisibleIdentityElement, ...]] = [
+        (e,) for e in occurrences if title is not None and e.text == title
+    ]
+    anchors = identifier_anchors + title_anchors
 
-    covered: set[int] = set()
-    for _value, field_elements in fields:
-        covered.update(e.frame_id for e in field_elements)
-    covered.update(_identifier_field_element_ids(elements, targets))
-    bare_targets = [e for e in elements if e.text in targets]
-    covered.update(e.frame_id for e in bare_targets)
-    # Region coverage, scoped to one table: an element that sits inside the
-    # same <table> as an anchor element is part of that table's product data
-    # display (the other rows of the specification table beside the MPN row),
-    # so it counts as product content for the product-only test. A generic
-    # wrapper div does NOT count: chrome and a recommendation rail sharing an
-    # arbitrary container are still unassociated body content.
-    element_by_id = {e.frame_id: e for e in elements}
-    anchor_frames = [element_by_id[fid].frame for fid in covered]
-    table_ids: set[int] = set()
-    for frame in anchor_frames:
-        node: _VisibleTextFrame | None = frame.parent
-        while node is not None:
-            if node.tag == "table":
-                table_ids.add(node.frame_id)
-            node = node.parent
-    if table_ids:
-        for element in elements:
-            node = element.frame.parent
+    def _same_table_ids(field_elements: tuple[_VisibleIdentityElement, ...]) -> set[int]:
+        tables: set[int] = set()
+        for fe in field_elements:
+            tables |= _table_frame_ids(fe.frame)
+        if not tables:
+            return set()
+        covered_ids: set[int] = set()
+        for e in pool:
+            node: _VisibleTextFrame | None = e.frame.parent
             while node is not None:
-                if node.frame_id in table_ids:
-                    covered.add(element.frame_id)
+                if node.frame_id in tables:
+                    covered_ids.add(e.frame_id)
                     break
                 node = node.parent
-    product_only = all(e.frame_id in covered for e in elements)
+        return covered_ids
+
+    def _product_only_display(field_elements: tuple[_VisibleIdentityElement, ...]) -> bool:
+        # The product's own display: the field itself, the other rows of its
+        # specification table, other labeled fields (their values still fail
+        # closed on conflict in the extraction), and anchor content that sits
+        # in the field's own bounded container. A shadowed wrapper re-publishes
+        # the exact text of a covered descendant occurrence (leaf propagation)
+        # and adds no content of its own, so it is part of that display.
+        covered: set[int] = {e.frame_id for e in field_elements}
+        covered |= _same_table_ids(field_elements)
+        for _value, other_elements in fields:
+            covered.update(e.frame_id for e in other_elements)
+        for anchor in anchors:
+            container = _anchor_container(anchor)
+            if container is not None and _elements_inside_container(
+                field_elements, container
+            ):
+                covered.update(e.frame_id for e in anchor)
+        by_frame_id = {e.frame_id: e for e in pool}
+        for d in pool:
+            if d.frame_id not in covered:
+                continue
+            node = d.frame.parent
+            while node is not None:
+                ancestor = by_frame_id.get(node.frame_id)
+                if ancestor is not None and ancestor.text == d.text:
+                    covered.add(ancestor.frame_id)
+                node = node.parent
+        return all(e.frame_id in covered for e in pool)
 
     eligible: list[_VisibleIdentityElement] = []
     for value, field_elements in fields:
-        if value in targets or identifier_anchor or product_only:
-            eligible.extend(field_elements)
-            continue
-        if title_anchors and any(
-            _shares_non_document_block_ancestor(e, anchor)
-            for e in field_elements
-            for anchor in title_anchors
+        if (
+            value in targets
+            or _field_locally_tied_to_any_anchor(field_elements, anchors)
+            or _product_only_display(field_elements)
         ):
             eligible.extend(field_elements)
 
@@ -1267,9 +1367,9 @@ def extract_listing_observations(
     # may fill ONLY a missing MPN on an observation that already exists. It
     # cannot create an offer, cannot alter price/currency/condition, fails
     # closed on conflicting labeled values, and — because the visible stream
-    # is page-level — admits only evidence the page's own declarations and
-    # exact co-references associate with the primary product (see
-    # `_visible_mpn_for_primary_product`).
+    # can carry other products' evidence — admits only evidence the page's own
+    # declarations and exact co-references associate with the primary product
+    # (see `_visible_mpn_for_primary_product`).
     visible_mpn = _visible_mpn_for_primary_product(
         collector.visible_identity_elements,
         observations,

@@ -513,7 +513,13 @@ class TestVisibleLabeledIdentityEnrichment:
     def test_model_number_label_enriches_missing_mpn_but_preserves_sku_and_price(
         self,
     ) -> None:
-        """Production-shaped regression for retailer Model # vs Item #."""
+        """Production-shaped regression for retailer Model # vs Item #.
+
+        The recorded retailer page publishes the Model # and Item # fields in
+        the same bounded product-detail container (adjacent spans, one
+        parent); the fixture mirrors that recorded layout (FU3 adjudication:
+        fixture-fidelity correction, assertions unchanged).
+        """
         product = _json_ld(
             {
                 "@type": "Product",
@@ -530,8 +536,10 @@ class TestVisibleLabeledIdentityEnrichment:
             "<html><head>"
             + product
             + "</head><body>"
-            + "<div><span>Model #:</span><span>M321RYGA0PB2-CCP</span></div>"
-            + "<div><span>Item #:</span><span>MEMSAM59664S</span></div>"
+            + "<div>"
+            + "<span>Model #:</span><span>M321RYGA0PB2-CCP</span>"
+            + "<span>Item #:</span><span>MEMSAM59664S</span>"
+            + "</div>"
             + "</body></html>"
         )
 

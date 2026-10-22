@@ -1023,16 +1023,21 @@ class TestPrimaryProductAssociation:
         self,
     ) -> None:
         """The page visibly re-publishes its own structured SKU in a
-        retailer-identifier field (``Item #:``); the undeclared labeled MPN
-        field on that page is associated with the primary product.
+        retailer-identifier field (``Item #:``) in the same bounded
+        product-detail container as the labeled MPN field (the recorded
+        layout, per the FU3 adjudication fixture-fidelity correction);
+        the undeclared labeled MPN field is associated with the primary
+        product.
         """
         document = (
             "<html><head>"
             + _json_ld(_product_node("SOLO DRIVE", "ANCHOR-SKU"))
             + "</head><body>"
             + _nav_chrome(50)
-            + '<div><span>Item #:</span><span>ANCHOR-SKU</span></div>'
+            + "<div>"
             + "<div>Model #: ANCHOR-MPN</div>"
+            + "<span>Item #:</span><span>ANCHOR-SKU</span>"
+            + "</div>"
             + "</body></html>"
         )
 
@@ -1201,6 +1206,150 @@ class TestPrimaryProductAssociation:
         normalized = normalize_listing_observations(
             _extract(_undeclared_recommendation_document())
         )
+        assessments = assess_listing_identities(request, normalized)
+        result = aggregate_listing_prices(request, assessments)
+
+        assert assessments[0].decision is EvidenceDecision.REJECTED
+        assert assessments[0].rejection_reason.value == "NO_EXPLICIT_MPN_EVIDENCE"
+        assert assessments[0].candidate_evidence_source is EvidenceSource.SKU_FIELD
+        assert assessments[0].candidate_part_number_raw == "MAIN-SKU-1"
+        assert result.buckets == ()
+        assert result.exclusions[0].reason is PriceAggregationExclusionReason.IDENTITY_NOT_ACCEPTED
+
+
+# ---------------------------------------------------------------------------
+# PRODUCT-INTEL.PILOT-VALUE-EVIDENCE-A1-FU3 — the local association
+# ---------------------------------------------------------------------------
+# The FU3 adjudication held two structural variants open over the proposed
+# local association test and product-only predicate, and required both to
+# fail closed:
+#
+# C1 — the shared generic layout wrapper. The page publishes an
+# ``Item #: MAIN-SKU-1`` field in one child div and a ``Model #: OTHER-22``
+# field in a sibling child div of an arbitrary ``page-layout`` wrapper. The
+# wrapper is not the anchor's bounded product-detail container: it merely
+# holds the two fields as separate child subtrees. The other product's MPN
+# is never assigned to the primary product, and the primary product's 299
+# USD price never enters a Machine Price bucket for ``OTHER-22``.
+#
+# C2 — the sparse main region. The declared primary region contains a title
+# section and a different section with a labeled ``Model #: OTHER-22``
+# field. Declaring ``<main>`` scopes the evidence pool; it is not a
+# co-reference. A title in one section does not make a labeled field in
+# another section the product's own display, and the field's value is not a
+# published identifier.
+#
+# Both variants fail before the correction: A1-FU2 accepted ``OTHER-22``
+# through the page-global identifier anchor (C1) and the blanket primary
+# region (C2), and the previously proposed FU3 candidate accepted them
+# through any shared non-document-level ancestor (C1) and the product-only
+# predicate over a title plus an unrelated labeled field (C2).
+
+def _c1_layout_wrapper_document() -> str:
+    """C1 verbatim: two fields in sibling child divs of a generic wrapper."""
+    return (
+        "<html><head>"
+        + _json_ld(_main_product_node())
+        + "</head><body>"
+        + '<div class="page-layout">'
+        + "<div><span>Item #: MAIN-SKU-1</span></div>"
+        + "<div><span>Model #: OTHER-22</span></div>"
+        + "</div>"
+        + "</body></html>"
+    )
+
+
+def _c2_sparse_main_document() -> str:
+    """C2 verbatim: a title section and a labeled-field section in <main>."""
+    return (
+        "<html><head>"
+        + _json_ld(_main_product_node())
+        + "</head><body>"
+        + "<main>"
+        + "<section><h1>MAIN PRODUCT A</h1></section>"
+        + "<section><span>Model #: OTHER-22</span></section>"
+        + "</main>"
+        + "</body></html>"
+    )
+
+
+class TestFU3LocalAssociationBarriers:
+    """A1-FU3: the shared wrapper and the sparse main region fail closed."""
+
+    def test_shared_generic_layout_wrapper_does_not_associate_the_fields(self) -> None:
+        """C1 — the page-layout wrapper holds the two fields as separate
+        child subtrees; it is not the anchor's bounded product-detail
+        container. The other product's MPN is never assigned, and the
+        original structured offer remains intact.
+        """
+        observation = _extract(_c1_layout_wrapper_document())[0]
+
+        assert observation.manufacturer_part_number_text is None
+        assert observation.manufacturer_part_number_text != ADVERSARIAL_SIDEBAR_MPN
+        assert observation.extraction_method is ExtractionMethod.JSON_LD
+        assert observation.product_title == "MAIN PRODUCT A"
+        assert observation.sku_text == "MAIN-SKU-1"
+        assert observation.price_text == "299"
+        assert observation.currency_text == "USD"
+        assert observation.condition_text == "https://schema.org/NewCondition"
+        assert observation.availability_text == "https://schema.org/InStock"
+
+    def test_shared_generic_layout_wrapper_is_rejected_over_the_frozen_pipeline(self) -> None:
+        """C1 end-to-end over the frozen 3C / 4A policies: a request for the
+        wrapper's other-product MPN yields no acceptance, and the primary
+        product's 299 USD price never enters a Machine Price bucket for it.
+        Fails before the correction (A1-FU2 and the FU3 candidate both
+        ACCEPTED the request against ``OTHER-22`` at 299 USD).
+        """
+        request = ResearchRequest(
+            manufacturer_part_number=ADVERSARIAL_SIDEBAR_MPN,
+            description="unrelated other product",
+        )
+        normalized = normalize_listing_observations(
+            _extract(_c1_layout_wrapper_document())
+        )
+        assessments = assess_listing_identities(request, normalized)
+        result = aggregate_listing_prices(request, assessments)
+
+        assert assessments[0].decision is EvidenceDecision.REJECTED
+        assert assessments[0].rejection_reason.value == "NO_EXPLICIT_MPN_EVIDENCE"
+        assert assessments[0].candidate_evidence_source is EvidenceSource.SKU_FIELD
+        assert assessments[0].candidate_part_number_raw == "MAIN-SKU-1"
+        assert result.buckets == ()
+        assert result.exclusions[0].reason is PriceAggregationExclusionReason.IDENTITY_NOT_ACCEPTED
+
+    def test_sparse_main_region_title_and_field_in_separate_sections_are_not_associated(
+        self,
+    ) -> None:
+        """C2 — declaring the primary region scopes the evidence pool; the
+        title in one section does not make the labeled field in another
+        section the product's own display. The other product's MPN is never
+        assigned, and the original structured offer remains intact.
+        """
+        observation = _extract(_c2_sparse_main_document())[0]
+
+        assert observation.manufacturer_part_number_text is None
+        assert observation.manufacturer_part_number_text != ADVERSARIAL_SIDEBAR_MPN
+        assert observation.extraction_method is ExtractionMethod.JSON_LD
+        assert observation.product_title == "MAIN PRODUCT A"
+        assert observation.sku_text == "MAIN-SKU-1"
+        assert observation.price_text == "299"
+        assert observation.currency_text == "USD"
+        assert observation.condition_text == "https://schema.org/NewCondition"
+        assert observation.availability_text == "https://schema.org/InStock"
+
+    def test_sparse_main_region_is_rejected_over_the_frozen_pipeline(self) -> None:
+        """C2 end-to-end over the frozen 3C / 4A policies: a request for the
+        other section's MPN yields no acceptance, and the primary product's
+        299 USD price never enters a Machine Price bucket for it. Fails
+        before the correction (A1-FU2 and the FU3 candidate both ACCEPTED
+        the request against ``OTHER-22`` at 299 USD).
+        """
+        request = ResearchRequest(
+            manufacturer_part_number=ADVERSARIAL_SIDEBAR_MPN,
+            description="unrelated other product",
+        )
+        normalized = normalize_listing_observations(_extract(_c2_sparse_main_document()))
         assessments = assess_listing_identities(request, normalized)
         result = aggregate_listing_prices(request, assessments)
 
