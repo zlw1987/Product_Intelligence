@@ -112,17 +112,17 @@ FA4-CONTR-013 (C7) | FA4-ADV-001 (D1) | FA4-ADV-002 (D1)
 FA4-ADV-003 (D1) | FA4-ADV-004 (D2) | FA4-ADV-005 (D3)
 FA4-ADV-006 (D3) [CORRECTED-VERIFY] | FA4-ADV-007 (D3)
 FA4-ADV-008 (D4) | FA4-ADV-009 (D4) | FA4-ADV-010 (D5)
-FA4-ADV-011 (D5) | FA4-ADV-012 (D6) | FA4-ADV-013 (D6)
+FA4-ADV-011 (D5) | FA4-ADV-012 (D6) [CORRECTED-VERIFY] | FA4-ADV-013 (D6)
 FA4-ADV-014 (D7) | FA4-ADV-015 (D7) | FA4-ADV-016 (D8)
 FA4-ADV-017 (D8) | FA4-ADV-018 (D9) | FA4-ADV-019 (D9)
-FA4-ADV-020 (D10) | FA4-ADV-021 (D10) | FA4-ADV-022 (D11)
+FA4-ADV-020 (D10) | FA4-ADV-021 (D10) | FA4-ADV-022 (D11) [CORRECTED-VERIFY]
 FA4-ADV-023 (D11) [CORRECTED-VERIFY] | FA4-ADV-024 (D12)
 FA4-ADV-025 (D13) | FA4-ADV-026 (D13) | FA4-ADV-027 (D14)
 FA4-ADV-028 (D14) | FA4-ADV-029 (D14) | FA4-ADV-030 (D15)
 FA4-ADV-031 (D15) | FA4-ADV-032 (D16) | FA4-ADV-033 (D16)
 FA4-ADV-035 (D17) | FA4-ADV-036 (D17) | FA4-ADV-037 (D18)
 
-(All 94 cases are review-ready at the corrected endpoint: the seven loader-held cases are released under the recorded adjudication - three by the C1-FU3 validator correction with byte-unchanged labels, one by the D3-ii re-label + record-twin removal, one by the D11-ii SYNTHETIC re-authoring, and two removed from the declared population with their obligation destinations - and the three C2-F6 evidence-gap cases now carry the GENUINE recorded extraction results (the allowed NONE-basis recorded-result state); the eight corrected rows are flagged CORRECTED-VERIFY above.)
+(All 94 cases are review-ready at the corrected endpoint: the seven loader-held cases are released under the recorded adjudication - three by the C1-FU3 validator correction with byte-unchanged labels, one by the D3-ii re-label + record-twin removal, one by the D11-ii SYNTHETIC re-authoring, and two removed from the declared population with their obligation destinations - and the three C2-F6 evidence-gap cases now carry the GENUINE recorded extraction results (the allowed NONE-basis recorded-result state); the ten corrected rows are flagged CORRECTED-VERIFY above - the eight of the recorded adjudication + FA4-ADV-012 / FA4-ADV-022 of the F-R6 / F-R2 pre-seal corrections (FA4-ADV-023's flag is shared with its C2-F5 correction).)
 ## 3. Tester minimum (design section 7.6 + the C2 directive)
 
 Re-derive, independently of the reviewer pass: (a) ALL 36 adversarial
@@ -225,6 +225,188 @@ both readings):
   table + the lossy mapping), the presented channel is exactly the
   frozen mapping (the canonical UNAVAILABLE), and the expectations
   are the unchanged U0 UNPROVEN frozen-chain readings.
+
+## 4.1 The pre-seal corrections of record (Q3-C-C2-R1-FU1) - your
+re-verification worklist
+
+The independent C2-R1 label review of record (reviewer identity
+`Q3-C-C2-R1.INDEPENDENT-LABEL-REVIEWER`; the untracked session
+review ledger over HEAD
+`b85261924bc4827636ae3c3f54b01c7674d697b4`) resolved 92 of the 94
+cases AGREE (9 with recorded non-label notes) and opened THREE
+pre-seal blockers. They were corrected pre-seal under the section
+4.6 item 5 governance (class A where the expectation was
+factually wrong over the frozen contract; no URL invented; the
+frozen derivation / grammar NOT changed to match the authored
+labels) by the corrective implementer of record (PRODUCT-INTEL.
+Q3C-C2-R1-FU1.CORRECTIVE-IMPLEMENTER, correction instant
+2026-10-17T00:35:42Z), and each correction is pinned by a NEW
+regression node in the C2 governance suite (the pre-correction
+value fails the pin). **The corrections remain OPEN for your
+re-verification: they are the corrective implementer's record
+only, and the challenges / finding are NOT marked independently
+resolved on the reviewer's behalf.** Your work per correction -
+verify the correction is the faithful reading of the cited frozen
+contract (re-reading the citation over the sealed bytes, not the
+correction's prose) and record your verdict under section 4.6
+item 5 governance in challenge log section 6 under your identity
++ instant:
+
+* **CH-1 (MAJOR - FA4-ADV-024 / D12).** Corrected: expected.tier
+  EXCLUDED_LOW_CONFIDENCE -> HARD_CONFLICT (all other expected
+  fields preserved). VERIFY over the sealed scripted context +
+  the frozen S2-A contract data: the matrix base over NO_MATCH +
+  HIGH + STRONG is EXCLUDED_LOW_CONFIDENCE; the scripted conflict
+  class CAPACITY is a frozen ALWAYS_HARD_CONFLICT_CLASSES member;
+  the frozen hard-conflict supersession (always last inside the AI
+  path) sets HARD_CONFLICT (fired rule HARD_CONFLICT_SUPERSEDES -
+  the case's own sealed payload derived section records exactly
+  that). Where your independent reading differs, record a
+  CHALLENGE + resolution (the frozen contract wins over both
+  readings).
+* **CH-2 (LOW - FA4-UNPR-022 / B11).** Corrected: expected.
+  textual_relation T-DIFF-UNESTABLISHED -> T-DIFF-MATERIAL + the
+  rationale sentence (the UNPROVEN unit + its governing missing-
+  completeness rationale preserved). VERIFY over the sealed clause
+  bytes + the frozen P3 versioned grammar: the candidate clause
+  '2x RAM + 1x CPU, as listed' FULLY parses ('as listed' is a
+  valid item token - the same class as the worked-example 'power
+  cables'), as does the target clause '2x RAM + 1x CPU', the
+  canonical multisets DIFFER ((2,'ram'),(1,'cpu'),(1,'as listed')
+  vs (2,'ram'),(1,'cpu')) - the frozen axis over two fully-parsed
+  clauses is T-DIFF-MATERIAL; and the unit stays UNPROVEN (U15 -
+  the candidate is completeness-unknown; a material difference
+  never contradicts over a completeness-unknown clause - the D7
+  safe direction). If the frozen grammar does NOT support that
+  parse, record the contract conflict - do not force the
+  corrected label.
+* **F-R1 (MEDIUM - FA4-DELE-005 / B-DELE, provenance).**
+  Corrected: source_url
+  https://www.directd.com/product/BCM957608-P2200GQF00 ->
+  https://directmacro.com/catalogsearch/result/?q=BCM957608-
+  P2200GQF00 at the three sealed locations (source.candidate /
+  source.target / the recorded V2 case's candidate) - no label
+  field moved. VERIFY over the committed recording evidence: the
+  cited archive's own 4D-PRE evidence line records exactly the
+  corrected URL; the original 4D-A acquisition record pins the
+  DirectMacro locator target for the MPN as that URL (and forbids
+  a fabricated product slug); the declared archive digest verifies
+  over the committed file; the C1 provenance-binding invariant
+  (recorded V2 case <-> sealed candidate block, exact equality)
+  stands; and the pre-correction URL is unsupported by any
+  archive or 3A / 4D-A recording (it appeared only in an
+  unvalidated P2 test constant). If no trustworthy URL can be
+  established from the recording evidence, record the unresolved
+  provenance gap - do not accept an invented URL.
+
+The review's remaining non-label findings (F-R3 / F-R4 / F-R5 /
+F-R7 / F-R8, as recorded in the untracked ledger) stand for the
+seal gate / E1 / this tester worklist unchanged (they are handed
+to the independent tester as additional re-derivation targets, with
+all 36 D rows in tester scope by definition); F-R2 was corrected
+pre-seal at the Q3-C-C1-FU4 + C2-FU2 endpoint (section 4.2 below -
+your re-verification is required). The reviewer column of the
+challenge log for the three corrected rows remains PENDING until
+your re-verification is recorded.
+
+## 4.2 The F-R6 + F-R2 corrections of record (Q3-C-C1-FU4 +
+C2-FU2) - your re-verification worklist
+
+The F-R6 BLOCKER of the independent Q3-C-C2-T1 adversarial tester
+record of record (the untracked
+`tmp_q3c_c2t1_fr6_investigation.md` + the tester ledger, over HEAD
+`b85261924bc4827636ae3c3f54b01c7674d697b4`) was ADJUDICATED by the
+approved Q3-C-D1-FU3 design revision of record (the revision
+record of `docs/PRODUCT_INTEL_Q3C_FU4_BUNDLE_AUTHORITY_QUALIFICATION_`
+`DESIGN.md`: Option B - the D6-i stage re-attribution per the
+C2-F2a precedent; the F-R2 documentary finding verified at the
+revision) + the Q3-C-D1-FU3-FU1 two-contract correction (Contract
+A: the strict load ACCEPTS the correctly labeled sealed-raw case
+after verifying the stage against its internally collected
+observations; Contract B: the family-owned read-only observation
+interface returns the exact named observation at the exact layer;
+a record with no corpus-surface observation is the explicit
+bypass-to-G4 failure). The corrections were executed pre-seal
+under the section 4.6 item 5 governance by the corrective
+implementer of record (PRODUCT-INTEL.Q3C-C1-FU4.CORRECTIVE-
+IMPLEMENTER, correction instant 2026-10-20T02:00:02Z, the bounded
+C1-FU4 + C2-FU2 corrective implementation of design section 9.12),
+and each correction is pinned by a NEW regression node in the C2
+governance suite (the pre-correction value fails the pin). **The
+corrections remain OPEN for your re-verification: they are the
+corrective implementer's record only, and the finding is NOT
+marked independently resolved on the reviewer's behalf.** Your
+work per correction - verify the correction is the faithful
+reading of the cited design adjudication over the sealed bytes
+(re-reading the citation, not the correction's prose) and record
+your verdict under section 4.6 item 5 governance in challenge log
+section 6 (rows 23 / 24) under your identity + instant:
+
+* **F-R6 (BLOCKER - FA4-ADV-012 / D6-i).** Corrected:
+  expected.refusal.stage CONSTRUCTION -> CORPUS_INTEGRITY +
+  expected.refusal.error_type CONSTRUCTOR -> null (PRESERVED,
+  byte-unchanged: expected.outcome REFUSED, expected.replay
+  NOT_APPLICABLE, every other expected field, the case ID, matrix
+  row D6, track A, the DERIVATION surface, every sealed evidence
+  document, the label author, reviewer null, review_status DRAFT).
+  VERIFY over the sealed FA4-ADV-012 documents + the approved
+  Q3-C-D1-FU3 revision record: (1) every sealed document decodes
+  through the REAL frozen constructors with zero constructor
+  errors (the v2 case, the channel, the v3 candidate record - its
+  anchors equal the embedded result's own digests; the embedded
+  result's self-digests + cue spans verify over its own recorded
+  field text - the ALTERED title); the frozen presentation gate's
+  four steps ALL pass; (2) the inconsistency is BETWEEN the case's
+  separately sealed documents (the recorded extraction input
+  document's canonical digest != the result's input_digest -
+  plain-hash verifyable over the sealed bytes); (3) no frozen
+  constructor / codec / gate step / derivation signature / replay
+  path EVER receives the case's recorded input document (the P2
+  result's input_digest is a stored binding the frozen code never
+  recomputes against an external document; the frozen derivation
+  COMPLETES over the reconstructed self-consistent typed inputs -
+  the documented non-observation, never a satisfaction); (4)
+  therefore the family loader's named cross-document observation
+  SOURCE_EXTRACTION_INPUT_DIGEST (the corrected family loader's
+  CASE_DOCUMENT-layer observation - the Contract B interface
+  `observe_corpus_case_integrity` returns it at that layer with
+  the bounded reason, and `observation_stages` over the record +
+  the sealed surface is {CORPUS_INTEGRITY}) is the first and only
+  non-corroborative observation point - the stage-semantics (iv)
+  class, the C2-F2a precedent; (5) the existing stage-coherence
+  rule now ACCEPTS the CORPUS_INTEGRITY / null label (Contract A -
+  the case LOADS under the review fill) and REJECTS the obsolete
+  CONSTRUCTION / CONSTRUCTOR attribution (the pinned incoherent-
+  label reason). Where your independent reading differs, record a
+  CHALLENGE + resolution (the frozen contract wins over both
+  readings - the F-R6 adjudication moves NO frozen contract: the
+  frozen layers' silence over this shape is the evidence, not the
+  defect).
+* **F-R2 (documentary - FA4-ADV-022 / FA4-ADV-023 / D11).**
+  Corrected: the two D11 grounding citations now carry the
+  VERIFIED catalog digest
+  `160d4fe97a5df5249e8f6404f6b005c0515fab4def1b4668fdaf87c727600743`
+  (the pre-correction citations named
+  tests/fixtures/pages/micron_7500_part_catalog.json by path only
+  while the adjudication record claims "cited by path + digest")
+  - a class-A annotation correction: NO expected field moves, NO
+  evidence-classification move (both cases stay DERIVED /
+  CONTRADICTED / NEEDS_REVIEW over their sealed documents; the
+  catalog is identifier-shape CONTEXT only). VERIFY: recompute the
+  SHA-256 over the current working-tree bytes of
+  tests/fixtures/pages/micron_7500_part_catalog.json (24,060
+  bytes) and confirm it equals the cited digest (the NEW C2 node
+  recomputes it at test time - a catalog move or a path-only
+  citation trips the pin); confirm the catalog publishes
+  identifiers only (zero `bundle` occurrences - the C2-F5
+  statement); confirm the catalog file is otherwise UNCHANGED.
+  FA4-ADV-023 joins its existing C2-F5 re-verification (its [COR-
+  RECTED-VERIFY] flag is shared with both corrections).
+
+The reviewer column of the challenge log for the three corrected
+rows (FA4-ADV-012 / FA4-ADV-022 / FA4-ADV-023) remains PENDING
+until your re-verification is recorded under your identity +
+instant.
 
 ## 5. The seal procedure (exactly, when the review is complete)
 

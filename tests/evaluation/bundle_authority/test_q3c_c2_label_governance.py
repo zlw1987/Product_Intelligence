@@ -89,15 +89,31 @@ AUTHOR_UTC = "2026-10-15T23:22:50Z"
 #: The working-tree digest of the committed DRAFT authoring source (the
 #: stale-digest / modified-label gate: ANY byte change to the draft
 #: population - a label, an expected axis, a reviewer field - moves
-#: this digest and fails the pin. RE-PIN of record (Q3-C-C1-FU3 + C2
-#: corrective implementation, the recorded adjudication + the verified
-#: pre-seal case corrections - the pin's own stated contract): the
-#: corrected 94-case population of record (the eight corrected rows +
-#: the two removed cases + the docstring of record). The pin is re-
-#: recorded again at the sealed endpoint under the seal's own
+#: this digest and fails the pin. RE-PIN of record (Q3-C-C2-R1-FU1
+#: pre-seal label and provenance corrections - the pin's own stated
+#: contract: a pin move is a recorded re-pin event, never a silent
+#: one): the three corrected rows of record (CH-1 FA4-ADV-024
+#: expected.tier -> HARD_CONFLICT; CH-2 FA4-UNPR-022 expected.
+#: textual_relation -> T-DIFF-MATERIAL; F-R1 FA4-DELE-005 the
+#: archive-recorded source URL at the three sealed locations) +
+#: their label annotations, over the corrected 94-case DRAFT
+#: population (the C1-FU3 + C2 corrected state of record otherwise
+#: byte-unchanged). RE-PIN of record (Q3-C-C1-FU4 + C2-FU2 F-R6 /
+#: F-R2 corrective implementation - the pin's own stated contract):
+#: d1120de7d995e331a8b3cd4da0f4b071f5d5bacf94daf4f8d85aceffcf094dd5
+#: -> 0cb7dfb1e9918d5c29fa51b0a189bdd2baf02cb0c500ba7981ce103ae00059d2 -
+#: the two corrected rows of record (F-R6 FA4-ADV-012
+#: expected.refusal.stage CONSTRUCTION -> CORPUS_INTEGRITY +
+#: expected.refusal.error_type CONSTRUCTOR -> null, the Q3-C-D1-FU3
+#: adjudication + its label annotations; F-R2 FA4-ADV-022 /
+#: FA4-ADV-023 grounding citations + the verified Micron catalog
+#: digest 160d4fe97a5df5249e8f6404f6b005c0515fab4def1b4668fdaf87c727600743
+#: - a documentary annotation, no expected field moved) over the
+#: otherwise byte-unchanged 94-case DRAFT population. The pin is
+#: re-recorded again at the sealed endpoint under the seal's own
 #: governance.
 FIXTURES_PY_WORKTREE_SHA256 = (
-    "d1ded1246d27febfc802e465e7b61d7314bff35d41f971b910103b55c59410a7"
+    "0cb7dfb1e9918d5c29fa51b0a189bdd2baf02cb0c500ba7981ce103ae00059d2"
 )
 
 #: The C1 family package files are byte-frozen at the C1 endpoint
@@ -111,9 +127,25 @@ FIXTURES_PY_WORKTREE_SHA256 = (
 #: FU3 endpoint of record - the pin's own stated contract (a pin move
 #: is a recorded re-pin event, never a silent one). cli.py /
 #: __init__.py are unchanged (byte-identical to the C1 / C2 pins).
+#: RE-PIN of record for corpus.py (Q3-C-C1-FU4 + C2-FU2 corrective
+#: implementation, design section 9.12 file (1) / (1b) - the pin's
+#: own stated contract): aa09d2a58d6f71cc2a4b201155e6c859d1e34fc6552bde55e4131f95a40f157d
+#: -> 7eee013bd246c81bc661eb54a4e4cd2dcb03de79232fd339474d9f9d46cbd56f
+#: - the F-R6 loader observation re-classification (the D6-i
+#: SOURCE_EXTRACTION_INPUT_DIGEST observation moves from the
+#: CONSTRUCTOR layer to the CASE_DOCUMENT layer - the check logic +
+#: the bounded reason unchanged; the existing stage-coherence rule
+#: now accepts CORPUS_INTEGRITY / null and rejects the obsolete
+#: CONSTRUCTION attribution over the D6-i shape) + the family-owned
+#: read-only Contract B observation interface (observe_corpus_
+#: case_integrity + observation_stages + the bounded record types -
+#: the actual _run_family_checks() logic reused, the expected label
+#: never read for behavior, no production bypass, no model / network
+#: / pricing / derivation / replay invocation). cli.py /
+#: __init__.py remain unchanged (byte-identical to the C1 / C2 pins).
 C1_PACKAGE_PINS = {
     "product_intelligence/evaluation/bundle_authority/corpus.py": (
-        "aa09d2a58d6f71cc2a4b201155e6c859d1e34fc6552bde55e4131f95a40f157d"
+        "7eee013bd246c81bc661eb54a4e4cd2dcb03de79232fd339474d9f9d46cbd56f"
     ),
     "product_intelligence/evaluation/bundle_authority/cli.py": (
         "19fdb751af5a85c36ada81039b7df8ff76982d3697cf1b2ffa3a09360b851156"
@@ -126,20 +158,40 @@ C1_PACKAGE_PINS = {
 #: The C2 governance artifacts of record (the non-seal family
 #: directory contents at the draft endpoint).
 #: RE-PIN of record for the challenge log + the reviewer handoff
-#: (Q3-C-C1-FU3 + C2 corrective implementation, design section 9.11
-#: file (5)): the adjudication record under the reviewer / adjudicator
-#: identity + instant + the corrected rows' worklist are the corrected
-#: governance state of record. The family README + the DRAFT policy
-#: are unchanged (byte-identical to the C2 pins).
+#: (Q3-C-C2-R1-FU1 pre-seal label and provenance corrections - the
+#: pin's own stated contract): the pre-seal correction record under
+#: the corrective implementer identity + correction instant (the
+#: section 1 correction-of-record paragraph + the section 6 rows
+#: 20 / 21 / 22 + the three per-case status cells) + the section
+#: 4.1 re-verification worklist are the corrected governance state
+#: of record; the CH-1 / CH-2 challenges + the F-R1 finding remain
+#: OPEN for the independent reviewer's re-verification (not marked
+#: resolved on the reviewer's behalf). The family README + the
+#: DRAFT policy are unchanged (byte-identical to the C2 / C1-FU3
+#: pins).
+#: RE-PIN of record for the challenge log + the reviewer handoff
+#: (Q3-C-C1-FU4 + C2-FU2 F-R6 / F-R2 corrective implementation - the
+#: pin's own stated contract): the F-R6 + F-R2 correction-of-record
+#: entry (the section 1 paragraph + the section 6 rows 23 / 24 + the
+#: three per-case status cells - FA4-ADV-012 / FA4-ADV-022 /
+#: FA4-ADV-023 flagged CORRECTED - reviewer re-verification
+#: required) + the section 4.2 re-verification worklist + the
+#: FA4-ADV-012 / FA4-ADV-022 [CORRECTED-VERIFY] worklist flags are
+#: the corrected governance state of record; the F-R6 + F-R2
+#: findings remain OPEN for the independent reviewer's re-
+#: verification (not marked resolved on the reviewer's behalf);
+#: F-R3 / F-R4 / F-R5 / F-R7 / F-R8 stand as recorded. The family
+#: README + the DRAFT policy are unchanged (byte-identical to the
+#: C2 / C1-FU3 pins).
 FAMILY_ARTIFACT_PINS = {
     str(POLICY_DRAFT.relative_to(REPO_ROOT)): (
         "30da9e8f9234292cbd616d3438222dc5d8ad7fc7f001126f56a70e39992b814c"
     ),
     str(CHALLENGE_LOG.relative_to(REPO_ROOT)): (
-        "8fce4e052f6d5d7a13bfdb46109eac461ab23e81ad7c667a07ea6adf9b3458b3"
+        "52f6cc9bcf2ae111e8e5ab2d13a6c5e608a1cfd4812ab352549f2f70d491330c"
     ),
     str(REVIEWER_HANDOFF.relative_to(REPO_ROOT)): (
-        "dfdef84ab144ae4900b214d25dc7093cec5ad934f6a8468dc7c117933b12b8fb"
+        "92f71e8f0358de972be4788cdd6abae64ac8eccec0cf3a6327eafe12e403636f"
     ),
     str(FAMILY_README.relative_to(REPO_ROOT)): (
         "4b3082a1c853550a59a90bd39e829ac2e39609970e59f082444e47477b0d952d"
@@ -1271,8 +1323,391 @@ class TestIntegrity:
 
 
 # ---------------------------------------------------------------------------
+# The pre-seal label / provenance corrections of record (Q3-C-C2-R1-FU1)
+# the independent C2-R1 review's CH-1 / CH-2 challenges + the F-R1
+# provenance finding, corrected under the section 4.6 item 5
+# governance (class A - the expectation was factually wrong over the
+# frozen contract; the F-R1 correction is a provenance annotation, no
+# label field moved). Each regression below FAILS if the pre-
+# correction value returns.
+# ---------------------------------------------------------------------------
+
+
+class TestPreSealCorrections:
+    def test_fa4_adv_024_expected_tier_is_the_hard_conflict_supersession(self):
+        """CH-1 regression (FA4-ADV-024 / D12, MAJOR): the expected
+        tier is the frozen S2-A hard-conflict SUPERSESSION result, never
+        the pre-supersession matrix base. Independently re-derived
+        here from the sealed scripted context + the frozen contract
+        DATA (the module is the byte-pinned contract of record - the
+        frozen `SEMANTIC_OUTCOME_TIER_MATRIX` base, the frozen
+        `ALWAYS_HARD_CONFLICT_CLASSES` set, and the frozen supersession
+        precedence "always last inside the AI path" documented in the
+        contract's `derive_authority_tier` docstring): NO_MATCH + HIGH
+        + STRONG -> base EXCLUDED_LOW_CONFIDENCE; the scripted conflict
+        class CAPACITY is ALWAYS_HARD -> supersession ->
+        HARD_CONFLICT. The case's OWN sealed payload derived section
+        records exactly that (tier + fired rule). Fails if the
+        pre-correction tier (EXCLUDED_LOW_CONFIDENCE) returns."""
+        from product_intelligence.research import semantic_authority_v2 as s2a
+
+        case = next(c for c in CASES if c["case_id"] == "FA4-ADV-024")
+        expected = case["expected"]
+        # The sealed scripted context (the case's own payload evaluation
+        # section - the frozen contract data the derivation consumes).
+        payload = case["recorded_case"]["payload_document"]
+        evaluation = payload["evaluation"]
+        assert evaluation["decision"] == "NO_MATCH"
+        assert evaluation["confidence"] == "HIGH"
+        assert evaluation["conflict_classes"] == ["CAPACITY"]
+        quality = payload["derived"]["product_evidence_quality"]
+        assert quality == "STRONG"
+        # The frozen derivation re-derived over the contract data:
+        base = s2a.semantic_outcome_tier(
+            s2a.V2SemanticDecision.NO_MATCH,
+            s2a.V2Confidence.HIGH,
+            s2a.ProductEvidenceQuality[quality],
+        )
+        assert base is s2a.AuthorityTier.EXCLUDED_LOW_CONFIDENCE
+        hard = {s2a.ConflictClass(c) for c in evaluation["conflict_classes"]}
+        assert hard & s2a.ALWAYS_HARD_CONFLICT_CLASSES, (
+            "the scripted conflict class must be a frozen ALWAYS_HARD "
+            "member (the supersession precondition)"
+        )
+        final = (
+            s2a.AuthorityTier.HARD_CONFLICT
+            if (hard & s2a.ALWAYS_HARD_CONFLICT_CLASSES)
+            else base
+        )
+        assert final is s2a.AuthorityTier.HARD_CONFLICT
+        # The authored expectation: the superseded result ...
+        assert expected["tier"] == final.value
+        # ... never the pre-supersession base (the exact CH-1
+        # regression).
+        assert expected["tier"] != base.value
+        # The case's own sealed payload snapshot agrees (the recorded
+        # snapshot contradicted the pre-correction expected block).
+        assert payload["derived"]["authority_tier"] == expected["tier"]
+        assert "HARD_CONFLICT_SUPERSEDES" in payload["derived"]["fired_rules"]
+        assert "SEMANTIC_OUTCOME_MATRIX" in payload["derived"]["fired_rules"]
+        # The preserved axes (the correction moves ONLY the tier):
+        assert expected["outcome"] == "DERIVED"
+        assert expected["unit"] == "PROVEN_EQUIVALENT"
+        assert expected["quantity_axis"] == "BOTH_UNPUBLISHED"
+        assert expected["candidate_composition_state"] == "ESTABLISHED"
+        assert expected["target_composition_state"] == "ESTABLISHED"
+        assert expected["textual_relation"] == "T-AGREE"
+        assert expected["expected_ceiling"] is None
+        assert expected["pricing_eligible"] is False
+        assert expected["refusal"] is None
+        assert expected["replay"] == "REPLAY_PASS"
+        # The frozen pricing-eligibility consequence stands: HARD_
+        # CONFLICT is outside the frozen PRICING_ELIGIBLE_TIERS set.
+        assert s2a.AuthorityTier.HARD_CONFLICT not in s2a.PRICING_ELIGIBLE_TIERS
+
+    def test_fa4_unpr_022_textual_relation_is_the_frozen_grammar_multiset_difference(self):
+        """CH-2 regression (FA4-UNPR-022 / B11, LOW): the sealed
+        candidate clause '2x RAM + 1x CPU, as listed' and the sealed
+        target clause '2x RAM + 1x CPU' BOTH fully parse under the
+        frozen P3 versioned materiality grammar - 'as listed' is a
+        valid item token (alphanumerics with an internal single
+        space, the same class as the worked-example 'power cables') -
+        and their canonical multisets DIFFER, so the frozen textual
+        axis over two fully-parsed clauses is T-DIFF-MATERIAL (never
+        T-DIFF-UNESTABLISHED, which the grammar reserves for a side
+        that does not fully parse). Re-derived here by re-running the
+        frozen grammar over the sealed clause bytes (the contract
+        datum - never an expected-label source); the target clause
+        digest cross-checks the sealed attestation binding. Fails if
+        the pre-correction T-DIFF-UNESTABLISHED returns. The UNPROVEN
+        unit + its governing missing-completeness rationale (U15 - the
+        candidate is completeness-unknown) are preserved: a material
+        difference over a completeness-unknown clause never derives a
+        contradiction (the D7 safe direction)."""
+        import hashlib
+
+        from product_intelligence.research import semantic_authority_fu4 as fu4
+
+        case = next(c for c in CASES if c["case_id"] == "FA4-UNPR-022")
+        expected = case["expected"]
+        cand_clause = case["derivation_inputs"]["candidate_composition"]["composition_clause"]
+        tgt_clause = case["derivation_inputs"]["target_evidence"]["document"]["composition_clause"]
+        assert cand_clause == "2x RAM + 1x CPU, as listed"
+        assert tgt_clause == "2x RAM + 1x CPU"
+        # The frozen grammar over the sealed clause bytes:
+        parsed_cand = fu4._full_parse_clause(cand_clause)
+        parsed_tgt = fu4._full_parse_clause(tgt_clause)
+        assert parsed_cand is not None, (
+            "the sealed candidate clause does not fully parse under "
+            "the frozen grammar - the T-DIFF-MATERIAL correction would "
+            "misstate the frozen contract (STOP condition of record)"
+        )
+        assert parsed_tgt is not None, (
+            "the sealed target clause does not fully parse under the "
+            "frozen grammar - the T-DIFF-MATERIAL correction would "
+            "misstate the frozen contract (STOP condition of record)"
+        )
+        # The trailing 'as listed' is a valid item token (quantity 1)
+        # of the frozen grammar - the same class as the worked-example
+        # 'power cables':
+        assert (1, "as listed") in parsed_cand
+        assert fu4._ITEM_TOKEN_RE.match("as listed")
+        # ... and the canonical multisets DIFFER:
+        assert parsed_cand != parsed_tgt
+        # The frozen axis over two fully-parsed differing clauses:
+        assert fu4._textual_relation(cand_clause, tgt_clause) == "T-DIFF-MATERIAL"
+        # The authored expectation: the corrected relationship ...
+        assert expected["textual_relation"] == "T-DIFF-MATERIAL"
+        # ... never the pre-correction value (the exact CH-2
+        # regression):
+        assert expected["textual_relation"] != "T-DIFF-UNESTABLISHED"
+        # The preserved UNPROVEN outcome + its governing missing-
+        # completeness rationale (U15):
+        assert expected["outcome"] == "DERIVED"
+        assert expected["unit"] == "UNPROVEN"
+        assert expected["candidate_composition_state"] == "SYNTACTICALLY_VALID"
+        assert expected["target_composition_state"] == "ESTABLISHED"
+        assert expected["quantity_axis"] == "BOTH_UNPUBLISHED"
+        assert expected["tier"] == "NEEDS_REVIEW"
+        assert expected["expected_ceiling"] == "CEILING_SALES_UNIT_NOT_PROVEN"
+        assert expected["pricing_eligible"] is False
+        assert expected["refusal"] is None
+        assert expected["replay"] == "NOT_APPLICABLE"
+        # The sealed target attestation binds exactly the sealed
+        # target clause (the clause-digest cross-check over the
+        # corrected parse ground):
+        att = case["derivation_inputs"]["target_evidence"]["document"]["completeness_attestation"]
+        assert att["clause_digest"] == hashlib.sha256(
+            tgt_clause.encode("utf-8")
+        ).hexdigest()
+
+    def test_fa4_dele_005_source_url_is_the_archive_recorded_url(self):
+        """F-R1 regression (FA4-DELE-005 / B-DELE, MEDIUM provenance):
+        the sealed source blocks + the recorded V2 case carry the URL
+        the committed recording evidence supports - the cited
+        archive's own 4D-PRE evidence line (the DirectMacro search-
+        results page for the recorded MPN), which is exactly the
+        original 4D-A acquisition target for that MPN (the 4D-A
+        record pins the locator URL and forbids a fabricated product
+        slug). Fails if the unsupported pre-correction URL
+        (www.directd.com) returns anywhere in the case. The expected
+        label is unaffected (the URL is not a channel / derivation
+        field); the C1 provenance-binding invariant (the recorded V2
+        case's candidate source URL exactly equal to the sealed
+        candidate block's) stands."""
+        case = next(c for c in CASES if c["case_id"] == "FA4-DELE-005")
+        archive_rel = case["source"]["candidate"]["archive"]
+        assert archive_rel == (
+            "tests/fixtures/pages/"
+            "directmacro_bcm957608_p2200gqf00_search.html"
+        )
+        archive = (REPO_ROOT / archive_rel).read_bytes()
+        # The declared archive digests verify over the committed file
+        # (both sealed blocks cite the same archive):
+        for side in ("candidate", "target"):
+            assert hashlib.sha256(archive).hexdigest() == (
+                case["source"][side]["archive_digest"]
+            ), f"the {side} block's declared archive digest no longer " \
+               "verifies over the committed file"
+        # The archive's own 4D-PRE evidence records the retrieval URL:
+        text = archive.decode("utf-8")
+        m = re.search(r"^\s+source: (\S+)$", text, re.MULTILINE)
+        assert m, "the archive's recorded 4D-PRE source line is missing"
+        recorded_url = m.group(1)
+        assert recorded_url == (
+            "https://directmacro.com/catalogsearch/result/?q=BCM957608-P2200GQF00"
+        )
+        # Every sealed location carries exactly the archive-recorded
+        # URL (the C1 provenance binding keeps the recorded V2 case
+        # equal to the sealed candidate block; the target block cites
+        # the same archive):
+        assert case["source"]["candidate"]["source_url"] == recorded_url
+        assert case["source"]["target"]["source_url"] == recorded_url
+        assert case["recorded_case"]["v2_case_document"]["candidate"]["source_url"] == recorded_url
+        # The unsupported pre-correction URL is gone (the exact F-R1
+        # regression):
+        assert "www.directd.com" not in json.dumps(case)
+
+
+# ---------------------------------------------------------------------------
 # The authoring import prohibition (design section 4.6 item 2(a))
 # ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# The F-R6 + F-R2 pre-seal corrections of record (Q3-C-C1-FU4 +
+# C2-FU2): the D6-i stage re-attribution (the approved Q3-C-D1-FU3
+# adjudication - Option B, the C2-F2a precedent; the Q3-C-D1-FU3-
+# FU1 two-contract correction) + the D11 documentary citation
+# digest completion (the verified Micron catalog digest; no expected
+# field moves). Each regression below FAILS if the pre-correction
+# value returns.
+# ---------------------------------------------------------------------------
+
+#: The verified Micron catalog digest (F-R2): recomputed from the
+#: current source bytes at test time (the catalog file itself is
+#: UNCHANGED - a catalog move fails the pin, as does a path-only
+#: citation).
+MICRON_CATALOG_REL = "tests/fixtures/pages/micron_7500_part_catalog.json"
+MICRON_CATALOG_SHA256 = (
+    "160d4fe97a5df5249e8f6404f6b005c0515fab4def1b4668fdaf87c727600743"
+)
+
+
+class TestC2Fu2Corrections:
+    def test_fa4_adv_012_refusal_is_the_f_r6_adjudicated_corpus_integrity(self):
+        """F-R6 regression (FA4-ADV-012 / D6-i): the expected refusal
+        is the ADJUDICATED stage re-attribution of the approved Q3-C-
+        D1-FU3 revision record (Option B - the C2-F2a precedent):
+        CORPUS_INTEGRITY with error_type null (the stage-error
+        vocabulary: the loader's own stage names no implementation
+        error class) + the exact named observation
+        SOURCE_EXTRACTION_INPUT_DIGEST at the CASE_DOCUMENT layer
+        (the family loader's cross-document integrity check - the
+        frozen constructor / codec / derivation are silent over the
+        sealed shape). The pre-correction CONSTRUCTION / CONSTRUCTOR
+        attribution trips this pin. Every unrelated expected axis +
+        the case identity / governance / sealed evidence remains
+        byte-unchanged (the correction moves ONLY the two refusal
+        fields + the label annotation)."""
+        case = next(c for c in CASES if c["case_id"] == "FA4-ADV-012")
+        refusal = case["expected"]["refusal"]
+        assert refusal == {"stage": "CORPUS_INTEGRITY", "error_type": None}, (
+            f"FA4-ADV-012: the F-R6 adjudicated refusal moved: {refusal!r}"
+        )
+        # the obsolete pre-correction attribution trips the pin:
+        assert refusal != {"stage": "CONSTRUCTION", "error_type": "CONSTRUCTOR"}
+        # the governing design adjudication is named in the label
+        # annotation (the exact observation point, not the correction's
+        # prose alone):
+        citation = case["label"]["grounding_citation"]
+        rationale = case["label"]["rationale"]
+        assert "Q3-C-D1-FU3" in citation
+        assert "SOURCE_EXTRACTION_INPUT_DIGEST" in citation
+        assert "CASE_DOCUMENT" in rationale
+        assert "CORPUS_INTEGRITY" in rationale
+        # PRESERVED (byte-unchanged by the correction):
+        e = case["expected"]
+        assert e["outcome"] == "REFUSED"
+        assert e["replay"] == "NOT_APPLICABLE"
+        for axis in (
+            "unit", "quantity_axis", "candidate_composition_state",
+            "target_composition_state", "textual_relation", "tier",
+            "expected_ceiling", "pricing_eligible", "semantic_identity_note",
+        ):
+            assert e[axis] is None, (
+                f"FA4-ADV-012: the unrelated expected axis {axis!r} "
+                f"moved: {e[axis]!r}"
+            )
+        assert case["matrix_row"] == "D6"
+        assert case["track"] == "A"
+        assert case["surface"] == "DERIVATION"
+        assert case["evidence_kind"] == "SYNTHETIC"
+        assert case["challenge_tags"] == ["cross_listing_substitution"]
+        assert case["label"]["author"] == AUTHOR_IDENTITY
+        assert case["label"]["author_utc"] == AUTHOR_UTC
+        assert case["label"]["reviewer"] is None
+        assert case["label"]["reviewer_utc"] is None
+        assert case["label"]["review_status"] == "DRAFT"
+        assert case["label"]["labeling_provenance"] == "ADVERSARIAL_CONSTRUCTION"
+        # every sealed evidence document is byte-unchanged (the
+        # recorded cross-document defect is plain-verifiable over the
+        # sealed bytes - the test re-derives it itself, it does not
+        # trust the label):
+        ext = case["derivation_inputs"]["extraction_evidence"]
+        assert ext["input_document"]["fields"]["product_title"] == (
+            "ABC-123 1TB NVMe Drive: bundle: 2x RAM + 1x SSD"
+        )
+        assert ext["result_document"]["input_digest"] == (
+            "660fdb477109d2bbabc4c6adf5b8fa1b1c1d7e442fbfdf5a45efa40200a52599"
+        )
+        assert fam.canonical_sha256(ext["input_document"]) != (
+            ext["result_document"]["input_digest"]
+        ), "the sealed D6-i cross-document defect is missing (the " \
+           "evidence documents moved under the correction)"
+        assert case["source"]["candidate"]["title_text"] == (
+            "ABC-123 1TB NVMe Drive: bundle: 2x RAM + 1x SSD"
+        )
+        # the corrected case LOADS under the real family loader with
+        # the test-local reviewer fill (Contract A - the acceptance
+        # after the stage-coherence verification):
+        with tempfile.TemporaryDirectory() as td:
+            _load_single(_filled(case), Path(td))
+
+    def test_fa4_adv_012_obsolete_construction_attribution_is_refused_by_the_corrected_loader(
+        self, tmp_path
+    ):
+        """F-R6 regression (the loader half): the pre-correction
+        CONSTRUCTION / CONSTRUCTOR attribution is REFUSED by the
+        corrected stage-coherence rule over the sealed FA4-ADV-012
+        documents (the case-document observation fired; no
+        constructor-layer observation exists over the shape) - a
+        mutation of the label back to the obsolete attribution trips
+        this pin, and the refusal is the bounded deterministic
+        reason, never a silent acceptance."""
+        case = next(c for c in CASES if c["case_id"] == "FA4-ADV-012")
+        reverted = _filled(case)
+        reverted["expected"]["refusal"] = {
+            "stage": "CONSTRUCTION",
+            "error_type": "CONSTRUCTOR",
+        }
+        # the Contract B interface is independent of the label: the
+        # reverted attribution still observes the genuine defect:
+        reverted["case_digest"] = fam.case_state_digest(reverted)
+        record = fam.observe_corpus_case_integrity(reverted)
+        assert "SOURCE_EXTRACTION_INPUT_DIGEST" in record.check_names
+        assert fam.observation_stages(record, "DERIVATION") == frozenset(
+            {"CORPUS_INTEGRITY"}
+        )
+        # and Contract A refuses the obsolete attribution:
+        document = fam_fixtures.build_corpus_document(
+            DRYRUN_CREATED_UTC, (reverted,)
+        )
+        with pytest.raises(fam.BundleAuthorityLabelError) as exc:
+            fam.verify_corpus_document(document)
+        assert (
+            "case FA4-ADV-012: the labeled CONSTRUCTION defect is not "
+            "observable"
+        ) in exc.value.reason
+
+    def test_fa4_adv_022_and_023_citations_carry_the_verified_catalog_digest(self):
+        """F-R2 regression (FA4-ADV-022 / FA4-ADV-023 / D11): the two
+        grounding citations carry the VERIFIED catalog digest (the
+        pre-correction path-only citation trips the pin). The digest
+        is recomputed from the catalog's CURRENT source bytes at test
+        time (a catalog move or a path-only citation fails the node);
+        the cases' expected labels + evidence classification are
+        UNAFFECTED (the F-R2 correction is a documentary annotation -
+        no expected field moved)."""
+        catalog = REPO_ROOT / MICRON_CATALOG_REL
+        actual = hashlib.sha256(catalog.read_bytes()).hexdigest()
+        assert actual == MICRON_CATALOG_SHA256, (
+            f"the Micron catalog moved (working-tree digest {actual}); "
+            "the cited digest is the verified value of record - a "
+            "catalog change is a STOP condition, not a silent "
+            "re-pin"
+        )
+        for cid in ("FA4-ADV-022", "FA4-ADV-023"):
+            case = next(c for c in CASES if c["case_id"] == cid)
+            citation = case["label"]["grounding_citation"]
+            path_idx = citation.index(MICRON_CATALOG_REL)
+            assert MICRON_CATALOG_SHA256 in citation[path_idx:], (
+                f"{cid}: the D11 grounding citation names the Micron "
+                "catalog by path only - the F-R2 verified digest "
+                "returns (the pre-correction value)"
+            )
+            # the expected label + evidence classification are
+            # unaffected by the documentary correction:
+            e = case["expected"]
+            assert e["outcome"] == "DERIVED"
+            assert e["unit"] == "CONTRADICTED"
+            assert e["tier"] == "NEEDS_REVIEW"
+            assert e["expected_ceiling"] == "CEILING_SALES_UNIT_CONTRADICTED"
+            assert e["pricing_eligible"] is False
+            assert case["evidence_kind"] == "SYNTHETIC"
+            assert case["matrix_row"] == "D11"
+            assert case["label"]["review_status"] == "DRAFT"
+            assert case["label"]["reviewer"] is None
 
 
 class TestImportProhibition:
@@ -1391,15 +1826,17 @@ class TestHistoricalPreservation:
     def test_family_governance_artifacts_are_byte_pinned(self):
         # Recorded in-place correction (pins re-recorded under the
         # governance rule): the challenge log + the reviewer handoff
-        # are the CORRECTED governance state of record (the
-        # adjudication record + the corrected rows' worklist - design
-        # section 9.11 file (5)); the family README + the DRAFT
-        # policy remain the C2 byte-frozen artifacts.
+        # are the CORRECTED governance state of record - at the
+        # Q3-C-C2-R1-FU1 endpoint the pre-seal correction record +
+        # the section 4.1 re-verification worklist (the earlier
+        # re-pin: the adjudication record + the corrected rows'
+        # worklist - design section 9.11 file (5)); the family README
+        # + the DRAFT policy remain the C2 byte-frozen artifacts.
         for rel, expected in sorted(FAMILY_ARTIFACT_PINS.items()):
             assert _sha256_file(rel) == expected, (
                 f"{rel} moved; the family governance record is "
-                "sealed-by-digest at the C1-FU3 + C2 corrective "
-                "endpoint of record"
+                "sealed-by-digest at the Q3-C-C2-R1-FU1 pre-seal "
+                "correction endpoint of record"
             )
 
 

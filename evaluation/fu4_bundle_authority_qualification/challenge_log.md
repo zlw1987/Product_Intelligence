@@ -61,6 +61,149 @@ DRAFT (reviewer null), the reviewer column below remains
 PENDING, and no reviewer identity, timestamp, signature, or
 approval is recorded anywhere in this family.
 
+**Pre-seal label and provenance correction of record (the
+Q3-C-C2-R1-FU1 corrective implementation; this is NOT a review).**
+The independent C2-R1 label review of record (reviewer identity
+`Q3-C-C2-R1.INDEPENDENT-LABEL-REVIEWER`; the untracked session
+review ledger over HEAD
+`b85261924bc4827636ae3c3f54b01c7674d697b4`) resolved 92 of the 94
+cases AGREE (9 with recorded non-label notes) and opened THREE
+pre-seal blockers, corrected here under the section 4.6 item 5
+governance (class A where the expectation was factually wrong over
+the frozen contract; the case IDs stable; no other expected label
+moved; no publisher completeness statement or source provenance
+fabricated; the frozen derivation / grammar were NOT changed to
+match the authored labels): **CH-1** (MAJOR - FA4-ADV-024 / D12):
+the authored `expected.tier = EXCLUDED_LOW_CONFIDENCE` was the
+frozen S2-A matrix BASE over the sealed scripted context (NO_MATCH
++ HIGH + STRONG); the scripted conflict class CAPACITY is a frozen
+`ALWAYS_HARD_CONFLICT_CLASSES` member, and the frozen hard-conflict
+supersession (always last inside the AI path) sets the tier
+HARD_CONFLICT (fired rule HARD_CONFLICT_SUPERSEDES) - the case's
+OWN sealed payload derived section records exactly that (the
+author's snapshot contradicted the author's expected block).
+Corrected `expected.tier -> HARD_CONFLICT`; all other expected
+fields preserved (unit PROVEN_EQUIVALENT, axis BOTH_UNPUBLISHED,
+states ESTABLISHED/ESTABLISHED, T-AGREE, ceiling null, pricing
+false, REPLAY_PASS). **CH-2** (LOW - FA4-UNPR-022 / B11): the
+authored `expected.textual_relation = T-DIFF-UNESTABLISHED`
+misstated the frozen P3 versioned grammar: the sealed candidate
+clause '2x RAM + 1x CPU, as listed' FULLY parses ('as listed' is a
+valid item token - alphanumerics with an internal single space, the
+same class as the worked-example 'power cables'), as does the
+target clause '2x RAM + 1x CPU', and the canonical multisets
+DIFFER ((2,'ram'),(1,'cpu'),(1,'as listed') vs (2,'ram'),(1,'cpu'))
+- the frozen axis over two fully-parsed clauses is T-DIFF-MATERIAL
+(T-DIFF-UNESTABLISHED is reserved for a side that does not fully
+parse). Corrected `expected.textual_relation -> T-DIFF-MATERIAL` +
+the rationale sentence; the UNPROVEN unit and its governing
+missing-completeness rationale (U15 - the candidate is
+completeness-unknown; a material difference never contradicts over
+a completeness-unknown clause - the D7 safe direction) are
+preserved. **F-R1** (MEDIUM - FA4-DELE-005 / B-DELE, provenance):
+the sealed source blocks + the recorded V2 case carried
+`source_url: https://www.directd.com/product/BCM957608-P2200GQF00`
+- a URL the cited archive does NOT record: the archive's own 4D-PRE
+evidence line records `https://directmacro.com/catalogsearch/`
+`result/?q=BCM957608-P2200GQF00` (exactly the original 4D-A
+acquisition target for the MPN - the 4D-A record pins the locator
+URL and forbids a fabricated product slug; the unsupported URL
+appeared in the repository only in an unvalidated P2 test
+constant, and nowhere in any archive or 3A / 4D-A recording).
+Corrected the three sealed URL locations to the archive-recorded
+URL (the C1 provenance-binding invariant - the recorded V2 case's
+candidate source URL exactly equal to the sealed candidate block's
+- preserved; the expected label is UNAFFECTED - the URL is not a
+channel / derivation field; no URL was invented - the correction
+uses the URL the committed recording evidence itself records). Each
+correction is pinned by a NEW regression node in the C2 governance
+suite (the pre-correction value fails the pin), and the moved
+digest pins are re-recorded under the pin's own stated contract.
+**The CH-1 / CH-2 / F-R1 corrections remain OPEN for the
+independent reviewer's re-verification** (the corrections are the
+corrective implementer's record only - the reviewer's challenges
+are NOT marked independently resolved on the reviewer's behalf);
+the independent review record of these corrections HAS NOT
+OCCURRED. The review's remaining non-label findings (F-R2..F-R8)
+stand as recorded in the untracked ledger for the seal gate / E1 /
+the independent tester. Every label remains DRAFT (reviewer
+null), the reviewer column below remains PENDING, and no reviewer
+identity, timestamp, signature, or approval is recorded anywhere
+in this family.
+
+**F-R6 + F-R2 correction of record (the Q3-C-C1-FU4 + C2-FU2
+corrective implementation; this is NOT a review).** The F-R6
+BLOCKER of the independent Q3-C-C2-T1 adversarial tester record of
+record (the untracked `tmp_q3c_c2t1_fr6_investigation.md` + the
+tester ledger, over HEAD
+`b85261924bc4827636ae3c3f54b01c7674d697b4`) was ADJUDICATED by
+the approved Q3-C-D1-FU3 design revision of record (the revision
+record of `docs/PRODUCT_INTEL_Q3C_FU4_BUNDLE_AUTHORITY_QUALIFICATION_`
+`DESIGN.md` - Option B: the D6-i stage re-attribution per the
+C2-F2a precedent; the independent frozen-contract determination:
+over the sealed FA4-ADV-012 documents every frozen constructor /
+codec / presentation-gate step passes, the frozen derivation
+COMPLETES over the reconstructed self-consistent typed inputs, and
+the family loader's named cross-document observation
+`SOURCE_EXTRACTION_INPUT_DIGEST` (the case's recorded extraction
+input document vs the embedded result's `input_digest` binding) is
+the first and only non-corroborative observation point) + the
+Q3-C-D1-FU3-FU1 two-contract correction (Contract A: the strict
+load ACCEPTS the correctly labeled sealed-raw case after verifying
+the stage against its internally collected observations; Contract
+B: the family-owned read-only observation interface returns the
+exact named observation at the exact layer; a record with no
+corpus-surface observation is the explicit bypass-to-G4 failure).
+Executed under the bounded C1-FU4 + C2-FU2 corrective
+implementation (design section 9.12, approved by ChatGPT): the
+loader observation re-classified CONSTRUCTOR -> CASE_DOCUMENT
+(check logic + bounded reason unchanged), the Contract B
+interface added to the family loader (the ACTUAL
+`_run_family_checks()` logic reused - no duplicated security
+checks, no production bypass, no model / network / pricing /
+derivation / replay invocation), and the pre-seal case corrections
+under the section 4.6 item 5 governance (class A - the old stage
+expectation was factually wrong over the frozen contract: no
+frozen constructor / codec bounded error exists over the D6-i
+sealed shape; the observation point is the family loader's named
+cross-document check; no frozen research contract moved): **F-R6**
+(FA4-ADV-012 / D6-i): `expected.refusal.stage` CONSTRUCTION ->
+CORPUS_INTEGRITY + `expected.refusal.error_type` CONSTRUCTOR ->
+null (PRESERVED, byte-unchanged: `expected.outcome` REFUSED,
+`expected.replay` NOT_APPLICABLE, every other expected field, the
+case ID, the matrix row D6, the track A, the DERIVATION surface,
+every sealed evidence document, the label author
+`PRODUCT-INTEL.Q3C-C2.CORPUS-AUTHOR`, `reviewer: null`,
+`review_status: DRAFT`; the grounding citation + rationale state
+the F-R6 adjudication + the exact observation point); **F-R2**
+(FA4-ADV-022 / FA4-ADV-023 / D11 - documentary citation
+correction, no expected field moves): the verified Micron catalog
+digest `160d4fe97a5df5249e8f6404f6b005c0515fab4def1b4668fdaf87c727600743`
+(recomputed at the correction over the working-tree bytes of
+tests/fixtures/pages/micron_7500_part_catalog.json - 24,060 bytes
+- agreeing with the design record + the independent T1
+recomputation; the catalog file itself is UNCHANGED) is added to
+the two D11 grounding citations (the pre-correction citations
+named the catalog by path only while the adjudication record
+claims "cited by path + digest"). Each correction is pinned by a
+NEW regression node in the C2 governance suite (the pre-
+correction value fails the pin) + the recorded in-place
+correction of the named C1 D6-i node (the SAME underlying digest
+mismatch, re-pinned at the adjudicated observation point), and the
+moved digest pins are re-recorded under the pin's own stated
+contract (a pin move is a recorded re-pin event, never a silent
+one). **The F-R6 + F-R2 corrections remain OPEN for the
+independent reviewer's re-verification** (the corrections are the
+corrective implementer's record only - the finding is NOT marked
+independently resolved on the reviewer's behalf); the independent
+review record of these corrections HAS NOT OCCURRED. The review's
+remaining findings (F-R3 / F-R4 / F-R5 / F-R7 / F-R8) stand as
+recorded in the untracked ledger for the seal gate / E1 / the
+independent tester. Every label remains DRAFT (reviewer null),
+the reviewer column below remains PENDING, and no reviewer
+identity, timestamp, signature, or approval is recorded anywhere
+in this family.
+
 ## 2. Authoring methodology (the label independence contract,
 section 4.6)
 
@@ -378,6 +521,11 @@ directive's 20% + all-adversarial minimum) is in
 | 17 | FA4-CONTR-011 | RELEASED under the named correction (C2-F6 + W7 cue-state accuracy): the GENUINE CONTRADICTED_CUES instantiation (the sealed candidate text corrected so that the title's established bundle-with-contents clause vs the structured pack-of-N field is what the recorded result carries - verified over the frozen P2 cue table; the presented channel exactly the frozen P2 mapping - the canonical UNAVAILABLE; the U0 expectation unchanged, independently derived) | the re-authored case loads under the corrected loader - verified |
 | 18 | FA4-ADV-034 | REMOVED from the v1.0.0 declared population under the recorded adjudication (the W3 release direction that moves population accounting): the D16-iii FU3-token contract-misuse refusal is an EXECUTION-level observation point only - over the sealed documents no constructor / codec / case-document observation fires, so no C2 refusal stage is coherent; the v1.0.0 D16 corpus minimum is recorded as 2 (the explicit phase-boundary correction of Q3-C-D1-FU1) | the MANDATORY E1 adversarial-execution assertion (design section 9.6; the M13 / G6 coverage note of the E1 baseline report); the frozen FU3 / FU4 token boundary is NOT weakened |
 | 19 | FA4-PROV-002 | REMOVED from the v1.0.0 declared population under the recorded adjudication: no committed recorded source publishes the required complete Bundle composition (design section 2.5 verified; the span-grounding refusal is the second boundary past the identity-context defect) | the C3 real-market acquisition + the additive 1.1.0 re-seal (P3 D19 independently evidenced publisher completeness preserved; the section 7.6 distinctness requirements; the 1.1.0 re-seal verification); the v1.0.0 A1 corpus minimum is recorded as 1 (the explicit phase-boundary correction of Q3-C-D1-FU1) |
+| 20 | FA4-ADV-024 | CORRECTION of record (CH-1 - the independent C2-R1 review's MAJOR challenge; section 4.6 item 5 class A - the expectation was factually wrong over the frozen derivation): expected.tier EXCLUDED_LOW_CONFIDENCE -> HARD_CONFLICT | governing contract: the frozen S2-A tier derivation (SEMANTIC_OUTCOME_TIER_MATRIX + ALWAYS_HARD_CONFLICT_CLASSES + the hard-conflict supersession precedence "always last inside the AI path"; the design row D12 "recorded per case" tier consequence); evidence reference: the sealed scripted context (decision NO_MATCH, confidence HIGH, conflict_classes [CAPACITY], product evidence quality STRONG) + the case's own sealed payload derived section (authority_tier HARD_CONFLICT; fired [HARD_CONFLICT_SUPERSEDES, SEMANTIC_OUTCOME_MATRIX]) + the frozen module's contract data (independently re-derived at the correction - the reviewer's reading CONFIRMED); corrective implementer identity: PRODUCT-INTEL.Q3C-C2-R1-FU1.CORRECTIVE-IMPLEMENTER (the bounded corrective implementation authorized by ChatGPT over the starting SHA b85261924bc4827636ae3c3f54b01c7674d697b4); correction instant: 2026-10-17T00:35:42Z; INDEPENDENT REVIEWER RE-VERIFICATION REQUIRED (the challenge is NOT marked independently resolved on the reviewer's behalf); pinned by the NEW C2 regression node test_fa4_adv_024_expected_tier_is_the_hard_conflict_supersession (fails if the pre-correction tier returns) |
+| 21 | FA4-UNPR-022 | CORRECTION of record (CH-2 - the independent C2-R1 review's LOW challenge; section 4.6 item 5 class A - the expectation misstated the frozen grammar): expected.textual_relation T-DIFF-UNESTABLISHED -> T-DIFF-MATERIAL + the rationale sentence | governing contract: the frozen P3 versioned materiality grammar (P3 section 3.7 / D16 as implemented - separators + the item-token class + the canonical multiset axis: two fully-parsed clauses with differing multisets are T-DIFF-MATERIAL; T-DIFF-UNESTABLISHED is reserved for a side that does not fully parse); evidence reference: the sealed clause bytes ('2x RAM + 1x CPU, as listed' vs '2x RAM + 1x CPU') independently parsed into canonical multisets at the correction ((2,'ram'),(1,'cpu'),(1,'as listed') vs (2,'ram'),(1,'cpu') - 'as listed' is a valid item token, the same class as the worked-example 'power cables'; the sealed target attestation's clause_digest cross-checks the target clause); the UNPROVEN unit + its governing missing-completeness rationale (U15 / the D7 safe direction) preserved; corrective implementer identity: PRODUCT-INTEL.Q3C-C2-R1-FU1.CORRECTIVE-IMPLEMENTER (the bounded corrective implementation authorized by ChatGPT over the starting SHA b85261924bc4827636ae3c3f54b01c7674d697b4); correction instant: 2026-10-17T00:35:42Z; INDEPENDENT REVIEWER RE-VERIFICATION REQUIRED (the challenge is NOT marked independently resolved on the reviewer's behalf); pinned by the NEW C2 regression node test_fa4_unpr_022_textual_relation_is_the_frozen_grammar_multiset_difference (fails if the pre-correction relationship returns) |
+| 22 | FA4-DELE-005 | CORRECTION of record (F-R1 - the independent C2-R1 review's MEDIUM provenance finding; no label field moved - the expected label is unaffected, the URL is not a channel / derivation field): source_url https://www.directd.com/product/BCM957608-P2200GQF00 -> https://directmacro.com/catalogsearch/result/?q=BCM957608-P2200GQF00 at the three sealed locations (source.candidate.source_url, source.target.source_url, recorded_case.v2_case_document.candidate.source_url) | governing contract: the RECORDED_FIXTURE source-block provenance ground (the cited archive is the recorded source of the retrieval URL - design section 4.4 per-evidence-kind provenance rules) + the C1 provenance-binding invariant (Q3-C-C1-FU2 F-1: the recorded V2 case's candidate source URL is exactly equal to the sealed candidate block's - preserved by the consistent correction); evidence reference: the committed archive tests/fixtures/pages/directmacro_bcm957608_p2200gqf00_search.html (declared digest 66ce02d7... verified over the committed file; its 4D-PRE evidence line records `source: https://directmacro.com/catalogsearch/result/?q=BCM957608-P2200GQF00`) + the original 4D-A acquisition record (tests/execution/test_4d_a_direct_acquisition.py pins the DirectMacro locator target for the MPN as exactly that URL and forbids a fabricated product slug; the archive was committed by the 4D-A phase) + the pages README (4D-PRE / 4D-A evidence over the site-owned search mechanism); the unsupported URL appeared in the repository only in an unvalidated P2 test constant; NO URL was invented - the correction uses the URL the committed recording evidence itself records; corrective implementer identity: PRODUCT-INTEL.Q3C-C2-R1-FU1.CORRECTIVE-IMPLEMENTER (the bounded corrective implementation authorized by ChatGPT over the starting SHA b85261924bc4827636ae3c3f54b01c7674d697b4); correction instant: 2026-10-17T00:35:42Z; INDEPENDENT REVIEWER RE-VERIFICATION REQUIRED (the finding is NOT marked independently resolved on the reviewer's behalf); pinned by the NEW C2 regression node test_fa4_dele_005_source_url_is_the_archive_recorded_url (fails if the unsupported URL returns) |
+| 23 | FA4-ADV-012 | CORRECTION of record (F-R6 - the independent Q3-C-C2-T1 adversarial tester's BLOCKER, ADJUDICATED by the approved Q3-C-D1-FU3 design revision of record: the D6-i stage re-attribution per the C2-F2a precedent, Option B; section 4.6 item 5 class A - the old stage expectation was factually wrong over the frozen contract: no frozen constructor / codec bounded error exists over the D6-i sealed shape, the observation point is the family loader's named cross-document check): expected.refusal.stage CONSTRUCTION -> CORPUS_INTEGRITY + expected.refusal.error_type CONSTRUCTOR -> null (PRESERVED, byte-unchanged: expected.outcome REFUSED, expected.replay NOT_APPLICABLE, every other expected field, the case ID, matrix row D6, track A, DERIVATION surface, every sealed evidence document, the label author, reviewer null, review_status DRAFT) + the grounding citation / rationale state the F-R6 adjudication + the exact observation point (SOURCE_EXTRACTION_INPUT_DIGEST at the CASE_DOCUMENT layer) | governing contract: the approved Q3-C-D1-FU3 revision record of docs/PRODUCT_INTEL_Q3C_FU4_BUNDLE_AUTHORITY_QUALIFICATION_DESIGN.md (the F-R6 architecture adjudication - the independent frozen-contract determination: over the sealed FA4-ADV-012 documents every frozen constructor / codec / presentation-gate step passes, the frozen derivation COMPLETES over the reconstructed self-consistent typed inputs, and the family loader's SOURCE_EXTRACTION_INPUT_DIGEST observation is the first and only non-corroborative observation point - stage semantics (iv), the C2-F2a precedent; the Q3-C-D1-FU3-FU1 two-contract correction: Contract A accepts the correctly labeled sealed-raw case, Contract B returns the exact named observation at the exact layer) + the existing stage-error vocabulary (the loader's own CORPUS_INTEGRITY stage names no implementation error class - error_type null); evidence reference: the sealed FA4-ADV-012 documents (the recorded input document's canonical digest a8cdc4d0... != the result's input_digest 660fdb47... - plain-hash verified by the independent T1 record; the corroborative cue / clause span-grounding gate observations) + the corrected family loader (the observation re-classified CONSTRUCTOR -> CASE_DOCUMENT, check logic + bounded reason unchanged) + the NEW C1 nodes (TestC1FU4Corrections + the recorded in-place correction of test_extraction_input_digest_mismatch_sealed_raw); corrective implementer identity: PRODUCT-INTEL.Q3C-C1-FU4.CORRECTIVE-IMPLEMENTER (the bounded corrective implementation authorized by ChatGPT over the starting SHA b85261924bc4827636ae3c3f54b01c7674d697b4); correction instant: 2026-10-20T02:00:02Z; INDEPENDENT REVIEWER RE-VERIFICATION REQUIRED (the finding is NOT marked independently resolved on the reviewer's behalf); pinned by the NEW C2 regression node test_fa4_adv_012_refusal_is_the_f_r6_adjudicated_corpus_integrity + test_fa4_adv_012_obsolete_construction_attribution_is_refused_by_the_corrected_loader (fail if the pre-correction CONSTRUCTION / CONSTRUCTOR attribution returns) |
+| 24 | FA4-ADV-022, FA4-ADV-023 | CORRECTION of record (F-R2 - the independent Q3-C-C2-T1 reviewer's documentary finding, verified at the Q3-C-D1-FU3 revision; a class-A annotation correction - NO expected field moves, NO evidence-classification move): the two D11 grounding citations named the Micron catalog by PATH only while the adjudication record claims "cited by path + digest" - the VERIFIED catalog digest 160d4fe97a5df5249e8f6404f6b005c0515fab4def1b4668fdaf87c727600743 is added to both grounding citations (FA4-ADV-022 + FA4-ADV-023) | governing contract: the section 4.6 item 5 annotation-correction class (the citation is label text, not an expected field) + the Q3-C-D1-FU3 revision record's F-R2 verification (the digest recomputed over the working-tree bytes of tests/fixtures/pages/micron_7500_part_catalog.json - 24,060 bytes - agreeing with the independent T1 recomputation; the catalog publishes identifiers only - zero `bundle` occurrences - the C2-F5 statement re-verified); the catalog file itself is UNCHANGED (byte-pinned by the re-verification at this row + the NEW C2 node); corrective implementer identity: PRODUCT-INTEL.Q3C-C1-FU4.CORRECTIVE-IMPLEMENTER (the bounded corrective implementation authorized by ChatGPT over the starting SHA b85261924bc4827636ae3c3f54b01c7674d697b4); correction instant: 2026-10-20T02:00:02Z; INDEPENDENT REVIEWER RE-VERIFICATION REQUIRED (the finding is NOT marked independently resolved on the reviewer's behalf); pinned by the NEW C2 regression node test_fa4_adv_022_and_023_citations_carry_the_verified_catalog_digest (the pre-correction path-only citation trips the pin; the digest is recomputed from the catalog bytes at test time - a catalog move or a path-only citation fails the node) |
 
 | case_id | matrix_row | expected (outcome / unit / tier / stage) | grounding citation | author re-derivation (from the cited rows) | author | reviewer | status |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -392,7 +540,7 @@ directive's 20% + all-adversarial minimum) is in
 | FA4-ADV-009 | D4 | REFUSED / - / - / CONSTRUCTION/CONSTRUCT... | Q3-C-D1 matrix row D4; P3 Revision record 3 (the embedded result's own integrity + the anchor-vs-embedding equality ar... | Modified original extraction evidence (ii): the embedded result's raw_field_value is tampered (the cue-span containmen... | PRODUCT-INTEL.Q3C-C2.CORPUS-AUTHOR | PENDING | AUTHORED - review pending |
 | FA4-ADV-010 | D5 | REFUSED / - / - / PRESENTATION_GATE/PRES... | Q3-C-D1 matrix row D5; P3 Revision record 3 gate steps 3-4 (the frozen P2 mapping equality; the recomputed-composition... | Recomputed forged digests (i): a fully self-consistent EXTRACTION record (embedded original A, anchors A, digests A) w... | PRODUCT-INTEL.Q3C-C2.CORPUS-AUTHOR | PENDING | AUTHORED - review pending |
 | FA4-ADV-011 | D5 | REFUSED / - / - / PRESENTATION_GATE/PRES... | Q3-C-D1 matrix row D5; P3 Revision record 3 gate steps 3-4 (the frozen P2 mapping equality; the recomputed-composition... | Recomputed forged digests (ii): the embedded original maps correctly (the frozen P2 mapping equals the presented chann... | PRODUCT-INTEL.Q3C-C2.CORPUS-AUTHOR | PENDING | AUTHORED - review pending |
-| FA4-ADV-012 | D6 | REFUSED / - / - / CONSTRUCTION/CONSTRUCT... | Q3-C-D1 matrix row D6; P3 Revision record 3 (the embedded result binds the exact examined input - the input digest / c... | Source-content mismatch (i): the recorded extraction input document (the sealed source text's projection) is NOT the i... | PRODUCT-INTEL.Q3C-C2.CORPUS-AUTHOR | PENDING | AUTHORED - review pending |
+| FA4-ADV-012 | D6 | REFUSED / - / - / CORPUS_INTEGRITY/None | Q3-C-D1 matrix row D6 (i) as adjudicated by the Q3-C-D1-FU3 revision record (the F-R6 architecture adjudication: the D6-i stage re-attribution per the C2-F2a precedent); Q3-C-D1 section 5 stage semantics (iv) (the family-loader-only cross-document observation point); P3 Revision record 3 (the embedded result's own input digest / c... | Source-content mismatch (i): the recorded extraction input document (the sealed source text's projection) is NOT the i... - the F-R6 adjudicated observation point (the family loader's named cross-document observation SOURCE_EXTRACTION_INPUT_DIGEST at the CASE_DOCUMENT layer; every frozen layer passes over the sealed documents - no construction-layer bounded error exists over this shape) => REFUSED at CORPUS_INTEGRITY with error_type null | PRODUCT-INTEL.Q3C-C2.CORPUS-AUTHOR | PENDING | CORRECTED (F-R6 pre-seal stage re-attribution - reviewer re-verification required) - review pending |
 | FA4-ADV-013 | D6 | REFUSED / - / - / CORPUS_INTEGRITY/None | Q3-C-D1 matrix row D6; P3 Revision record 3 (the embedded result binds the exact examined input - the input digest / c... | Source-content mismatch (ii): the case's derivation channel (listing B's) differs from the recorded case's channel (li... | PRODUCT-INTEL.Q3C-C2.CORPUS-AUTHOR | PENDING | AUTHORED - review pending |
 | FA4-ADV-014 | D7 | DERIVED / UNPROVEN / NEEDS_REVIEW / - | Q3-C-D1 matrix row D7; P3 section 11 T2 residual (truncation can never reach PROVEN without a surviving attestation: t... | Truncated source content (i): the colon-form title cut at max length MID-CLAUSE (no marker survives, no partial form):... | PRODUCT-INTEL.Q3C-C2.CORPUS-AUTHOR | PENDING | AUTHORED - review pending |
 | FA4-ADV-015 | D7 | REFUSED / - / - / CONSTRUCTION/CONSTRUCT... | Q3-C-D1 matrix row D7; P3 section 11 T2 residual (truncation can never reach PROVEN without a surviving attestation: t... | Truncated source content (ii): the RECORDED-FIXTURE variant - the sealed candidate block cites the recorded OEMPCWorld... | PRODUCT-INTEL.Q3C-C2.CORPUS-AUTHOR | PENDING | AUTHORED - review pending |
@@ -402,9 +550,9 @@ directive's 20% + all-adversarial minimum) is in
 | FA4-ADV-019 | D9 | DERIVED / UNPROVEN / NEEDS_REVIEW / - | Q3-C-D1 matrix row D9; P3 section 3.5b (only the versioned marker list is a completeness statement - the pseudo-comple... | Prompt injection in listing text (ii): the sealed source records the full injected text (the publication's truth); the... | PRODUCT-INTEL.Q3C-C2.CORPUS-AUTHOR | PENDING | AUTHORED - review pending |
 | FA4-ADV-020 | D10 | DERIVED / UNPROVEN / NEEDS_REVIEW / - | Q3-C-D1 matrix row D10; P3 section 5 'never an input, never inferred' (the scripted evaluation's attribute detail is n... | Constituent claims without published support published support (i): the scripted evaluation detail names a constituent... | PRODUCT-INTEL.Q3C-C2.CORPUS-AUTHOR | PENDING | AUTHORED - review pending |
 | FA4-ADV-021 | D10 | DERIVED / UNPROVEN / NEEDS_REVIEW / - | Q3-C-D1 matrix row D10; P3 section 5 'never an input, never inferred' (the scripted evaluation's attribute detail is n... | Constituent claims without published support published support (ii): the scripted evaluation detail names a constituen... | PRODUCT-INTEL.Q3C-C2.CORPUS-AUTHOR | PENDING | AUTHORED - review pending |
-| FA4-ADV-022 | D11 | DERIVED / CONTRADICTED / NEEDS_REVIEW / ... | Q3-C-D1 matrix row D11; invariant I-1 (exact identity never implies unit equivalence - Q3-C-D1 section 3.1); P3 U17 (t... | Exact-MPN match but Bundle composition mismatch (i): the recorded U1 title-MPN identity context (the requested MPN is ... | PRODUCT-INTEL.Q3C-C2.CORPUS-AUTHOR | PENDING | AUTHORED - review pending |
-| FA4-ADV-023 | D11 | DERIVED / CONTRADICTED / NEEDS_REVIEW / - | Q3-C-D1 matrix row D11 (ii) as adjudicated by the Q3-C-D1-FU1 / C2-F5 / W8 revision record; invariant I-1 (exact identity never implies unit equivalence - Q3-C-D1 section 3.1); P3 U17 (two attested materially different compositions); the recorded Micron 7500 identifier family (tests/fixtures/pages/micron_7500_part_catalog.json - the one-character-different part numbers) is the row's documented identifier-shape CONTEXT only (the catalog publishes part numbers / specifications, NOT Bundle compositions - verified Q3-C-D1 section 2.5) | Exact-MPN match but Bundle composition mismatch (ii) - the adjudicated SYNTHETIC re-authoring: the row's exact U1 EXACT identity context (U1_TITLE_MPN, equal non-empty normalized part numbers, TITLE_MPN_TOKEN, NOT_REQUIRED) instantiated by-construction over the recorded identifier family's own part-number shape; the pre-correction RECORDED_FIXTURE hybrid CANNOT be represented truthfully by the existing schema (the span-grounding provenance rule + the U4_NO_MPN recorded context is not the row's shape - W8); by-construction attested compositions (candidate '2x SSD + 1x RAM' vs target '2x SSD + 1x GPU' - materially different) => U17 CONTRADICTED + CEILING_SALES_UNIT_CONTRADICTED, pricing non-eligible; the truthful RECORDED_FIXTURE D11 instantiation is the C3 / 1.1.0 additive obligation | PRODUCT-INTEL.Q3C-C2.CORPUS-AUTHOR | PENDING | CORRECTED (C2-F5 released) - review pending |
-| FA4-ADV-024 | D12 | DERIVED / PROVEN_EQUIVALENT / EXCLUDED_L... | Q3-C-D1 matrix row D12; invariant I-2 / CF-5 (the unit axis is decision-independent: an attested-equivalent compositio... | Semantic NO_MATCH with apparently equivalent Bundle composition (CF-5 / I-2): scripted NO_MATCH+HIGH with an independe... | PRODUCT-INTEL.Q3C-C2.CORPUS-AUTHOR | PENDING | AUTHORED - review pending |
+| FA4-ADV-022 | D11 | DERIVED / CONTRADICTED / NEEDS_REVIEW / ... | Q3-C-D1 matrix row D11; invariant I-1 (exact identity never implies unit equivalence - Q3-C-D1 section 3.1); P3 U17 (two attested materially different compositions); the recorded Micron base/R/T exact-identifier family context (tests/fixtures/pages/micron_7500_part_catalog.json - sha256 160d4fe97a5df5249e8f6404f6b005c0515fab4def1b4668fdaf87c727600743, verified over the working-tree bytes: the F-R2 citation correction of record, the Q3-C-D1-FU3 revision record) | Exact-MPN match but Bundle composition mismatch (i): the recorded U1 title-MPN identity context (the requested MPN is ... | PRODUCT-INTEL.Q3C-C2.CORPUS-AUTHOR | PENDING | CORRECTED (F-R2 citation digest completed - reviewer re-verification required) - review pending |
+| FA4-ADV-023 | D11 | DERIVED / CONTRADICTED / NEEDS_REVIEW / - | Q3-C-D1 matrix row D11 (ii) as adjudicated by the Q3-C-D1-FU1 / C2-F5 / W8 revision record; invariant I-1 (exact identity never implies unit equivalence - Q3-C-D1 section 3.1); P3 U17 (two attested materially different compositions); the recorded Micron 7500 identifier family (tests/fixtures/pages/micron_7500_part_catalog.json - the one-character-different part numbers - sha256 160d4fe97a5df5249e8f6404f6b005c0515fab4def1b4668fdaf87c727600743, verified over the working-tree bytes: the F-R2 citation correction of record, the Q3-C-D1-FU3 revision record) is the row's documented identifier-shape CONTEXT only (the catalog publishes part numbers / specifications, NOT Bundle compositions - verified Q3-C-D1 section 2.5) | Exact-MPN match but Bundle composition mismatch (ii) - the adjudicated SYNTHETIC re-authoring: the row's exact U1 EXACT identity context (U1_TITLE_MPN, equal non-empty normalized part numbers, TITLE_MPN_TOKEN, NOT_REQUIRED) instantiated by-construction over the recorded identifier family's own part-number shape; the pre-correction RECORDED_FIXTURE hybrid CANNOT be represented truthfully by the existing schema (the span-grounding provenance rule + the U4_NO_MPN recorded context is not the row's shape - W8); by-construction attested compositions (candidate '2x SSD + 1x RAM' vs target '2x SSD + 1x GPU' - materially different) => U17 CONTRADICTED + CEILING_SALES_UNIT_CONTRADICTED, pricing non-eligible; the truthful RECORDED_FIXTURE D11 instantiation is the C3 / 1.1.0 additive obligation | PRODUCT-INTEL.Q3C-C2.CORPUS-AUTHOR | PENDING | CORRECTED (C2-F5 released + F-R2 citation digest completed - reviewer re-verification required) - review pending |
+| FA4-ADV-024 | D12 | DERIVED / PROVEN_EQUIVALENT / HARD_CON... | Q3-C-D1 matrix row D12; invariant I-2 / CF-5 (the unit axis is decision-independent: an attested-equivalent compositio... | Semantic NO_MATCH with apparently equivalent Bundle composition (CF-5 / I-2): scripted NO_MATCH+HIGH with an independe... | PRODUCT-INTEL.Q3C-C2.CORPUS-AUTHOR | PENDING | CORRECTED (CH-1 pre-seal correction - reviewer re-verification required) - review pending |
 | FA4-ADV-025 | D13 | DERIVED / UNPROVEN / NEEDS_REVIEW / - | Q3-C-D1 matrix row D13; invariant I-1 (high-confidence MATCH never substitutes for the missing authority evidence); P3... | AI high-confidence MATCH despite missing authority evidence (i): MATCH+HIGH+STRONG over a channel UNAVAILABLE (no bund... | PRODUCT-INTEL.Q3C-C2.CORPUS-AUTHOR | PENDING | AUTHORED - review pending |
 | FA4-ADV-026 | D13 | DERIVED / UNPROVEN / NEEDS_REVIEW / - | Q3-C-D1 matrix row D13; invariant I-1 (high-confidence MATCH never substitutes for the missing authority evidence); P3... | AI high-confidence MATCH despite missing authority evidence (ii): MATCH+HIGH+STRONG over a bundle channel with NO comp... | PRODUCT-INTEL.Q3C-C2.CORPUS-AUTHOR | PENDING | AUTHORED - review pending |
 | FA4-ADV-027 | D14 | REFUSED / - / - / CONSTRUCTION/CONSTRUCT... | Q3-C-D1 matrix row D14; P3 section 3.8 (the candidate-side completeness claim with a REVIEWED basis is un-constructibl... | Attestation laundering (i): the candidate-side record carries a REVIEWED_COMPOSITION_ATTESTATION basis - a review atte... | PRODUCT-INTEL.Q3C-C2.CORPUS-AUTHOR | PENDING | AUTHORED - review pending |
@@ -434,7 +582,7 @@ directive's 20% + all-adversarial minimum) is in
 | FA4-DELE-002 | A-DELE | DERIVED / PROVEN_EQUIVALENT / AI_ASSISTED_COMPARABLE / - | Q3-C-D1 matrix row A-DELE; P3 section 5 U0-U8 (the frozen FU3 rows, delegation byte-identity D9); P3 D18 (frozen target records read composition-ABSENT); P3 D11 (non-bundle audit fields exactly None) | Non-bundle delegation preservation at corpus scale: tray of 25 vs the same-count frozen FU3 target record derives the frozen FU3 row U8 PROVEN_EQUIVALENT under the FU4 token (D9 - the non-bundle arms are byte-identical to the frozen FU3 derivation); the expected Bundle-axis fields are EXACTLY null on the expected axes (the frozen P3 D11 non-bundle audit-field semantics) - released by the recorded C2-F1 adjudication (the C1-FU3 PROVEN-coherence scoping; the label is the design-grounded shape, NOT bent) | PRODUCT-INTEL.Q3C-C2.CORPUS-AUTHOR | PENDING | CORRECTED (C2-F1 released) - review pending |
 | FA4-DELE-003 | A-DELE | DERIVED / PROVEN_EQUIVALENT / AI_ASSISTED_COMPARABLE / - | Q3-C-D1 matrix row A-DELE; P3 section 5 U0-U8 (the frozen FU3 rows, delegation byte-identity D9); P3 D18 (frozen target records read composition-ABSENT); P3 D11 (non-bundle audit fields exactly None) | Non-bundle delegation preservation at corpus scale: single unit vs the default single-unit target derives the frozen FU3 row U1 PROVEN_EQUIVALENT under the FU4 token (D9 - the non-bundle arms are byte-identical to the frozen FU3 derivation); the expected Bundle-axis fields are EXACTLY null on the expected axes (the frozen P3 D11 non-bundle audit-field semantics) - released by the recorded C2-F1 adjudication (the C1-FU3 PROVEN-coherence scoping; the label is the design-grounded shape, NOT bent) | PRODUCT-INTEL.Q3C-C2.CORPUS-AUTHOR | PENDING | CORRECTED (C2-F1 released) - review pending |
 | FA4-DELE-004 | A-DELE | DERIVED / UNPROVEN / NEEDS_REVIEW / - | Q3-C-D1 matrix row A-DELE; P3 section 5 U0-U8 (the frozen FU3 rows, delegation byte-identity D9); P3 D18 (frozen targe... | Non-bundle absence row at corpus scale over the recorded Samsung PM9A3 page (the committed fixture cited by path + dig... | PRODUCT-INTEL.Q3C-C2.CORPUS-AUTHOR | PENDING | AUTHORED - review pending |
-| FA4-DELE-005 | B-DELE | DERIVED / UNPROVEN / NEEDS_REVIEW / - | Q3-C-D1 matrix row B-DELE; P3 U0 (recorded absence is UNPROVEN for every target, FU3-identical); P3 section 5.3 | UNAVAILABLE channel vs the default single-unit target (U0 recorded at corpus scale) over the recorded DirectMacro BCM9... | PRODUCT-INTEL.Q3C-C2.CORPUS-AUTHOR | PENDING | AUTHORED - review pending |
+| FA4-DELE-005 | B-DELE | DERIVED / UNPROVEN / NEEDS_REVIEW / - | Q3-C-D1 matrix row B-DELE; P3 U0 (recorded absence is UNPROVEN for every target, FU3-identical); P3 section 5.3 | UNAVAILABLE channel vs the default single-unit target (U0 recorded at corpus scale) over the recorded DirectMacro BCM9... | PRODUCT-INTEL.Q3C-C2.CORPUS-AUTHOR | PENDING | CORRECTED (F-R1 pre-seal provenance correction - reviewer re-verification required) - review pending |
 | FA4-DELE-006 | B-DELE | DERIVED / UNPROVEN / NEEDS_REVIEW / - | Q3-C-D1 matrix row B-DELE; P3 U0 (recorded absence is UNPROVEN for every target, FU3-identical); P3 section 5.3 | UNAVAILABLE channel vs the STRONGEST target shape (an attested ESTABLISHED bundle record): the recorded absence admits... | PRODUCT-INTEL.Q3C-C2.CORPUS-AUTHOR | PENDING | AUTHORED - review pending |
 | FA4-DELE-007 | B-DELE | DERIVED / UNPROVEN / NEEDS_REVIEW / - | Q3-C-D1 matrix row TB-6 (the Track B population over the B-DELE row); the frozen 2.1 COMMERCIAL SALES-UNIT RULES (reco... | The TB-6 / TB-8 model control over the recorded Samsung PM9A3 page (the committed fixture cited by path + digest): the... | PRODUCT-INTEL.Q3C-C2.CORPUS-AUTHOR | PENDING | AUTHORED - review pending |
 | FA4-PROV-001 | A1 | DERIVED / PROVEN_EQUIVALENT / AI_ASSISTE... | Q3-C-D1 matrix row A1; P3 section 5 U19 / ten-case matrix case 4; P3 section 3.8 (independent attestations); Q3-B4 sec... | Both configurations are independently complete: the candidate's PUBLISHED marker is detected from the recorded text ('... | PRODUCT-INTEL.Q3C-C2.CORPUS-AUTHOR | PENDING | AUTHORED - review pending |
@@ -470,7 +618,7 @@ directive's 20% + all-adversarial minimum) is in
 | FA4-UNPR-019 | B10 | DERIVED / UNPROVEN / NEEDS_REVIEW / - | Q3-C-D1 matrix row B10; invariant I-1 (a correct semantic MATCH is never sufficient proof of bundle equivalence - Q3-C... | I-1 headline row (i): scripted MATCH+HIGH+STRONG+clean over unattested equal clauses (the B2 shape): the semantic deci... | PRODUCT-INTEL.Q3C-C2.CORPUS-AUTHOR | PENDING | AUTHORED - review pending |
 | FA4-UNPR-020 | B10 | DERIVED / UNPROVEN / NEEDS_REVIEW / - | Q3-C-D1 matrix row B10; invariant I-1 (a correct semantic MATCH is never sufficient proof of bundle equivalence - Q3-C... | I-1 headline row (ii): scripted MATCH+HIGH+STRONG+clean over a count-only bundle (the B1 shape): equal counts without ... | PRODUCT-INTEL.Q3C-C2.CORPUS-AUTHOR | PENDING | AUTHORED - review pending |
 | FA4-UNPR-021 | B10 | DERIVED / UNPROVEN / NEEDS_REVIEW / - | Q3-C-D1 matrix row B10; invariant I-1 (a correct semantic MATCH is never sufficient proof of bundle equivalence - Q3-C... | I-1 headline row (iii): scripted MATCH+HIGH+STRONG+clean over a channel UNAVAILABLE with the model's BUNDLE claim reco... | PRODUCT-INTEL.Q3C-C2.CORPUS-AUTHOR | PENDING | AUTHORED - review pending |
-| FA4-UNPR-022 | B11 | DERIVED / UNPROVEN / NEEDS_REVIEW / - | Q3-C-D1 matrix row B11; P3 section 3.5b + T9 (only the versioned marker list detects completeness; unlisted phrasing s... | Unlisted completeness phrasing: the closed clause ends 'as listed' - a localized phrasing NOT in the versioned complet... | PRODUCT-INTEL.Q3C-C2.CORPUS-AUTHOR | PENDING | AUTHORED - review pending |
+| FA4-UNPR-022 | B11 | DERIVED / UNPROVEN / NEEDS_REVIEW / - | Q3-C-D1 matrix row B11; P3 section 3.5b + T9 (only the versioned marker list detects completeness; unlisted phrasing s... | Unlisted completeness phrasing: the closed clause ends 'as listed' - a localized phrasing NOT in the versioned complet... | PRODUCT-INTEL.Q3C-C2.CORPUS-AUTHOR | PENDING | CORRECTED (CH-2 pre-seal correction - reviewer re-verification required) - review pending |
 | FA4-UNPR-023 | B12 | DERIVED / UNPROVEN / NEEDS_REVIEW / - | Q3-C-D1 matrix row B12; P3 section 5 'never an input, never inferred' (no composition is inferred from a model claim);... | Constituent claims recorded in the scripted evaluation detail only: the scripted evaluation detail names constituents ... | PRODUCT-INTEL.Q3C-C2.CORPUS-AUTHOR | PENDING | AUTHORED - review pending |
 | FA4-UNPR-024 | B6 | DERIVED / UNPROVEN / NEEDS_REVIEW / - | Q3-C-D1 matrix row TB-3 (the Track B population over the B6 row); the frozen 2.1 COMMERCIAL SALES-UNIT RULES (count-on... | The TB-3 model control over the B6 row's bare-bundle shape: the sealed published text carries only the word 'bundle'; ... | PRODUCT-INTEL.Q3C-C2.CORPUS-AUTHOR | PENDING | AUTHORED - review pending |
 | FA4-UNPR-025 | B5 | DERIVED / UNPROVEN / NEEDS_REVIEW / - | Q3-C-D1 matrix row TB-4 (the Track B population over the B5 row); the frozen 2.1 COMMERCIAL SALES-UNIT RULES (partial ... | The TB-4 model control over the B5 row's dangling marker variant: the candidate clause is PARTIAL (dangling separator ... | PRODUCT-INTEL.Q3C-C2.CORPUS-AUTHOR | PENDING | AUTHORED - review pending |

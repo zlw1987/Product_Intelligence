@@ -5171,8 +5171,8 @@ CASES: Final[tuple[dict[str, Any], ...]] = (
             "pricing_eligible": None,
             "quantity_axis": None,
             "refusal": {
-                "error_type": "CONSTRUCTOR",
-                "stage": "CONSTRUCTION"
+                "error_type": None,
+                "stage": "CORPUS_INTEGRITY"
             },
             "replay": "NOT_APPLICABLE",
             "semantic_identity_note": None,
@@ -5184,10 +5184,10 @@ CASES: Final[tuple[dict[str, Any], ...]] = (
         "label": {
             "author": "PRODUCT-INTEL.Q3C-C2.CORPUS-AUTHOR",
             "author_utc": "2026-10-15T23:22:50Z",
-            "grounding_citation": "Q3-C-D1 matrix row D6; P3 Revision record 3 (the embedded result binds the exact examined input - the input digest / cue-span verification over the sealed source content); Q3-C-D1 section 4.4 (the loader cross-checks the derivation channel against the recorded case's channel - the corpus-internal inconsistency stage)",
+            "grounding_citation": "Q3-C-D1 matrix row D6 (i) as adjudicated by the Q3-C-D1-FU3 revision record (the F-R6 architecture adjudication: the D6-i stage re-attribution per the C2-F2a precedent); Q3-C-D1 section 5 stage semantics (iv) (the family-loader-only cross-document observation point); P3 Revision record 3 (the embedded result's own input digest / cue-span verification is self-consistent within the sealed record - the frozen constructor / codec / derivation never receive the case's recorded input document); Q3-C-D1 section 4.4 (the family loader's named cross-document integrity observation SOURCE_EXTRACTION_INPUT_DIGEST - the recorded extraction input document vs the embedded result's input_digest binding - is the exact observation point)",
             "independence_attestation": "This expected outcome was established from the recorded source content and the cited approved-design rows without executing or reading the output of the FU4 derivation, the R1 record adapter, or any model",
             "labeling_provenance": "ADVERSARIAL_CONSTRUCTION",
-            "rationale": "Source-content mismatch (i): the recorded extraction input document (the sealed source text's projection) is NOT the input the embedded result binds (the examined input was altered after extraction - the result's input_digest covers the original examined text): the embedded result's input-digest verification over the sealed source refuses at construction => REFUSED at CONSTRUCTION (the loader additionally cross-checks the source text against the sealed block - the cue-grounding layer corroborates). Surface note (challenge item): the row names BOTH, but the defect lives in the corpus-level extraction evidence (outside the record's authority section) - the record-level twin cannot carry it, so the case is instantiated at the DERIVATION surface.The expected axes follow the cited approved-design rows over the sealed recorded evidence; the label was fixed from the contract semantics before any implementation behavior was consulted. The scripted context is the recorded V2 case's own deterministic identity side (the loader enforces context-case equality).",
+            "rationale": "Source-content mismatch (i): the recorded extraction input document (the sealed source text's projection) is NOT the input the embedded result binds (the examined input was altered after extraction - the result's input_digest covers the original examined text): the cross-document binding is observable ONLY by the family loader (the named case-document-integrity observation SOURCE_EXTRACTION_INPUT_DIGEST - the sealed record + embedded result are self-consistent over the altered input, so every frozen constructor / codec / presentation-gate step passes and the frozen derivation completes over the reconstructed self-consistent typed inputs; no construction-layer bounded error exists over this shape) => REFUSED at CORPUS_INTEGRITY with error_type null (the stage-error vocabulary: the loader's own stage names no implementation error class; the cue / clause span-grounding gate observations corroborate). The pre-F-R6 CONSTRUCTION / CONSTRUCTOR attribution was the recorded pre-adjudication reading, corrected in place per the Q3-C-D1-FU3 revision record (the F-R6 architecture adjudication, Option B - the stage re-attribution per the C2-F2a precedent) + the Q3-C-D1-FU3-FU1 two-contract correction (Contract A: this correctly labeled sealed-raw case LOADS; Contract B: the family-owned read-only observation interface returns the exact named observation at the CASE_DOCUMENT layer). Surface note (challenge item): the row names BOTH, but the defect lives in the corpus-level extraction evidence (outside the record's authority section) - the record-level twin cannot carry it, so the case is instantiated at the DERIVATION surface.The expected axes follow the cited approved-design rows over the sealed recorded evidence; the label was fixed from the contract semantics before any implementation behavior was consulted. The scripted context is the recorded V2 case's own deterministic identity side (the loader enforces context-case equality).",
             "review_status": "DRAFT",
             "reviewer": None,
             "reviewer_utc": None
@@ -8564,7 +8564,7 @@ CASES: Final[tuple[dict[str, Any], ...]] = (
         "label": {
             "author": "PRODUCT-INTEL.Q3C-C2.CORPUS-AUTHOR",
             "author_utc": "2026-10-15T23:22:50Z",
-            "grounding_citation": "Q3-C-D1 matrix row D11; invariant I-1 (exact identity never implies unit equivalence - Q3-C-D1 section 3.1); P3 U17 (two attested materially different compositions); the recorded Micron base/R/T exact-identifier family context (tests/fixtures/pages/micron_7500_part_catalog.json)",
+            "grounding_citation": "Q3-C-D1 matrix row D11; invariant I-1 (exact identity never implies unit equivalence - Q3-C-D1 section 3.1); P3 U17 (two attested materially different compositions); the recorded Micron base/R/T exact-identifier family context (tests/fixtures/pages/micron_7500_part_catalog.json - sha256 160d4fe97a5df5249e8f6404f6b005c0515fab4def1b4668fdaf87c727600743, verified over the working-tree bytes: the F-R2 citation correction of record, the Q3-C-D1-FU3 revision record)",
             "independence_attestation": "This expected outcome was established from the recorded source content and the cited approved-design rows without executing or reading the output of the FU4 derivation, the R1 record adapter, or any model",
             "labeling_provenance": "DESIGN_TABLE_GROUNDED",
             "rationale": "Exact-MPN match but Bundle composition mismatch (i): the recorded U1 title-MPN identity context (the requested MPN is in the candidate title - the exact-identifier shape) + scripted MATCH+HIGH+STRONG+clean; the candidate attested composition is materially different from the target's attested composition => U17 CONTRADICTED + CEILING_SALES_UNIT_CONTRADICTED, pricing non-eligible - the 'exact identity never implies unit equivalence' row (I-1). Scripted context: MATCH + HIGH + clean + the recorded U1 title-MPN identity substate; the frozen S2-A matrix base tier is AI_ASSISTED_COMPARABLE (P3 section 5.3; Q3-B4 section 4.1)The expected axes follow the cited approved-design rows over the sealed recorded evidence; the label was fixed from the contract semantics before any implementation behavior was consulted. The scripted context is the recorded V2 case's own deterministic identity side (the loader enforces context-case equality).",
@@ -9014,7 +9014,7 @@ CASES: Final[tuple[dict[str, Any], ...]] = (
         "label": {
             "author": "PRODUCT-INTEL.Q3C-C2.CORPUS-AUTHOR",
             "author_utc": "2026-10-15T23:22:50Z",
-            "grounding_citation": "Q3-C-D1 matrix row D11 (ii) as adjudicated by the Q3-C-D1-FU1 / C2-F5 / W8 revision record; invariant I-1 (exact identity never implies unit equivalence - Q3-C-D1 section 3.1); P3 U17 (two attested materially different compositions); the recorded Micron 7500 identifier family (tests/fixtures/pages/micron_7500_part_catalog.json - the one-character-different part numbers) is the row's documented identifier-shape CONTEXT only (the catalog publishes part numbers / specifications, NOT Bundle compositions - verified Q3-C-D1 section 2.5)",
+            "grounding_citation": "Q3-C-D1 matrix row D11 (ii) as adjudicated by the Q3-C-D1-FU1 / C2-F5 / W8 revision record; invariant I-1 (exact identity never implies unit equivalence - Q3-C-D1 section 3.1); P3 U17 (two attested materially different compositions); the recorded Micron 7500 identifier family (tests/fixtures/pages/micron_7500_part_catalog.json - the one-character-different part numbers - sha256 160d4fe97a5df5249e8f6404f6b005c0515fab4def1b4668fdaf87c727600743, verified over the working-tree bytes: the F-R2 citation correction of record, the Q3-C-D1-FU3 revision record) is the row's documented identifier-shape CONTEXT only (the catalog publishes part numbers / specifications, NOT Bundle compositions - verified Q3-C-D1 section 2.5)",
             "independence_attestation": "This expected outcome was established from the recorded source content and the cited approved-design rows without executing or reading the output of the FU4 derivation, the R1 record adapter, or any model",
             "labeling_provenance": "ADVERSARIAL_CONSTRUCTION",
             "rationale": "Exact-MPN match but Bundle composition mismatch (ii) - the Q3-C-D1-FU1 / C2-F5 adjudicated SYNTHETIC re-authoring: the row's exact U1 EXACT identity context (U1_TITLE_MPN, the normalized candidate part number EQUAL and NON-EMPTY against the normalized requested part number, TITLE_MPN_TOKEN, NOT_REQUIRED) is instantiated by-construction over the recorded identifier family's own part-number shape (the one-character-different Micron 7500 catalog part numbers, cited by path + digest) - the pre-correction recorded context is U4_NO_MPN (no candidate identifier), which is NOT this row's shape (W8: the recorded context cannot double as the identity context), and the recorded catalog does not publish Bundle compositions, so the RECORDED_FIXTURE hybrid variant CANNOT be represented truthfully by the existing schema (the span-grounding provenance rule - verified at the Q3-C-D1-FU1 revision); a truthful RECORDED_FIXTURE instantiation is the C3 / 1.1.0 additive obligation, only over a recorded source that publishes BOTH the U1 EXACT identity context's recorded form and the attested composition clauses. By-construction attested compositions (candidate '2x SSD + 1x RAM' vs target '2x SSD + 1x GPU' - materially different) over the U1 EXACT context + scripted MATCH+HIGH+STRONG+clean => U17 CONTRADICTED + CEILING_SALES_UNIT_CONTRADICTED, pricing non-eligible - the 'exact identity never implies unit equivalence' row (the row's 2-case adversarial coverage is retained with FA4-ADV-022).",
@@ -9456,16 +9456,16 @@ CASES: Final[tuple[dict[str, Any], ...]] = (
             "semantic_identity_note": None,
             "target_composition_state": "ESTABLISHED",
             "textual_relation": "T-AGREE",
-            "tier": "EXCLUDED_LOW_CONFIDENCE",
+            "tier": "HARD_CONFLICT",
             "unit": "PROVEN_EQUIVALENT"
         },
         "label": {
             "author": "PRODUCT-INTEL.Q3C-C2.CORPUS-AUTHOR",
             "author_utc": "2026-10-15T23:22:50Z",
-            "grounding_citation": "Q3-C-D1 matrix row D12; invariant I-2 / CF-5 (the unit axis is decision-independent: an attested-equivalent composition derives PROVEN under a NO_MATCH scripted context); P3 section 5.3 (the restrict-only ceilings key to the unit, not the decision - no ceiling fires on PROVEN); the frozen S2-A tier matrix (SEMANTIC_OUTCOME_TIER_MATRIX - the NO_MATCH rows derive EXCLUDED_LOW_CONFIDENCE)",
+            "grounding_citation": "Q3-C-D1 matrix row D12; invariant I-2 / CF-5 (the unit axis is decision-independent: an attested-equivalent composition derives PROVEN under a NO_MATCH scripted context); P3 section 5.3 (the restrict-only ceilings key to the unit, not the decision - no ceiling fires on PROVEN); the frozen S2-A tier derivation (SEMANTIC_OUTCOME_TIER_MATRIX - the NO_MATCH rows derive the BASE tier EXCLUDED_LOW_CONFIDENCE; the frozen hard-conflict supersession (HARD_CONFLICT_SUPERSEDES, always last inside the AI path) over the scripted ALWAYS_HARD conflict class CAPACITY (ALWAYS_HARD_CONFLICT_CLASSES) sets the tier HARD_CONFLICT - the case's own sealed payload derived section records exactly that)",
             "independence_attestation": "This expected outcome was established from the recorded source content and the cited approved-design rows without executing or reading the output of the FU4 derivation, the R1 record adapter, or any model",
             "labeling_provenance": "DESIGN_TABLE_GROUNDED",
-            "rationale": "Semantic NO_MATCH with apparently equivalent Bundle composition (CF-5 / I-2): scripted NO_MATCH+HIGH with an independent ALWAYS_HARD capacity conflict + attested-EQUIVALENT composition on both sides (byte-identical clause, both attested, BOTH_UNPUBLISHED): the unit axis is decision-independent => PROVEN (the semantic decision is NOT upgraded and the unit is NOT downgraded); the tier is non-automatic per the frozen S2-A derivation over a NO_MATCH context (the frozen tier matrix's NO_MATCH rows derive EXCLUDED_LOW_CONFIDENCE; the restrict-only ceilings key to the unit - no ceiling fires on PROVEN) => pricing non-eligible.The expected axes follow the cited approved-design rows over the sealed recorded evidence; the label was fixed from the contract semantics before any implementation behavior was consulted. The scripted context is the recorded V2 case's own deterministic identity side (the loader enforces context-case equality).",
+            "rationale": "Semantic NO_MATCH with apparently equivalent Bundle composition (CF-5 / I-2): scripted NO_MATCH+HIGH with an independent ALWAYS_HARD capacity conflict + attested-EQUIVALENT composition on both sides (byte-identical clause, both attested, BOTH_UNPUBLISHED): the unit axis is decision-independent => PROVEN (the semantic decision is NOT upgraded and the unit is NOT downgraded); the tier is non-automatic per the frozen S2-A derivation over a NO_MATCH context (the frozen tier matrix's NO_MATCH rows derive the BASE tier EXCLUDED_LOW_CONFIDENCE; the scripted conflict class CAPACITY is a frozen ALWAYS_HARD_CONFLICT_CLASSES member, and the frozen hard-conflict supersession - always last inside the AI path - sets the tier HARD_CONFLICT, fired rule HARD_CONFLICT_SUPERSEDES, as the case's own sealed payload derived section records; the restrict-only ceilings key to the unit - no ceiling fires on PROVEN) => pricing non-eligible (HARD_CONFLICT is outside the frozen PRICING_ELIGIBLE_TIERS).The expected axes follow the cited approved-design rows over the sealed recorded evidence; the label was fixed from the contract semantics before any implementation behavior was consulted. The scripted context is the recorded V2 case's own deterministic identity side (the loader enforces context-case equality).",
             "review_status": "DRAFT",
             "reviewer": None,
             "reviewer_utc": None
@@ -19994,7 +19994,7 @@ CASES: Final[tuple[dict[str, Any], ...]] = (
                         "revision_or_suffix": None
                     },
                     "sku": "BCM957608-P2200GQF00",
-                    "source_url": "https://www.directd.com/product/BCM957608-P2200GQF00"
+                    "source_url": "https://directmacro.com/catalogsearch/result/?q=BCM957608-P2200GQF00"
                 },
                 "case_id": "case-c2-bd-1",
                 "context_provenance": [],
@@ -20076,7 +20076,7 @@ CASES: Final[tuple[dict[str, Any], ...]] = (
                 "raw_reference": "directmacro_bcm957608_p2200gqf00_search.html",
                 "recording_attestation": "recorded from the cited in-repository source at the recorded instant; the archive bytes are the committed fixture",
                 "retrieved_utc": "2026-09-22T00:00:00Z",
-                "source_url": "https://www.directd.com/product/BCM957608-P2200GQF00",
+                "source_url": "https://directmacro.com/catalogsearch/result/?q=BCM957608-P2200GQF00",
                 "structured_fields": {
                     "offer_url": "https://directmacro.com/bcm957608-p2200gqf00-broadcom-400gbe-dual-port-qsfp112-pci.html",
                     "packaging_context": "recorded non-bundle product page (no packaging field published)",
@@ -20090,7 +20090,7 @@ CASES: Final[tuple[dict[str, Any], ...]] = (
                 "raw_reference": "directmacro_bcm957608_p2200gqf00_search.html",
                 "recording_attestation": "recorded from the cited in-repository source at the recorded instant; the archive bytes are the committed fixture",
                 "retrieved_utc": "2026-09-22T00:00:00Z",
-                "source_url": "https://www.directd.com/product/BCM957608-P2200GQF00",
+                "source_url": "https://directmacro.com/catalogsearch/result/?q=BCM957608-P2200GQF00",
                 "structured_fields": {
                     "packaging_context": "recorded non-bundle product page (no packaging field published)"
                 },
@@ -35237,7 +35237,7 @@ CASES: Final[tuple[dict[str, Any], ...]] = (
             "replay": "NOT_APPLICABLE",
             "semantic_identity_note": None,
             "target_composition_state": "ESTABLISHED",
-            "textual_relation": "T-DIFF-UNESTABLISHED",
+            "textual_relation": "T-DIFF-MATERIAL",
             "tier": "NEEDS_REVIEW",
             "unit": "UNPROVEN"
         },
@@ -35247,7 +35247,7 @@ CASES: Final[tuple[dict[str, Any], ...]] = (
             "grounding_citation": "Q3-C-D1 matrix row B11; P3 section 3.5b + T9 (only the versioned marker list detects completeness; unlisted phrasing stays SYNTACTICALLY_VALID, safe direction); P3 U15",
             "independence_attestation": "This expected outcome was established from the recorded source content and the cited approved-design rows without executing or reading the output of the FU4 derivation, the R1 record adapter, or any model",
             "labeling_provenance": "DESIGN_TABLE_GROUNDED",
-            "rationale": "Unlisted completeness phrasing: the closed clause ends 'as listed' - a localized phrasing NOT in the versioned completeness-marker list (T9 safe direction): no marker is detected, the clause stays SYNTACTICALLY_VALID with no attestation, vs the attested ESTABLISHED target => U15 UNPROVEN. The candidate clause (the unlisted phrasing retained) and the target clause do not parse to equal multisets (T-DIFF-UNESTABLISHED - the difference is not materially established either). Scripted context: MATCH + HIGH + clean + the recorded U1 title-MPN identity substate; the frozen S2-A matrix base tier is AI_ASSISTED_COMPARABLE (P3 section 5.3; Q3-B4 section 4.1)The expected axes follow the cited approved-design rows over the sealed recorded evidence; the label was fixed from the contract semantics before any implementation behavior was consulted. The scripted context is the recorded V2 case's own deterministic identity side (the loader enforces context-case equality).",
+            "rationale": "Unlisted completeness phrasing: the closed clause ends 'as listed' - a localized phrasing NOT in the versioned completeness-marker list (T9 safe direction): no marker is detected, the clause stays SYNTACTICALLY_VALID with no attestation, vs the attested ESTABLISHED target => U15 UNPROVEN. The candidate clause (the unlisted phrasing retained) and the target clause FULLY parse under the frozen versioned grammar ('as listed' is a valid item token - alphanumerics with an internal single space, the same class as the worked-example 'power cables'): the canonical multisets DIFFER ((2,'ram'),(1,'cpu'),(1,'as listed') vs (2,'ram'),(1,'cpu')) => T-DIFF-MATERIAL; the difference is textually material, yet the unit stays UNPROVEN - the candidate's missing completeness attestation (U15) governs the unit, and a material difference over a completeness-unknown clause never derives a contradiction (the D7 safe direction). Scripted context: MATCH + HIGH + clean + the recorded U1 title-MPN identity substate; the frozen S2-A matrix base tier is AI_ASSISTED_COMPARABLE (P3 section 5.3; Q3-B4 section 4.1)The expected axes follow the cited approved-design rows over the sealed recorded evidence; the label was fixed from the contract semantics before any implementation behavior was consulted. The scripted context is the recorded V2 case's own deterministic identity side (the loader enforces context-case equality).",
             "review_status": "DRAFT",
             "reviewer": None,
             "reviewer_utc": None

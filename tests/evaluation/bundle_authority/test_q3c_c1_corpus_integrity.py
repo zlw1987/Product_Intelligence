@@ -1419,11 +1419,24 @@ class TestProvenanceIntegrity:
             _decode_ok([case], tmp_path)
 
     def test_extraction_input_digest_mismatch_sealed_raw(self, tmp_path):
+        # RECORDED IN-PLACE CORRECTION (Q3-C-C1-FU4 / F-R6, design
+        # section 9.12 file (2); the Q3-C-D1-FU3 revision record):
+        # the D6-i sealed-raw shape is re-pinned at the ADJUDICATED
+        # observation point - the family loader's named cross-document
+        # integrity observation SOURCE_EXTRACTION_INPUT_DIGEST at the
+        # CASE_DOCUMENT layer (stage CORPUS_INTEGRITY, error_type null
+        # - the stage-error vocabulary). The SAME underlying digest
+        # mismatch is tested: the recorded examined input document is
+        # not the input the embedded result's input_digest binds. The
+        # pre-revision CONSTRUCTION expectation was the recorded
+        # pre-adjudication reading (replaced in place; intent preserved
+        # + strengthened - the exact named observation is now asserted
+        # through the family-owned Contract B observation interface).
         case, parts = _extraction_case()
         case2 = _sealed_case(
             base=parts,
             case_id="FA4-ADV-004",
-            stage="CONSTRUCTION",
+            stage="CORPUS_INTEGRITY",
             matrix_row="D6",
             candidate_basis="EXTRACTION_RESULT_V1",
             extraction_evidence={
@@ -1432,8 +1445,28 @@ class TestProvenanceIntegrity:
             },
             candidate_source_block=parts["candidate_source_block"],
         )
+        # Contract A: the correctly labeled sealed-raw negative case
+        # LOADS (valid negative-case corpus ingestion).
         bundle, _ = _decode_ok([case2], tmp_path)
-        assert bundle.cases[0].expected["refusal"]["stage"] == "CONSTRUCTION"
+        assert bundle.cases[0].expected["refusal"]["stage"] == (
+            "CORPUS_INTEGRITY"
+        )
+        assert bundle.cases[0].expected["refusal"]["error_type"] is None
+        # Contract B: the EXACT named observation at the CASE_DOCUMENT
+        # layer with the bounded reason.
+        record = fam.observe_corpus_case_integrity(_raw_for_decode(case2))
+        d6 = [
+            obs
+            for obs in record.observations
+            if obs.check == "SOURCE_EXTRACTION_INPUT_DIGEST"
+        ]
+        assert len(d6) == 1
+        assert d6[0].layer == "CASE_DOCUMENT"
+        assert (
+            "the recorded examined input is not the input the embedded "
+            "result's input_digest binds (the examined input was "
+            "altered after extraction - the D6-i shape)"
+        ) in d6[0].reason
 
     def test_extraction_input_digest_mismatch_over_sound_label_rejected(self, tmp_path):
         case, parts = _extraction_case()
@@ -4534,3 +4567,552 @@ class TestC1FU3Corrections:
 
         bundle, _ = _decode_ok([case], tmp_path)
         assert bundle.cases[0].expected["unit"] == "UNPROVEN"
+
+
+# ---------------------------------------------------------------------------
+# Q3-C-C1-FU4 (F-R6 + the Contract B observation interface, design
+# section 9.12 files (1) / (1b) / (2)): the D6-i stage re-attribution
+# (the SOURCE_EXTRACTION_INPUT_DIGEST observation moves from the
+# CONSTRUCTOR layer to the CASE_DOCUMENT layer - the family loader's
+# named cross-document integrity check, the C2-F2a precedent) + the
+# family-owned read-only observation interface pins (the Q3-C-D1-
+# FU3-FU1 two-contract E1 boundary). The recorded in-place correction
+# of test_extraction_input_digest_mismatch_sealed_raw re-pins the SAME
+# underlying digest mismatch at the adjudicated observation point.
+# ---------------------------------------------------------------------------
+
+
+def _d6i_sealed_case(*, case_id, stage, error_type=None, surface="DERIVATION"):
+    """The D6-i sealed-raw shape (the SAME underlying digest mismatch:
+    the recorded examined input document is not the input the embedded
+    result's input_digest binds) with a configurable refusal label."""
+    _, parts = _extraction_case()
+    return _sealed_case(
+        base=parts,
+        case_id=case_id,
+        stage=stage,
+        error_type=error_type,
+        surface=surface,
+        matrix_row="D6",
+        candidate_basis="EXTRACTION_RESULT_V1",
+        extraction_evidence={
+            "input_document": {"altered": "examined input"},
+            "result_document": _result_sealed_doc(parts["result"]),
+        },
+        candidate_source_block=parts["candidate_source_block"],
+    )
+
+
+def _fixture_case_doc(case_id, *, reviewer="c1-fixture-reviewer"):
+    """A REAL 94-case DRAFT fixture document with the test-local
+    reviewer fill (a decoder fixture, as the C2 review-readiness dry
+    run uses - never a committed review claim) + a valid case_digest,
+    for the direct per-case surface."""
+    case = next(c for c in fam_fixtures.CASES if c["case_id"] == case_id)
+    doc = copy.deepcopy(case)
+    doc["label"]["reviewer"] = reviewer
+    doc["label"]["reviewer_utc"] = LABEL_REVIEWER_UTC
+    doc["label"]["review_status"] = "REVIEWED"
+    doc["case_digest"] = fam.case_state_digest(doc)
+    return doc
+
+
+class TestC1FU4Corrections:
+    # -- (a) the genuine D6-i observation + the bounded reason ---------
+
+    def test_d6i_observation_fires_at_the_case_document_layer(
+        self, tmp_path
+    ):
+        case = _d6i_sealed_case(
+            case_id="FA4-ADV-160", stage="CORPUS_INTEGRITY"
+        )
+        record = fam.observe_corpus_case_integrity(_raw_for_decode(case))
+        d6 = [
+            obs
+            for obs in record.observations
+            if obs.check == "SOURCE_EXTRACTION_INPUT_DIGEST"
+        ]
+        # the genuine named observation fires exactly once, at the
+        # CASE_DOCUMENT layer (the family loader's cross-document
+        # integrity check - the frozen constructors are silent over
+        # this shape, so no CONSTRUCTOR / CODEC / MIRROR observation
+        # fires):
+        assert len(d6) == 1
+        assert d6[0].layer == "CASE_DOCUMENT"
+        assert d6[0].layer in fam.OBSERVATION_LAYERS
+        for obs in record.observations:
+            assert obs.layer in fam.OBSERVATION_LAYERS
+        assert "CONSTRUCTOR" not in record.layers
+        assert "CODEC" not in record.layers
+        # the bounded reason (the loader's own text, deterministic):
+        assert (
+            "case FA4-ADV-160: derivation_inputs."
+            "extraction_evidence.input_document: the recorded examined "
+            "input is not the input the embedded result's input_digest "
+            "binds (the examined input was altered after extraction - "
+            "the D6-i shape)"
+        ) == d6[0].reason
+        # Contract A: the same shape loads under the corrected label
+        # (the in-place correction's acceptance half):
+        bundle, _ = _decode_ok([case], tmp_path)
+        assert bundle.cases[0].expected["refusal"] == {
+            "stage": "CORPUS_INTEGRITY",
+            "error_type": None,
+        }
+
+    # -- (b) the correct stage + error type ----------------------------
+
+    def test_d6i_stage_and_error_type_are_the_adjudicated_vocabulary(
+        self
+    ):
+        case = _d6i_sealed_case(
+            case_id="FA4-ADV-161", stage="CORPUS_INTEGRITY"
+        )
+        record = fam.observe_corpus_case_integrity(_raw_for_decode(case))
+        # the exact inverse-scoping mapping over the sealed surface:
+        assert fam.observation_stages(record, "DERIVATION") == frozenset(
+            {"CORPUS_INTEGRITY"}
+        )
+        assert fam.observation_stages(record, "BOTH") == frozenset(
+            {"CORPUS_INTEGRITY"}
+        )
+        # the stage-error vocabulary holds: the loader's own stage
+        # names no implementation error class:
+        assert fam.STAGE_ERROR_CLASSES["CORPUS_INTEGRITY"] == frozenset(
+            {None}
+        )
+        # a CORPUS_INTEGRITY label carrying an error class is
+        # schema-refused (the bounded vocabulary, unchanged):
+        case_bad = _d6i_sealed_case(
+            case_id="FA4-ADV-161", stage="CORPUS_INTEGRITY", error_type="CONSTRUCTOR"
+        )
+        with pytest.raises(fam.BundleAuthoritySchemaError):
+            fam.observe_corpus_case_integrity(_raw_for_decode(case_bad))
+
+    # -- (c) the obsolete CONSTRUCTION attribution is refused ----------
+
+    def test_obsolete_construction_label_over_d6i_is_refused(self):
+        case = _d6i_sealed_case(
+            case_id="FA4-ADV-162", stage="CONSTRUCTION", error_type="CONSTRUCTOR"
+        )
+        # Contract B still observes the genuine defect (the label
+        # never selects or suppresses the observation):
+        record = fam.observe_corpus_case_integrity(_raw_for_decode(case))
+        assert "SOURCE_EXTRACTION_INPUT_DIGEST" in record.check_names
+        # Contract A: the pre-revision CONSTRUCTION / CONSTRUCTOR
+        # attribution is incoherent over the D6-i shape - the
+        # case-document observation fired, no constructor-layer
+        # observation exists:
+        with pytest.raises(fam.BundleAuthorityLabelError) as exc:
+            fam.decode_corpus_case_document(_raw_for_decode(case))
+        assert (
+            "case FA4-ADV-162: the labeled CONSTRUCTION defect is not "
+            "observable - no frozen constructor / codec / "
+            "construction-level coherence check fired over the "
+            "sealed documents (the defect would be caught at no "
+            "construction layer; incoherent label)"
+        ) == exc.value.reason
+
+    # -- (d) expected-label independence of Contract B ------------------
+
+    def test_contract_b_is_independent_of_the_expected_label(self):
+        _, parts = _extraction_case()
+        refused = _d6i_sealed_case(
+            case_id="FA4-ADV-163", stage="CORPUS_INTEGRITY"
+        )
+        derived = copy.deepcopy(refused)
+        _set_path(
+            derived,
+            "expected",
+            _expected_from_decision(
+                parts["decision"],
+                replay="NOT_APPLICABLE",
+                textual_relation=None,
+            ),
+        )
+        non_constructible = copy.deepcopy(refused)
+        _set_path(non_constructible, "expected.outcome", "NON_CONSTRUCTIBLE")
+        rec_refused = fam.observe_corpus_case_integrity(
+            _raw_for_decode(refused)
+        )
+        rec_derived = fam.observe_corpus_case_integrity(
+            _raw_for_decode(derived)
+        )
+        rec_non = fam.observe_corpus_case_integrity(
+            _raw_for_decode(non_constructible)
+        )
+        # the same evidence documents under different expected labels
+        # return the IDENTICAL record (the outcome never selects the
+        # strictness; no label field selects, suppresses, or
+        # fabricates an observation):
+        assert rec_refused == rec_derived == rec_non
+        # and the record carries the genuine observation (a DERIVED
+        # label did not hide it; a REFUSED label did not manufacture
+        # it):
+        assert "SOURCE_EXTRACTION_INPUT_DIGEST" in rec_derived.check_names
+
+    # -- (e) sound evidence returns no observations ---------------------
+
+    def test_sound_evidence_returns_no_observations(self):
+        sound, _ = _extraction_case()
+        record = fam.observe_corpus_case_integrity(_raw_for_decode(sound))
+        assert record.is_empty
+        assert record.check_names == ()
+        assert record.layers == ()
+        assert record.reasons == ()
+        assert fam.observation_stages(record, "DERIVATION") == frozenset()
+        # the label cannot create an observation: the same sound
+        # evidence under a REFUSED label still returns the empty
+        # record:
+        refused_sound = copy.deepcopy(sound)
+        _set_path(
+            refused_sound,
+            "expected",
+            _sealed_refusal_expected(stage="CORPUS_INTEGRITY"),
+        )
+        record2 = fam.observe_corpus_case_integrity(
+            _raw_for_decode(refused_sound)
+        )
+        assert record2 == record
+        assert record2.is_empty
+
+    # -- (f) GATE-only observations cannot prove a corpus-surface
+    #       rejection ----------------------------------------------------
+
+    def test_gate_only_observations_cannot_establish_a_corpus_surface_refusal(
+        self
+    ):
+        # The D3-i cross-listing shape: only the corroborative
+        # GATE-layer observations fire (the record binds listing A's
+        # channel over listing B's presented channel - the defect is
+        # observed at the presentation gate, above the corpus
+        # surface).
+        channel_a = _bundle_channel(None, EST_RAW_DETAIL)
+        channel_b = _bundle_channel(
+            None, "bundle: 1x SSD + 1x cable, complete list"
+        )
+        record_a = fu4.candidate_composition_from_channel(channel_a)
+        parts_b = _proven_parts()
+        target = parts_b["target"]
+        case = _sealed_case(
+            base=parts_b,
+            case_id="FA4-ADV-164",
+            stage="PRESENTATION_GATE",
+            matrix_row="D3",
+            candidate_composition=record_a,
+            candidate_source_block={
+                "title_text": TITLE,
+                "structured_fields": {
+                    "packaging": "bundle: 1x SSD + 1x cable, complete list"
+                },
+                "source_url": None,
+                "retrieved_utc": None,
+                "raw_reference": None,
+                "archive": None,
+                "archive_digest": None,
+                "recording_attestation": fam.SYNTHETIC_RECORDING_ATTESTATION,
+            },
+            target_att_source={
+                "state": "REVIEWED_DETERMINATION",
+                "verbatim": target.completeness_attestation.attestation_text,
+                "anchor": "manufacturer bundle specification (recorded review anchor)",
+            },
+            candidate_att_source={
+                "state": "PUBLISHED_STATEMENT",
+                "verbatim": record_a.completeness_attestation.attestation_text,
+                "location": "structured field 'packaging'",
+            },
+        )
+        _set_path(case, "derivation_inputs.channel", channel_b.canonical())
+        case_b = _case_with_channel(channel_b, case_id="c1-cross-1")
+        _set_path(case, "recorded_case.v2_case_document", case_b.canonical())
+        _set_path(case, "published_quantity.candidate", None)
+        record = fam.observe_corpus_case_integrity(_raw_for_decode(case))
+        # observations DID fire (the corroborative gate span):
+        assert not record.is_empty
+        assert all(obs.layer == "GATE" for obs in record.observations)
+        # but a gate-only record establishes NO corpus-surface stage
+        # (a GATE-only observation set can never prove a corpus-
+        # surface rejection):
+        assert fam.observation_stages(record, "DERIVATION") == frozenset()
+        assert fam.observation_stages(record, "RECORD") == frozenset()
+        assert fam.observation_stages(record, "BOTH") == frozenset()
+
+    # -- (g) malformed input fails closed -------------------------------
+
+    @pytest.mark.parametrize(
+        "bad",
+        [None, "not a document", 42, [], {"case_id": "FA4-ADV-165"}],
+        ids=["null", "string", "int", "list", "missing-keys"],
+    )
+    def test_malformed_case_document_fails_closed_not_fabricated(self, bad):
+        # a structural failure is a bounded schema error, NEVER a
+        # fabricated observation:
+        with pytest.raises(fam.BundleAuthoritySchemaError) as exc:
+            fam.observe_corpus_case_integrity(bad)
+        assert exc.value.failure_stage == "SCHEMA"
+        assert isinstance(exc.value, fam.BundleAuthorityCorpusError)
+
+    # -- (h) a wrong case digest is not a verified seal -----------------
+
+    def test_wrong_case_digest_is_not_silently_a_verified_seal(self):
+        # The interface does NOT verify the seal: a well-formed but
+        # WRONG case_digest still yields the FULL observation record
+        # (the seal is Contract A's obligation, pinned separately).
+        case = _d6i_sealed_case(case_id="FA4-ADV-165", stage="CORPUS_INTEGRITY")
+        doc = _raw_for_decode(case)  # the placeholder digest is wrong
+        record = fam.observe_corpus_case_integrity(doc)
+        assert "SOURCE_EXTRACTION_INPUT_DIGEST" in record.check_names
+        assert fam.observation_stages(record, "DERIVATION") == frozenset(
+            {"CORPUS_INTEGRITY"}
+        )
+        # and Contract A remains the sole seal verifier: the same
+        # document is refused for the unverified digest (a wrong
+        # digest can never be silently interpreted as a verified
+        # seal):
+        with pytest.raises(fam.BundleAuthorityDigestError) as exc:
+            fam.decode_corpus_case_document(doc)
+        assert "case_digest does not verify" in exc.value.reason
+
+    # the real D6-i documents of record (the corrected FA4-ADV-012
+    # fixture) carry the same contract through the interface:
+
+    def test_fa4_adv_012_recorded_documents_carry_the_named_observation(self):
+        doc = _fixture_case_doc("FA4-ADV-012")
+        record = fam.observe_corpus_case_integrity(doc)
+        assert "SOURCE_EXTRACTION_INPUT_DIGEST" in record.check_names
+        assert fam.observation_stages(record, doc["surface"]) == frozenset(
+            {"CORPUS_INTEGRITY"}
+        )
+        # the recorded cross-document defect, plain-verified over the
+        # sealed bytes (the test re-derives the mismatch itself - it
+        # does not trust the label or the implementation's reading):
+        case = next(
+            c for c in fam_fixtures.CASES if c["case_id"] == "FA4-ADV-012"
+        )
+        ext = case["derivation_inputs"]["extraction_evidence"]
+        assert fam.canonical_sha256(ext["input_document"]) != (
+            ext["result_document"]["input_digest"]
+        )
+        assert case["derivation_inputs"]["candidate_composition"][
+            "extraction_input_digest"
+        ] == ext["result_document"]["input_digest"]
+
+    # -- (i) all observations are retained deterministically ------------
+
+    def test_all_observations_are_retained_deterministically(self):
+        # The real D6-i sealed documents of record (FA4-ADV-012) fire
+        # the named case-document observation PLUS the corroborative
+        # gate observations (the cue / clause span grounding - the
+        # recorded case carries the altered title, the sealed source
+        # carries the genuine one) - every one is retained, in
+        # deterministic firing order, never truncated / deduplicated /
+        # prioritized to match the label:
+        doc = _fixture_case_doc("FA4-ADV-012")
+        record = fam.observe_corpus_case_integrity(doc)
+        assert (record.check_names, record.layers) == (
+            (
+                "SOURCE_EXTRACTION_INPUT_DIGEST",
+                "SOURCE_CUE_GROUNDING",
+                "SOURCE_CLAUSE_GROUNDING",
+            ),
+            ("CASE_DOCUMENT", "GATE", "GATE"),
+        )
+        assert len(record.reasons) == len(record.observations)
+        assert all(reason for reason in record.reasons)
+        # deterministic over repeated runs:
+        assert fam.observe_corpus_case_integrity(doc) == record
+
+    # -- (j) the frozen boundaries + the no-bypass surface --------------
+
+    def test_no_production_bypass_flag_exists_over_the_loader(self):
+        # The security-critical restriction of the approved design:
+        # NO production disable_check / skip_integrity / bypass flag,
+        # no allowlist, no environment-variable override, no user-
+        # selectable validation mode that permits the security checks
+        # to be turned off (an AST identifier scan - the module
+        # docstring's prohibition statement is not an identifier):
+        tree = ast.parse(
+            (FAMILY_PACKAGE_ROOT / "corpus.py").read_text(encoding="utf-8")
+        )
+        names, attrs = set(), set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Name):
+                names.add(node.id)
+            elif isinstance(node, ast.Attribute):
+                attrs.add(node.attr)
+        forbidden = {
+            "disable_check",
+            "skip_integrity",
+            "skip_checks",
+            "bypass_check",
+            "allowlist",
+        }
+        assert not (names & forbidden), (
+            f"corpus.py gained a production bypass identifier "
+            f"{sorted(names & forbidden)} (the security checks are "
+            "never user-turnable)"
+        )
+        assert not (attrs & forbidden), (
+            f"corpus.py gained a production bypass attribute "
+            f"{sorted(attrs & forbidden)}"
+        )
+        assert "environ" not in attrs, (
+            "corpus.py reads the environment (no environment-"
+            "variable override of the validation surface)"
+        )
+        modules = {
+            node.module
+            for node in ast.walk(tree)
+            if isinstance(node, ast.ImportFrom) and node.module
+        }
+        bare = {
+            alias.name
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Import)
+            for alias in node.names
+        }
+        assert "os" not in modules and "os" not in bare
+
+    def test_observation_interface_invokes_no_authority_oracle(
+        self, monkeypatch
+    ):
+        # The sentinel no-execution probe extended to the Contract B
+        # surface: the interface never invokes the FU4 derivation,
+        # the R1 replay, or any model (zero model calls, zero network,
+        # zero pricing authority). The fixtures are assembled FIRST
+        # (fixture assembly may run the frozen chain in this test
+        # module - the established R1 / R2 pattern); the sentinels
+        # land before the interface is invoked.
+        case = _d6i_sealed_case(case_id="FA4-ADV-170", stage="CORPUS_INTEGRITY")
+        sound, _ = _extraction_case()
+
+        def _sentinel(*args, **kwargs):
+            raise AssertionError(
+                "the observation interface invoked a production "
+                "authority entry point (the label-determining surface)"
+            )
+
+        monkeypatch.setattr(fu4, "derive_sales_unit_authority_fu4", _sentinel)
+        monkeypatch.setattr(
+            fu4, "derive_sales_unit_authority_fu4_case", _sentinel
+        )
+        monkeypatch.setattr(fu4, "derive_authority_tier_fu4", _sentinel)
+        monkeypatch.setattr(
+            fu4, "derive_authority_tier_for_contract_fu4", _sentinel
+        )
+        import product_intelligence.research.semantic_decision_replay as replay
+
+        monkeypatch.setattr(replay, "replay_semantic_decision", _sentinel)
+        # over the D6-i defect shape AND over a sound shape:
+        record = fam.observe_corpus_case_integrity(_raw_for_decode(case))
+        assert "SOURCE_EXTRACTION_INPUT_DIGEST" in record.check_names
+        assert fam.observe_corpus_case_integrity(
+            _raw_for_decode(sound)
+        ).is_empty
+
+    def test_designated_check_disabled_is_the_bypass_to_g4_shape(
+        self, monkeypatch
+    ):
+        # The G4-failure shape, over an ISOLATED TEST DOUBLE (the
+        # production surface carries no bypass flag): the designated
+        # check's observation is dropped before it lands, so the
+        # record carries the corroborative gate observations only -
+        # and the stage mapping is the EMPTY set (a record with no
+        # corpus-surface observation is the explicit bypass-to-G4
+        # failure: the row is scored NOT refused regardless of the
+        # strict load's acceptance).
+        real = fam._run_family_checks
+
+        def _disabled(structured, *args, **kwargs):
+            observations = kwargs["observations"]
+            before = list(observations)
+            real(structured, *args, **kwargs)
+            observations[:] = [
+                obs
+                for obs in observations
+                if obs.check != "SOURCE_EXTRACTION_INPUT_DIGEST"
+            ]
+
+        monkeypatch.setattr(fam, "_run_family_checks", _disabled)
+        doc = _fixture_case_doc("FA4-ADV-012")
+        record = fam.observe_corpus_case_integrity(doc)
+        assert "SOURCE_EXTRACTION_INPUT_DIGEST" not in record.check_names
+        # the corroborative observations are retained (never silently
+        # truncated along with the disabled check):
+        assert (record.check_names, record.layers) == (
+            ("SOURCE_CUE_GROUNDING", "SOURCE_CLAUSE_GROUNDING"),
+            ("GATE", "GATE"),
+        )
+        assert fam.observation_stages(record, doc["surface"]) == frozenset()
+        # over the synthetic D6-i shape the disabled check leaves the
+        # EMPTY record (the corroborative observations are absent
+        # there) - still the empty stage set:
+        case = _d6i_sealed_case(case_id="FA4-ADV-171", stage="CORPUS_INTEGRITY")
+        record2 = fam.observe_corpus_case_integrity(_raw_for_decode(case))
+        assert record2.is_empty
+        assert (
+            fam.observation_stages(record2, "DERIVATION") == frozenset()
+        )
+
+    # -- the frozen-constructor / codec / gate / replay boundaries stand -
+
+    def test_frozen_constructor_refusals_stand_unchanged(self, tmp_path):
+        # The genuine frozen-constructor bounded-error shapes keep
+        # CONSTRUCTION (the F-R6 re-attribution moves ONLY the D6-i
+        # cross-document observation - the W1 frozen-bounded-error
+        # clause is NOT re-interpreted for the unrelated rows).
+        parts = _proven_parts()
+        record_doc = copy.deepcopy(_candidate_sealed_doc(parts["candidate"]))
+        record_doc["source"] = "SPECIFICATION_TEXT"
+        record_doc = _reseal_candidate_doc(record_doc)
+        case = _sealed_case(
+            base=parts,
+            case_id="FA4-ADV-172",
+            stage="CONSTRUCTION",
+            error_type="CONSTRUCTOR",
+            matrix_row="B8",
+        )
+        _set_path(case, "derivation_inputs.candidate_composition", record_doc)
+        record = fam.observe_corpus_case_integrity(_raw_for_decode(case))
+        assert not record.is_empty
+        assert all(
+            obs.layer in ("CONSTRUCTOR", "CODEC") for obs in record.observations
+        )
+        assert fam.observation_stages(record, "DERIVATION") == frozenset(
+            {"CONSTRUCTION"}
+        )
+        bundle, _ = _decode_ok([case], tmp_path)
+        assert bundle.cases[0].expected["refusal"] == {
+            "stage": "CONSTRUCTION",
+            "error_type": "CONSTRUCTOR",
+        }
+
+    def test_replay_stage_shapes_still_carry_no_corpus_surface_observation(
+        self, tmp_path
+    ):
+        # The PRESENTATION_GATE / REPLAY_AGREEMENT sealed shapes stay
+        # exactly the self-consistent documents whose defect is
+        # observed only above the construction layer: the stage
+        # mapping over them is the EMPTY corpus-surface set (the
+        # documented non-observation - never a fabricated refusal).
+        case, _ = _recorded_result_case(
+            "FA4-ADV-173",
+            title=TITLE,
+            structured="bundle of 3",
+            presented_channel=_unavailable_channel(),
+        )
+        _set_path(
+            case,
+            "expected",
+            _sealed_refusal_expected(
+                stage="PRESENTATION_GATE", error_type="PRESENTATION"
+            ),
+        )
+        record = fam.observe_corpus_case_integrity(_raw_for_decode(case))
+        assert record.is_empty
+        assert fam.observation_stages(record, "DERIVATION") == frozenset()
+        bundle, _ = _decode_ok([case], tmp_path)
+        assert bundle.cases[0].expected["refusal"]["stage"] == (
+            "PRESENTATION_GATE"
+        )

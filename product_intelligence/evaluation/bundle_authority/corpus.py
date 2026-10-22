@@ -159,7 +159,11 @@ WITHOUT executing the derivation:
 * ``CORPUS_INTEGRITY`` — at least one case-document-integrity
   observation must fire (the defect is a case-internal inconsistency
   — including the C1-FU3 recorded-result / presented-channel mapping
-  refusal over the allowed NONE-basis recorded-extraction state)
+  refusal over the allowed NONE-basis recorded-extraction state and
+  the F-R6 source-extraction-input cross-document binding: the case's
+  recorded extraction input document vs the embedded result's
+  ``input_digest`` — the named observation
+  ``SOURCE_EXTRACTION_INPUT_DIGEST``)
 * ``CONSTRUCTION`` — at least one frozen-constructor or codec-level
   observation must fire;
 * ``CODEC_DECODE`` — the record surface must be present and at least
@@ -175,6 +179,42 @@ binding, the frozen P2 mapping equality, the sealed-source span
 grounding) may fire under any stage: the loader sees what the
 presentation gate would see, earlier. A sound (``DERIVED``) case must
 carry zero observations of any layer.
+
+F-R6 re-attribution of record (Q3-C-D1-FU3 revision, design section
+9.12): the ``SOURCE_EXTRACTION_INPUT_DIGEST`` observation (the D6-i
+cross-document binding — the case's recorded extraction input
+document vs the embedded result's ``input_digest``) is a family-
+LOADER cross-document integrity check classified at the
+``CASE_DOCUMENT`` layer (the stage-semantics (iv) class: every frozen
+constructor / codec / presentation-gate step passes over the sealed
+documents and the frozen derivation completes — the defect is
+observable only by this module, never by the implementation). The
+check's comparison + bounded reason text are UNCHANGED; only its
+stage attribution moved (the pre-revision CONSTRUCTOR layer is the
+recorded pre-adjudication reading, now rejected by the stage-
+coherence rule over the D6-i shape, which requires CORPUS_INTEGRITY
+with error_type null + the named observation).
+
+Contract B (the Q3-C-D1-FU3-FU1 two-contract correction, design
+section 9.12 (1b)): the family-owned READ-ONLY observation interface
+(``observe_corpus_case_integrity`` + ``observation_stages`` + the
+bounded ``CorpusIntegrityObservation`` /
+``CorpusIntegrityObservationRecord`` types) runs the loader's OWN
+check logic in observation-collection mode (the real
+``_run_family_checks()`` — the security checks are never duplicated
+in a second implementation) and returns EVERY fired observation in
+deterministic firing order (never truncated, deduplicated, or
+selected to match a label). The ``expected`` block is schema-
+validated as part of the strict structural decode but is NEVER read
+for behavior: no label field selects, suppresses, filters, or
+fabricates an observation, and the labeled outcome never selects the
+collection strictness (the W9 discipline). The interface does NOT
+verify the per-case / corpus digest or the manifest (the seal is
+Contract A's obligation — a wrong ``case_digest`` still yields the
+record) and NEVER invokes the FU4 derivation, the R1 replay, or any
+model. NO production bypass exists over this surface (no
+``disable_check`` / ``skip_integrity`` flag, no allowlist, no
+environment-variable override, no user-selectable validation mode).
 
 Import boundary (design section 9.3 acceptance). The family package
 imports ONLY: the standard library, the frozen research public surface
@@ -299,11 +339,16 @@ __all__ = [
     "FamilyCaseEvidence",
     "FamilyCorpusBundle",
     "FamilyCorpusCase",
+    "OBSERVATION_LAYERS",
+    "CorpusIntegrityObservation",
+    "CorpusIntegrityObservationRecord",
     "build_manifest_document",
     "case_state_digest",
     "corpus_state_digest",
     "load_bundle",
     "load_corpus",
+    "observation_stages",
+    "observe_corpus_case_integrity",
     "verify_corpus_document",
     "verify_manifest",
 ]
@@ -2841,17 +2886,19 @@ def _typed_decode(
     structured: dict[str, Any],
     *,
     case_id: str,
-    outcome: str,
+    strict: bool,
     observations: list[_Observation],
 ) -> FamilyCaseEvidence | None:
     """Phases 2-3 — decode every evidence document through the REAL
     frozen constructors (the constructor is the validator) and run the
-    family coherence checks. For a sound (DERIVED) case any observation
-    is a corpus-integrity failure, raised immediately. For a sealed-raw
-    defect case the observations are collected for the stage-coherence
-    rule (the module docstring)."""
+    family coherence checks. In strict (Contract A) mode any
+    observation is a corpus-integrity failure, raised immediately.
+    In collection mode (the sealed-raw defect cases under Contract A,
+    and ALWAYS under the Contract B observation interface — the
+    labeled outcome never selects the strictness; the W9 discipline)
+    the observations are collected for the stage-coherence rule (the
+    module docstring)."""
     dipath = f"case {case_id}: derivation_inputs"
-    strict = outcome == "DERIVED"
 
     def _fail(exc: BundleAuthorityCorpusError) -> None:
         if strict:
@@ -3438,13 +3485,21 @@ def _run_family_checks(
                 )
 
     # SOURCE_EXTRACTION_INPUT_DIGEST (D6-i): the recorded examined
-    # input is the input the embedded result binds (the construction-
-    # level binding, mirrored at corpus level).
+    # input is the input the embedded result binds. The F-R6
+    # adjudication of record (Q3-C-D1-FU3 revision): this is the
+    # family loader's own CROSS-DOCUMENT integrity check (two
+    # documents that live in the CASE — the recorded extraction input
+    # document vs the embedded result's ``input_digest`` binding) and
+    # is classified at the CASE_DOCUMENT layer (stage semantics (iv);
+    # the frozen constructor / codec / gate are silent over the D6-i
+    # sealed shape — the pre-revision CONSTRUCTOR layer was the
+    # recorded pre-adjudication reading). The comparison + the
+    # bounded reason are unchanged.
     if extraction_result is not None and extraction_input_document is not None:
         if canonical_sha256(extraction_input_document) != extraction_result.input_digest:
             _obs(
                 "SOURCE_EXTRACTION_INPUT_DIGEST",
-                L_CONSTRUCTOR,
+                L_CASE_DOCUMENT,
                 f"{dipath}.extraction_evidence.input_document: the "
                 "recorded examined input is not the input the embedded "
                 "result's input_digest binds (the examined input was "
@@ -3910,7 +3965,10 @@ def decode_corpus_case_document(raw: dict[str, Any], *, index: int = 0) -> Famil
     outcome = structured["expected"]["outcome"]
     observations: list[_Observation] = []
     evidence = _typed_decode(
-        structured, case_id=case_id, outcome=outcome, observations=observations
+        structured,
+        case_id=case_id,
+        strict=outcome == "DERIVED",
+        observations=observations,
     )
     if outcome != "DERIVED":
         _apply_sealed_raw_scoping(structured, observations)
@@ -3936,6 +3994,204 @@ def decode_corpus_case_document(raw: dict[str, Any], *, index: int = 0) -> Famil
         label=structured["label"],
         case_digest=structured["case_digest"],
     )
+
+
+# ---------------------------------------------------------------------------
+# Contract B - the family-owned read-only observation interface (the
+# Q3-C-D1-FU3-FU1 two-contract correction; the F-R6 adjudication of
+# record; design section 9.12 (1b))
+# ---------------------------------------------------------------------------
+
+OBSERVATION_LAYERS: Final[frozenset[str]] = frozenset(
+    {
+        L_CONSTRUCTOR,
+        L_CODEC,
+        L_GATE,
+        L_CASE_DOCUMENT,
+        L_CASE_DOCUMENT_MIRROR,
+    }
+)
+"""The five bounded observation layers (the closed layer vocabulary of
+the family's fired checks - the frozen-constructor / frozen-codec /
+gate-layer / case-document / case-document-mirror distinction)."""
+
+
+@dataclass(frozen=True)
+class CorpusIntegrityObservation:
+    """One fired family / frozen-constructor check over one case
+    (Contract B's public record element): the bounded check name, the
+    bounded layer, and the deterministic bounded reason (the loader's
+    own reason text - the exact check + document path + observed
+    value; never re-derived from a label)."""
+
+    check: str
+    layer: str
+    reason: str
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.check, str) or not self.check:
+            raise _schema(
+                "observation record: the check name must be a non-empty "
+                "bounded string (a structural failure is never an "
+                "observation)")
+        if self.layer not in OBSERVATION_LAYERS:
+            raise _schema(
+                f"observation record: layer {self.layer!r} is not one "
+                f"of the five bounded layers {sorted(OBSERVATION_LAYERS)} "
+                "(fail closed)")
+        if not isinstance(self.reason, str) or not self.reason:
+            raise _schema(
+                "observation record: the reason must be a non-empty "
+                "bounded string")
+
+
+@dataclass(frozen=True)
+class CorpusIntegrityObservationRecord:
+    """The complete fired-observation sequence over one sealed case
+    document, in deterministic firing order (Contract B). Multiple
+    observations are ALL retained - never truncated, deduplicated, or
+    selected to match the label. A record with no corpus-surface
+    observation (the empty set under ``observation_stages`` - gate-
+    only corroboration, an empty record, or a check disabled /
+    bypassed) is the explicit bypass-to-G4 shape: the row is scored
+    NOT refused, regardless of the strict load's acceptance."""
+
+    observations: tuple[CorpusIntegrityObservation, ...]
+
+    @property
+    def check_names(self) -> tuple[str, ...]:
+        """The actual fired check names, in firing order."""
+        return tuple(obs.check for obs in self.observations)
+
+    @property
+    def layers(self) -> tuple[str, ...]:
+        """The actual fired layers, in firing order."""
+        return tuple(obs.layer for obs in self.observations)
+
+    @property
+    def reasons(self) -> tuple[str, ...]:
+        """The deterministic bounded reasons, in firing order."""
+        return tuple(obs.reason for obs in self.observations)
+
+    @property
+    def is_empty(self) -> bool:
+        """True when NO observation fired (the label cannot create an
+        observation; a sound sealed document returns the empty
+        record)."""
+        return not self.observations
+
+
+def observe_corpus_case_integrity(
+    case_document: Any,
+) -> CorpusIntegrityObservationRecord:
+    """Contract B - the family-owned, READ-ONLY observation interface
+    (the Q3-C-D1-FU3-FU1 two-contract correction; the F-R6
+    adjudication of record; design section 9.12 (1b)).
+
+    Runs the loader's OWN check logic in observation-collection mode
+    over one sealed case document: the strict structural decode (a
+    malformed document is a bounded schema error - fail closed; a
+    structural failure is NEVER an observation), the typed decode
+    through the REAL frozen constructors, and the family cross-
+document checks (the ACTUAL ``_run_family_checks()`` logic - the
+    security checks are never duplicated in a second implementation),
+    returning EVERY fired observation in deterministic firing order.
+
+    The observation behavior is INDEPENDENT of the expected label:
+    the ``expected`` block is schema-validated as part of the strict
+    structural decode, but it is NEVER read to select, suppress,
+    filter, or fabricate an observation (the outcome does not select
+    the collection strictness; no label field is an actual-result
+    oracle - the W9 discipline). The same evidence documents under a
+    different ``expected`` label return the IDENTICAL record.
+
+    The interface does NOT verify the per-case / corpus digest or the
+    manifest (the seal is Contract A's obligation - a wrong
+    ``case_digest`` still yields the record) and NEVER invokes the
+    FU4 derivation, the R1 replay, or any model (zero model calls,
+    zero network, zero pricing authority). NO production bypass
+    (``disable_check`` / ``skip_integrity`` / allowlist / environment-
+    variable override / user-selectable validation mode) exists over
+    this surface and must not be added; adversarial bypass proofs use
+    isolated test doubles / monkeypatching only.
+    """
+    if not isinstance(case_document, dict):
+        raise _schema(
+            f"case document: expected an object, got "
+            f"{type(case_document).__name__} (fail closed - a "
+            "structural failure is never an observation)"
+        )
+    structured = _decode_case_structure(case_document, index=0)
+    observations: list[_Observation] = []
+    # Collection mode is FORCED (strict=False): the labeled outcome
+    # must never select the strictness (Contract B's label
+    # independence) - the same evidence under a DERIVED or a REFUSED
+    # label collects the identical observations.
+    _typed_decode(
+        structured,
+        case_id=structured["case_id"],
+        strict=False,
+        observations=observations,
+    )
+    return CorpusIntegrityObservationRecord(
+        observations=tuple(
+            CorpusIntegrityObservation(o.check, o.layer, o.detail)
+            for o in observations
+        )
+    )
+
+
+def observation_stages(
+    record: CorpusIntegrityObservationRecord, surface: str | None
+) -> frozenset[str]:
+    """The pure corpus-surface stage mapping over one observation
+    record (Contract B; design section 9.12 (1b)) - the exact INVERSE
+    of the sealed-raw scoping rule's corpus-surface acceptance set (the
+    module docstring), computed from the record's ACTUAL layers + the
+    sealed Track A surface - NEVER from the label:
+
+    * ``CORPUS_INTEGRITY`` is in the set iff a ``CASE_DOCUMENT`` or
+      ``CASE_DOCUMENT_MIRROR`` observation fired;
+    * ``CONSTRUCTION`` is in the set iff a ``CONSTRUCTOR`` /
+      ``CODEC`` / ``CASE_DOCUMENT_MIRROR`` observation fired and NO
+      ``CASE_DOCUMENT`` observation fired (the existing case-document
+      exclusion rule);
+    * ``CODEC_DECODE`` is in the set iff a ``CODEC`` observation
+      fired, NO ``CASE_DOCUMENT`` observation fired, and the sealed
+      surface is RECORD / BOTH (track B carries no Track A surface -
+      ``None`` supports only the layer-determined stages);
+    * the GATE-layer corroborative observations never determine a
+      stage (a gate-only record produces the empty set);
+    * the EMPTY set - no corpus-surface observation fired (gate-only
+      corroboration, an empty record, or a check disabled / bypassed)
+      - is the explicit bypass-to-G4 shape.
+
+    ``PRESENTATION_GATE`` / ``REPLAY_AGREEMENT`` never appear in the
+    set: their observation points are the derivation / replay layer,
+    which this module does not and may not execute.
+    """
+    if surface is not None and surface not in SURFACES:
+        raise _schema(
+            f"observation_stages: surface {surface!r} is not a "
+            f"bounded Track A surface {sorted(SURFACES)} (track B "
+            "carries no Track A surface - pass None)"
+        )
+    layers = {obs.layer for obs in record.observations}
+    stages: set[str] = set()
+    if layers & {L_CASE_DOCUMENT, L_CASE_DOCUMENT_MIRROR}:
+        stages.add("CORPUS_INTEGRITY")
+    if (
+        layers & {L_CONSTRUCTOR, L_CODEC, L_CASE_DOCUMENT_MIRROR}
+        and not (layers & {L_CASE_DOCUMENT})
+    ):
+        stages.add("CONSTRUCTION")
+    if (
+        L_CODEC in layers
+        and not (layers & {L_CASE_DOCUMENT})
+        and surface in ("RECORD", "BOTH")
+    ):
+        stages.add("CODEC_DECODE")
+    return frozenset(stages)
 
 
 # ---------------------------------------------------------------------------

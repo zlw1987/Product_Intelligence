@@ -6,6 +6,501 @@
 
 
 
+**PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-Q3-C-C1-FU4 + C2-FU2 (F-R6 /
+F-R2 Corrective Implementation)
+
+— IMPLEMENTED / PENDING CHATGPT INDEPENDENT REVIEW OF THE CORRECTIVE
+DIFF (C2 state of record: DRAFT ACCEPTED / FINAL HOLD — unchanged;
+NO corpus signed, sealed, or qualified; NO independent reviewer
+signoff yet; the F-R6 finding + the F-R2 finding remain OPEN for
+the independent reviewer's re-verification — the corrective
+implementer does NOT mark them independently resolved on the
+reviewer's behalf; the v1.0.0 seal remains FINAL-HOLD)**
+
+Bounded CORRECTIVE implementation phase on the required starting SHA
+`b85261924bc4827636ae3c3f54b01c7674d697b4` (the approved Q3-C-D1-FU3
++ D1-FU3-FU1 design endpoint; baseline collection **8082, re-
+verified this session** (183 files)), executing the approved F-R6
+architecture correction + F-R2 documentary correction of design
+section 9.12 of
+`docs/PRODUCT_INTEL_Q3C_FU4_BUNDLE_AUTHORITY_QUALIFICATION_DESIGN.md`
+(the ChatGPT-APPROVED Q3-C-D1-FU3 revision + the Q3-C-D1-FU3-FU1
+contract correction — Option B with the two-contract E1 observation
+model; no frozen research contract changes; no relaxation of G4 /
+W1 / M6 / pricing authority / test preservation). **F-R6 (the D6-i
+stage re-attribution).** The family loader's named cross-document
+observation `SOURCE_EXTRACTION_INPUT_DIGEST` (the case's recorded
+extraction input document vs the embedded result's `input_digest`
+binding — over the sealed FA4-ADV-012 documents every frozen
+constructor / codec / presentation-gate step passes and the frozen
+derivation completes; the defect is observable ONLY by the family
+loader, the stage-semantics (iv) class, the C2-F2a precedent) is
+re-classified CONSTRUCTOR → CASE_DOCUMENT (`corpus.py`; the check's
+comparison + bounded reason text are UNCHANGED). The EXISTING stage-
+coherence rule now: accepts FA4-ADV-012 at CORPUS_INTEGRITY /
+error_type null; rejects the obsolete CONSTRUCTION / CONSTRUCTOR
+attribution over the D6-i shape (the pinned incoherent-label reason);
+preserves every genuine frozen-constructor / codec / gate / replay
+refusal unchanged (D4 / D8 / D14 / D15 / D17-i + the record-surface
+twins); and does not turn malformed evidence into a successful
+DERIVED case (a structural failure stays a bounded schema error —
+never an observation). **Contract B (the family-owned read-only
+observation interface, design §9.12(1b)).** Added to the SAME file:
+the bounded public record types (`CorpusIntegrityObservation` — the
+fired check / layer / reason triple over the closed check family +
+the five bounded layers `OBSERVATION_LAYERS`; `CorpusIntegrityObservationRecord` — the
+complete fired-observation sequence in deterministic firing order
+with `check_names` / `layers` / `reasons` / `is_empty` projections)
++ `observe_corpus_case_integrity(case_document)` (the strict
+structural decode — malformed input fails closed through a bounded
+schema error; the typed decode over the REAL frozen constructors +
+the family cross-document checks, ALL in the loader's own
+observation-collection mode — the ACTUAL `_run_family_checks()`
+logic reused, the security checks NOT duplicated in a second
+implementation) + the pure `observation_stages(record, surface)`
+mapping (the exact inverse of the sealed-raw scoping rule's corpus-
+surface acceptance set, computed from the record's layers + the
+sealed surface, NEVER from the label: CASE_DOCUMENT / CASE_
+DOCUMENT_MIRROR → CORPUS_INTEGRITY; CONSTRUCTOR / CODEC / CASE_
+DOCUMENT_MIRROR → CONSTRUCTION under the case-document exclusion
+rule; CODEC → CODEC_DECODE for RECORD / BOTH surfaces under the
+same rule; GATE-only observations never determine a stage; the
+empty set is the explicit bypass-to-G4 shape). The `expected` block
+is schema-validated but NEVER read for behavior (the labeled outcome
+never selects the strictness — collection mode is forced; the same
+evidence under a different label returns the IDENTICAL record). The
+interface does NOT verify the per-case / corpus digest or the
+manifest (the seal is Contract A's obligation) and NEVER invokes the
+derivation / the replay / any model (zero model calls, zero network,
+zero pricing authority). NO production `disable_check` /
+`skip_integrity` / bypass flag / allowlist / environment-variable
+override / user-selectable validation mode was added (AST-pinned;
+adversarial bypass tests use isolated test doubles / monkeypatching
+only). Contract A is PRESERVED: a correctly labeled sealed-raw
+negative case still loads into the corpus (the 94-case DRAFT
+population verifies case-by-case under the test-local reviewer fill).
+**F-R6 (the pre-seal label, `fixtures.py`).** FA4-ADV-012 ONLY:
+`expected.refusal.stage` CONSTRUCTION → CORPUS_INTEGRITY +
+`expected.refusal.error_type` CONSTRUCTOR → null (PRESERVED, byte-
+unchanged: `expected.outcome` REFUSED, `expected.replay`
+NOT_APPLICABLE, every other expected field, the case ID, matrix row
+D6, track A, the DERIVATION surface, every sealed evidence document,
+the label author, `reviewer: null`, `review_status: DRAFT`); the
+grounding citation + rationale state the approved F-R6 design
+adjudication + the exact observation point (class A — the old stage
+expectation was factually wrong over the frozen contract; no frozen
+research module moved). No other case relabeled. **F-R2 (the
+documentary citation correction, `fixtures.py`).** The VERIFIED
+Micron catalog digest `160d4fe97a5df5249e8f6404f6b005c0515fab4def1b4668fdaf87c727600743`
+(recomputed at the correction directly from the current working-
+tree bytes of `tests/fixtures/pages/micron_7500_part_catalog.json`
+— 24,060 bytes — agreeing with the design record + the independent
+T1 recomputation; a mismatch would have STOPPED the phase; the
+catalog file itself is UNCHANGED) is added to the two D11 grounding
+citations (FA4-ADV-022 / FA4-ADV-023 — a class-A annotation
+correction; no expected field moves; no evidence-classification
+move).
+
+**Tests (the recorded in-place correction + the NEW nodes).** The
+ONLY authorized in-place expectation correction: `test_extraction_
+input_digest_mismatch_sealed_raw` (C1) — the SAME underlying digest
+mismatch, re-pinned at the adjudicated observation point (asserts
+CORPUS_INTEGRITY + error_type null + the exact
+SOURCE_EXTRACTION_INPUT_DIGEST observation at the CASE_DOCUMENT
+layer + valid negative-case corpus ingestion; no rename / delete).
+19 NEW C1 nodes (`TestC1FU4Corrections` — the genuine D6-i
+observation + bounded reason; the adjudicated stage + error-type
+vocabulary; the obsolete CONSTRUCTION label refused (pinned reason);
+expected-label independence of Contract B (REFUSED / DERIVED /
+NON_CONSTRUCTIBLE over the same evidence → identical record); sound
+evidence → no observations; GATE-only observations → the empty
+corpus-surface stage set; malformed input → bounded schema error
+(fail-closed, never a fabricated observation); a wrong case digest →
+still the record (Contract A remains the sole seal verifier); all
+observations retained deterministically (the real FA4-ADV-012
+documents fire the named observation + the corroborative gate
+observations — every one retained, in firing order); no production
+bypass identifier / environment read over the loader (AST scan);
+the sentinel no-execution probe extended to the new surface;
+the designated-check-disabled G4 shape over an ISOLATED test
+double; the frozen constructor / replay-stage boundaries stand
+unchanged). 3 NEW C2 nodes (`TestC2Fu2Corrections` — each fails if
+the pre-correction value returns: the FA4-ADV-012 corrected-label
+pin (CORPUS_INTEGRITY / null / REFUSED / NOT_APPLICABLE + every
+unrelated expected axis / identity / governance / sealed-evidence
+field unchanged + the label annotation names the adjudication +
+the case LOADS under the review fill); the loader half (the
+reverted CONSTRUCTION / CONSTRUCTOR attribution is refused with the
+bounded reason while Contract B still observes the genuine defect);
+the F-R2 citation-digest pin (both D11 citations carry the digest
+recomputed from the catalog bytes at test time; the expected labels
++ evidence classification unaffected)). The exact previously
+required semantic runtime and execution-integration tests remain
+collected. No test deleted, renamed, skipped, xfailed, deselected,
+or weakened (0 / 0 / 0 skips).
+
+**Re-pinned artifact digests (the pin's own stated contract — a pin
+move is a recorded re-pin event, never a silent one).** `fixtures.py` (working
+tree) `d1120de7d995e331a8b3cd4da0f4b071f5d5bacf94daf4f8d85aceffcf094dd5` →
+`0cb7dfb1e9918d5c29fa51b0a189bdd2baf02cb0c500ba7981ce103ae00059d2`
+(the two corrected rows + their label annotations, over the
+otherwise byte-unchanged 94-case DRAFT population); `corpus.py`
+`aa09d2a58d6f71cc2a4b201155e6c859d1e34fc6552bde55e4131f95a40f157d` →
+`7eee013bd246c81bc661eb54a4e4cd2dcb03de79232fd339474d9f9d46cbd56f`
+(the F-R6 re-classification + the Contract B interface — design
+§9.12 file (1) / (1b)); `challenge_log.md` `6aae3d9222dd48248b4257715ea776d1f897e4c11fcec27ff772c97af1112e63` →
+`52f6cc9bcf2ae111e8e5ab2d13a6c5e608a1cfd4812ab352549f2f70d491330c`
+(the §1 correction-of-record paragraph + the §6 rows 23 / 24 + the
+three per-case status cells); `reviewer_handoff.md` `940fa84fb3c1b87fb13f796c28e1bbec0006ebb69617316b46337131709dd183` →
+`92f71e8f0358de972be4788cdd6abae64ac8eccec0cf3a6327eafe12e403636f`
+(the §4.2 re-verification worklist + the FA4-ADV-012 / FA4-ADV-022
+[CORRECTED-VERIFY] worklist flags). UNCHANGED (byte-identical to the
+C1-FU3 / C2 / C2-R1-FU1 pins — re-verified by the re-run pin
+suites): `cli.py`, `__init__.py`, the family README, the DRAFT
+policy, the Micron catalog (24,060 bytes, `160d4fe9...`).
+
+**Tests / validation (exact).** Before the edits: collection **8082**
+(183 files; the node-level list of record `tmp_fu4_nodes_before.txt`);
+C1 + C2 governance batch **489 passed, 0 failed, 0 errors, 0
+skipped, exit 0** (276 C1 + 213 C2). After the edits: (1) full
+collection compared node-by-node against the 8082 baseline —
+**8082 → 8104 (+22: the 19 NEW C1 nodes + the 3 NEW C2 nodes; 0
+removed / 0 renamed; every other file's node count unchanged**;
+`tmp_fu4_nodes_after.txt` + `tmp_fu4_nodes_new.txt` of record);
+(2) the C1 + C2 governance suites — **511 passed, 0 failed, 0
+errors, 0 skipped, exit 0** (295 C1 + 216 C2 — junit-verified);
+(3) the semantic V2 authority/firewall suite (the complete
+tests/evaluation/semantic_v2/) + the frozen P2 / P3 / FU3 / FU4 /
+R1 + replay boundary suites (the frozen research batch incl. the
+C0 implementation pins) — **1272 passed, 0 failed, 0 errors, 0
+skipped, exit 0** (the pin suites byte-verify the frozen surface);
+(4) the FULL pytest suite over the 8104 collection — **ONE RUN:
+8103 passed + 1 failed + 39 subtests passed (junit: 8143 test
+cases, 0 errors, 0 skipped), exit 1 in 426.60s — the ONE failure
+is `tests/domain/test_domain_boundaries.py::test_domain_imports_
+without_django_network_or_llm_dependencies`, an `OSError: [WinError
+6] The handle is invalid` at `subprocess.run(..., capture_output=
+True)` BEFORE any project code runs — the documented WinError 6/50
+subprocess-boundary flake class of this Windows / Python 3.14
+workstation (a fixed eleven-node allowlist member, unrelated to
+this phase's files); re-run in isolation without modifying tests:
+**1 passed, exit 0 in 1.04s** — the failed full run is NOT called
+green and the allowlist was NOT expanded; (5) `python manage.py
+check` — System check identified no issues (0 silenced), exit 0;
+(6) `python manage.py makemigrations --check --dry-run` — No
+changes detected, exit 0; (7) `git diff --check` — clean (exit 0;
+the pre-existing autocrlf warnings only).
+
+**The expected corpus population is UNCHANGED:** 94 cases; 91 Track
+A; 24 Track B (incl. 3 B-only); 48 required matrix rows; 36
+adversarial D cases; 88 SYNTHETIC; 6 RECORDED_FIXTURE; 0
+REAL_MARKET; every §5.6 floor holds (the refusal-stage projection
+retains all five members — CORPUS_INTEGRITY by the D6-i / D6-ii /
+D3-ii cases; CONSTRUCTION by its surviving rows).
+
+**Invariance (this phase).** No frozen authority or evidence
+contract changed (the frozen P2 / P3 / P5 / FU4 / R1 modules are
+byte-pinned inputs — re-verified by the re-run pin suites; the F-R6
+adjudication moves NO frozen contract — the frozen layers' silence
+over the D6-i shape is the evidence, not the defect); the diff is
+confined to the eight authorized files (`corpus.py`, the C1
+governance suite, `fixtures.py`, the C2 governance suite,
+`challenge_log.md`, `reviewer_handoff.md`, the STATUS / PLAN
+records). No corpus label outside the two recorded corrections moved
+(FA4-ADV-012 the two refusal fields + its label annotation; FA4-
+ADV-022 / FA4-ADV-023 the documentary citation only); no publisher
+completeness statement or source provenance fabricated; no test
+deleted, renamed, skipped, xfailed, deselected, or weakened (0 / 0 /
+0 skips). No model capture or model call (zero-live by
+construction); no derivation / replay / pricing invocation from the
+new interface (sentinel-pinned). No seal artifact exists or was
+created (the family directory carries exactly the non-seal
+governance artifacts — pinned). The DRAFT family policy is
+unchanged. The approved Q3-C-D1 design file is an INPUT (not edited
+this phase). The unrelated worktree artifacts + the untracked review
+/ tester ledgers (incl. `tmp_q3c_c2t1_fr6_investigation.md` + the
+six prior C2-R1-FU1 corrective files' state) are preserved. No
+restore / reset / checkout / stash / clean / amend / rebase / force-
+push used. **C2 grants NO qualification at this endpoint**: the
+corpus is NOT sealed, no Bundle authority case is independently
+qualified, and the FU4 Bundle authority program state of record
+remains UNAPPROVED / NOT EXECUTED.
+
+**Remaining review challenges (of record).** (1) F-R6 (FA4-ADV-012)
++ (2) F-R2 (FA4-ADV-022 / FA4-ADV-023) remain OPEN for the
+independent reviewer's re-verification under the reviewer's identity
++ instant (challenge log §6 rows 23 / 24; handoff §4.2 — the
+findings are NOT marked independently resolved on the reviewer's
+behalf); (3) the prior CH-1 / CH-2 challenges + F-R1 remain OPEN as
+at the C2-R1-FU1 endpoint; (4) F-R3 / F-R4 / F-R5 / F-R7 / F-R8
+stand as recorded in the untracked ledger for the seal gate / E1 /
+the independent tester, with their recorded destinations. The E1
+two-contract execution order (Contract A strict-loads first — the
+correctly labeled sealed-raw case LOADS; Contract B the interface
+must return the exact named observation at the exact layer with the
+labeled stage within `observation_stages` — a record with no corpus-
+surface observation is the explicit bypass-to-G4 failure; a
+successful FU4 derivation never counts as satisfying a refused case)
+is now IMPLEMENTED over the loader surface and ready for E1.
+
+**Final governance state (of record).** C2 DRAFT ACCEPTED / FINAL
+HOLD (unchanged); NO genuine independent reviewer signoff yet (every
+label `reviewer: null` / `review_status: DRAFT`; the reviewer column
+of the challenge log all PENDING — the three corrected rows flagged
+CORRECTED - reviewer re-verification required); NO corpus_v1.json
+seal; NO manifest_v1.json seal; NO Track A / B execution; NO model
+calls; NO C3 / E1 / E2 / P1 / Q1 / W1. Deferred obligations
+preserved with their recorded destinations (unchanged).
+
+**Next.** ChatGPT reviews the actual corrective diff + the test
+evidence (the independent approval of the corrections). The
+independent reviewer then re-verifies the F-R6 + F-R2 corrections
+under the reviewer's identity + instant (challenge log §6 rows 23 /
+24 — the findings are NOT marked resolved until then). The v1.0.0
+seal requires, in order: the genuine two-identity independent review
+per `reviewer_handoff.md` (NOW OVER THE CORRECTED ROWS — the three
+F-R6 / F-R2 corrected rows are flagged for re-verification; the
+tester minimum ≥20% incl. ALL 36 D rows + the D16-iii E1
+obligation named), and the seal procedure of the handoff. Do not
+start C3 / E1 / E2 / P1 / Q1 / W1. Do not sign, seal, or qualify the
+corpus at this endpoint.
+
+
+**PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-Q3-C-C2-R1-FU1 (Pre-Seal
+Label and Provenance Corrections)
+
+— IMPLEMENTED / PENDING CHATGPT INDEPENDENT APPROVAL OF THE
+CORRECTIVE DIFF (C2 state of record: DRAFT ACCEPTED / FINAL HOLD —
+unchanged; NO corpus signed, sealed, or qualified; NO independent
+reviewer signoff yet; the CH-1 / CH-2 challenges + the F-R1 finding
+remain OPEN for the independent reviewer's re-verification — the
+corrective implementer does NOT mark them independently resolved on
+the reviewer's behalf; the v1.0.0 seal remains FINAL-HOLD)**
+
+Bounded CORRECTIVE implementation phase on the authoritative starting
+SHA `b85261924bc4827636ae3c3f54b01c7674d697b4` (the approved
+Q3-C-C1-FU3 + C2 corrective endpoint; baseline collection **8079,
+re-verified this session** (183 files)), resolving the THREE
+pre-seal blockers identified by the independent C2-R1 label review
+of record (the untracked session review ledger, reviewer identity
+`Q3-C-C2-R1.INDEPENDENT-LABEL-REVIEWER`, over the starting SHA —
+92 of the 94 cases AGREE (9 with recorded non-label notes), 2
+CHALLENGE + 1 provenance FINDING). Scope: the three pre-seal
+corrections under the §4.6 item 5 governance (class A where the
+expectation was factually wrong over the frozen contract; the F-R1
+correction is a provenance annotation — no label field moved; the
+frozen derivation / grammar were NOT changed to match the authored
+labels), the three NEW C2 regression nodes (each fails if the
+pre-correction value returns — mutation-verified), the re-pinned
+governance artifacts, and the STATUS / PLAN records — **NO seal (no
+corpus_v1.json / manifest_v1.json), NO independent reviewer
+signoff, NO evaluation, NO model capture, NO model call, NO policy,
+NO authority promotion, NO pricing wiring, NO migration** (`manage.
+py check` 0 issues; `makemigrations --check --dry-run` No changes
+detected). The corrected cases remain DRAFT: every label
+`reviewer: null` / `review_status: DRAFT`; the reviewer column of
+the challenge log PENDING.
+
+**CH-1 (MAJOR — FA4-ADV-024 / D12 — the expected tier).**
+Independently reconstructed at the correction over the sealed
+scripted context (decision NO_MATCH, confidence HIGH, conflict_
+classes [CAPACITY], product evidence quality STRONG — the case's
+own payload evaluation / derived sections): the frozen S2-A matrix
+base (SEMANTIC_OUTCOME_TIER_MATRIX over NO_MATCH + HIGH + STRONG)
+is EXCLUDED_LOW_CONFIDENCE; CAPACITY is a frozen
+ALWAYS_HARD_CONFLICT_CLASSES member; the frozen hard-conflict
+supersession (always last inside the AI path — the contract's
+documented precedence) sets the tier **HARD_CONFLICT** (fired rule
+HARD_CONFLICT_SUPERSEDES). The case's OWN sealed payload derived
+section records exactly that (authority_tier HARD_CONFLICT; fired
+[HARD_CONFLICT_SUPERSEDES, SEMANTIC_OUTCOME_MATRIX]) — the author's
+recorded snapshot contradicted the author's expected block. Corrected
+`expected.tier: EXCLUDED_LOW_CONFIDENCE → HARD_CONFLICT` + the label
+annotation (grounding citation + rationale) stating the
+supersession; the frozen derivation was NOT changed to match the
+authored label. PRESERVED (independently justified, byte-unchanged):
+unit PROVEN_EQUIVALENT, quantity axis BOTH_UNPUBLISHED, composition
+states ESTABLISHED/ESTABLISHED, textual relation T-AGREE, ceiling
+null, pricing eligibility false (HARD_CONFLICT is outside the frozen
+PRICING_ELIGIBLE_TIERS), refusal null, replay REPLAY_PASS.
+
+**CH-2 (LOW — FA4-UNPR-022 / B11 — the textual relation).**
+Inspected the exact sealed clause bytes ('2x RAM + 1x CPU, as
+listed' vs '2x RAM + 1x CPU' — the sealed target attestation's
+clause_digest verifies over exactly the target clause) + the frozen
+P3 versioned grammar, and independently parsed both clauses into
+canonical multisets: the candidate clause FULLY parses — 'as
+listed' is a valid item token (alphanumerics with an internal single
+space, per the frozen _ITEM_TOKEN_RE — the same class as the worked-
+example 'power cables') — into ((2,'ram'),(1,'cpu'),(1,'as listed'));
+the target fully parses into ((2,'ram'),(1,'cpu')); the multisets
+DIFFER. The grammar TRULY parses the trailing 'as listed' as an item
+token, so the STOP condition (report the conflict, do not force the
+reviewer's proposed answer) did not trigger. Corrected
+`expected.textual_relation: T-DIFF-UNESTABLISHED → T-DIFF-MATERIAL`
++ the rationale sentence (the frozen axis over two fully-parsed
+clauses with differing multisets is T-DIFF-MATERIAL; T-DIFF-
+UNESTABLISHED is reserved for a side that does not fully parse — the
+D7 safe direction). PRESERVED: the UNPROVEN unit and its governing
+missing-completeness rationale (U15 — the candidate is
+completeness-unknown; a material difference never contradicts over a
+completeness-unknown clause; the tier NEEDS_REVIEW +
+CEILING_SALES_UNIT_NOT_PROVEN + pricing false + the axes stand).
+
+**F-R1 (MEDIUM — FA4-DELE-005 / B-DELE — the unsupported source
+URL).** Traced the sealed `source_url:
+https://www.directd.com/product/BCM957608-P2200GQF00` through the
+committed archive + the original 3A / 4D-A recording: the cited
+archive (`tests/fixtures/pages/
+directmacro_bcm957608_p2200gqf00_search.html` — the declared digest
+66ce02d70f8f5ff8eeb994a5fef6f5cfd56149497a3e389e3a1f53acc6d6ef5f
+verified over the committed file) records in its own 4D-PRE
+evidence line `source:
+https://directmacro.com/catalogsearch/result/?q=BCM957608-P2200GQF00`
+(the page is the DirectMacro search-results page for the MPN); the
+original 4D-A acquisition record (tests/execution/
+test_4d_a_direct_acquisition.py — the phase that committed the
+archive) pins the DirectMacro locator target for the MPN as exactly
+that URL and forbids a fabricated product slug; the pages README
+records the 4D-PRE / 4D-A evidence over the site-owned search
+mechanism. The unsupported URL appears in the repository ONLY in an
+unvalidated P2 test constant (named DIRECTMACRO_URL — itself an
+inconsistency: a directd.com product-slug URL under a DirectMacro
+name, asserted by no test against the document content) and nowhere
+in any archive or 3A / 4D-A recording. A trustworthy URL WAS
+established from the committed recording evidence, so the
+unresolved-provenance STOP condition did not trigger and NO URL was
+invented: the three sealed locations (source.candidate.source_url,
+source.target.source_url, recorded_case.v2_case_document.candidate.
+source_url) corrected to the archive-recorded URL, consistently —
+the C1 provenance-binding invariant (the recorded V2 case's
+candidate source URL exactly equal to the sealed candidate block's)
+is preserved; the expected label is UNAFFECTED (the URL is not a
+channel / derivation field).
+
+**The regression pins + the re-pinned digests (the pin's own stated
+contract — a pin move is a recorded re-pin event, never a silent
+one).** Three NEW C2 regression nodes (`TestPreSealCorrections` —
+each fails if the pre-correction value returns; mutation-verified at
+the correction: restoring the pre-correction tier / relationship /
+URL each trips its pin): `test_fa4_adv_024_expected_tier_is_the_
+hard_conflict_supersession` (the frozen contract-data re-derivation
++ the sealed payload snapshot agreement + the preserved axes); `test_
+fa4_unpr_022_textual_relation_is_the_frozen_grammar_multiset_
+difference` (the frozen grammar re-run over the sealed clause bytes
++ the preserved UNPROVEN unit + the clause-digest cross-check);
+`test_fa4_dele_005_source_url_is_the_archive_recorded_url` (the
+archive digest verification + the 4D-PRE source-line grounding + the
+three sealed locations + the unsupported-URL absence). RE-PINNED:
+`fixtures.py` (working tree) `d1ded124...` →
+`d1120de7d995e331a8b3cd4da0f4b071f5d5bacf94daf4f8d85aceffcf094dd5`
+(the three corrected rows + their label annotations, over the
+otherwise byte-unchanged 94-case DRAFT population); `challenge_log.
+md` `8fce4e05...` →
+`6aae3d9222dd48248b4257715ea776d1f897e4c11fcec27ff772c97af1112e63`
+(the §1 correction-of-record paragraph + the §6 rows 20 / 21 / 22 +
+the three per-case status cells); `reviewer_handoff.md` `dfdef84a...
+` → `940fa84fb3c1b87fb13f796c28e1bbec0006ebb69617316b46337131709dd183`
+(the §4.1 re-verification worklist). UNCHANGED (byte-identical to
+the C1-FU3 / C2 pins — re-verified by the re-run pin suites):
+`corpus.py`, `cli.py`, `__init__.py`, the family README, the DRAFT
+policy.
+
+**Tests / validation (exact).** Before the edits: collection **8079**
+(183 files, node-level list of record); C1 + C2 governance batch
+**486 passed, 0 failed, 0 errors, 0 skipped, exit 0** (276 C1 + 210
+C2); the frozen S2-A / P3 / FU4 / R1 / sales-unit / replay / C0-pin
+research batch **836 passed, exit 0**; the complete
+`tests/evaluation/semantic_v2/` firewall suite **398 passed, exit 0**.
+After the edits: (1) full collection compared node-by-node against
+the 8079 baseline — **8079 → 8082 (+3: the three NEW C2 regression
+nodes; the C2 suite 210 → 213; 0 removed / 0 renamed; every other
+file's node count unchanged)**; (2) the C1 + C2 governance suites —
+**489 passed, 0 failed, 0 errors, 0 skipped, exit 0** (276 C1 + 213
+C2 — junit-verified); (3) the frozen research batch + the semantic_
+v2 firewall suite re-run with IDENTICAL results to the baseline (836
++ 398 passed, exit 0 — the pin suites byte-verify the frozen
+surface); (4) the FULL pytest suite over the 8082 collection —
+**ONE RUN, FULL GREEN: 8082 passed + 39 subtests passed (junit:
+8121 test cases), 0 failed, 0 errors, 0 skipped, exit 0 in 451.38s**
+(the documented load-sensitive clean-interpreter subprocess guard
+flake class did not occur in this run — no Windows subprocess
+failures, no isolated retries were needed); (5) `python manage.py
+check` — System check identified no issues (0 silenced), exit 0; (6)
+`python manage.py makemigrations --check --dry-run` — No changes
+detected, exit 0. The documented flake allowlist was NOT expanded.
+
+**Invariance (this phase).** No frozen authority or evidence
+contract changed (the frozen S2-A tier derivation, the frozen P3
+versioned grammar, the C1 provenance binding, and the R1 replay
+contract are byte-pinned inputs — re-verified by the re-run pin
+suites); the diff is confined to the six authorized files (`fixtures.
+py`, the C2 governance suite, `challenge_log.md`,
+`reviewer_handoff.md`, the STATUS / PLAN records). No corpus label
+outside the three recorded corrections moved; no publisher
+completeness statement or source provenance fabricated; no test
+deleted, renamed, skipped, xfailed, deselected, or weakened (0 / 0 /
+0 skips). No model capture or model call (zero-live by construction
+— the verification re-ran the frozen contract DATA over the sealed
+bytes; the corrections are the independently justified
+contract-grounded literals). No seal artifact exists or was created
+(the family directory carries exactly the non-seal governance
+artifacts — pinned). The DRAFT family policy is unchanged. The
+original reviewer report + its two challenges are preserved; the
+untracked review evidence (incl. the independent review ledger) is
+preserved. The unrelated worktree artifacts are preserved. No
+restore / reset / checkout / stash / clean / amend / rebase / force-
+push used. **C2 grants NO qualification at this endpoint**: the
+corpus is NOT sealed, no Bundle authority case is independently
+qualified, and the FU4 Bundle authority program state of record
+remains UNAPPROVED / NOT EXECUTED.
+
+**Remaining review challenges (of record).** (1) CH-1 (FA4-ADV-024)
++ (2) CH-2 (FA4-UNPR-022) remain OPEN for the independent reviewer's
+re-verification (the corrections are the corrective implementer's
+record only — NOT marked independently resolved on the reviewer's
+behalf); (3) F-R1 (FA4-DELE-005) remains OPEN as a finding pending
+the reviewer's re-verification of the provenance correction; (4) the
+review's remaining non-label findings F-R2..F-R8 stand as recorded
+in the untracked ledger for the seal gate / E1 / the independent
+tester (F-R2 the D11 catalog citation digest; F-R3 the A6 record-
+twin coverage; F-R4 / F-R5 the row-shape fidelity notes; F-R6 the
+D6-i stage-attribution flag for E1; F-R7 the ceiling-trace keying
+note for E1; F-R8 the NON_CONSTRUCTIBLE / REFUSED vocabulary note).
+
+**Final governance state (of record).** C2 DRAFT ACCEPTED / FINAL
+HOLD (unchanged); NO genuine independent reviewer signoff yet (every
+label `reviewer: null` / `review_status: DRAFT`; the reviewer column
+of the challenge log all PENDING — the three corrected rows flagged
+CORRECTED - reviewer re-verification required); NO corpus_v1.json
+seal; NO manifest_v1.json seal; NO Track A / B execution; NO model
+calls; NO C3 / E1 / E2 / P1 / Q1 / W1. Deferred obligations
+preserved with their recorded destinations (unchanged): (1) the A1
+recorded PROVEN-shape variant → the C3 acquisition + the additive
+1.1.0 re-seal (P3 D19; the §7.6 distinctness requirements; the 1.1.0
+re-seal verification); (2) the D16-iii FU3-token contract-misuse
+refusal → the MANDATORY E1 adversarial-execution assertion (P3 §5.4
+/ D9; design §9.6(2); the M13 / G6 coverage note of the E1 baseline
+report); (3) the D11 recorded-fixture exact-identifier + attested-
+composition variant → the C3 / 1.1.0 additive obligation IF AND ONLY
+IF the recorded source publishes both the U1 EXACT identity
+context's recorded form and the attested composition clauses (the
+§2.5 catalog publishes identifiers only).
+
+**Next.** ChatGPT reviews the actual corrective diff + the test
+evidence (the independent approval of the corrections). The
+independent reviewer then re-verifies the three corrections under
+the reviewer's identity + instant (challenge log §6 rows 20 / 21 /
+22 — the challenges are NOT marked resolved until then). The v1.0.0
+seal requires, in order: the genuine two-identity independent review
+per `reviewer_handoff.md` (NOW OVER THE CORRECTED ROWS — the three
+pre-seal-corrected rows are flagged for re-verification; the tester
+minimum ≥20% incl. ALL 36 D rows + the D16-iii E1 obligation named),
+and the seal procedure of the handoff. Do not start C3 / E1 / E2 /
+P1 / Q1 / W1. Do not sign, seal, or qualify the corpus at this
+endpoint.
+
+
 **PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-Q3-C-C1-FU3 + C2 CORRECTIVE
 IMPLEMENTATION (the seven loader-held cases resolved; the corrected
 94-case DRAFT population; the strengthened qualification-ready gate)
