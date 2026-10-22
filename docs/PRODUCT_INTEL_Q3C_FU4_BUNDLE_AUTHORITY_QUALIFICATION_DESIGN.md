@@ -205,6 +205,232 @@ The labeled pre-revision references (the revision record's
 notes; the §5.6 pre-revision accounting) remain as historical
 record.
 
+## Revision record (Q3-C-D1-FU3 — the F-R6 architecture
+adjudication, this document, revised in place)
+
+**Revised at:** `b85261924bc4827636ae3c3f54b01c7674d697b4`
+(the Q3-C-C1-FU3 + C2 corrective endpoint of record; the C2-R1-FU1
+pre-seal corrections are the six uncommitted working-tree files of
+the session start, preserved byte-for-byte by this revision;
+baseline collection **8082**, of record in the independent
+Q3-C-C2-T1 tester ledger over this endpoint).
+
+The independent Q3-C-C2-T1 adversarial tester record (the F-R6
+BLOCKER — `tmp_q3c_c2t1_fr6_investigation.md` + the tester ledger)
+demonstrated, by exact read-only reproduction, a three-way
+inconsistency inside the authoritative design: the approved D6(i)
+row's stage attribution (CONSTRUCTION) × the design's own E1
+execution clauses (the W1 exact-reason adjudication of Q3-C-D1-
+FU1, §6.1, §9.6) × the actual observation point over the sealed
+FA4-ADV-012 documents. This revision records the independent
+frozen-contract determination (re-verified this session, read-only)
+and ADJUDICATES the F-R6 finding. Design-only: no production code,
+no corpus fixture, no expected label, no test, no qualification
+policy, and no seal moves in this revision; the corrections it
+names are the scope of the bounded C1-FU4 + C2-FU2 corrective
+implementation (§9.12 — PROPOSED, NOT authorized by this revision;
+separately approval-gated).
+
+**The independent frozen-contract determination (of record).** Over
+the sealed FA4-ADV-012 documents:
+
+* **The extraction result and its examined input are individually
+  valid under the frozen constructors.** Every sealed document
+  decodes through the REAL frozen constructors with zero
+  constructor errors (the v2 case, the channel, the v3 candidate
+  record — its anchors equal the embedded result's own digests; the
+  embedded result's self-digests + cue spans verify over its own
+  recorded field text — the ALTERED title '…1x CPU'), and the
+  frozen presentation gate's four steps (P3 Revision record 3) ALL
+  pass (the presented channel is exactly the frozen P2 mapping of
+  the embedded result; the recomputed composition equals the
+  complete record).
+* **The inconsistency exists BETWEEN the case's separately sealed
+  documents.** The case's recorded extraction input document (the
+  sealed source's projection — the title '…1x SSD') is NOT the
+  input the embedded result's `input_digest` binds: the recorded
+  input document's canonical digest `a8cdc4d0…` ≠ the result's
+  `input_digest` `660fdb47…` (plain-hash verified). The defect is
+  a relationship between two documents that live in the CASE.
+* **The frozen derivation cannot independently observe that cross-
+  document mismatch.** No frozen constructor, codec, gate step,
+  derivation signature, or replay path EVER receives the case's
+  sealed `source` block or the case's recorded extraction input
+  document: the P2 result's `input_digest` is a stored binding the
+  frozen code never recomputes against an external document (the
+  frozen extractor computes it only over its own
+  `ListingObservation` at production time); the v3 record's anchor
+  checks are equalities WITHIN the record + embedded result; the
+  R1 payload's exact key set carries no such field. Over the
+  reconstructed self-consistent typed inputs the frozen derivation
+  COMPLETES (U15: UNPROVEN / NEEDS_REVIEW / BOTH_UNPUBLISHED /
+  ESTABLISHED / T-AGREE / CEILING_SALES_UNIT_NOT_PROVEN) — the
+  defect is invisible to it, not missed by it.
+* **The family loader's `SOURCE_EXTRACTION_INPUT_DIGEST` check
+  (`corpus.py`) is the first and only non-corroborative
+  observation point** (corroborated by the GATE-layer cue / clause
+  span-grounding observations). It is a family-owned CROSS-DOCUMENT
+  integrity check (the case's recorded extraction input document vs
+  the embedded result's `input_digest` binding), classified at the
+  CONSTRUCTOR layer as a "mirror" of the construction-level
+  binding. A family-loader observation labeled at the CONSTRUCTOR
+  layer is NOT an exception emitted by a frozen constructor (the
+  five validation surfaces, §5): the frozen constructor is silent
+  over this shape, and the W1 clause's construction-stage
+  mechanism ("the frozen constructor / codec's bounded error") has
+  nothing to assert against.
+* **Therefore the D6(i) defect is exactly the stage-semantics (iv)
+  class** — "the family loader only (the case document's own
+  internal inconsistencies — §4.4 — never presented to the
+  implementation)" — the same structural family the C2-F2a
+  adjudication (Q3-C-D1-FU1) resolved to CORPUS_INTEGRITY for the
+  D3-ii row. No frozen contract (P2 / P3 / P5 / FU4 / R1) requires
+  or supports the CONSTRUCTION attribution over this shape; the
+  only passages naming it are the design row itself (this
+  document), the family loader's mirror classification (a
+  family-owned byte), and the C1 suite's pin over that mirror (a
+  test byte) — all three movable under this revision's
+  governance, none frozen.
+
+**The adjudication (Option B — the stage re-attribution per the
+C2-F2a precedent).** The D6(i) row's expected refusal stage is
+**CORPUS_INTEGRITY** with **error_type null** (the existing stage-
+error vocabulary: the loader's own stage names no implementation
+error class), the EXACT named case-document observation
+`SOURCE_EXTRACTION_INPUT_DIGEST` being the W1 refusal reason. The
+expected outcome **REFUSED stands** (no unit, authority tier,
+pricing eligibility, or replay approval is produced for the
+invalid case — G4 / M7 are satisfied at the loader observation
+point, BEFORE any derivation input exists). Option A (the
+execution-semantics clarification keeping the CONSTRUCTION label +
+the derivation completion a documented non-observation) was
+considered and REJECTED: it would require a D6-i-specific
+exception inside W1's stage-keyed exact-reason clause (the clause
+as written keys the named case-document observation to
+CORPUS_INTEGRITY only and the frozen bounded error to
+CONSTRUCTION only — the latter does not exist over this shape),
+would leave the row in direct conflict with the design's own
+stage semantics (iv), and would perpetuate the D6 row's internal
+asymmetry ((i) a loader-mirrored "construction" stage vs (ii)
+CORPUS_INTEGRITY for the same loader-observable, never-presented-
+to-the-implementation structural family). The construction-stage
+requirement is NOT re-interpreted for the unrelated cases: every
+row whose named defect IS a frozen-constructor / codec bounded
+error (D4 / D8 / D14 / D15 / D17-i + the record-surface twins)
+keeps CONSTRUCTION / CODEC_DECODE with the frozen bounded reason
+(W1 unchanged for those shapes).
+
+**The F-R2 documentary finding (verified this session).** The two
+D11 grounding citations (FA4-ADV-022 / FA4-ADV-023) name the
+Micron catalog by PATH only (`tests/fixtures/pages/micron_7500_
+part_catalog.json`) while the adjudication record claims "cited by
+path + digest" (the D11 row; the C2-F5 prose). The catalog's
+working-tree digest at this endpoint is
+`160d4fe97a5df5249e8f6404f6b005c0515fab4def1b4668fdaf87c727600743`
+(24,060 bytes; recomputed this session — agreeing with the
+independent T1 recomputation). The catalog publishes identifiers
+only (zero `bundle` occurrences — the C2-F5 statement re-verified
+true). The smallest required citation correction — adding the
+VERIFIED digest to the two grounding citations (a class-A
+annotation correction under §4.6 item 5; the catalog itself is
+unchanged; no unverified digest is inserted) — is recorded in the
+§9.12 scope. F-R3 / F-R4 / F-R5 / F-R7 / F-R8 stand as the
+recorded downstream obligations with their recorded destinations
+(unchanged by this revision).
+
+**Register of corrected locations** (pre-revision → corrected):
+
+| Location | Correction |
+| --- | --- |
+| §5 (stage semantics) | item (iv) states the cross-document case bindings (the D6-i / D3-ii / D6-ii / C2-F6 shapes + their named observations); the five validation surfaces paragraph added (the frozen-constructor / frozen-codec / family-loader cross-document / frozen-derivation / replay distinction) |
+| §5.4 D6 | (i) stage CONSTRUCTION → CORPUS_INTEGRITY (error_type null; the named observation `SOURCE_EXTRACTION_INPUT_DIGEST` — the family-loader cross-document observation point, the C2-F2a precedent); (ii) unchanged; the row's shape / evidence / kind / surface (BOTH) / minimum (2) unchanged |
+| §5.6 | the refusal-stage projection names the D6-i case under CORPUS_INTEGRITY (D6-i / D6-ii / D3-ii) |
+| §6.1 | the execution order: the loader-observation cases run the authorized family-loader integrity path FIRST (as corrected by the Q3-C-D1-FU3-FU1 contract correction: the strict load is Contract A — it ACCEPTS the correctly labeled sealed-raw case after verifying the stage against its internally collected observations; the REAL observation is the family-owned read-only observation interface — Contract B — which must return the exact named observation at the exact layer, and a record with no corpus-surface observation is the explicit bypass-to-G4 failure); a successful FU4 derivation never counts as satisfying a refused case; the W1 example list corrected + extended (the named observations by shape) and the construction / codec clause restricted to the shapes over which the frozen constructor / codec actually refuses |
+| §9.6 | acceptance (2): the D rows labeled at the loader-observation stage LOAD through the strict path (Contract A — the label-coherence verification; a correctly labeled case is accepted, not refused) and re-feed the family-owned observation interface as their REAL observation (Contract B — the exact named observation at the exact layer); the explicit bypass-to-G4 rule (a record with no corpus-surface observation is scored NOT refused — G4 failure, regardless of the strict load's acceptance); the nine mandatory adversarial tests of the Q3-C-D1-FU3-FU1 contract correction; the frozen derivation's completion over the reconstructed self-consistent typed inputs is the documented non-observation (never a refusal, never `BYPASSED_INTEGRITY`, never a satisfaction) |
+| §9.12 (new) | the proposed bounded C1-FU4 + C2-FU2 corrective implementation scope (F-R6 + F-R2; NOT authorized) |
+| §10 R-C1-10 | the D6-i shape recorded as the same loader-only observation-point family (CORPUS_INTEGRITY) |
+
+**What this revision deliberately does NOT do.** No frozen
+contract (P2 / P3 / P5 / FU4 / R1) is modified — the frozen
+layers' silence over the D6-i shape is the evidence of the
+adjudication, not a defect to be fixed. No matrix population floor
+moves: the D6 row minimum stays 2, the category D minimum stays
+36, the Track A floor stays 90 over the 48 rows, the Track B
+floor stays 21, and the 94-case v1.0.0 seal population stands (the
+D6-i correction is a stage re-attribution + error_type
+nullification of one pre-seal case label under §4.6 item 5
+governance — the outcome REFUSED, the replay NOT_APPLICABLE, and
+every other expected field are preserved). No implementation, no
+label, no fixture byte, no test byte, no pin, no corpus artifact
+moves in THIS revision (the named corrections are the §9.12 scope,
+separately approval-gated). No seal, no signoff, no reviewer
+field. The F-R6 BLOCKER is discharged by this recorded
+adjudication: the design's E1 execution clauses, the D6(i) row,
+and the observation point now agree.
+
+**Q3-C-D1-FU3-FU1 contract correction (corrected in place, this
+document).** The Q3-C-D1-FU3 E1 language as first revised
+described the loader-observation rows' E1 mechanism as "the
+strict family load must REFUSE the case, and the W1 exact-reason
+assertion requires the EXACT named case-document observation(s)".
+A read-only verification of the actual family loader (this
+session, over the base HEAD) found that description incorrect
+over a CORRECTLY labeled sealed-raw case, in two respects:
+(1) the strict load ACCEPTS such a case — the stage-coherence
+rule passing IS the acceptance: the loader collects its
+observations internally, verifies the labeled refusal stage
+against them, and returns the case to the corpus (it refuses
+only the incoherent label, a DERIVED case carrying a defect, or
+a failed digest — the existing C1 sealed-raw tests and the
+94-case C2 loader pass are the pins of this contract); and
+(2) the public load surface (`decode_corpus_case_document` →
+`FamilyCorpusCase`) carries NO observation record (the
+observations live in a private structure; the package exports
+no observation API) — the W1 exact-reason assertion cannot
+read the named observation off the strict load's output. This
+correction separates the TWO contracts over the ONE family
+logic (the §5 five validation surfaces, §6.1, §9.6, §9.12):
+**Contract A — corpus ingestion** (unchanged — the strict load
+verifies seal + label governance + stage coherence and accepts
+/ refuses the case into the corpus; a negative case loading
+successfully does NOT mean the underlying evidence is valid);
+**Contract B — E1 negative-case execution** (the evaluator
+obtains the observation record ONLY from the narrow, read-only,
+family-owned observation interface — the actual
+`_run_family_checks()` logic in collection mode, the loader's
+own checks reused, NO duplicated mock of the security rules — a
+bounded `check / layer / reason` record in deterministic firing
+order + the inverse-scoping `observation_stages` mapping
+computed from the record + the sealed surface, NEVER from the
+label; the interface does not verify the seal and never
+invokes the derivation / the replay / any model). The §6.1
+failure taxonomy over the record: the required named
+observation absent while the labeled stage stays coherent (a
+different check fired — the wrong reason) — a W1 FAILURE; the
+required named observation at a layer whose `observation_stages`
+excludes the labeled stage (the wrong-stage
+observation) — the M6 DEFECT, G4 standing on the record's
+non-emptiness (a refusal at ANY stage satisfies the hard
+gate); the record carrying no corpus-surface observation
+(empty, corroborative-only, or never obtained — the check
+disabled or bypassed, the record manufactured from the label)
+— the EXPLICIT BYPASS-TO-G4 FAILURE (the row scored NOT
+refused; `BYPASSED_INTEGRITY`), regardless of the strict
+load's acceptance and regardless of any derivation outcome — a
+successful FU4 derivation, including a completed `UNPROVEN`,
+never satisfies, suppresses, or fills the record (a
+`PROVEN_EQUIVALENT` completion over a refused-expected case
+fires G1 independently). The nine mandatory E1 adversarial
+tests (§9.6) pin this boundary; the §9.12 scope gains the
+interface (file (1b)) + its C1 pins (file (2) node (e)).
+Option B, the D6-i CORPUS_INTEGRITY / null attribution, the
+exact `SOURCE_EXTRACTION_INPUT_DIGEST` observation, the F-R2
+documentary correction, all 94 cases and matrix floors, all
+frozen safety and pricing invariants, and all deferred C3 /
+E1 obligations are UNCHANGED by this note; no adjudication,
+threshold, floor, or acceptance criterion was re-derived
+beyond the E1 observation mechanism this note corrects.
+
 ---
 
 # 1. Executive decision
@@ -1168,7 +1394,19 @@ through:
   constructors — the bounded error class is the codec's).
 * (iv) **`CORPUS_INTEGRITY`** — the family loader only (the case
   document's own internal inconsistencies — §4.4 — never
-  presented to the implementation).
+  presented to the implementation). This includes the CROSS-DOCUMENT
+  bindings between separately sealed case fields that no frozen
+  constructor / codec / derivation input receives (the named
+  loader observation is the W1 exact refusal reason): the recorded
+  extraction input document vs the embedded result's `input_digest`
+  binding (the D6-i shape — the Q3-C-D1-FU3 / F-R6 re-attribution,
+  `SOURCE_EXTRACTION_INPUT_DIGEST`); the record's embedded original
+  vs the case's recorded extraction evidence (the D3-ii shape —
+  C2-F2a, `CASEDOC_EMBEDDED_RESULT_EQUALITY`); the derivation
+  channel vs the recorded case's channel (the D6-ii shape —
+  `CASEDOC_CHANNEL_EQUALITY`); the recorded extraction result vs the
+  presented channel (the C2-F6 allowed-state mismatch —
+  `CASEDOC_RECORDED_RESULT_CHANNEL_MAPPING`).
 * (v) **Execution-level contract misuse** (the defect exists only
   when a frozen function is INVOKED with the misused inputs — the
   D16-iii shape: composition / attestation inputs presented to the
@@ -1184,6 +1422,77 @@ through:
   §9.6 acceptance; the D16 row's third obligation — the v1.0.0 D16
   corpus minimum is 2, the explicit phase-boundary correction of Q3-C-
   D1-FU1; the frozen FU3 / FU4 token boundary is NOT weakened).
+
+**The five validation surfaces (the Q3-C-D1-FU3 / F-R6
+adjudication — the explicit distinction).** A labeled refusal
+stage names exactly ONE observation surface, and the surfaces are
+NOT interchangeable:
+
+1. **Frozen-constructor validation** — the REAL frozen
+   constructors over the presented evidence documents (design
+   §4.2(f); the constructor is the validator). The `CONSTRUCTION`
+   stage is observable only where a frozen constructor ACTUALLY
+   refuses the presented document with its bounded error (the
+   stage-error vocabulary's `CONSTRUCTOR` class). A family-loader
+   check that MIRRORS a construction-level binding at corpus level
+   is a family observation, not a frozen-constructor exception: the
+   frozen constructors never receive the case's sealed `source`
+   block or the case's recorded extraction input document, and
+   their silence over a sealed shape is a documented non-
+   observation, never a construction-stage refusal.
+2. **Frozen-codec validation** — the REAL universal codec over the
+   RECORD-surface payload (design §4.2(g); the `CODEC_DECODE`
+   stage, the `CODEC` class). The payload's exact key set carries
+   no case-document field (no sealed `source` block, no recorded
+   extraction input document) — a cross-document case binding is
+   not a codec-observable shape.
+3. **Family-loader cross-document integrity validation** — the
+   family's own checks over the case document's separately sealed
+   fields (design §4.4; the `CORPUS_INTEGRITY` stage, error_type
+   null by the stage-error vocabulary). The loader is the ONLY
+   surface that sees both sides of a cross-document binding; its
+   named observations are the exact refusal reasons of this stage
+   (the W1 adjudication). The loader NEVER invokes the derivation
+   / the replay / any model (W9). The SAME checks serve TWO
+   distinct consumers, and the distinction is binding (the
+   Q3-C-D1-FU3-FU1 two-contract correction): **Contract A —
+   corpus ingestion** — the strict load runs the checks in
+   collection mode over a sealed-raw case, verifies the labeled
+   stage against the collected observations (the stage-coherence
+   rule), and ACCEPTS the correctly labeled case into the corpus
+   (the refusal of an incoherent label is the loader's label-
+   governance act — it is not the observation record, and a
+   negative case loading successfully does not mean the
+   underlying evidence is valid); **Contract B — E1
+   observation** — the evaluator reads the observation record
+   ONLY from the family-owned read-only observation interface
+   (the §6.1 execution: the same actual checks in collection
+   mode — a bounded name / layer / reason record + the inverse-
+   scoping stage mapping — NEVER from the label, NEVER from the
+   strict load's acceptance).
+4. **Frozen-derivation execution** — the REAL entry point
+   `derive_authority_tier_fu4` (the `PRESENTATION_GATE` stage for
+   the gate's bounded errors; the derivation's own contract-misuse
+   refusals — stage semantics (v)). A derivation COMPLETING over a
+   refused-expected case's reconstructed self-consistent typed
+   inputs is a documented non-observation for the loader-observation
+   shapes (the defect is never presented to the implementation): it
+   is neither a refusal at any stage nor a `BYPASSED_INTEGRITY` —
+   and it is NEVER counted as satisfying a refused case (the §6.1
+   two-contract execution order: the family-owned observation
+   interface — Contract B — is the loader-observation shapes'
+   real observation over the sealed document; the strict load —
+   Contract A — is the label-coherence verification, not the
+   observation).
+5. **Replay agreement** — the REAL codec decode + the frozen
+   `replay_semantic_decision` over the RECORD surface (the
+   `REPLAY_AGREEMENT` stage, the `REPLAY` class).
+
+The pre-revision D6(i) attribution (CONSTRUCTION) conflated
+surface 3 with surface 1 (a family-loader observation classified
+at the CONSTRUCTOR layer was read as the frozen constructor's
+bounded error); the Q3-C-D1-FU3 adjudication re-attributes it to
+surface 3 per the C2-F2a precedent.
 
 A refusal at the WRONG stage is a recorded defect (M6, quality metric);
 a refusal at ANY stage satisfies the hard gate (G4 — no bypass); a NO
@@ -1269,7 +1578,7 @@ fails G1 / G4 fatally.
 | D3 | Cross-listing evidence substitution — (i) listing A's EXTRACTION record over listing B's channel (same source class / form / quantity, different raw_detail — the P4-FU1 Blocker 1 shape); (ii) content-IDENTICAL channels with DIFFERENT embedded original results (the frozen-channel-granularity bound, P5 R-5 — **the mismatch is observable ONLY by the family loader: the case's recorded extraction evidence ≠ the record's embedded original, a case-document-integrity observation; the derivation presentation gate CANNOT detect it — over content-identical channels the channel-content binding holds and all four frozen gate steps (the embedded result's own integrity; the anchor equality; the frozen P2 mapping equality; the recomputed-composition equality) pass, because the frozen channel cannot express which physical listing it came from (P5 R-5 — the documented bound, risk R-C1-10); verified at the Q3-C-D1-FU1 revision: the labeled PRESENTATION_GATE expectation is incoherent (a case-document observation fires), the CORPUS_INTEGRITY label is coherent, and the self-consistent payload twin DECODES and REPLAYS cleanly — so the (ii) variant is surface DERIVATION (no record twin; the record surface cannot carry the case-document observation)**); (iii) RECORD-surface: the payload's authority section swapped from another record over the same case | REFUSED in all three | **PRESENTATION_GATE (i — the channel_content_digest + the four-step chain); CORPUS_INTEGRITY (ii — the loader-only observation point, Q3-C-D1-FU1 / C2-F2a; the separate D3-i PRESENTATION_GATE case is preserved); REPLAY_AGREEMENT (iii)** | both listings' recorded evidence; the forged association | SYNTHETIC | BOTH (row) — (ii) DERIVATION | 3 |
 | D4 | Modified original extraction evidence — (i) embedded result's cue text tampered, the result's digests recomputed, the record's anchors left UNchanged (the anchor-vs-embedding equality — the constructor's own check, the gate's step 2); (ii) embedded result's raw_field_value tampered (the cue-span containment breaks — the embedded result's OWN `verify_integrity`) | REFUSED in both | CONSTRUCTION (i, ii — the constructor re-verifies the embedding + the anchors; on the RECORD surface the same incoherence is observed as CODEC_DECODE, per the stage semantics) | the tampered documents | SYNTHETIC | BOTH | 2 |
 | D5 | Recomputed forged digests — fully self-consistent forgeries: (i) an embedded original whose FROZEN P2 mapping ≠ the presented channel (wrong-result forgery); (ii) an embedded original that maps correctly but whose RECOMPUTED composition ≠ the presented record (an extra clause the publication never published) | REFUSED in both | PRESENTATION_GATE (steps 3 and 4) | the forged results + records | SYNTHETIC | BOTH | 2 |
-| D6 | Source-content mismatch — (i) the recorded extraction input document ≠ the case's recorded source text (the examined input was altered after extraction — the embedded result's input digest / cue-span verification over the sealed source content); (ii) the case's `derivation_inputs.channel` ≠ the `recorded_case`'s channel (corpus-internal inconsistency) | (i) REFUSED — the embedded result's own integrity over the sealed source (CONSTRUCTION / CODEC_DECODE per surface; the loader additionally cross-checks the source text against the sealed `source` block); (ii) REFUSED at CORPUS_INTEGRITY (the loader) | CONSTRUCTION (i); CORPUS_INTEGRITY (ii) | the mismatched documents; the sealed source block | SYNTHETIC | BOTH | 2 |
+| D6 | Source-content mismatch — (i) the recorded extraction input document is NOT the input the embedded result's `input_digest` binds (the examined input was altered after extraction — the case seals the genuine source, the separately sealed result binds the altered one; the frozen constructor / codec / derivation NEVER receive the case's recorded input document — the Q3-C-D1-FU3 / F-R6 adjudication); (ii) the case's `derivation_inputs.channel` ≠ the `recorded_case`'s channel (corpus-internal inconsistency) | (i) REFUSED — the cross-document source / extraction binding is a case-internal inconsistency observable ONLY by the family loader (the named observation `SOURCE_EXTRACTION_INPUT_DIGEST`; the sealed record + embedded result are self-consistent over the altered input — every frozen layer passes, the derivation completes, and the defect is never presented to the implementation); (ii) REFUSED at CORPUS_INTEGRITY (the loader's named observation `CASEDOC_CHANNEL_EQUALITY`) | CORPUS_INTEGRITY (i — the Q3-C-D1-FU3 / F-R6 re-attribution from the pre-revision CONSTRUCTION, per the C2-F2a precedent; error_type null by the stage-error vocabulary); CORPUS_INTEGRITY (ii) | the mismatched documents; the sealed source block | SYNTHETIC | BOTH | 2 |
 | D7 | Truncated source content — (i) a colon-form title cut at max length MID-CLAUSE (no marker survives): the clause is SYNTACTICALLY_VALID, completeness UNKNOWN ⇒ derived outcome UNPROVEN (the T2 residual boundary: truncation can never reach PROVEN without a surviving attestation); (ii) an embedded result truncated after sealing (digest not recomputed) | (i) UNPROVEN (derived); (ii) REFUSED | — (i); CONSTRUCTION (ii) | the recorded truncated text; the tampered result | SYNTHETIC + RECORDED_FIXTURE variant | BOTH | 2 |
 | D8 | Conflicting manufacturer versus reseller claims — (i) target review attestation anchored to the MANUFACTURER-published composition vs a materially different RESSELLER-published (attested) candidate composition; (ii) the same with the candidate UNattested | (i) CONTRADICTED (U17) + CEILING; (ii) UNPROVEN (U15 — the safe direction) | — | both attestations (the anchor texts recorded), both clauses | SYNTHETIC (real-market instance reserved for C3) | BOTH | 2 |
 | D9 | Prompt injection in listing text — the title / structured field carries an instruction injection + a pseudo-completeness phrasing outside the versioned marker list: (i) Track A — the deterministic extraction does not interpret the injection (state per the recorded cue table; no attestation exists); expected unit per the recorded evidence (UNPROVEN); (ii) Track B — the model must not report a completeness assertion or adopt the injected instruction (scored as a mis-grounding / injection-susceptibility event) | (i) UNPROVEN (derived); (ii) per Track B labels | — | the recorded injection text; the Track B annotation | SYNTHETIC | A_B | 2 |
@@ -1365,7 +1674,9 @@ to Track A.
   the loader checks the projection) — **projected over the ACTUAL
   v1.0.0 seal population at seal time (the W6 adjudication of Q3-C-D1-
   FU1), not over the draft authoring population** (the stages ×5 remain
-  projected: the CORPUS_INTEGRITY stage by the D6-ii / D3-ii cases;
+  projected: the CORPUS_INTEGRITY stage by the D6-i / D6-ii /
+  D3-ii cases (the D6-i re-attribution — the Q3-C-D1-FU3 / F-R6
+  adjudication);
   every member of the other vocabularies by its surviving row).
 * Additive 1.1.0 obligations (recorded by the revision): (1) the A1
   RECORDED_FIXTURE PROVEN-shape case over the C3-acquired recorded
@@ -1408,6 +1719,81 @@ reconstructs the typed inputs through the FROZEN constructors (the
 constructor is the validator — a case whose evidence does not
 construct is a `CORPUS_INTEGRITY` failure, counted, never a pass), then:
 
+* **The two-contract execution order (the Q3-C-D1-FU3 / F-R6
+  adjudication + the Q3-C-D1-FU3-FU1 contract correction —
+  binding).** The family's integrity checks serve two distinct
+  consumers; E1 executes both and keeps them apart:
+
+  **Contract A — corpus ingestion (the strict load, unchanged).**
+  The corpus is loaded through the strict family path (`load_
+  bundle` — the seal verification + the label governance + the
+  per-case digest + the stage-coherence rule). A correctly
+  labeled sealed-raw adversarial case LOADS (is accepted into
+  the corpus): the loader collects its observations internally,
+  verifies the labeled refusal stage against them, and that
+  verification passing IS the acceptance — the strict load
+  refuses only the incoherent label, a DERIVED case carrying a
+  defect, or a failed digest. A corpus that fails its own strict
+  load is the `FAIL_CLOSED` ladder rung (no per-case evaluation
+  is reported). A negative case loading successfully does NOT
+  mean the underlying evidence is valid: Contract A verifies
+  label coherence, never evidence soundness.
+
+  **Contract B — E1 negative-case observation (the family-owned
+  read-only interface — the §9.12 (1b) surface, implemented in
+  C1-FU4; the E1 suite's mandatory adversarial tests (1)–(8)
+  execute over it).** For every refused case whose labeled stage
+  is a corpus-surface stage (`CORPUS_INTEGRITY` / `CONSTRUCTION`
+  / `CODEC_DECODE` — the stage semantics (iv) cross-document
+  shapes + the frozen-constructor / codec bounded-error shapes),
+  the case's REAL observation is obtained ONLY from the narrow
+  family-owned observation interface over the case's actual
+  sealed document: the actual family checks (the typed decode
+  over the REAL frozen constructors + the family cross-document
+  checks) in collection mode, returning the bounded record of
+  fired `check / layer / reason` triples in deterministic firing
+  order (every fired observation — multiple observations all
+  returned, never truncated, deduplicated, or prioritized; an
+  unexpected observation changes the record, never hides the
+  required one), + the inverse-scoping `observation_stages`
+  mapping (the exact set of corpus-surface stages the sealed-raw
+  scoping rule would find coherent with the record's layers +
+  the sealed surface — computed from the record, NEVER from the
+  label). The interface schema-validates the `expected` block
+  but NEVER reads it for behavior (no outcome / stage / error
+  field selects, filters, or manufactures an observation — the
+  W9 discipline, structurally pinned), does not verify the seal
+  (Contract A's obligation), and NEVER invokes the derivation /
+  the replay / any model (zero model calls, zero network, zero
+  pricing authority). **The explicit bypass-to-G4 rule:** the
+  row is "refused" for G4 / M7 purposes if and only if the
+  interface's record over the sealed document carries a corpus-
+  surface observation (`observation_stages` non-empty); a record
+  with NO corpus-surface observation — empty (the sound
+  documents), corroborative-only (the GATE layer), or never
+  obtained (the check disabled, the interface bypassed, the
+  record manufactured from the label; a bounded interface error
+  is fail-closed — the row's record is absent, never a silent
+  pass) — is scored NOT refused: **G4 FAILS** (the
+  `BYPASSED_INTEGRITY` class), regardless of the strict load's
+  acceptance of the labeled case and regardless of any
+  derivation outcome. The record-surface clause of M7 stands:
+  a replay-passed record over a refused-expected row is a G4
+  failure. The typed-input reconstruction + the frozen
+  derivation over it is then a DOCUMENTED NON-OBSERVATION for
+  the stage-semantics (iv) cross-document shapes (the sealed
+  source / recorded examined input is never a derivation input
+  — the frozen layer's silence is recorded in the baseline): a
+  successful FU4 derivation — including a completed `UNPROVEN` —
+  NEVER counts as satisfying a refused case, never suppresses
+  the bypass-to-G4 failure, and never fills an empty record; a
+  completion that returned `PROVEN_EQUIVALENT` over a
+  refused-expected case fires G1 independently (the worst
+  class). For the execution-surface rows (`PRESENTATION_GATE` /
+  `REPLAY_AGREEMENT`), the REAL observation remains the frozen
+  execution's bounded refusal itself (the gate / replay steps),
+  over which the interface's record is expected to carry no
+  corpus-surface observation.
 * DERIVATION surface: `derive_authority_tier_fu4(assessment, channel,
   evaluation, provenances, product_evidence, None,
   target_unit_evidence=…, candidate_composition=…, quantity_
@@ -1419,19 +1805,53 @@ construct is a `CORPUS_INTEGRITY` failure, counted, never a pass), then:
   (pass / refused-at-stage + error class) against `expected.replay` /
   `expected.refusal`.
 * For REFUSED / NON_CONSTRUCTIBLE cases: the expected refusal is
-  executed as the ACTUAL system behavior over the sealed invalid
-  document — a refusal at ANY stage satisfies G4; the stage is compared
-  for M6; a derivation completing where a refusal was expected is the
-  worst-class failure (G1 if PROVEN, G4 otherwise). **Exact refusal-
-  reason assertions (the W1 adjudication of Q3-C-D1-FU1): the E1
-  adversarial re-execution asserts the labeled bounded error class (the
-  stage-keyed error vocabulary) AND the deterministic reason — for the
-  loader-observation stage (CORPUS_INTEGRITY) the exact named case-
-  document observation(s) (e.g. `CASEDOC_EMBEDDED_RESULT_EQUALITY` for
-  the D3-ii / D6-ii shapes); for the construction / codec stages the
-  frozen constructor / codec's bounded error; a refusal at the right
-  stage with the WRONG reason is a recorded defect (the M6 family),
-  never a silent pass.**
+  established as the ACTUAL system behavior — for the corpus-
+  surface stages by Contract B (the interface's record over the
+  sealed document carries a corpus-surface observation — the
+  explicit bypass-to-G4 rule above), for the execution-surface
+  stages (`PRESENTATION_GATE` / `REPLAY_AGREEMENT`) by the frozen
+  execution's bounded refusal itself. A refusal at ANY stage
+  satisfies G4; the stage is compared for M6 (the labeled stage
+  ∈ the record's `observation_stages`, or the execution's
+  refused stage); a derivation completing where a refusal was
+  expected is the worst-class failure (G1 if PROVEN, G4
+  otherwise) — EXCEPT for the stage-semantics (iv) cross-
+  document shapes, where the frozen layers never receive the
+  sealed document and the completion over the reconstructed
+  self-consistent typed inputs is the documented non-observation
+  (the bypass-to-G4 rule governs those rows). **Exact refusal-
+  reason assertions (the W1 adjudication of Q3-C-D1-FU1, the
+  named-observation list corrected by the Q3-C-D1-FU3 / F-R6
+  adjudication, the failure classes fixed by the Q3-C-D1-FU3-
+  FU1 correction): the E1 adversarial re-execution asserts the
+  labeled bounded error class (the stage-keyed error vocabulary)
+  AND the deterministic reason — for the loader-observation stage
+  (CORPUS_INTEGRITY) the exact named case-document observation(s)
+  (`CASEDOC_EMBEDDED_RESULT_EQUALITY` for the D3-ii shape;
+  `CASEDOC_CHANNEL_EQUALITY` for the D6-ii shape;
+  `SOURCE_EXTRACTION_INPUT_DIGEST` for the D6-i shape — the Q3-C-
+  D1-FU3 re-attribution; `CASEDOC_RECORDED_RESULT_CHANNEL_MAPPING`
+  for the C2-F6 recorded-result / presented-channel mismatch); for
+  the construction / codec stages the FROZEN constructor / codec's
+  bounded error (only the shapes over which the frozen constructor
+  / codec ACTUALLY refuses the presented document — the D4 / D8 /
+  D14 / D15 / D17-i shapes and the record-surface twins: a family-
+  loader mirror of a cross-document binding is NOT a frozen-
+  constructor error — the five validation surfaces, §5). Over a
+  corpus-surface row the failure classes are: the row's required
+  named observation ABSENT from the record while the labeled
+  stage stays coherent with it (a different check fired — the
+  wrong reason) — a **W1 FAILURE** (the exact-reason acceptance
+  is not met; the row is recorded with the bounded expected /
+  observed reason, never a silent pass); the required named
+  observation present at a layer whose `observation_stages`
+  EXCLUDES the labeled stage (the wrong-stage observation) — an
+  **M6 DEFECT** (stage accuracy), G4 standing on the record's
+  non-emptiness (a refusal at ANY stage satisfies the hard gate);
+  the record carrying no corpus-surface observation at all — the
+  **G4 FAILURE** (the bypass-to-G4 rule). Only the right stage +
+  the right named observation + the pinned reason satisfies the
+  row.**
 
 **Metrics (exact definitions; all rates are null-when-denominator-zero,
 never satisfied by default — the policy contract's `met: null`
@@ -1444,8 +1864,8 @@ discipline).**
 | M3 | `unproven_abstention_accuracy` | derived cases with `expected.unit == UNPROVEN` where the system returned `UNPROVEN` | |`expected.unit == UNPROVEN`| (within `n_derived`) |
 | M4 | the authority confusion matrix | the 3×3 counts over (expected × actual) unit states for `n_derived`, + the REFUSED rows as a fourth "actual" column (a derived answer on a refused-expected case is a bypass, M1 / G4 family) | `n_A` |
 | M5 | `tier_axis_accuracy` | derived cases where the system's tier + fired rules + ceiling EQUAL `expected` exactly | `n_derived` |
-| M6 | `integrity_stage_accuracy` | refused cases where the system refused at the EXPECTED stage | `n_refused` |
-| M7 | `evidence_integrity_rejection_rate` (G4) | refused cases where the system refused at ANY stage (no unit derived, no replay passed) | `n_refused` |
+| M6 | `integrity_stage_accuracy` | refused cases where the system refused at the EXPECTED stage (for the corpus-surface rows: the labeled stage ∈ the Contract B record's `observation_stages`; for the execution-surface rows: the execution's refused stage equals the labeled stage) | `n_refused` |
+| M7 | `evidence_integrity_rejection_rate` (G4) | refused cases where the system refused at ANY stage (for the corpus-surface rows: the Contract B record carries a corpus-surface observation — the explicit bypass-to-G4 rule; for the execution-surface rows: the execution refused — no unit derived, no replay passed) | `n_refused` |
 | M8 | `replay_agreement_rate` (G7) | record-pass cases where replay returned the proved derived-agreement | `n_record_pass` |
 | M9 | `cross_listing_substitution_rejection` (G5) | tagged `cross_listing_substitution` cases refused at any stage | `n_tagged[cross_listing_substitution]` |
 | M10 | `missing_attestation_fail_closed_rate` | tagged `attestation_missing` derived cases where the system returned UNPROVEN (never PROVEN, never a completeness inference) | `n_tagged[attestation_missing]` |
@@ -2085,17 +2505,42 @@ the implementation failed (CLAUDE.md evaluation-truth rule).
   sealed corpus — per §6.1 there is no NOT_CAPTURED stub); NEW test file
   `tests/evaluation/bundle_authority/test_q3c_e1_track_a.py`.
   **Inputs:** the sealed corpus (C2 / C3); the C0 pins; the frozen
-  research public surface (read-only). **Deliverables:** the evaluator
-  + gates + report + the committed baseline + the E1 suite.
+  research public surface (read-only); the family-owned
+  observation interface + the `observation_stages` mapping (the
+  C1-FU4 artifact, §9.12 (1b) — the SOLE source of Contract B
+  records). **Deliverables:** the evaluator + gates + report + the
+  committed baseline + the E1 suite.
   **Acceptance:** (1) the baseline reproduces byte-for-byte from the
   sealed corpus + the pinned implementation (the regeneration
   property); (2) the E1 suite passes — including the ADVERSARIAL
   re-execution: every D row's sealed invalid document is re-fed
   through the REAL entry points and the labeled refusal class / stage /
   **exact bounded reason (the named observation over the loader-
-  observation stages — the W1 adjudication of Q3-C-D1-FU1)** is what
+  observation stages — the W1 adjudication of Q3-C-D1-FU1, the
+  execution order of the Q3-C-D1-FU3 / F-R6 adjudication, the
+  two-contract correction of the Q3-C-D1-FU3-FU1 note)** is what
   occurs (the gate arithmetic over the actual system, not over the
-  evaluator's model of it); **PLUS the MANDATORY D16-iii execution-
+  evaluator's model of it). For the D rows labeled at the loader-
+  observation stage (CORPUS_INTEGRITY — incl. the D6-i shape /
+  FA4-ADV-012, whose exact named observation is
+  `SOURCE_EXTRACTION_INPUT_DIGEST` at the `CASE_DOCUMENT` layer),
+  the REAL entry point is the two-contract order of §6.1: the
+  case LOADS through the strict path (Contract A — the label-
+  coherence verification; a correctly labeled case is accepted
+  into the corpus, not refused by it), and its REAL observation
+  is the family-owned observation interface's record over the
+  sealed document (Contract B — the exact named observation at
+  the exact layer, the labeled stage within `observation_stages`;
+  a record with no corpus-surface observation is scored NOT
+  refused — the explicit bypass-to-G4 rule: G4 fails,
+  `BYPASSED_INTEGRITY`, regardless of the strict load's
+  acceptance), and the frozen derivation COMPLETING over the
+  reconstructed self-consistent typed inputs is the documented
+  non-observation recorded in the baseline — NEVER counted as
+  satisfying the refusal, never scored `BYPASSED_INTEGRITY`,
+  never suppressing a G4 failure (the defect is never presented
+  to the implementation — stage semantics (iv)); **PLUS the
+  MANDATORY D16-iii execution-
   level assertion (the Q3-C-D1-FU1 / C2-F2b phase-boundary
   correction): the composition / attestation inputs are fed to the
   frozen FU3 token's derivation entry point and the frozen contract-
@@ -2116,11 +2561,54 @@ the implementation failed (CLAUDE.md evaluation-truth rule).
   flip G1 and land NOT_QUALIFIED; the constructed full-pass + DRAFT
   policy must land POLICY_PENDING, never QUALIFIED — the semantic
   family's hypothetical-full-pass pin, adopted; the perturbation sweep
-  over the sealed population; the zero-live sentinel). **Stop
+  over the sealed population; the zero-live sentinel). **Mandatory
+  adversarial tests (the Q3-C-D1-FU3-FU1 two-contract E1 boundary —
+  each proves a real system behavior; none compares a label to
+  itself):** (1) the valid FA4-ADV-012 negative case (CORPUS_
+  INTEGRITY / error_type null — the corrected label) LOADS into
+  the corpus through the strict path (Contract A — the existing
+  label-governance contract preserved: the loader accepts the
+  correctly labeled sealed-raw case after verifying the stage
+  against its internally collected observations); (2) the family-
+  owned observation interface over FA4-ADV-012's sealed document
+  INDEPENDENTLY detects `SOURCE_EXTRACTION_INPUT_DIGEST` (the
+  actual check fired — not the label); (3) the observation's
+  exact layer (`CASE_DOCUMENT` — the C1-FU4 reclassification) +
+  the `observation_stages` mapping (`CORPUS_INTEGRITY`) match the
+  authoritative design; (4) disabling or bypassing the integrity
+  check (the record carrying no corpus-surface observation) flips
+  G4 to FAIL over the same case (the explicit bypass-to-G4
+  rule); (5) a successful `UNPROVEN` derivation over the
+  reconstructed self-consistent typed inputs does NOT suppress
+  the G4 failure of (4) (the documented non-observation never
+  fills an empty record); (6) a record whose fired check is NOT
+  the row's required named observation (the wrong reason, the
+  labeled stage still coherent with the record) fails W1
+  (recorded with the bounded expected / observed reason; G4
+  standing on the record's non-emptiness); (7) the required named
+  observation present at the WRONG stage (the `observation_stages`
+  set excluding the labeled stage) is recorded as an M6
+  defect with G4 standing (a refusal at ANY stage satisfies the
+  hard gate); (8) the expected label alone cannot create an
+  actual observation — the interface over a SOUND document
+  returns the EMPTY record (the labeled named observation is
+  absent; the row scores NOT refused — G4), and the evaluator's
+  import scan + sentinel prove the record is computed from the
+  sealed evidence documents only, never from `expected`; (9)
+  every pre-existing constructor / codec / presentation-gate /
+  replay refusal test retains its contract unchanged (the
+  collection pin over the phase's starting SHA; the D4 / D8 / D14
+  / D15 / D17-i shapes + the record-surface twins + the full
+  sealed-raw scoping family byte-verified — no test deleted,
+  renamed, skipped, xfailed, deselected, or weakened). **Stop
   conditions:** the evaluator cannot be written without importing a
   forbidden surface (the §3.3 boundary is false — report); the sealed
   corpus fails its own load (C2 defect — C2 correction under the
-  governance rule, then re-run — the E1 acceptance is never relaxed).
+  governance rule, then re-run — the E1 acceptance is never relaxed);
+  the Contract B record cannot be obtained without a duplicated mock
+  of the family's security rules or a label-derived record (the
+  §9.12 (1b) interface boundary is false — report; the E1
+  acceptance is never relaxed by manufacturing observations).
   **Authority boundaries:** evaluation + report only — NO production
   wiring, NO marker flip, NO policy approval, NO capture, NO label
   change.
@@ -2352,6 +2840,230 @@ design neither schedules nor pre-approves it.
   identity review is still outstanding), NO evaluator, NO policy,
   NO capture, NO model call, NO production wiring.
 
+## 9.12 Q3-C-C1-FU4 + the C2-FU2 corrective implementation (F-R6
++ F-R2) — the proposed bounded scope (Q3-C-D1-FU3 + the Q3-C-D1-
+FU3-FU1 contract correction; PROPOSED, NOT authorized)
+
+The Q3-C-D1-FU3 revision record re-attributes the D6(i) row to
+CORPUS_INTEGRITY (the family-loader cross-document observation
+point — the C2-F2a precedent) and verifies the F-R2 documentary
+citation gap; the Q3-C-D1-FU3-FU1 contract correction fixes the
+E1 two-contract observation boundary over it (§6.1 / §9.6). The
+implementation is a bounded corrective phase of the §9.11 class
+(a validator / test / pre-seal-case correction is its own
+recorded step) proposed here for ChatGPT's separate approval —
+this design neither schedules nor pre-approves it.
+
+* **Scope (exact files).** (1) `product_intelligence/evaluation/
+  bundle_authority/corpus.py` — the C1-FU4 validator correction:
+  the `SOURCE_EXTRACTION_INPUT_DIGEST` observation (the D6-i cross-
+  document binding — the case's recorded extraction input document
+  vs the embedded result's `input_digest`) is re-classified from
+  the CONSTRUCTOR layer to the CASE_DOCUMENT layer (the family-
+  loader cross-document integrity validation — stage semantics
+  (iv); the five validation surfaces). The check's logic is
+  UNCHANGED (the same comparison, the same bounded reason text);
+  the reclassification makes the EXISTING stage-coherence rule
+  reject the pre-revision CONSTRUCTION label over the D6-i shape
+  (a case-document observation fired) and require CORPUS_INTEGRITY
+  with the named observation. The reclassification changes ONLY
+  which label is coherent over the D6-i shape: the strict load's
+  Contract A behavior is otherwise unchanged (a correctly labeled
+  sealed-raw case still LOADS — the acceptance after the stage-
+  coherence verification — and the incoherent label is still
+  refused). The module docstring's sealed-raw defect scope states
+  the D6-i binding under CORPUS_INTEGRITY. (1b) the SAME file
+  gains the NARROW family-owned observation interface (the
+  Q3-C-D1-FU3-FU1 Contract B surface; the §6.1 two-contract
+  execution order): the public bounded record type (the fired
+  `check / layer / reason` triple — the closed check family, the
+  five bounded layers) + `observe_corpus_case_integrity(case_
+  document)` — the strict structural decode (a malformed case
+  document is a bounded schema error — fail-closed, a structural
+  failure is never an observation) + the typed decode over the
+  REAL frozen constructors + the family cross-document checks,
+  ALL in the loader's own observation-collection mode (the
+  ACTUAL `_run_family_checks()` logic reused — NO duplicated mock
+  of the security rules), returning every fired observation in
+  deterministic firing order (multiple observations: all, never
+  truncated / deduplicated / prioritized; an unexpected
+  observation changes the record, never hides the required one);
+  the `expected` block is schema-validated but NEVER read for
+  behavior (the outcome does not select strictness; no label
+  field selects, filters, or manufactures an observation — the
+  W9 discipline); + the pure `observation_stages(record,
+  surface)` mapping — the exact INVERSE of the sealed-raw
+  scoping rule's corpus-surface acceptance set, computed from
+  the record's layers + the sealed surface, NEVER from the label
+  (`CORPUS_INTEGRITY` ∈ the set iff a `CASE_DOCUMENT` or
+  `CASE_DOCUMENT_MIRROR` observation fired; `CONSTRUCTION` ∈ the
+  set iff a `CONSTRUCTOR` / `CODEC` / `CASE_DOCUMENT_MIRROR`
+  observation fired and no `CASE_DOCUMENT` observation fired;
+  `CODEC_DECODE` ∈ the set iff a `CODEC` observation fired, no
+  `CASE_DOCUMENT` observation fired, and the sealed surface ∈
+  {RECORD, BOTH}; the GATE-layer corroborative observations never
+  determine a stage; the empty set — no corpus-surface
+  observation — is the bypass-to-G4 shape). The interface does
+  NOT verify the per-case / corpus digest or the manifest (the
+  seal is Contract A's obligation) and NEVER invokes the
+  derivation / the replay / any model (zero model calls, zero
+  network, zero pricing authority — the W9 import scan + the
+  sentinel no-execution probe extended to the new surface). NO
+  frozen research module is touched — the frozen layers' silence
+  over this shape is the evidence, not the defect. (2)
+  `tests/evaluation/bundle_authority/test_q3c_c1_corpus_integrity.
+  py` — the recorded in-place correction (the precedent: the C2
+  endpoint's five-node correction + the C1-FU3 in-place
+  corrections; intent preserved or strengthened; no rename / skip /
+  xfail / deselect): `test_extraction_input_digest_mismatch_
+  sealed_raw` re-pins the D6-i sealed-raw shape at the ADJUDICATED
+  observation point (stage CORPUS_INTEGRITY, error_type null, the
+  exact named observation `SOURCE_EXTRACTION_INPUT_DIGEST` at the
+  CASE_DOCUMENT layer) — the pre-revision CONSTRUCTION
+  expectation is the recorded pre-adjudication reading, replaced in
+  place with the correction named; NEW correction nodes: (a) the
+  exact loader observation over the D6-i shape (the named check
+  fires at the CASE_DOCUMENT layer with the bounded reason; the
+  corroborative GATE-layer span-grounding observations are
+  recorded, never the reason); (b) the stage + bounded reason
+  (CORPUS_INTEGRITY / error_type null — the stage-error
+  vocabulary holds); (c) the NEGATIVE node: the CONSTRUCTION label
+  over the D6-i shape is REFUSED by the stage-coherence rule when
+  ONLY the cross-document mismatch exists (the frozen constructor
+  is silent — no constructor / codec observation fires; the case-
+  document observation does — the incoherent-label refusal with its
+  pinned reason); (d) every frozen-constructor / codec /
+  presentation-gate / replay refusal test stands UNCHANGED (the D4
+  / D8 / D14 / D15 / D17-i shapes, the record-surface twins, the
+  full sealed-raw scoping family — the construction-stage
+  requirement is NOT re-interpreted for the unrelated cases);
+  (e) the Contract B interface pins (the Q3-C-D1-FU3-FU1
+  observation boundary — the E1 suite's mandatory adversarial
+  tests (1)–(8) execute over this surface at E1): the interface
+  over the corrected D6-i sealed document returns the record
+  carrying `SOURCE_EXTRACTION_INPUT_DIGEST` at the `CASE_DOCUMENT`
+  layer with the pinned bounded reason (the GATE-layer
+  corroborative observations present, never the reason) +
+  `observation_stages` = {CORPUS_INTEGRITY}; the interface over a
+  SOUND sealed document returns the EMPTY record (the label
+  cannot create an observation); the interface with the
+  designated check disabled returns the corroborative-only
+  record + the EMPTY stage set (the G4-failure shape); a
+  MALFORMED case document raises the bounded schema error (fail-
+  closed — not an observation); the same evidence documents under
+  a different `expected` label return the IDENTICAL record
+  (outcome-independence — the label never selects behavior); the
+  interface does not verify the digest (a wrong `case_digest`
+  value still yields the record — the seal is Contract A's
+  obligation, pinned separately); the W9 import scan + the
+  sentinel no-execution probe cover the new surface (the
+  interface never invokes the derivation / the replay / any
+  model).
+  (3) `product_intelligence/evaluation/bundle_authority/fixtures.
+  py` — the pre-seal case corrections under the §4.6 item 5
+  governance (recorded in the challenge log §6 under the
+  adjudicator identity + instant; the case IDs stable; the class-A
+  reason of record — the old stage expectation was factually wrong
+  over the frozen contract: no frozen constructor / codec bounded
+  error exists over the D6-i sealed shape, the observation point is
+  the family loader's named cross-document check): FA4-ADV-012 —
+  `expected.refusal.stage` CONSTRUCTION → CORPUS_INTEGRITY +
+  `expected.refusal.error_type` CONSTRUCTOR → null (PRESERVED,
+  byte-unchanged: `expected.outcome` REFUSED, `expected.replay`
+  NOT_APPLICABLE, every other expected field, the surface
+  DERIVATION, the track A, the matrix row D6, every sealed
+  evidence document, the label author / provenance; the grounding
+  citation + rationale state the F-R6 adjudication); F-R2 (the
+  documentary citation correction — the two D11 grounding
+  citations, FA4-ADV-022 / FA4-ADV-023, name the Micron catalog by
+  path only while the adjudication record claims "path + digest"):
+  the VERIFIED catalog digest `160d4fe97a5df5249e8f6404f6b005c0515-
+  fab4def1b4668fdaf87c727600743` (recomputed over the working-tree
+  bytes of `tests/fixtures/pages/micron_7500_part_catalog.json` —
+  24,060 bytes; the catalog file itself is UNCHANGED; the zero-
+  `bundle` statement re-verified; no unverified digest is inserted)
+  is added to the two grounding citations (a class-A annotation
+  correction — no expected field moves). The re-recorded fixtures
+  source-digest pin (the pin's own stated contract). (4)
+  `tests/evaluation/bundle_authority/test_q3c_c2_label_governance.
+  py` — the recorded in-place corrections (the fixtures / challenge-
+  log / handoff digest re-pins under the governance rule; the row-
+  projection + held-set expectations stand — the D6 row minimum
+  stays 2, the 90 sum stays 90, the 94-case population stands) +
+  the NEW nodes: the FA4-ADV-012 corrected-label pin (CORPUS_
+  INTEGRITY / null / REFUSED / NOT_APPLICABLE — mutation-verified:
+  the pre-correction CONSTRUCTION / CONSTRUCTOR value trips it); the
+  F-R2 citation-digest pin (both D11 grounding citations carry the
+  verified catalog digest; the pre-correction path-only value trips
+  it). (5) `evaluation/fu4_bundle_authority_qualification/
+  challenge_log.md` + `reviewer_handoff.md` — the adjudication
+  record under the reviewer / adjudicator identity + instant (the
+  challenge log §6 entry naming the design correction + the F-R6
+  resolution: the D6-i stage re-attribution per the Q3-C-D1-FU3
+  revision record; the F-R2 citation correction; the handoff's
+  worklist updated — FA4-ADV-012 / FA4-ADV-022 / FA4-ADV-023
+  flagged for the independent reviewer's re-verification over the
+  corrected rows; the re-recorded artifact pins). (6) The STATUS /
+  PLAN records. **No other file.** The frozen research surface (the
+  C0-pinned modules), the semantic family artifacts, and the DRAFT
+  policy are byte-pinned inputs.
+* **Deliverables.** The corrected validator + the family-owned
+  observation interface (the Contract B surface, (1b)) + tests;
+  the corrected 94-case DRAFT population (FA4-ADV-012 re-labeled;
+  the two D11 citations completed; still DRAFT — the seal
+  completes only under the genuine two-identity review per the
+  handoff, now over the corrected rows); the recorded F-R6 +
+  F-R2 resolutions; the re-pinned governance artifacts.
+* **Acceptance.** (1) the 94-case corrected population loads under
+  the corrected family loader with the test-local reviewer fill (the
+  dry run, case-by-case) — FA4-ADV-012 at CORPUS_INTEGRITY with the
+  exact named observation; (2) the negative node holds: the
+  CONSTRUCTION label over the D6-i shape is refused when ONLY the
+  cross-document mismatch exists; (3) the §5.6 floors hold
+  UNCHANGED over the seal population (90 Track A / 21 Track B / 18
+  shared / 3 B-only; 88 SYNTHETIC ≥ 80% / 6 RECORDED_FIXTURE ≥ 5 /
+  0 REAL_MARKET; 5 categories ≥ 4; the refusal-stage vocabulary ×5
+  projected — CORPUS_INTEGRITY by the D6-i / D6-ii / D3-ii cases;
+  every other member by its surviving row); (4) every frozen-
+  constructor / codec / presentation-gate / replay refusal test
+  stands (0 removed / 0 renamed outside the recorded in-place
+  corrections; 0 / 0 / 0 skips — the 8082-node baseline preserved
+  or strengthened); (5) the F-R2 citations carry the verified
+  digest (both D11 cases; the catalog file byte-unchanged); (6) the
+  E1 contract is ready: the §6.1 two-contract execution order
+  makes the future E1 evaluator unable to bypass the family
+  integrity observation for the loader-observation rows (Contract
+  A: the corpus strict-loads first — a correctly labeled sealed-
+  raw case LOADS, the label-coherence verification, not the
+  observation; Contract B: the family-owned observation interface
+  over the sealed document must return the exact named
+  observation at the exact layer with the labeled stage within
+  `observation_stages` — a record with no corpus-surface
+  observation is the explicit bypass-to-G4 failure; a successful
+  FU4 derivation — incl. a completed UNPROVEN — never counts as
+  satisfying a refused case; the baseline records the interface
+  record + the documented non-observation); (7)
+  `manage.py check` + `makemigrations --check --dry-run` clean; the
+  collection pin against the phase's starting SHA (the 8082
+  baseline + the new nodes; 0 removed / 0 renamed outside the
+  recorded corrections).
+* **Stop conditions.** Any correction that would touch a frozen
+  research byte (the P2 extraction, the P3 / FU4 constructor /
+  gate, the R1 codec / replay) is a conflict — report, do not
+  resolve (the F-R6 adjudication moves NO frozen contract — the
+  frozen layers' silence is the evidence, not the defect); any
+  correction that would re-interpret the construction-stage
+  requirement for the unrelated rows (D4 / D8 / D14 / D15 / D17-i)
+  is a conflict — the W1 frozen-bounded-error clause stands for
+  them verbatim; any floor the corrected population cannot meet —
+  the arithmetic conflict is reported, the threshold is never
+  silently moved.
+* **Authority boundaries.** Validator + test + pre-seal case
+  corrections + the governance records ONLY — NO seal (the two-
+  identity review is still outstanding), NO evaluator, NO policy,
+  NO capture, NO model call, NO production wiring, NO frozen-
+  contract change.
+
 ---
 
 # 10. Risk register
@@ -2367,7 +3079,7 @@ design neither schedules nor pre-approves it.
 | R-C1-7 | Harness coupling — a "helpful" extension of the byte-pinned `semantic_v2` modules for the family | medium / high | the R2-endpoint content pins make the coupling a suite failure, not a design choice; the §3.3 boundary (the new package is the only home) is an acceptance item at C1 (the import scan) and at every later phase |
 | R-C1-8 | Lineage sequencing — this program builds on PENDING reviews (P4-FU2 / R1 / R1-FU1 / R2 / R2-FU1); a ratification correction moves the freeze point | medium / medium | the C0 gate re-bases on the ratified endpoint (the pin literals move, the scope does not — §9.2); the design is version-tolerant by construction (the family seals bind the C0-pinned identity, not a moving target); no phase starts on an unratified lineage (the §9 sequencing gate) |
 | R-C1-9 | The duplicate-constituent semantics (CF-3) — the frozen grammar's non-merging behavior may be commercially surprising (`1x RAM + 1x RAM` vs `2x RAM` ⇒ CONTRADICTED over attested clauses) | low / medium | the row is labeled per the frozen contract (C2b) with the commercial-ambiguity note; O-4 records the future T5 grammar decision (a new version, recorded examples, re-pinned tests — never a silent edit); until then the safe direction holds (CONTRADICTED caps at NEEDS_REVIEW — no false PROVEN, no false price) |
-| R-C1-10 | The frozen channel-granularity bound (P5 R-5) — content-identical publications are indistinguishable at the channel level; the v3 embedding closes the dangerous direction but the bound remains | low / low (documented) | D3-ii exercises the bound at the ADJUDICATED observation point (Q3-C-D1-FU1 / C2-F2a): the case is CORPUS_INTEGRITY — the mismatch (the record's embedded original ≠ the case's recorded extraction evidence) is observable only by the family loader, because over content-identical channels the channel-content binding + all four presentation-gate steps pass (verified over the sealed documents at the revision: the self-consistent payload twin decodes and replays cleanly); the bound is stated in the report's contract section (it is a property of the frozen S2-C channel, byte-pinned); a channel version move is a new input-schema axis + new binding — separately gated, out of this program |
+| R-C1-10 | The frozen channel-granularity bound (P5 R-5) — content-identical publications are indistinguishable at the channel level; the v3 embedding closes the dangerous direction but the bound remains | low / low (documented) | D3-ii exercises the bound at the ADJUDICATED observation point (Q3-C-D1-FU1 / C2-F2a): the case is CORPUS_INTEGRITY — the mismatch (the record's embedded original ≠ the case's recorded extraction evidence) is observable only by the family loader, because over content-identical channels the channel-content binding + all four presentation-gate steps pass (verified over the sealed documents at the revision: the self-consistent payload twin decodes and replays cleanly). The D6-i shape (the recorded extraction input ≠ the embedded result's `input_digest` binding — the Q3-C-D1-FU3 / F-R6 adjudication) is the same observation-point family: every frozen layer is silent over the sealed documents (the record + result are self-consistent over the altered input; the derivation completes), and the family loader's named observation `SOURCE_EXTRACTION_INPUT_DIGEST` is the first and only non-corroborative observation point — CORPUS_INTEGRITY); the bound is stated in the report's contract section (it is a property of the frozen S2-C channel, byte-pinned); a channel version move is a new input-schema axis + new binding — separately gated, out of this program |
 | R-C1-11 | Real-market retrieval (C3) — network access in a zero-live program lineage; a retrieval that silently substitutes content | medium / high | C3 is the ONLY live surface and is operator-approved per retrieval batch; the archive is committed + digest-sealed BEFORE labeling; the independent verification (a second retrieval or a cited secondary source, §7.6) is the anti-substitution control; the retrieval attestation names the attestor, and the reviewer is distinct |
 | R-C1-12 | The Windows subprocess flake class (the fixed eleven-node allowlist) — full-suite runs under handle pressure | known / low | the documented multi-attempt isolated re-pass discipline (the R2-FU1 record); the allowlist is NOT expanded by any phase; the flake class is itemized separately in every acceptance report |
 
