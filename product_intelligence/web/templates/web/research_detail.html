@@ -4,87 +4,106 @@
 
 {% block content %}
 <style>
-  /* PILOT-UX B2-FU1 (desktop report width): the durable report is a
-     wide page. Raise the shared content column from the base 44rem
-     default (which compressed the multi-column quote summary table
-     and forced horizontal scrolling on desktop) to 70rem. The column
-     stays capped: below 70rem the page flows at full viewport width
-     exactly as before, and .spec-table-wrapper keeps overflow-x: auto
-     as the narrow-screen safety. No other page declares this variable,
-     so the intake form keeps the narrow 44rem column. */
+  /* PILOT-UX B2-FU1 (desktop report width), preserved by
+     PILOT-UX-WORKBENCH-A1: the durable report is a wide page. Raise the
+     shared content column from the base 44rem default (which compressed
+     the multi-column quote summary table and forced horizontal scrolling
+     on desktop) to 70rem. The column stays capped: below 70rem the page
+     flows at full viewport width, and .spec-table-wrapper keeps
+     overflow-x: auto as the narrow-screen safety. No other page declares
+     this variable, so the intake form keeps the narrow 44rem column. */
   :root { --pi-page-max-width: 70rem; }
 </style>
-<h2>Research request</h2>
 
-<dl>
-  <dt>Request identifier</dt>
-  <dd><code>{{ run.id }}</code></dd>
-
-  <dt>State</dt>
-  <dd>{{ run.state }}</dd>
-
-  <dt>Manufacturer part number</dt>
-  <dd>
-    {% if run.manufacturer_part_number %}{{ run.manufacturer_part_number }}
-    {% else %}<span class="absent">Not supplied</span>{% endif %}
-  </dd>
-
-  <dt>Description</dt>
-  <dd>
-    {% if run.description %}{{ run.description }}
-    {% else %}<span class="absent">Not supplied</span>{% endif %}
-  </dd>
-
-  <dt>Created</dt>
-  <dd>{{ run.created_at|date:"Y-m-d H:i:s T" }}</dd>
-
-  {% if run.started_at %}
-    <dt>Started</dt>
-    <dd>{{ run.started_at|date:"Y-m-d H:i:s T" }}</dd>
-  {% endif %}
-
-  {% if run.finished_at %}
-    <dt>Finished</dt>
-    <dd>{{ run.finished_at|date:"Y-m-d H:i:s T" }}</dd>
-  {% endif %}
-</dl>
+<section class="pi-card pi-report-head" aria-label="Research request">
+  <div class="pi-report-head-grid">
+    <div>
+      <p class="pi-eyebrow">Research request</p>
+      <h1 class="pi-report-title">
+        {% if run.manufacturer_part_number %}
+          {{ run.manufacturer_part_number }}
+        {% elif run.description %}
+          {{ run.description }}
+        {% else %}
+          <span class="absent">Not supplied</span>
+        {% endif %}
+      </h1>
+      {% if run.manufacturer_part_number %}
+        <p class="pi-report-sub">
+          <span class="pi-field-label">Description:</span>
+          {% if run.description %}{{ run.description }}{% else %}<span class="absent">Not supplied</span>{% endif %}
+        </p>
+      {% else %}
+        <p class="pi-report-sub">
+          <span class="pi-field-label">Manufacturer part number:</span>
+          <span class="absent">Not supplied</span>
+        </p>
+      {% endif %}
+      <p class="pi-status pi-state-{{ run.state }}">
+        <span class="pi-status-dot" aria-hidden="true"></span>
+        <span class="pi-field-label">Status:</span>
+        <strong>{{ run.state }}</strong>
+      </p>
+    </div>
+    <div class="pi-head-meta">
+      <dl>
+        <dt>Request identifier</dt>
+        <dd><code>{{ run.id }}</code></dd>
+        <dt>Created</dt>
+        <dd>{{ run.created_at|date:"Y-m-d H:i:s T" }}</dd>
+        {% if run.started_at %}
+          <dt>Started</dt>
+          <dd>{{ run.started_at|date:"Y-m-d H:i:s T" }}</dd>
+        {% endif %}
+        {% if run.finished_at %}
+          <dt>Finished</dt>
+          <dd>{{ run.finished_at|date:"Y-m-d H:i:s T" }}</dd>
+        {% endif %}
+      </dl>
+    </div>
+  </div>
+</section>
 
 {% if start_error %}
-  <p class="notice error">
-    Research could not be started because the server is not ready to execute
-    this request. Please try again later or contact support.
-  </p>
+  <div class="pi-alert pi-alert-error" role="alert">
+    <p>Research could not be started because the server is not ready to execute
+    this request. Please try again later or contact support.</p>
+  </div>
 {% elif retry_error %}
-  <p class="notice error">
-    Research could not be restarted. Please try again later or contact support.
-  </p>
-{% elif run.state == "CREATED" %}
-  <p class="notice">
-    Research request created.
-    Research has not started.
-  </p>
+  <div class="pi-alert pi-alert-error" role="alert">
+    <p>Research could not be restarted. Please try again later or contact
+    support.</p>
+  </div>
 {% endif %}
 
-{% if run.state == "RUNNING" %}
-  <p class="notice">
-    Research is currently running.
-    Please wait while the market research is performed.
-  </p>
-{% endif %}
-
-{% if run.state == "FAILED" %}
-  <p class="notice">
-    Research did not complete successfully.
+{% if run.state == "CREATED" %}
+  <div class="pi-alert pi-alert-info">
+    <p>Research request created. Research has not started.</p>
+  </div>
+{% elif run.state == "RUNNING" %}
+  <div class="pi-alert pi-alert-info">
+    <p>Research is currently running.
+    Please wait while the market research is performed.</p>
+  </div>
+{% elif run.state == "FAILED" %}
+  <div class="pi-alert pi-alert-error">
+    <p>Research did not complete successfully.
     No verified result was published.
-    You may retry the research.
-  </p>
-  <form method="post" action="{% url 'research-retry' run_id=run.id %}">
-    {% csrf_token %}
-    <button type="submit">Retry Research</button>
-  </form>
+    You may retry the research.</p>
+    <form method="post" action="{% url 'research-retry' run_id=run.id %}">
+      {% csrf_token %}
+      <button type="submit" class="pi-btn-primary">Retry Research</button>
+    </form>
+  </div>
+{% elif run.state == "PARTIALLY_COMPLETED" %}
+  <div class="pi-alert pi-alert-warn">
+    <p>Research completed with a partial result. Some stages may not have
+    produced usable evidence.</p>
+  </div>
 {% endif %}
 
 {% if compact_quote or compact_quote_unavailable %}
+<section class="pi-card pi-quote-section" aria-label="Quote and market summary">
 <h2>Quote & Market Summary</h2>
 
 {% if compact_quote %}
@@ -94,7 +113,7 @@
     </p>
   {% endif %}
 
-  <dl>
+  <dl class="pi-summary">
     <dt>Quotes found</dt>
     <dd>{{ compact_quote.quotes_found }}</dd>
     <dt>In stock</dt>
@@ -119,7 +138,7 @@
   </dl>
 
   {% if fx_evidence %}
-    <dl class="fx-evidence">
+    <dl class="pi-fx-line">
       <dt>ECB reference date</dt>
       <dd>{{ fx_evidence.observation_date }}</dd>
       {% if fx_evidence.retrieved_at %}
@@ -138,30 +157,30 @@
   {% endif %}
 
   <h3>Comparable public market</h3>
-  <p>
+  <p class="pi-market-line">
     <strong>{{ compact_quote.public_market_count }}</strong>
     comparable NEW listing{{ compact_quote.public_market_count|pluralize }}.
   </p>
   {% if compact_quote.public_market_low %}
-    <p>
+    <p class="pi-market-line">
       <strong>Observed span:</strong>
       {{ compact_quote.public_market_low }} — {{ compact_quote.public_market_high }}
     </p>
   {% endif %}
   {% if compact_quote.public_market_median %}
-    <p><strong>Median:</strong> {{ compact_quote.public_market_median }}</p>
+    <p class="pi-market-line"><strong>Median:</strong> {{ compact_quote.public_market_median }}</p>
   {% elif compact_quote.public_market_median_note %}
     <p class="notice"><strong>Median:</strong> {{ compact_quote.public_market_median_note }}</p>
   {% endif %}
 
   {% if compact_quote.rows %}
-    <div class="spec-table-wrapper">
+    <div class="spec-table-wrapper pi-quote-wrapper">
       <table class="spec-table">
         <thead>
           <tr>
             <th>Source</th>
-            <th>Price</th>
-            <th>USD Equivalent</th>
+            <th class="pi-num">Price</th>
+            <th class="pi-num">USD Equivalent</th>
             <th>Availability</th>
             <th>Condition</th>
             <th>Match / Evidence</th>
@@ -179,8 +198,8 @@
                 {{ row.source_display }}
               {% endif %}
             </td>
-            <td>{{ row.price }}</td>
-            <td>{{ row.usd_equivalent }}</td>
+            <td class="pi-num">{{ row.price }}</td>
+            <td class="pi-num">{{ row.usd_equivalent }}</td>
             <td>{{ row.inventory }}</td>
             <td>{{ row.condition }}</td>
             <td>{{ row.match_evidence }}</td>
@@ -194,7 +213,7 @@
                 <a href="#ai-candidate-{{ row.review_candidate_id }}">Review / Verify</a>
                 <form method="post" action="{% url "research-review" run_id=run.id candidate_id=row.review_candidate_id %}" style="display:inline;">
                   {% csrf_token %}
-                  <button type="submit" name="action" value="remove">Remove</button>
+                  <button type="submit" name="action" value="remove" class="pi-btn-sm">Remove</button>
                 </form>
               {% elif row.source_url_safe %}
                 <a href="{{ row.source_url }}">Open source</a>
@@ -210,9 +229,10 @@
   {% else %}
     <p class="notice">No quote evidence is available.</p>
   {% endif %}
-{% elif compact_quote_unavailable %}
+{% else %}
   <p class="notice">Quote & Market Summary unavailable.</p>
 {% endif %}
+</section>
 {% endif %}
 
 {% if review_candidates %}

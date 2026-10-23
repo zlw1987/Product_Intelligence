@@ -1,95 +1,427 @@
 {% comment %}
 Server-rendered HTML, no build pipeline, no framework, and essentially no
 JavaScript — the UI is a form and a report (AD-012). The stylesheet is inline
-and small on purpose: a static-files pipeline is not something this phase needs.
+and shared by every page: a static-files pipeline is not something this phase
+needs (PILOT-UX-WORKBENCH-A1 replaces the per-page ad-hoc styling with one
+bounded design system).
 
-Auto-escaping is on throughout, and no user-supplied value is ever marked safe.
-An MPN and a description are untrusted input from any intake.
+Auto-escaping is on throughout, and no user-supplied value is ever marked
+safe. An MPN and a description are untrusted input from any intake.
+
+Design system (PILOT-UX-WORKBENCH-A1):
+* light theme by default; navy primary headings and navigation; neutral
+  slate/gray background, borders and text; restrained teal accents for the
+  primary action and links;
+* system font stack, consistent spacing, border radii, buttons, alerts,
+  focus indicators;
+* distinct neutral treatments for error, warning, success, unknown and
+  unavailable (border + tinted surface + text color; no decorative badges,
+  gradients, charts or shadows for state).
 {% endcomment %}<meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}Product Intelligence{% endblock %}</title>
 <style>
-  :root { color-scheme: light dark; }
+  :root {
+    color-scheme: light;
+    /* Palette: navy primary, slate neutrals, restrained teal accent. */
+    --pi-navy-900: #0d2136;
+    --pi-navy-800: #14324e;
+    --pi-navy-700: #1d4568;
+    --pi-teal-700: #0f766e;
+    --pi-teal-800: #115e59;
+    --pi-ink-900: #101828;
+    --pi-ink-700: #344054;
+    --pi-ink-500: #667085;
+    --pi-line-200: #e4e7ec;
+    --pi-line-300: #d0d5dd;
+    --pi-surface-0: #ffffff;
+    --pi-surface-1: #f9fafb;
+    --pi-surface-2: #f2f4f7;
+    --pi-error-700: #b42318;
+    --pi-error-100: #fef3f2;
+    --pi-warn-800: #93370d;
+    --pi-warn-100: #fffaeb;
+    --pi-success-700: #067647;
+    --pi-success-100: #ecfdf3;
+    --pi-radius-md: 10px;
+    --pi-radius-sm: 6px;
+    --pi-shadow-card: 0 1px 2px rgba(16, 24, 40, 0.06);
+  }
+
   /* The page content column defaults to the narrow reading width. A
      wide report document may raise it by declaring --pi-page-max-width
      on :root (see web/research_detail.html); the 44rem fallback keeps
      every other page (e.g. the intake form) at the narrow column. */
   body {
-    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-    line-height: 1.5;
-    margin: 0 auto;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto,
+      "Helvetica Neue", Arial, sans-serif;
+    font-size: 16px;
+    line-height: 1.55;
+    color: var(--pi-ink-900);
+    background: var(--pi-surface-2);
     max-width: var(--pi-page-max-width, 44rem);
-    padding: 2rem 1.25rem 4rem;
+    margin: 0 auto;
+    padding: 1.5rem 1.25rem 3rem;
   }
-  header { border-bottom: 1px solid #8884; margin-bottom: 2rem; padding-bottom: 1rem; }
-  header a { color: inherit; text-decoration: none; }
-  h1 { font-size: 1.4rem; margin: 0; }
-  h2 { font-size: 1.1rem; margin: 2rem 0 0.75rem; }
-  label { display: block; font-weight: 600; margin-bottom: 0.25rem; }
+
+  /* --- Accessible focus --------------------------------------------- */
+  :focus-visible {
+    outline: 2px solid var(--pi-teal-700);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  .pi-skip-link {
+    position: absolute; left: -9999px; top: 0;
+    background: var(--pi-surface-0); color: var(--pi-navy-800);
+    padding: 0.5rem 0.9rem; border-radius: var(--pi-radius-sm);
+    font-weight: 600; text-decoration: none; z-index: 10;
+  }
+  .pi-skip-link:focus { left: 0.75rem; top: 0.75rem; }
+
+  /* --- Top bar (navy navigation) ------------------------------------- */
+  .pi-topbar {
+    background: var(--pi-navy-800);
+    border-radius: var(--pi-radius-md);
+    box-shadow: var(--pi-shadow-card);
+    margin-bottom: 1.5rem;
+  }
+  .pi-topbar-row {
+    display: flex; align-items: center; flex-wrap: wrap;
+    gap: 0.5rem 1rem; padding: 0.8rem 1.25rem;
+  }
+  .pi-brand {
+    color: #ffffff; text-decoration: none;
+    font-size: 1.05rem; font-weight: 700; letter-spacing: 0.01em;
+  }
+  .pi-brand:hover { text-decoration: underline; }
+  .pi-tagline { color: #c6d4e2; font-size: 0.8rem; }
+  .pi-nav { margin-left: auto; }
+  .pi-nav a {
+    color: #e6edf4; text-decoration: none; font-size: 0.9rem; font-weight: 500;
+    padding: 0.35rem 0.8rem; border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: var(--pi-radius-sm);
+  }
+  .pi-nav a:hover { background: rgba(255, 255, 255, 0.12); text-decoration: none; }
+  .pi-nav a:focus-visible { outline-color: #8fd3cb; }
+
+  /* --- Typography ------------------------------------------------------ */
+  h1 { color: var(--pi-navy-800); font-size: 1.45rem; font-weight: 700; margin: 0; }
+  h2 { color: var(--pi-navy-800); font-size: 1.1rem; font-weight: 650; margin: 2rem 0 0.75rem; }
+  h3 { color: var(--pi-navy-800); font-size: 0.98rem; font-weight: 650; margin: 1.25rem 0 0.5rem; }
+  h4 { color: var(--pi-ink-700); font-size: 0.9rem; font-weight: 650; margin: 1rem 0 0.4rem; }
+  p { margin: 0.5rem 0; }
+  a { color: var(--pi-teal-700); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  .pi-eyebrow {
+    margin: 0 0 0.3rem;
+    font-size: 0.72rem; font-weight: 650;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--pi-teal-700);
+  }
+  .pi-lead { color: var(--pi-ink-700); margin: 0; font-size: 0.95rem; }
+
+  code {
+    font-family: ui-monospace, "Cascadia Mono", Consolas, "Segoe UI", monospace;
+    font-size: 0.86em;
+    background: var(--pi-surface-1);
+    border: 1px solid var(--pi-line-200);
+    border-radius: 4px;
+    padding: 0.05em 0.35em;
+    overflow-wrap: anywhere;
+  }
+
+  /* --- Cards ----------------------------------------------------------- */
+  .pi-card {
+    background: var(--pi-surface-0);
+    border: 1px solid var(--pi-line-200);
+    border-radius: var(--pi-radius-md);
+    box-shadow: var(--pi-shadow-card);
+    padding: 1.25rem 1.5rem 1.5rem;
+    margin-bottom: 1.25rem;
+  }
+  .pi-card-head { margin-bottom: 1rem; }
+  .pi-card-head h1, .pi-card-head h2 { margin: 0 0 0.5rem; }
+
+  /* --- Forms ----------------------------------------------------------- */
+  label { display: block; font-weight: 600; margin-bottom: 0.3rem; font-size: 0.92rem; color: var(--pi-ink-700); }
   input[type="text"], textarea {
-    box-sizing: border-box; font: inherit; padding: 0.5rem; width: 100%;
+    box-sizing: border-box; font: inherit; width: 100%;
+    padding: 0.55rem 0.7rem;
+    border: 1px solid var(--pi-line-300);
+    border-radius: var(--pi-radius-sm);
+    background: var(--pi-surface-0);
+    color: var(--pi-ink-900);
   }
-  .field { margin-bottom: 1.5rem; }
-  .help { color: #6b7280; display: block; font-size: 0.875rem; margin-top: 0.25rem; }
-  .errors { color: #b91c1c; list-style: none; margin: 0 0 1rem; padding: 0; }
+  textarea { resize: vertical; }
+  input[type="text"]:focus-visible, textarea:focus-visible {
+    border-color: var(--pi-teal-700);
+    outline: 2px solid rgba(15, 118, 110, 0.3);
+  }
+  .pi-field { margin-bottom: 1.25rem; }
+  .pi-optional-tag {
+    font-weight: 400; font-size: 0.78rem; color: var(--pi-ink-500);
+  }
+  .help { color: var(--pi-ink-500); display: block; font-size: 0.85rem; margin-top: 0.35rem; }
+  .errors { color: var(--pi-error-700); list-style: none; margin: 0 0 0.75rem; padding: 0; font-size: 0.9rem; }
   .errors li { margin: 0.25rem 0; }
+
+  /* Intake page: the MPN is the prominent primary input. */
+  .pi-intake-card input[type="text"] {
+    font-family: ui-monospace, "Cascadia Mono", Consolas, "Segoe UI", monospace;
+    font-size: 1.05rem;
+    padding: 0.65rem 0.75rem;
+    border-width: 1.5px;
+  }
+  .pi-intake-note { color: var(--pi-ink-500); font-size: 0.82rem; margin: 1.1rem 0 0; }
+
+  /* --- Buttons ---------------------------------------------------------- */
   button {
-    background: #1f2937; border: 0; border-radius: 0.25rem; color: #fff;
-    cursor: pointer; font: inherit; padding: 0.6rem 1.1rem;
+    font: inherit; font-size: 0.9rem; font-weight: 600;
+    color: var(--pi-navy-800);
+    background: var(--pi-surface-0);
+    border: 1px solid var(--pi-line-300);
+    border-radius: var(--pi-radius-sm);
+    padding: 0.45rem 0.95rem;
+    cursor: pointer;
+  }
+  button:hover { background: var(--pi-surface-1); border-color: var(--pi-line-300); }
+  button:disabled { opacity: 0.6; cursor: default; }
+  .pi-btn-primary {
+    color: #ffffff; background: var(--pi-teal-700); border-color: var(--pi-teal-700);
+    padding: 0.6rem 1.25rem; font-size: 0.95rem;
+  }
+  .pi-btn-primary:hover { background: var(--pi-teal-800); border-color: var(--pi-teal-800); }
+  .pi-btn-sm { padding: 0.25rem 0.65rem; font-size: 0.82rem; }
+
+  /* --- Alerts and notices ---------------------------------------------- */
+  .pi-alert {
+    border: 1px solid var(--pi-line-300);
+    border-left-width: 4px;
+    border-radius: var(--pi-radius-sm);
+    padding: 0.75rem 1rem;
+    margin: 0 0 1rem;
+    font-size: 0.92rem;
+  }
+  .pi-alert p { margin: 0.25rem 0; }
+  .pi-alert ul { margin: 0.25rem 0 0.25rem 1.1rem; padding: 0; }
+  .pi-alert-title { margin: 0 0 0.2rem; font-weight: 650; font-size: 0.9rem; }
+  .pi-alert-error {
+    color: var(--pi-error-700); background: var(--pi-error-100);
+    border-color: #f0c4bf; border-left-color: var(--pi-error-700);
+  }
+  .pi-alert-error .errors { color: inherit; margin: 0.25rem 0 0 1.1rem; }
+  .pi-alert-warn {
+    color: var(--pi-warn-800); background: var(--pi-warn-100);
+    border-color: #f3ddb4; border-left-color: var(--pi-warn-800);
+  }
+  .pi-alert-info {
+    color: var(--pi-navy-700); background: #f5f9fc;
+    border-color: #c9d9e6; border-left-color: var(--pi-navy-700);
+  }
+  .pi-alert-success {
+    color: var(--pi-success-700); background: var(--pi-success-100);
+    border-color: #c6ecd6; border-left-color: var(--pi-success-700);
   }
   .notice {
-    background: #8881; border-left: 3px solid #6b7280; margin: 1.5rem 0;
-    padding: 0.75rem 1rem;
+    background: var(--pi-surface-1);
+    border: 1px solid var(--pi-line-200);
+    border-left: 4px solid var(--pi-line-300);
+    border-radius: var(--pi-radius-sm);
+    margin: 1rem 0;
+    padding: 0.7rem 1rem;
+    font-size: 0.92rem;
   }
+  .notice.error {
+    color: var(--pi-error-700); background: var(--pi-error-100);
+    border-color: #f0c4bf; border-left-color: var(--pi-error-700);
+  }
+
+  /* --- Key/value lists --------------------------------------------------- */
   dl { display: grid; gap: 0.5rem 1.5rem; grid-template-columns: max-content 1fr; margin: 0; }
-  dt { color: #6b7280; }
-  dd { margin: 0; overflow-wrap: anywhere; }
-  .absent { color: #6b7280; font-style: italic; }
-  code { overflow-wrap: anywhere; }
+  dt { color: var(--pi-ink-500); font-size: 0.85rem; }
+  dd { margin: 0; overflow-wrap: anywhere; color: var(--pi-ink-900); }
+
+  .absent { color: var(--pi-ink-500); font-style: italic; }
+
+  /* --- Report header (PILOT-UX-WORKBENCH-A1) ----------------------------- */
+  .pi-report-title { overflow-wrap: anywhere; }
+  .pi-report-sub { color: var(--pi-ink-700); font-size: 0.95rem; margin: 0.35rem 0 0; overflow-wrap: anywhere; }
+  .pi-report-sub .absent { font-size: 0.95rem; }
+  .pi-status {
+    display: flex; align-items: center; gap: 0.45rem;
+    margin: 0.6rem 0 0; font-size: 0.92rem; color: var(--pi-ink-700);
+  }
+  .pi-status-dot {
+    width: 0.55rem; height: 0.55rem; border-radius: 50%;
+    background: var(--pi-ink-500); flex: none;
+  }
+  .pi-state-RUNNING .pi-status-dot,
+  .pi-state-PARTIALLY_COMPLETED .pi-status-dot { background: #b45309; }
+  .pi-state-COMPLETED .pi-status-dot { background: var(--pi-teal-700); }
+  .pi-state-FAILED .pi-status-dot { background: var(--pi-error-700); }
+  .pi-status strong { color: var(--pi-ink-900); font-weight: 650; }
+  .pi-report-head-grid {
+    display: grid; grid-template-columns: minmax(0, 1fr) auto;
+    gap: 1.5rem; align-items: start;
+  }
+  .pi-head-meta {
+    border-left: 1px solid var(--pi-line-200);
+    padding-left: 1.5rem; min-width: 15rem;
+  }
+  .pi-head-meta dt {
+    font-size: 0.7rem; font-weight: 650;
+    letter-spacing: 0.05em; text-transform: uppercase;
+  }
+  .pi-head-meta dd { font-size: 0.88rem; color: var(--pi-ink-700); font-variant-numeric: tabular-nums; }
+  .pi-head-meta code { font-size: 0.8rem; }
+
+  /* --- Quote summary stat strip ------------------------------------------ */
+  .pi-summary {
+    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1rem; margin: 1.1rem 0 0.5rem;
+  }
+  .pi-summary dt {
+    font-size: 0.72rem; font-weight: 650;
+    letter-spacing: 0.05em; text-transform: uppercase;
+  }
+  .pi-summary dd {
+    margin: 0.2rem 0 0;
+    font-size: 1.15rem; font-weight: 650; color: var(--pi-navy-800);
+    font-variant-numeric: tabular-nums;
+  }
+  .pi-summary dd .absent { font-size: 0.95rem; font-weight: 500; }
+  .pi-field-label { font-size: 0.8rem; font-weight: 650; color: var(--pi-ink-500); }
+  .pi-market-line { color: var(--pi-ink-700); font-size: 0.92rem; margin: 0.75rem 0 0; }
+  .pi-fx-line {
+    display: grid; grid-template-columns: max-content minmax(0, 1fr);
+    column-gap: 0.75rem; row-gap: 0.3rem;
+    color: var(--pi-ink-700); font-size: 0.84rem;
+    margin: 0.9rem 0 0; padding: 0.65rem 0.9rem;
+    background: var(--pi-surface-1);
+    border: 1px solid var(--pi-line-200);
+    border-radius: var(--pi-radius-sm);
+  }
+  .pi-fx-line dt {
+    font-size: 0.72rem; font-weight: 650; letter-spacing: 0.04em; text-transform: uppercase;
+  }
+  .pi-fx-line dd { font-size: 0.84rem; margin: 0; font-variant-numeric: tabular-nums; }
+
+  /* --- Tables -------------------------------------------------------------- */
   .evidence-entry {
-    border: 1px solid #8884; border-radius: 0.25rem;
+    border: 1px solid var(--pi-line-200);
+    border-radius: var(--pi-radius-sm);
     margin: 0.75rem 0; padding: 0.75rem 1rem;
+    background: var(--pi-surface-0);
   }
   .evidence-entry p { margin: 0.25rem 0; }
   .bucket-entry {
-    border: 1px solid #8884; border-radius: 0.25rem;
-    margin: 1rem 0; padding: 1rem;
+    border: 1px solid var(--pi-line-200);
+    border-radius: var(--pi-radius-sm);
+    margin: 1rem 0; padding: 1rem 1.25rem;
+    background: var(--pi-surface-0);
   }
   .bucket-entry dl { display: grid; gap: 0.5rem 1.5rem; grid-template-columns: max-content 1fr; margin: 0.5rem 0; }
   .bucket-entry h3 { margin-top: 0; }
 
-  /* Comparable products section */
-  .comparable-candidate {
-    border: 1px solid #8884; border-radius: 0.25rem;
-    margin: 0.5rem 0; padding: 0.5rem 0.75rem;
-  }
-  .comparable-candidate > summary {
-    cursor: pointer; padding: 0.25rem 0;
-  }
-  .comparable-candidate > summary:hover { background: #8881; }
   .spec-table-wrapper { overflow-x: auto; }
   .spec-table {
-    border-collapse: collapse; width: 100%; font-size: 0.875rem;
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+    background: var(--pi-surface-0);
   }
   .spec-table th, .spec-table td {
-    border: 1px solid #8884; padding: 0.35rem 0.5rem; text-align: left;
-    vertical-align: top;
+    border-bottom: 1px solid var(--pi-line-200);
+    padding: 0.55rem 0.75rem;
+    text-align: left; vertical-align: top;
   }
-  .spec-table th { background: #8881; }
+  .spec-table thead th {
+    background: var(--pi-surface-1);
+    border-bottom: 1px solid var(--pi-line-300);
+    font-size: 0.73rem; font-weight: 650;
+    letter-spacing: 0.04em; text-transform: uppercase;
+    color: var(--pi-ink-500);
+    white-space: nowrap;
+  }
+  .spec-table tbody tr:hover { background: #f8fafc; }
+  .spec-table small { color: var(--pi-ink-500); }
+  /* The 8-column quote table needs deliberate horizontal overflow on
+     narrow viewports instead of illegible compression. */
+  .pi-quote-wrapper .spec-table { min-width: 54rem; }
+  .pi-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  /* --- AI review cards / comparables -------------------------------------- */
+  .comparable-candidate {
+    border: 1px solid var(--pi-line-200);
+    border-radius: var(--pi-radius-sm);
+    margin: 0.5rem 0; padding: 0.5rem 0.75rem;
+    background: var(--pi-surface-0);
+  }
+  .comparable-candidate > summary { cursor: pointer; padding: 0.3rem 0.4rem; border-radius: 4px; }
+  .comparable-candidate > summary:hover { background: var(--pi-surface-1); }
+  .review-candidate.unavailable { opacity: 0.75; }
   .evidence-refs { font-size: 0.8em; margin-top: 0.15rem; }
   .evidence-ref { display: inline-block; margin-right: 0.5rem; }
+  .unverified { color: var(--pi-warn-800); }
 
-  footer { border-top: 1px solid #8884; color: #6b7280; font-size: 0.85rem;
-           margin-top: 3rem; padding-top: 1rem; }
+  /* --- Advanced Evidence & Audit disclosures -------------------------------- */
+  details.audit-details { margin: 1rem 0; }
+  details.audit-details > summary {
+    cursor: pointer; padding: 0.6rem 0.9rem;
+    background: var(--pi-surface-1);
+    border: 1px solid var(--pi-line-200);
+    border-radius: var(--pi-radius-sm);
+    color: var(--pi-navy-800);
+    font-size: 0.92rem;
+  }
+  details.audit-details > summary:hover { background: var(--pi-surface-2); }
+
+  /* --- Footer ----------------------------------------------------------------- */
+  .pi-footer {
+    border-top: 1px solid var(--pi-line-200);
+    color: var(--pi-ink-500); font-size: 0.82rem;
+    margin-top: 2rem; padding-top: 1rem;
+  }
+
+  /* --- Narrow viewports -------------------------------------------------------- */
+  @media (max-width: 64rem) {
+    .pi-report-head-grid { grid-template-columns: 1fr; }
+    .pi-head-meta {
+      border-left: 0; padding-left: 0;
+      border-top: 1px solid var(--pi-line-200);
+      padding-top: 1rem; min-width: 0;
+    }
+    .pi-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 42rem) {
+    body { padding: 1rem 0.75rem 2.5rem; }
+    .pi-card { padding: 1rem 1rem 1.25rem; }
+    .pi-summary { grid-template-columns: 1fr; gap: 0.75rem; }
+    .pi-summary dd { font-size: 1.05rem; }
+    .pi-topbar-row { padding: 0.7rem 1rem; }
+    .pi-nav { margin-left: 0; width: 100%; }
+  }
 </style>
 
-<header>
-  <h1><a href="{% url 'research-new' %}">Product Intelligence</a></h1>
+<a class="pi-skip-link" href="#pi-main">Skip to main content</a>
+
+<header class="pi-topbar">
+  <div class="pi-topbar-row">
+    <a class="pi-brand" href="{% url 'research-new' %}">Product Intelligence</a>
+    <span class="pi-tagline">Procurement research workbench</span>
+    <nav class="pi-nav" aria-label="Primary">
+      <a href="{% url 'research-new' %}">New research</a>
+    </nav>
+  </div>
 </header>
 
+<main id="pi-main">
 {% block content %}{% endblock %}
+</main>
 
-<footer>
+<footer class="pi-footer">
   Market price research uses observable public listing evidence. Results may be
   verified, ambiguous, or unknown depending on available evidence.
 </footer>
