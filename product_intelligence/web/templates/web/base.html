@@ -5,6 +5,17 @@ and shared by every page: a static-files pipeline is not something this phase
 needs (PILOT-UX-WORKBENCH-A1 replaces the per-page ad-hoc styling with one
 bounded design system).
 
+PILOT-UX-WORKBENCH-A1-FU1: the document is now explicit standards-mode HTML
+(`<!DOCTYPE html>` + `<html>`/`<head>`/`<body>`). A1 rendered no doctype, so
+browsers parsed every page in quirks mode (BackCompat); the mobile viewport
+contract (`width=device-width`) and the layout audit could not be trusted on
+quirks-mode documents, and the committed 390px captures proved the page
+laid out wider than the requested CSS viewport. The markup contracts are
+unchanged: same blocks, same content, same single inline stylesheet, same
+auto-escaping; only the document envelope is added, and the page-level
+stylesheets live in `<head>` (page A has none; page B raises the report
+column via the `{% block head %}` hook).
+
 Auto-escaping is on throughout, and no user-supplied value is ever marked
 safe. An MPN and a description are untrusted input from any intake.
 
@@ -17,7 +28,11 @@ Design system (PILOT-UX-WORKBENCH-A1):
 * distinct neutral treatments for error, warning, success, unknown and
   unavailable (border + tinted surface + text color; no decorative badges,
   gradients, charts or shadows for state).
-{% endcomment %}<meta charset="utf-8">
+{% endcomment %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}Product Intelligence{% endblock %}</title>
 <style>
@@ -404,7 +419,9 @@ Design system (PILOT-UX-WORKBENCH-A1):
     .pi-nav { margin-left: 0; width: 100%; }
   }
 </style>
-
+{% block head %}{% endblock %}
+</head>
+<body>
 <a class="pi-skip-link" href="#pi-main">Skip to main content</a>
 
 <header class="pi-topbar">
@@ -425,3 +442,5 @@ Design system (PILOT-UX-WORKBENCH-A1):
   Market price research uses observable public listing evidence. Results may be
   verified, ambiguous, or unknown depending on available evidence.
 </footer>
+</body>
+</html>
