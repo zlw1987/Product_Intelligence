@@ -21,10 +21,24 @@ migrating. The correction protects real data BY CONSTRUCTION:
 * every check happens before any database write or migration;
 * a pre-existing ``PI_SQLITE_PATH`` is overridden, never honored.
 
+PILOT-UX-WORKBENCH-A1-FU2 adds the explicit containment policy: preview
+output is permitted ONLY beneath the canonical, repository-local
+disposable preview root (``<worktree>/tmp_preview``), and the real
+Product Intelligence production directory names (the AMAX application /
+data / backup / service directories — ``C:\\Product_Intelligence``,
+``C:\\ProductIntelligenceData``, ``C:\\ProductIntelligenceBackup``,
+``C:\\ProductIntelligenceService``) are refused in any case spelling and
+at any depth, on canonical paths (never by string prefix). The preview
+URL manifest (``preview_urls.json``) must also stay inside the authorized
+directory and is never overwritten.
+
 The nodes below prove the rejection matrix. No test uses a real existing
 database as a fixture: every "existing database" is a throwaway byte file
 created inside pytest's tmp directory, and its byte identity is verified
-after every run.
+after every run. Where the FU2 containment rule requires it, test
+fixtures point at uniquely named, self-cleaning subdirectories of the
+authorized repository-local preview root instead of at arbitrary tmp
+directories; every assertion is preserved or strengthened.
 """
 
 from __future__ import annotations
@@ -32,10 +46,13 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import os
 import re
+import shutil
 import sqlite3
 import subprocess
 import sys
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -66,6 +83,21 @@ def sentinel_file(tmp_path: Path) -> Path:
     return f
 
 
+@pytest.fixture()
+def authorized_preview_subdir() -> Path:
+    """A fresh, uniquely named subdirectory of the authorized repository-
+    local disposable preview root (``REPO/tmp_preview``), as the FU2
+    containment policy requires. The test owns it; it is removed in
+    teardown (it contains only test artifacts, never existing files).
+    """
+    root = REPO / "tmp_preview"
+    root.mkdir(parents=True, exist_ok=True)
+    sub = root / f"pytest_{uuid.uuid4().hex}"
+    sub.mkdir()
+    yield sub
+    shutil.rmtree(sub)
+
+
 def _sha(f: Path) -> str:
     return hashlib.sha256(f.read_bytes()).hexdigest()
 
@@ -90,9 +122,10 @@ class TestPreviewPlanning:
         assert pf.main() == 2
         assert _sha(sentinel_file) == hashlib.sha256(SENTINEL).hexdigest()
 
-    def test_existing_database_at_target_is_refused(self, pf, tmp_path) -> None:
-        preview = tmp_path / "preview"
-        preview.mkdir()
+    def test_existing_database_at_target_is_refused(self, pf, authorized_preview_subdir) -> None:
+        # FU2: the designated preview directory must be inside the
+        # authorized repository-local root; the fixture adapts to that.
+        preview = authorized_preview_subdir
         token = "ab12cd34ef56"
         planned = pf.plan_preview_database(
             preview, base_dir=REPO, now=_fixed_now(), token=token
@@ -139,7 +172,7 @@ class TestPreviewPlanning:
                 str(nested), base_dir=REPO, now=_fixed_now(), token="t" * 12
             )
 
-    def test_paths_are_canonicalized_before_verification(self, pf, tmp_path) -> None:
+    def test_paths_are_canonicalized_before_verification(self, pf, authorized_preview_subdir) -> None:
         # Traversal that resolves to the repository root is refused on its
         # canonical form, whatever the redundant spelling.
         sneaky_root = REPO / "tmp_preview" / ".."
@@ -148,10 +181,12 @@ class TestPreviewPlanning:
                 str(sneaky_root), base_dir=REPO, now=_fixed_now(), token="t" * 12
             )
         # A harmless traversal resolves to the canonical directory and the
-        # planned target is canonical (no ".." segments, absolute).
-        target_dir = tmp_path / "real"
+        # planned target is canonical (no ".." segments, absolute). FU2:
+        # the authorized location is a subdirectory of the repository-
+        # local preview root, reached through a redundant ".." spelling.
+        target_dir = authorized_preview_subdir / "real"
         target_dir.mkdir()
-        spelled = tmp_path / "alias" / ".." / "real"
+        spelled = authorized_preview_subdir / "alias" / ".." / "real"
         planned = pf.plan_preview_database(
             str(spelled), base_dir=REPO, now=_fixed_now(), token="t" * 12
         )
@@ -159,8 +194,9 @@ class TestPreviewPlanning:
         assert planned.is_absolute()
         assert planned.parent == target_dir.resolve()
 
-    def test_planned_target_is_strictly_inside_the_preview_directory(self, pf, tmp_path) -> None:
-        nested = tmp_path / "one" / "two"
+    def test_planned_target_is_strictly_inside_the_preview_directory(self, pf, authorized_preview_subdir) -> None:
+        # FU2: the preview directory is inside the authorized root.
+        nested = authorized_preview_subdir / "one" / "two"
         nested.mkdir(parents=True)
         planned = pf.plan_preview_database(
             str(nested), base_dir=REPO, now=_fixed_now(), token="ab12cd34ef56"
@@ -240,41 +276,221 @@ class TestSubprocessFailClosed:
         assert sorted(p.name for p in sentinel_file.parent.iterdir()) == ["db.sqlite3"]
         assert _sha(sentinel_file) == hashlib.sha256(SENTINEL).hexdigest()
 
-    def test_successful_run_creates_only_a_new_unique_file(self, tmp_path, sentinel_file) -> None:
-        preview = tmp_path / "preview_run"
-        preview.mkdir()
-        old = preview / "preview_20200101T000000_deadbeef0001.sqlite3"
-        old.write_bytes(SENTINEL)  # a previous run's database
-        r = self._run(
-            {
-                "PI_PREVIEW_DB_DIR": str(preview),
-                "PI_SQLITE_PATH": str(sentinel_file),  # hostile: must be ignored
-            },
-            sentinel_file,
-        )
-        assert r.returncode == 0, r.stderr
-        # The configured PI_SQLITE_PATH database (the sentinel) was never
-        # opened, truncated, or deleted.
-        assert _sha(sentinel_file) == hashlib.sha256(SENTINEL).hexdigest()
-        # The previous preview database is byte-identical.
-        assert _sha(old) == hashlib.sha256(SENTINEL).hexdigest()
-        new_files = [
-            p for p in preview.glob("preview_*.sqlite3") if p != old
-        ]
-        assert len(new_files) == 1, [p.name for p in preview.iterdir()]
-        new_db = new_files[0]
-        # The new file is a real migrated, seeded preview database with the
-        # eight synthetic runs.
-        con = sqlite3.connect(str(new_db))
+    def test_successful_run_creates_only_a_new_unique_file(self, sentinel_file) -> None:
+        # FU2: the designated preview directory must be inside the
+        # authorized repository-local root (REPO/tmp_preview), not an
+        # arbitrary tmp directory. A unique, self-cleaning subdirectory is
+        # used so the test never touches pre-existing operator files.
+        preview = REPO / "tmp_preview" / f"preview_run_{uuid.uuid4().hex[:12]}"
+        preview.mkdir(parents=True)
         try:
-            count = con.execute("SELECT COUNT(*) FROM runs_researchrun").fetchone()[0]
+            old = preview / "preview_20200101T000000_deadbeef0001.sqlite3"
+            old.write_bytes(SENTINEL)  # a previous run's database
+            r = self._run(
+                {
+                    "PI_PREVIEW_DB_DIR": str(preview),
+                    "PI_SQLITE_PATH": str(sentinel_file),  # hostile: must be ignored
+                },
+                sentinel_file,
+            )
+            assert r.returncode == 0, r.stderr
+            # The configured PI_SQLITE_PATH database (the sentinel) was
+            # never opened, truncated, or deleted.
+            assert _sha(sentinel_file) == hashlib.sha256(SENTINEL).hexdigest()
+            # The previous preview database is byte-identical.
+            assert _sha(old) == hashlib.sha256(SENTINEL).hexdigest()
+            new_files = [
+                p for p in preview.glob("preview_*.sqlite3") if p != old
+            ]
+            assert len(new_files) == 1, [p.name for p in preview.iterdir()]
+            new_db = new_files[0]
+            # The new file is a real migrated, seeded preview database with
+            # the eight synthetic runs.
+            con = sqlite3.connect(str(new_db))
+            try:
+                count = con.execute("SELECT COUNT(*) FROM runs_researchrun").fetchone()[0]
+            finally:
+                con.close()
+            assert count == 8
+            manifest = json.loads((preview / "preview_urls.json").read_text(encoding="utf-8"))
+            assert manifest["preview_db"] == str(new_db)
+            assert set(manifest["runs"]) == {
+                "multiquote", "zeroquote", "noevidence", "aireview",
+                "comparable", "running", "failed", "created",
+            }
+            assert "nothing deleted" in r.stdout
         finally:
-            con.close()
-        assert count == 8
-        manifest = json.loads((preview / "preview_urls.json").read_text(encoding="utf-8"))
-        assert manifest["preview_db"] == str(new_db)
-        assert set(manifest["runs"]) == {
-            "multiquote", "zeroquote", "noevidence", "aireview",
-            "comparable", "running", "failed", "created",
-        }
-        assert "nothing deleted" in r.stdout
+            shutil.rmtree(preview)
+
+
+class TestAMAXProductionDirectoryNames:
+    """PILOT-UX-WORKBENCH-A1-FU2 — the real Product Intelligence
+    production directory names (the AMAX application, data, backup, and
+    service directories) are refused: top-level, nested, and in any case
+    spelling, by canonical path component (never by string prefix).
+    """
+
+    #: The production directory names exactly as documented for the AMAX
+    #: production layout.
+    AMAX_PRODUCTION_COMPONENTS = (
+        "Product_Intelligence",
+        "ProductIntelligenceData",
+        "ProductIntelligenceBackup",
+        "ProductIntelligenceService",
+    )
+
+    def test_the_production_name_set_covers_the_amax_layout(self, pf) -> None:
+        protected = {c.lower() for c in self.AMAX_PRODUCTION_COMPONENTS}
+        assert protected <= set(pf.PRODUCTION_PREVIEW_DIR_COMPONENTS)
+
+    def test_amax_production_directory_names_are_refused(self, pf, tmp_path) -> None:
+        for component in self.AMAX_PRODUCTION_COMPONENTS:
+            d = tmp_path / component
+            d.mkdir(exist_ok=True)
+            with pytest.raises(
+                pf.PreviewConfigurationError, match=re.escape(component)
+            ):
+                pf.plan_preview_database(
+                    str(d), base_dir=REPO, now=_fixed_now(), token="t" * 12
+                )
+            # The planner is pure: a refused directory is left untouched.
+            assert list(d.iterdir()) == []
+
+    def test_nested_production_names_are_refused(self, pf, tmp_path) -> None:
+        for component in self.AMAX_PRODUCTION_COMPONENTS:
+            nested = tmp_path / "outer" / component / "inner"
+            nested.mkdir(parents=True)
+            with pytest.raises(
+                pf.PreviewConfigurationError, match=re.escape(component)
+            ):
+                pf.plan_preview_database(
+                    str(nested), base_dir=REPO, now=_fixed_now(), token="t" * 12
+                )
+
+    def test_differently_cased_production_names_are_refused(self, pf, tmp_path) -> None:
+        variants = (
+            "product_intelligence",
+            "PRODUCT_INTELLIGENCE",
+            "ProductIntelligence",
+            "productintelligencedata",
+            "PRODUCTINTELLIGENCEDATA",
+            "ProductIntelligenceBACKUP",
+            "productintelligencebackup",
+            "PRODUCTINTELLIGENCEBACKUP",
+            "productintelligenceservice",
+            "ProductIntelligenceSERVICE",
+            "PRODUCTINTELLIGENCESERVICE",
+        )
+        for index, variant in enumerate(variants):
+            # A distinct parent per variant: the filesystem is
+            # case-insensitive, and each variant must exist on disk under
+            # exactly the spelling being asserted in the refusal message.
+            d = tmp_path / f"case_{index}" / variant
+            d.mkdir(parents=True)
+            with pytest.raises(
+                pf.PreviewConfigurationError, match=re.escape(variant)
+            ):
+                pf.plan_preview_database(
+                    str(d), base_dir=REPO, now=_fixed_now(), token="t" * 12
+                )
+
+    def test_documented_amax_production_paths_are_refused(self, pf) -> None:
+        # The exact documented production paths, top-level and nested.
+        # They do not exist on this workstation; the planner is pure (no
+        # I/O) and refuses them by canonical name without touching them.
+        # The same refusal holds if they do exist.
+        for raw in (
+            r"C:\Product_Intelligence",
+            r"C:\Product_Intelligence\sub",
+            r"C:\ProductIntelligenceData",
+            r"C:\ProductIntelligenceData\sqlite",
+            r"C:\ProductIntelligenceBackup",
+            r"C:\ProductIntelligenceBackup\full",
+            r"C:\ProductIntelligenceService",
+            r"C:\ProductIntelligenceService\bin",
+        ):
+            with pytest.raises(pf.PreviewConfigurationError, match="production"):
+                pf.plan_preview_database(
+                    raw, base_dir=REPO, now=_fixed_now(), token="t" * 12
+                )
+
+
+class TestPreviewContainmentRoot:
+    """PILOT-UX-WORKBENCH-A1-FU2 — preview output is permitted only
+    beneath the canonical repository-local disposable preview root
+    (``<worktree>/tmp_preview``), checked on canonical paths, and the
+    preview URL manifest is never overwritten.
+    """
+
+    def test_paths_outside_the_authorized_preview_root_are_refused(self, pf, tmp_path) -> None:
+        for d in (tmp_path / "elsewhere", tmp_path / "elsewhere" / "nested"):
+            d.mkdir(parents=True, exist_ok=True)
+            with pytest.raises(pf.PreviewConfigurationError, match="tmp_preview"):
+                pf.plan_preview_database(
+                    str(d), base_dir=REPO, now=_fixed_now(), token="t" * 12
+                )
+
+    def test_allowed_paths_within_the_canonical_preview_root(self, pf, authorized_preview_subdir) -> None:
+        # A subdirectory of the canonical root is an authorized location;
+        # the planned target stays strictly inside it with the unique name
+        # and the planner itself creates nothing.
+        planned = pf.plan_preview_database(
+            str(authorized_preview_subdir),
+            base_dir=REPO,
+            now=_fixed_now(),
+            token="ab12cd34ef56",
+        )
+        assert authorized_preview_subdir.resolve() in planned.parents
+        assert planned.name == "preview_20261023T120000_ab12cd34ef56.sqlite3"
+        assert not planned.exists()  # the planner itself never creates files
+        # Deeper subdirectories of the authorized root are allowed too.
+        deeper = authorized_preview_subdir / "deeper"
+        deeper.mkdir()
+        planned_deeper = pf.plan_preview_database(
+            str(deeper), base_dir=REPO, now=_fixed_now(), token="cd34ef56ab12"
+        )
+        assert deeper.resolve() in planned_deeper.parents
+
+    def test_symlinked_directory_escaping_the_root_is_refused(self, pf, tmp_path, authorized_preview_subdir) -> None:
+        # A directory symlink inside the authorized root whose canonical
+        # target is OUTSIDE it is refused on its canonical form — no
+        # symlink escape.
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        link = authorized_preview_subdir / "escape"
+        os.symlink(str(outside), str(link), target_is_directory=True)
+        try:
+            with pytest.raises(pf.PreviewConfigurationError, match="tmp_preview"):
+                pf.plan_preview_database(
+                    str(link), base_dir=REPO, now=_fixed_now(), token="t" * 12
+                )
+        finally:
+            link.unlink()  # remove the test's own symlink
+        # The planner is pure: the escape target is untouched.
+        assert list(outside.iterdir()) == []
+
+    def test_preview_directory_that_is_a_file_is_refused(self, pf, authorized_preview_subdir) -> None:
+        f = authorized_preview_subdir / "not_a_directory"
+        f.write_bytes(b"blocked")
+        with pytest.raises(pf.PreviewConfigurationError, match="not a directory"):
+            pf.plan_preview_database(
+                str(f), base_dir=REPO, now=_fixed_now(), token="t" * 12
+            )
+        assert f.read_bytes() == b"blocked"
+
+    def test_preview_urls_manifest_never_overwritten(self, pf, authorized_preview_subdir) -> None:
+        # A pre-existing preview_urls.json in the designated directory is
+        # an unrelated pre-existing file: the run is refused before any
+        # write and the manifest's bytes survive unchanged.
+        manifest = authorized_preview_subdir / "preview_urls.json"
+        manifest.write_bytes(SENTINEL)
+        with pytest.raises(pf.PreviewConfigurationError, match="preview_urls.json"):
+            pf.plan_preview_database(
+                str(authorized_preview_subdir),
+                base_dir=REPO,
+                now=_fixed_now(),
+                token="ab12cd34ef56",
+            )
+        assert _sha(manifest) == hashlib.sha256(SENTINEL).hexdigest()
+        # No database file was planned or created in the refused directory.
+        assert [p.name for p in authorized_preview_subdir.iterdir()] == ["preview_urls.json"]

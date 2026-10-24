@@ -16,33 +16,52 @@ covering the required visual cases:
 
 All data is synthetic; no production data, no live provider calls.
 
-PILOT-UX-WORKBENCH-A1-FU1 safety contract (protects real data BY
+PILOT-UX-WORKBENCH-A1-FU1 + FU2 safety contract (protects real data BY
 CONSTRUCTION, not by operator discipline):
 
 * Refuses to run without an explicit preview configuration: the
   ``PI_PREVIEW_DB_DIR`` environment variable must name a designated,
   disposable preview directory.
+* FU2 explicit containment policy: preview output (the fresh database
+  AND the ``preview_urls.json`` manifest) is permitted ONLY beneath the
+  canonical, repository-local disposable preview root
+  ``<development-worktree>/tmp_preview/`` (the root itself or any
+  subdirectory of it). EVERY other path is refused — including the real
+  Product Intelligence production application / data / backup / service
+  directories (``C:\\Product_Intelligence``,
+  ``C:\\ProductIntelligenceData``, ``C:\\ProductIntelligenceBackup``,
+  ``C:\\ProductIntelligenceService``), nested occurrences of those names,
+  and any differently-cased spelling of them.
 * Plans a NEW, uniquely named database file per run
   (``preview_<UTC stamp>_<random token>.sqlite3``). It never
-  deletes, truncates, overwrites, or replaces any existing database —
-  if the planned file already exists it fails closed before any write.
+  deletes, truncates, overwrites, or replaces any existing database or
+  manifest — if the planned file or the preview URL manifest already
+  exists it fails closed before any write.
 * The configured database is always the planned file: ``PI_SQLITE_PATH``
   is set to it (overriding any pre-existing value) before Django reads
   settings, so a hostile or stale ``PI_SQLITE_PATH`` can never steer this
   script at another database.
 * Rejects the repository root (the default ``db.sqlite3`` location),
-  production / staging / deployment-like directory names, and any path
-  that does not canonically resolve INSIDE the designated preview
-  directory. Paths are canonicalized (``os.path.realpath``: symlinks
-  resolved, ``..`` collapsed) before every check — no string-prefix
-  trust.
-* All validation happens before any database write or migration.
+  production / staging / deployment-like directory names, paths that
+  do not canonicalize to the authorized preview root (or inside it),
+  and canonical escapes through symlinks or ``..``. Paths are
+  canonicalized (``os.path.realpath``: symlinks resolved, ``..``
+  collapsed) before every check — canonical path checks, never
+  string-prefix trust.
+* All validation happens before any directory creation, Django setup,
+  database write, or migration.
 * Prints paths and URLs only; never credentials or connection settings.
 
 Usage:
 
-    set PI_PREVIEW_DB_DIR=C:\\dev\\Product_Intelligence_A1\\tmp_preview
+    set PI_PREVIEW_DB_DIR=C:\\dev\\Product_Intelligence_A1\\tmp_preview\\run1
     python scripts/preview_fixtures.py
+
+``PI_PREVIEW_DB_DIR`` may be the ``tmp_preview`` root itself or any
+subdirectory of it. A fresh subdirectory per run is recommended: the run
+fails closed if that directory already holds the planned database file or
+a ``preview_urls.json`` manifest (this script never overwrites an
+existing file).
 """
 
 from __future__ import annotations
@@ -73,6 +92,33 @@ FORBIDDEN_PREVIEW_DIR_COMPONENTS = frozenset(
     }
 )
 
+#: The single authorized preview location: the canonical, repository-local,
+#: disposable preview root. Preview output (the fresh database AND the
+#: preview URL manifest) is permitted only here or in a subdirectory of it
+#: (FU2 containment policy — everything else is refused).
+CANONICAL_PREVIEW_ROOT_NAME = "tmp_preview"
+
+#: The real Product Intelligence production directory names (the AMAX
+#: production layout): the application, data, backup, and service
+#: directories. Any canonical path component equal to one of these — in
+#: ANY case and at ANY depth — refuses the run (FU2). Matching is per
+#: canonical path component (equality after lowercasing), never a string
+#: prefix: a component that merely contains one of these names as a
+#: substring (e.g. a differently suffixed development worktree) is not
+#: matched by this set.
+PRODUCTION_PREVIEW_DIR_COMPONENTS = frozenset(
+    {
+        "product_intelligence",       # C:\Product_Intelligence (application)
+        "productintelligencedata",    # C:\ProductIntelligenceData
+        "productintelligencebackup",  # C:\ProductIntelligenceBackup
+        "productintelligenceservice",  # C:\ProductIntelligenceService
+    }
+)
+
+#: The preview URL manifest, written next to the planned database (always
+#: inside the authorized preview directory; never overwritten).
+PREVIEW_URLS_MANIFEST_NAME = "preview_urls.json"
+
 
 class PreviewConfigurationError(RuntimeError):
     """The preview configuration is missing, unsafe, or not disposable."""
@@ -96,14 +142,25 @@ def plan_preview_database(
     2. The canonical (realpath) preview directory is not the repository
        root — the location of the default ``db.sqlite3`` developer
        database, which is not an authorized disposable target.
-    3. No canonical path component is a production / staging /
-       deployment-like name.
-    4. The planned file (fresh unique name) canonicalizes to a path
+    3. No canonical path component is one of the real Product
+       Intelligence production directory names (the AMAX application /
+       data / backup / service directories, any case, any depth), and
+       none is a production / staging / deployment-like name.
+    4. The canonical preview directory IS the repository-local
+       disposable preview root (``<base_dir>/tmp_preview``) or strictly
+       INSIDE it — explicit containment, checked on canonical paths
+       (never by string prefix). Anything else is refused.
+    5. The preview directory, if it exists, is a directory (a file is an
+       unsafe configuration).
+    6. The planned file (fresh unique name) canonicalizes to a path
        strictly INSIDE the canonical preview directory (no traversal or
        symlink escape).
-    5. The planned file is not the repository ``db.sqlite3``.
-    6. The planned file does not already exist (and is not a dangling
+    7. The planned file is not the repository ``db.sqlite3``.
+    8. The planned file does not already exist (and is not a dangling
        symlink). This script never deletes or reuses a database.
+    9. The preview URL manifest (``preview_urls.json`` inside the
+       preview directory) does not already exist (and is not a
+       symlink). This script never overwrites a pre-existing file.
     """
     if preview_dir is None or not str(preview_dir).strip():
         raise PreviewConfigurationError(
@@ -121,11 +178,33 @@ def plan_preview_database(
             "preview target"
         )
     for part in resolved_dir.parts:
+        if part.lower() in PRODUCTION_PREVIEW_DIR_COMPONENTS:
+            raise PreviewConfigurationError(
+                f"refusing the Product Intelligence production directory "
+                f"component {part!r} in the preview path (AMAX production "
+                "application / data / backup / service location)"
+            )
         if part.lower() in FORBIDDEN_PREVIEW_DIR_COMPONENTS:
             raise PreviewConfigurationError(
                 f"refusing production/deployment-like directory component "
                 f"{part!r} in the preview path"
             )
+
+    # Explicit, fail-closed containment: preview output is permitted ONLY
+    # beneath the canonical repository-local disposable preview root.
+    preview_root = resolved_base / CANONICAL_PREVIEW_ROOT_NAME
+    if resolved_dir != preview_root and preview_root not in resolved_dir.parents:
+        raise PreviewConfigurationError(
+            f"preview directory {resolved_dir} is outside the authorized "
+            f"disposable preview root {preview_root}: only the repository-"
+            f"local {CANONICAL_PREVIEW_ROOT_NAME} directory (or a "
+            "subdirectory of it) may receive preview output"
+        )
+
+    if resolved_dir.exists() and not resolved_dir.is_dir():
+        raise PreviewConfigurationError(
+            f"preview directory {resolved_dir} exists but is not a directory"
+        )
 
     stamp = now.strftime("%Y%m%dT%H%M%S")
     target = resolved_dir / f"preview_{stamp}_{token}.sqlite3"
@@ -148,6 +227,13 @@ def plan_preview_database(
             "deletes, overwrites, or reuses a database — choose a fresh "
             "preview directory or let the next unique name be used"
         )
+    manifest = resolved_dir / PREVIEW_URLS_MANIFEST_NAME
+    if manifest.exists() or manifest.is_symlink():
+        raise PreviewConfigurationError(
+            f"the preview URL manifest {manifest} already exists; this "
+            "script never overwrites a pre-existing file — choose a fresh "
+            "preview directory under the authorized root"
+        )
     return target_resolved
 
 
@@ -155,8 +241,12 @@ def build(preview_db: Path, urls_out: Path) -> None:
     """Migrate and seed the ALREADY-VALIDATED fresh preview database.
 
     Reached only after plan_preview_database() succeeded, so this function
-    can create exactly one new file: ``preview_db``. It never opens,
-    truncates, deletes, or replaces any other file.
+    can create exactly two new files: ``preview_db`` and ``urls_out``
+    (the preview URL manifest, always inside the authorized disposable
+    preview directory). Both were validated by the planner to not exist;
+    each is re-verified immediately before its write (fail closed on any
+    change). It never opens, truncates, deletes, or replaces any other
+    file.
     """
     base_dir = Path(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     sys.path.insert(0, str(base_dir))
@@ -657,6 +747,14 @@ def build(preview_db: Path, urls_out: Path) -> None:
 
     # Manifest for the layout probe / screenshot capture (dev tooling reads
     # the CURRENT preview run addresses from here — no hardcoded UUIDs).
+    # Re-verified fail-closed right before the write: the planner already
+    # refused this path if anything existed here, and this script never
+    # overwrites an unrelated pre-existing file.
+    if urls_out.exists() or urls_out.is_symlink():
+        raise RuntimeError(
+            "aborting: the preview URL manifest appeared before the "
+            "write; this script never overwrites an existing file"
+        )
     urls_out.write_text(
         json.dumps(
             {
@@ -708,11 +806,17 @@ def main() -> int:
         )
         return 2
 
+    # The planned preview directory is validated to be the authorized
+    # repository-local disposable root (or inside it); create it only if
+    # the operator has not. No directory outside the authorized root is
+    # ever created.
+    planned.parent.mkdir(parents=True, exist_ok=True)
+
     # The preview database is the configured database: override any
     # pre-existing PI_SQLITE_PATH so a stale/hostile value can never steer
     # this script at another database. Set BEFORE Django reads settings.
     os.environ["PI_SQLITE_PATH"] = str(planned)
-    build(planned, planned.parent / "preview_urls.json")
+    build(planned, planned.parent / PREVIEW_URLS_MANIFEST_NAME)
     return 0
 
 
