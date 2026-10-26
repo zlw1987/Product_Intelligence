@@ -15,6 +15,40 @@
      (PILOT-UX-WORKBENCH-A1-FU1: moved into <head> with the document
      envelope; the declaration itself is unchanged.) */
   :root { --pi-page-max-width: 70rem; }
+
+  /* PILOT-VENDOR-STATUS-UX-A: compact lookup-status notice for the quote
+     summary section (authorized connections only). A bordered notice,
+     not a table: it states the availability of the internal lookup from
+     this run's persisted evidence. */
+  .pi-vendor-status {
+    background: var(--pi-surface-1);
+    border: 1px solid var(--pi-line-200);
+    border-left: 4px solid var(--pi-line-300);
+    border-radius: var(--pi-radius-sm);
+    margin: 1rem 0 0.25rem;
+    padding: 0.6rem 0.9rem;
+    font-size: 0.9rem;
+  }
+  .pi-vendor-status-title { margin: 0 0 0.2rem; }
+  .pi-vendor-status-line { margin: 0.15rem 0; color: var(--pi-ink-700); }
+  .pi-vendor-status--failed {
+    color: var(--pi-warn-800); background: var(--pi-warn-100);
+    border-color: #f3ddb4; border-left-color: var(--pi-warn-800);
+  }
+  .pi-vendor-status--failed .pi-vendor-status-line { color: inherit; }
+  .pi-vendor-status--partial {
+    color: var(--pi-warn-800); background: var(--pi-warn-100);
+    border-color: #f3ddb4; border-left-color: var(--pi-warn-800);
+  }
+  .pi-vendor-status--partial .pi-vendor-status-line { color: inherit; }
+  .pi-vendor-status--completed-no-quote {
+    color: var(--pi-warn-800); background: var(--pi-warn-100);
+    border-color: #f3ddb4; border-left-color: var(--pi-warn-800);
+  }
+  .pi-vendor-status--completed-no-quote .pi-vendor-status-line { color: inherit; }
+  .pi-vendor-status--completed {
+    border-left-color: var(--pi-success-700);
+  }
 </style>
 {% endblock %}
 
@@ -115,6 +149,17 @@
     <p class="notice">
       Internal commercial pricing is unavailable for this connection.
     </p>
+  {% elif vendor_api_status %}
+    {# PILOT-VENDOR-STATUS-UX-A: bounded Vendor API status notice (ALLOWED only; every fact is persisted, codec-validated run evidence; never rendered for DENIED). #}
+    <div class="pi-vendor-status pi-vendor-status--{{ vendor_api_status.state }}" role="status">
+      <p class="pi-vendor-status-title">
+        <span class="pi-field-label">Vendor API status:</span>
+        <strong>{{ vendor_api_status.state_label }}</strong>
+      </p>
+      {% for line in vendor_api_status.lines %}
+      <p class="pi-vendor-status-line">{{ line }}</p>
+      {% endfor %}
+    </div>
   {% endif %}
 
   <dl class="pi-summary">
