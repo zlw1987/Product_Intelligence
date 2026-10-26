@@ -43,6 +43,7 @@ directories; every assertion is preserved or strengthened.
 
 from __future__ import annotations
 
+import builtins
 import hashlib
 import importlib.util
 import json
@@ -52,6 +53,7 @@ import shutil
 import sqlite3
 import subprocess
 import sys
+import types
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -494,3 +496,213 @@ class TestPreviewContainmentRoot:
         assert _sha(manifest) == hashlib.sha256(SENTINEL).hexdigest()
         # No database file was planned or created in the refused directory.
         assert [p.name for p in authorized_preview_subdir.iterdir()] == ["preview_urls.json"]
+
+
+class TestExclusiveCreation:
+    """PILOT-UX-WORKBENCH-A1-FU3 — atomic exclusive creation (open mode
+    ``"x"`` / O_CREAT|O_EXCL).
+
+    The FU2 checks were fail-closed but TOCTOU-open: a file that appears
+    BETWEEN validation and the write could still be truncated (manifest)
+    or migrated (database). The exclusive-create mechanism closes that
+    window: creation either atomically takes a fresh path or refuses.
+    The nodes below occupy the window deterministically — a competing
+    creation at the exact moment of the exclusive open, patched into
+    ``builtins.open`` (the competing write itself uses C-level
+    ``os.open`` and cannot recurse) — and verify byte-for-byte
+    preservation of the pre-existing sentinel content. No retries are
+    used anywhere: a refused creation is a refusal, not a retryable
+    condition.
+    """
+
+    def _simulate_late_creation(
+        self, monkeypatch: pytest.MonkeyPatch, victim: Path, sentinel: bytes
+    ) -> None:
+        """A competing process creates ``victim`` at the exact moment the
+        script performs its exclusive open on it (the validation->open
+        window). The delegated real open then sees the path taken and
+        raises FileExistsError, exactly as a concurrent creator would.
+        """
+        real_open = builtins.open
+
+        def racing_open(file, *args, **kwargs):
+            if (
+                isinstance(file, (str, os.PathLike))
+                and Path(file) == victim
+                and not victim.exists()
+            ):
+                fd = os.open(
+                    str(victim), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644
+                )
+                with os.fdopen(fd, "wb") as competing:
+                    competing.write(sentinel)
+            return real_open(file, *args, **kwargs)
+
+        monkeypatch.setattr(builtins, "open", racing_open)
+
+    def _fake_django(
+        self, monkeypatch: pytest.MonkeyPatch, configured_name: str
+    ) -> dict:
+        """Install a fake ``django`` package in sys.modules whose only
+        behavior is to report the configured database name and to record
+        any call_command (refusing it loudly). monkeypatch restores the
+        real modules after the test. build() raises at the exclusive
+        creation step, long before any project import runs, so no real
+        Django machinery is touched while the fakes are installed.
+        """
+        state = {"call_command_calls": []}
+
+        def _refuse_migration(*args, **kwargs):
+            state["call_command_calls"].append((args, kwargs))
+            raise AssertionError(
+                "migrate must never run against a pre-existing database"
+            )
+
+        fake_django = types.ModuleType("django")
+        fake_django.setup = lambda: None
+        fake_core = types.ModuleType("django.core")
+        fake_management = types.ModuleType("django.core.management")
+        fake_management.call_command = _refuse_migration
+        fake_db = types.ModuleType("django.db")
+        fake_db.connections = {
+            "default": types.SimpleNamespace(
+                settings_dict={"NAME": configured_name}
+            )
+        }
+        fake_django.core = fake_core
+        fake_core.management = fake_management
+        fake_django.db = fake_db
+        monkeypatch.setitem(sys.modules, "django", fake_django)
+        monkeypatch.setitem(sys.modules, "django.core", fake_core)
+        monkeypatch.setitem(sys.modules, "django.core.management", fake_management)
+        monkeypatch.setitem(sys.modules, "django.db", fake_db)
+        return state
+
+    def test_exclusive_database_creation_succeeds_on_a_fresh_path(
+        self, pf, tmp_path
+    ) -> None:
+        planned = tmp_path / "fresh_preview.sqlite3"
+        pf.create_preview_database_exclusively(planned)
+        assert planned.is_file() and not planned.is_symlink()
+        assert planned.stat().st_size == 0
+        # SQLite compatibility: the fresh 0-byte file is a valid empty
+        # database that migrate can create a schema inside.
+        con = sqlite3.connect(str(planned))
+        try:
+            assert con.execute("PRAGMA schema_version").fetchone()[0] == 0
+        finally:
+            con.close()
+
+    def test_exclusive_database_creation_refuses_a_pre_existing_file_byte_for_byte(
+        self, pf, tmp_path
+    ) -> None:
+        planned = tmp_path / "existing_preview.sqlite3"
+        planned.write_bytes(SENTINEL)
+        with pytest.raises(RuntimeError, match="preview database"):
+            pf.create_preview_database_exclusively(planned)
+        assert planned.read_bytes() == SENTINEL
+        assert _sha(planned) == hashlib.sha256(SENTINEL).hexdigest()
+
+    def test_exclusive_database_creation_refuses_a_late_appearance_race_byte_for_byte(
+        self, pf, tmp_path, monkeypatch
+    ) -> None:
+        # The planned file does NOT exist at validation time; a competing
+        # creator takes it at the exact moment of the exclusive open.
+        planned = tmp_path / "race_preview.sqlite3"
+        assert not planned.exists()
+        self._simulate_late_creation(monkeypatch, planned, SENTINEL)
+        with pytest.raises(RuntimeError, match="preview database"):
+            pf.create_preview_database_exclusively(planned)
+        assert planned.read_bytes() == SENTINEL
+        assert _sha(planned) == hashlib.sha256(SENTINEL).hexdigest()
+
+    def test_exclusive_database_creation_refuses_a_dangling_symlink(
+        self, pf, tmp_path
+    ) -> None:
+        planned = tmp_path / "dangling_preview.sqlite3"
+        os.symlink(str(tmp_path / "never_created_target"), str(planned))
+        with pytest.raises(RuntimeError, match="preview database"):
+            pf.create_preview_database_exclusively(planned)
+        # The symlink itself is untouched (never followed, never deleted)
+        # and its target was never created.
+        assert planned.is_symlink()
+        assert not (tmp_path / "never_created_target").exists()
+
+    def test_exclusive_manifest_write_creates_the_exact_payload_bytes(
+        self, pf, tmp_path
+    ) -> None:
+        manifest = tmp_path / "preview_urls.json"
+        payload = {
+            "preview_db": "db",
+            "generated_at": "2026-10-23T12:00:00+00:00",
+            "runs": {"multiquote": "/research/1"},
+        }
+        pf.write_preview_manifest_exclusively(manifest, payload)
+        assert manifest.read_text(encoding="utf-8") == (
+            json.dumps(payload, indent=2) + "\n"
+        )
+
+    def test_exclusive_manifest_write_refuses_a_pre_existing_file_byte_for_byte(
+        self, pf, tmp_path
+    ) -> None:
+        manifest = tmp_path / "preview_urls.json"
+        manifest.write_bytes(SENTINEL)
+        with pytest.raises(RuntimeError, match="preview URL manifest"):
+            pf.write_preview_manifest_exclusively(manifest, {"runs": {}})
+        assert manifest.read_bytes() == SENTINEL
+        assert _sha(manifest) == hashlib.sha256(SENTINEL).hexdigest()
+
+    def test_exclusive_manifest_write_refuses_a_late_appearance_race_byte_for_byte(
+        self, pf, tmp_path, monkeypatch
+    ) -> None:
+        # The TOCTOU window: no manifest at validation time, a competing
+        # creator takes the path at the exact moment of the exclusive
+        # open. The pre-existing file must survive byte-for-byte.
+        manifest = tmp_path / "preview_urls.json"
+        assert not manifest.exists()
+        self._simulate_late_creation(monkeypatch, manifest, SENTINEL)
+        with pytest.raises(RuntimeError, match="preview URL manifest"):
+            pf.write_preview_manifest_exclusively(manifest, {"runs": {}})
+        assert manifest.read_bytes() == SENTINEL
+        assert _sha(manifest) == hashlib.sha256(SENTINEL).hexdigest()
+
+    def test_build_never_migrates_a_database_that_appeared_after_planning(
+        self, pf, monkeypatch, authorized_preview_subdir
+    ) -> None:
+        planned = pf.plan_preview_database(
+            str(authorized_preview_subdir),
+            base_dir=REPO,
+            now=_fixed_now(),
+            token="ab12cd34ef56",
+        )
+        manifest = planned.parent / "preview_urls.json"
+        # Late appearance: a concurrent process / newly appearing file
+        # takes the planned path AFTER the planner validated it.
+        planned.write_bytes(SENTINEL)
+        state = self._fake_django(monkeypatch, str(planned))
+        with pytest.raises(RuntimeError, match="preview database"):
+            pf.build(planned, manifest)
+        assert state["call_command_calls"] == []  # no migration ran
+        assert planned.read_bytes() == SENTINEL  # byte-for-byte preserved
+        assert not manifest.exists()  # nothing else was written
+
+    def test_build_never_migrates_when_the_database_appears_between_check_and_open(
+        self, pf, monkeypatch, authorized_preview_subdir
+    ) -> None:
+        planned = pf.plan_preview_database(
+            str(authorized_preview_subdir),
+            base_dir=REPO,
+            now=_fixed_now(),
+            token="cd34ef56ab12",
+        )
+        manifest = planned.parent / "preview_urls.json"
+        # The window the TOCTOU race lives in: the file passes the
+        # exists() re-check and is created by a competing process at the
+        # exact moment of the exclusive open, immediately before migrate.
+        self._simulate_late_creation(monkeypatch, planned, SENTINEL)
+        state = self._fake_django(monkeypatch, str(planned))
+        with pytest.raises(RuntimeError, match="preview database"):
+            pf.build(planned, manifest)
+        assert state["call_command_calls"] == []  # no migration ran
+        assert planned.read_bytes() == SENTINEL  # byte-for-byte preserved
+        assert not manifest.exists()  # nothing else was written

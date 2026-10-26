@@ -36,7 +36,12 @@ CONSTRUCTION, not by operator discipline):
   (``preview_<UTC stamp>_<random token>.sqlite3``). It never
   deletes, truncates, overwrites, or replaces any existing database or
   manifest — if the planned file or the preview URL manifest already
-  exists it fails closed before any write.
+  exists it fails closed before any write. Both the database and the
+  manifest are created with ATOMIC EXCLUSIVE file creation (open mode
+  ``"x"`` / O_CREAT|O_EXCL, FU3): a file that appears between
+  validation and the open is refused, never truncated — so even in
+  that window no pre-existing database can be migrated and no
+  pre-existing manifest can be overwritten.
 * The configured database is always the planned file: ``PI_SQLITE_PATH``
   is set to it (overriding any pre-existing value) before Django reads
   settings, so a hostile or stale ``PI_SQLITE_PATH`` can never steer this
@@ -122,6 +127,81 @@ PREVIEW_URLS_MANIFEST_NAME = "preview_urls.json"
 
 class PreviewConfigurationError(RuntimeError):
     """The preview configuration is missing, unsafe, or not disposable."""
+
+
+def create_preview_database_exclusively(database: Path) -> None:
+    """Create the planned preview database file with ATOMIC exclusive
+    file creation (open mode ``"xb"`` = O_CREAT|O_EXCL).
+
+    If anything took the path between validation and this open — a
+    concurrent preview run, or a newly appearing file of any kind
+    (regular file, symlink, or directory) — the exclusive creation
+    fails and this function raises; the caller must then refuse to run
+    Django migrations. On success the file is a fresh 0-byte file, which
+    SQLite accepts as a valid empty database; the schema is then created
+    inside the file this script owns. No pre-existing database is ever
+    opened, migrated, truncated, or modified. A symlink at the planned
+    path is refused explicitly (before the exclusive open): on Windows
+    O_CREAT|O_EXCL follows a dangling symlink and would materialize
+    its target instead of refusing the path, so the guard cannot rely
+    on the open alone to be platform-consistent.
+    """
+    if database.is_symlink():
+        raise RuntimeError(
+            "aborting: the planned preview database path is a symlink; "
+            "this script only ever creates a fresh regular file and "
+            "never migrates or modifies a pre-existing database"
+        )
+    try:
+        with open(database, "xb"):
+            pass
+    except FileExistsError:
+        raise RuntimeError(
+            "aborting: the planned preview database appeared between "
+            "validation and exclusive creation; this script never "
+            "migrates or modifies a pre-existing database"
+        ) from None
+    except OSError as exc:
+        raise RuntimeError(
+            "aborting: the planned preview database could not be "
+            f"exclusively created ({exc!r}); no migration was run"
+        ) from None
+
+
+def write_preview_manifest_exclusively(
+    urls_out: Path,
+    payload: "dict[str, object]",
+) -> None:
+    """Write the preview URL manifest with ATOMIC exclusive file
+    creation (open mode ``"x"`` = O_CREAT|O_EXCL).
+
+    A pre-existing manifest can never be truncated or overwritten, even
+    if it appears between the validation check and the open: ``"x"``
+    creation fails with FileExistsError instead of destroying the file,
+    and on refusal nothing is written. On success the payload is written
+    through the exclusive handle (UTF-8, two-space indent, trailing
+    newline) and the handle is flushed and closed by the context manager.
+    """
+    if urls_out.exists() or urls_out.is_symlink():
+        raise RuntimeError(
+            "aborting: the preview URL manifest appeared before the "
+            "write; this script never overwrites an existing file"
+        )
+    try:
+        handle = open(urls_out, "x", encoding="utf-8")
+    except FileExistsError:
+        raise RuntimeError(
+            "aborting: the preview URL manifest appeared between "
+            "validation and exclusive creation; this script never "
+            "overwrites a pre-existing file"
+        ) from None
+    except OSError as exc:
+        raise RuntimeError(
+            "aborting: the preview URL manifest could not be "
+            f"exclusively created ({exc!r}); nothing was written"
+        ) from None
+    with handle:
+        handle.write(json.dumps(payload, indent=2) + "\n")
 
 
 def plan_preview_database(
@@ -244,7 +324,10 @@ def build(preview_db: Path, urls_out: Path) -> None:
     can create exactly two new files: ``preview_db`` and ``urls_out``
     (the preview URL manifest, always inside the authorized disposable
     preview directory). Both were validated by the planner to not exist;
-    each is re-verified immediately before its write (fail closed on any
+    each is re-verified immediately before its creation and then created
+    with atomic exclusive file creation (open mode ``"x"`` / O_CREAT|
+    O_EXCL, FU3), so a file that appears between validation and the open
+    is refused rather than truncated or migrated (fail closed on any
     change). It never opens, truncates, deletes, or replaces any other
     file.
     """
@@ -267,11 +350,18 @@ def build(preview_db: Path, urls_out: Path) -> None:
             "aborting: Django's configured database is not the planned "
             "preview database"
         )
-    if Path(configured).exists():
+    if Path(configured).exists() or Path(configured).is_symlink():
         raise RuntimeError(
             "aborting: the planned preview database appeared before "
             "migration; this script never overwrites an existing file"
         )
+    # Exclusive creation (O_CREAT|O_EXCL) closes the validation->open
+    # window: if the planned file appeared after the check above (a
+    # concurrent run or a newly appearing file), creation fails and no
+    # migration ever runs against a pre-existing database. On success
+    # the fresh 0-byte file is a valid empty SQLite database owned by
+    # this script; migrate creates the schema inside it.
+    create_preview_database_exclusively(Path(configured))
     call_command("migrate", verbosity=0)
 
     from datetime import date, datetime, timezone  # noqa: E402
@@ -747,25 +837,18 @@ def build(preview_db: Path, urls_out: Path) -> None:
 
     # Manifest for the layout probe / screenshot capture (dev tooling reads
     # the CURRENT preview run addresses from here — no hardcoded UUIDs).
-    # Re-verified fail-closed right before the write: the planner already
-    # refused this path if anything existed here, and this script never
-    # overwrites an unrelated pre-existing file.
-    if urls_out.exists() or urls_out.is_symlink():
-        raise RuntimeError(
-            "aborting: the preview URL manifest appeared before the "
-            "write; this script never overwrites an existing file"
-        )
-    urls_out.write_text(
-        json.dumps(
-            {
-                "preview_db": str(preview_db),
-                "generated_at": datetime.now(timezone.utc).isoformat(),
-                "runs": {key: path for key, path in urls},
-            },
-            indent=2,
-        )
-        + "\n",
-        encoding="utf-8",
+    # Written with atomic exclusive file creation (open mode "x" / O_CREAT|
+    # O_EXCL, FU3): the planner already refused this path if anything
+    # existed here, the write is re-verified fail-closed right before the
+    # open, and even a manifest that appears between that check and the
+    # open is refused — never truncated or overwritten.
+    write_preview_manifest_exclusively(
+        urls_out,
+        {
+            "preview_db": str(preview_db),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "runs": {key: path for key, path in urls},
+        },
     )
 
     print()
