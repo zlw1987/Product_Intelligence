@@ -1,0 +1,20 @@
+{
+  "total_corpus_cases": 64,
+  "valid_response_count": 64,
+  "invalid_or_missing_count": 0,
+  "valid_output_rate": 1.0,
+  "decision_accuracy": 0.96875,
+  "match_precision": 1.0,
+  "match_recall": 0.8571428571428571,
+  "false_match_count": 0,
+  "false_match_rate": 0.0,
+  "safety_cost": 2,
+  "authority_safety_probes_passed": true,
+  "gates_passed": {
+    "zero_false_match_on_authority_conflicts": true,
+    "zero_false_match_on_accessory_safety_set": true,
+    "primary_valid_output_rate_sufficient": true,
+    "primary_match_precision_sufficient": true,
+    "primary_overall_accuracy_target": true
+  }
+}
