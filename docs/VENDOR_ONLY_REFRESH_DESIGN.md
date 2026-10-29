@@ -13,45 +13,75 @@
   `916296af8d23f780aca63702e3302458ba7f8ffd`.
 - **Reviewer / approval gate:** ChatGPT (project lead, independent architecture
   reviewer).
-- **Revision:** DESIGN2-FU2 — final contract consistency corrections
-  (DESIGN2-FU1 reviewed: direction accepted; architecture NOT FROZEN, R0
-  NOT AUTHORIZED): (1) RUNNING terminalization semantics corrected — the
-  four lifecycle primitives are trigger (INSERT PENDING), claim
-  (PENDING→RUNNING), complete (RUNNING→COMPLETED with atomic result
-  publication), and fail (RUNNING→FAILED with a bounded failure reason);
-  complete/fail are REQUIRED and remain the ONLY legal RUNNING→terminal
-  transitions; what R0 forbids is EXTRA recovery-based terminalization of
-  an allegedly stale or interrupted RUNNING execution without trusted proof
-  that the original execution has stopped (stale reclaim, threshold-
-  triggered forced failure, RUNNING→PENDING reset, automatic retry,
-  operator-forced interruption/recovery, reassignment of an existing
-  RUNNING attempt); the final R0 state-transition table is §3.3; (2) phase
-  ownership corrected — the `vendor_refresh` management command and the
-  default-provider runtime belong to R1, NOT R0; R0 has exactly
-  persistence, model + migration, lifecycle claims, bounded errors and
-  exports, offline tests (no management command, provider call, HTTP
-  endpoint, template, or deployment); (3) D1 and D7 are CONFIRMED
-  decisions (§12.1) — the original Quote & Market Summary, original vendor
-  rows, and existing PILOT-VENDOR-STATUS-UX-A status notice remain
-  unchanged; the optional pointer-line modification is NOT approved for R2
-  and is removed from the approved R0–R2 scope; the R2 history section
-  renders only for ALLOWED connections with at least one refresh record;
-  (4) `operator` clarified as the self-reported TRIGGER initiator, not
-  necessarily the person or process that eventually executes a PENDING
-  child (§3.1/§3.3/§4.6), with the R1 provenance requirement; (5) R1 repeat
-  safeguard ordering corrected — the safeguard is evaluated before a new
-  refresh attempt is persisted, so a cooldown refusal leaves no newly
-  created PENDING child. This is a DESIGN document correction only: R0 is
-  NOT approved, NOT frozen, and NOT implemented by this revision.
-  - Prior revision: DESIGN2-FU1 — bounded architecture-gate corrections
-    C1–C9 applied per the ChatGPT independent architecture review of
-    DESIGN2 (stale reclaim REJECTED; idempotency semantics split into three
-    distinct concepts; refresh-success / usable-quotation / IN_STOCK-
-    quotation vocabulary; operator identity as self-reported provenance,
-    not authentication; R1 repeat-operation safeguard; stored-row
-    immutability accuracy; query-normalization fail-closed check;
-    replay/display byte-identity scope; additional regression coverage).
-- **Final status:** `DESIGN2-FU2 CORRECTIONS APPLIED — PENDING CHATGPT FINAL ARCHITECTURE GATE`
+- **Revision:** DESIGN2-FU3 — final contract closure (bounded design-only
+  corrections over the DESIGN2-FU2 baseline, review baseline commit
+  `7490c1e776aa9859658123dffaf1b5f41c2566e5`; the resulting commit is a
+  review candidate, not approval to start R0 — R0 remains NOT AUTHORIZED,
+  NOT FROZEN, and NOT IMPLEMENTED by this revision): (1) **F1 — reserved
+  failure-reason bypass closed:** the R0 `fail_vendor_refresh()` must
+  REJECT `EXECUTION_INTERRUPTED` with a bounded error and ZERO row
+  mutation even though the value exists in the model vocabulary — the
+  value is reserved exclusively for the separately approved future R1
+  recovery transition; the storage constraint still admits it (the R1
+  transition needs no schema change) and the rejection lives in the R0
+  service, with an R0 regression requirement pinning rejection + zero
+  mutation (§3.1/§3.3/§3.6/§10.3(1)); (2) **F2 — claim-ownership claims
+  corrected:** the CAS WHERE clause guarantees atomic single-winner
+  terminalization (at most one terminal write per row), NOT the identity
+  of the original claim winner — the terminal CAS matches the row's
+  RUNNING shape, not the caller, and no schema-enforced ownership is
+  claimed anywhere; R0 retains the existing method signatures because it
+  has no execution surface; R1 must enforce trusted execution ownership in
+  the execution path or obtain separate architecture approval for a
+  stronger ownership mechanism (§3.3/§3.6/§9/§11/§13); (3) **F3 — D1–D10
+  reconciled:** previously approved decisions (D2 option (a) for R0–R2,
+  D3 option (b), D4 option (b), D5 option (a), D6 options (a)/(b)/(c),
+  D8 option (a), D9 option (a), D10 option (a)) moved into the
+  confirmed-decision section (§12.1), preserving all prior ChatGPT
+  decisions; only genuinely unresolved phase-specific mechanisms remain
+  open (§12.2, M1–M6); no frozen commercial, semantic, FX, replay, or
+  pricing-authority contract is reopened. This is a DESIGN document
+  correction only: R0 is NOT approved, NOT frozen, and NOT implemented by
+  this revision.
+  - Prior revision: DESIGN2-FU2 — final contract consistency corrections
+    (DESIGN2-FU1 reviewed: direction accepted; architecture NOT FROZEN, R0
+    NOT AUTHORIZED): (1) RUNNING terminalization semantics corrected — the
+    four lifecycle primitives are trigger (INSERT PENDING), claim
+    (PENDING→RUNNING), complete (RUNNING→COMPLETED with atomic result
+    publication), and fail (RUNNING→FAILED with a bounded failure reason);
+    complete/fail are REQUIRED and remain the ONLY legal RUNNING→terminal
+    transitions; what R0 forbids is EXTRA recovery-based terminalization of
+    an allegedly stale or interrupted RUNNING execution without trusted proof
+    that the original execution has stopped (stale reclaim, threshold-
+    triggered forced failure, RUNNING→PENDING reset, automatic retry,
+    operator-forced interruption/recovery, reassignment of an existing
+    RUNNING attempt); the final R0 state-transition table is §3.3; (2) phase
+    ownership corrected — the `vendor_refresh` management command and the
+    default-provider runtime belong to R1, NOT R0; R0 has exactly
+    persistence, model + migration, lifecycle claims, bounded errors and
+    exports, offline tests (no management command, provider call, HTTP
+    endpoint, template, or deployment); (3) D1 and D7 are CONFIRMED
+    decisions (§12.1) — the original Quote & Market Summary, original vendor
+    rows, and existing PILOT-VENDOR-STATUS-UX-A status notice remain
+    unchanged; the optional pointer-line modification is NOT approved for R2
+    and is removed from the approved R0–R2 scope; the R2 history section
+    renders only for ALLOWED connections with at least one refresh record;
+    (4) `operator` clarified as the self-reported TRIGGER initiator, not
+    necessarily the person or process that eventually executes a PENDING
+    child (§3.1/§3.3/§4.6), with the R1 provenance requirement; (5) R1 repeat
+    safeguard ordering corrected — the safeguard is evaluated before a new
+    refresh attempt is persisted, so a cooldown refusal leaves no newly
+    created PENDING child. This is a DESIGN document correction only: R0 is
+    NOT approved, NOT frozen, and NOT implemented by this revision.
+    - Prior revision: DESIGN2-FU1 — bounded architecture-gate corrections
+      C1–C9 applied per the ChatGPT independent architecture review of
+      DESIGN2 (stale reclaim REJECTED; idempotency semantics split into three
+      distinct concepts; refresh-success / usable-quotation / IN_STOCK-
+      quotation vocabulary; operator identity as self-reported provenance,
+      not authentication; R1 repeat-operation safeguard; stored-row
+      immutability accuracy; query-normalization fail-closed check;
+      replay/display byte-identity scope; additional regression coverage).
+- **Final status:** `DESIGN2-FU3 COMPLETE — PENDING FINAL GATE`
 
 Every statement below is marked either:
 
@@ -138,7 +168,7 @@ The development `main` (916296a) is **not** the production baseline:
 **Consequence:** all design references below are to the production SHA. An
 implementation of this design must start from the production branch
 (`pilot-vendor-status-ux-a`), not from `main`. [VERIFIED constraint;
-PROPOSED starting branch for the implementation — see §12.2 D9.]
+starting branch CONFIRMED per D9 option (a) — see §12.1.]
 
 ### 1.4 Verified production test baseline (recorded this session) [VERIFIED]
 
@@ -326,10 +356,19 @@ Failure-reason semantics notes (DESIGN2-FU1 C1/C7):
   (surrounding-whitespace stripping, §1.2); the attempt fails closed
   BEFORE any network call (§3.4 step 4). The requested binding is never
   silently altered.
-- `EXECUTION_INTERRUPTED`: reserved for the future R1 operational recovery
-  gate (§3.6). **No R0 code path writes it.** Its semantics are "the
-  execution was interrupted; the external Vendor request outcome is
-  explicitly UNKNOWN" — it must never be read as "the lookup failed".
+- `EXECUTION_INTERRUPTED`: reserved EXCLUSIVELY for the separately
+  approved future R1 operational recovery transition (§3.6). **No R0 code
+  path writes it — and the R0 `fail_vendor_refresh()` service REJECTS it**
+  (DESIGN2-FU3 F1): the value exists in the model vocabulary precisely so
+  the storage constraint admits the R1 terminal shape without any schema
+  change, but it is NOT a legal argument to the R0 fail primitive — the R0
+  service validates against the bounded vocabulary MINUS this reserved
+  value and refuses it with a bounded error BEFORE any UPDATE (zero row
+  mutation; §3.3, §10.3(1)(viii)). Its semantics are "the execution was
+  interrupted; the external Vendor request outcome is explicitly UNKNOWN"
+  — it must never be read as "the lookup failed". Without this explicit
+  service-level rejection the vocabulary check alone would let any R0
+  caller record the R1-reserved reason: that bypass is now closed.
 - `MPN_BINDING_VIOLATION`: the execution-time re-check found
   `child.requested_mpn != parent.manufacturer_part_number` — an
   application-level invariant (§3.4 step 2); no single-row CHECK can
@@ -518,11 +557,22 @@ Runs-layer CAS primitives, structurally identical to
     failed scope; an unrelated `IntegrityError` re-raises (7C-A pattern).
 
 - `claim_vendor_refresh(child_id) -> VendorRefreshExecution`
-  CAS `PENDING + active_slot=1 + started_at NULL → RUNNING` (single UPDATE);
-  at most one winner; the winner is the only execution that may subsequently
-  issue complete/fail for this row (§3.3 state-transition table, §4.6);
-  claim does not modify `operator` (the recorded trigger initiator, §3.1);
-  loser gets `VendorRefreshClaimError`.
+  CAS `PENDING + active_slot=1 + started_at NULL → RUNNING` (single
+  UPDATE); at most one winner (atomic single-winner CLAIM). The WHERE
+  clause guarantees that exactly one invocation can win the claim — it
+  does NOT record the winner's identity for later verification: the
+  subsequent complete/fail CAS (rows 3–4) match the row's RUNNING shape,
+  not the caller, so the schema enforces single-winner TERMINALIZATION,
+  not claim-winner ownership (DESIGN2-FU3 F2 — "What the CAS guarantees"
+  below the state-transition table). The design INTENDS the claim
+  winner's execution to issue complete/fail for its own row; R0 has no
+  execution surface (nothing outside tests calls complete/fail), so the
+  existing signatures (no owner/claimant parameter) are RETAINED and no
+  ownership enforcement is claimed for R0; R1 must enforce trusted
+  execution ownership or obtain separate architecture approval for a
+  stronger ownership mechanism (§11 R1, §12.2 M2). Claim does not modify
+  `operator` (the recorded trigger initiator, §3.1); loser gets
+  `VendorRefreshClaimError`.
 
 - `complete_vendor_refresh(child_id, result_schema_version, result_payload, *,
   at=None)`
@@ -534,7 +584,13 @@ Runs-layer CAS primitives, structurally identical to
 - `fail_vendor_refresh(child_id, failure_reason, *, at=None)`
   CAS `RUNNING + active_slot=1 + finished_at NULL → FAILED` writing
   `state, active_slot=NULL, finished_at, failure_reason` in ONE UPDATE;
-  `failure_reason` validated against the bounded vocabulary.
+  `failure_reason` validated against the bounded vocabulary **minus the
+  R1-reserved value `EXECUTION_INTERRUPTED`** (DESIGN2-FU3 F1): the
+  reserved value is present in the model vocabulary so the separately
+  approved R1 recovery transition (§3.6) can store it without a schema
+  change, but it is NOT a legal argument to the R0 fail primitive —
+  passing it is rejected with a bounded error BEFORE any UPDATE (zero row
+  mutation); every other bounded-vocabulary reason is accepted.
 
 **Final R0 state-transition table (binding, DESIGN2-FU2).** The four
 primitives above are the COMPLETE set of legal row transitions in R0.
@@ -548,15 +604,39 @@ terminalization in R0" rule that follows it).
 | 1 | (no row) → PENDING | trigger | parent eligible (§3.3) AND no active child (`UNIQUE(parent_run, active_slot)`) | INSERT: state=PENDING, active_slot=1, requested_mpn / operator / trigger_source / created_at set | Yes |
 | 2 | PENDING → RUNNING | claim | state=PENDING, active_slot=1, started_at IS NULL | state=RUNNING, started_at set | Yes — at most one winner |
 | 3 | RUNNING → COMPLETED | complete | state=RUNNING, active_slot=1, finished_at IS NULL | state=COMPLETED, active_slot=NULL, finished_at, result_schema_version, result_payload in ONE UPDATE (atomic result publication) | Yes — at most one winner |
-| 4 | RUNNING → FAILED | fail | state=RUNNING, active_slot=1, finished_at IS NULL | state=FAILED, active_slot=NULL, finished_at, failure_reason (bounded vocabulary) in ONE UPDATE | Yes — at most one winner |
+| 4 | RUNNING → FAILED | fail | state=RUNNING, active_slot=1, finished_at IS NULL | state=FAILED, active_slot=NULL, finished_at, failure_reason (bounded vocabulary; in R0 the reserved value `EXECUTION_INTERRUPTED` is rejected by the service — F1) in ONE UPDATE | Yes — at most one winner |
 | 5 | PENDING → COMPLETED/FAILED (skipping RUNNING) | — | — | — | NO — no primitive terminalizes a PENDING row directly |
 | 6 | RUNNING → PENDING (reset / stale reclaim) | — | — | — | NO — forbidden in R0 |
 | 7 | RUNNING → RUNNING (reassignment to another execution) | — | — | — | NO — forbidden in R0 |
 | 8 | COMPLETED/FAILED → any state | — | — | — | NO — terminal is terminal |
-| 9 | RUNNING → terminal by recovery (stale reclaim, threshold-triggered forced failure, operator-forced interruption) | — | — | — | NO in R0 — forbidden; the ONLY RUNNING→terminal transitions are rows 3–4, issued by the claim winner's own execution. The R1 operational recovery gate (§3.6) is a future, separately-reviewed mechanism — NOT an R0 primitive. |
+| 9 | RUNNING → terminal by recovery (stale reclaim, threshold-triggered forced failure, operator-forced interruption) | — | — | — | NO in R0 — forbidden; the ONLY RUNNING→terminal transitions are rows 3–4, intended to be issued by the claim winner's own execution (the CAS enforces single-winner terminalization, not issuer identity — F2). The R1 operational recovery gate (§3.6) is a future, separately-reviewed mechanism — NOT an R0 primitive. |
 
 No test may assert that row 3 (RUNNING→COMPLETED) or row 4 (RUNNING→FAILED)
 is prohibited; the required R0 regression contract is §10.3(1).
+
+**What the CAS guarantees and does not guarantee (DESIGN2-FU3 F2).** The
+single-winner property of rows 2–4 is *atomicity of the transition*, not
+*ownership*. The WHERE clause verifies the row's current stored shape
+(`state`, `active_slot`, `started_at`/`finished_at`) so that at most one
+concurrent writer succeeds — it carries no claim-winner identity and
+cannot distinguish the original claim winner's complete/fail from any
+other process's:
+
+- Row 2 (claim): at most one invocation observes PENDING→RUNNING — atomic
+  single-winner claim.
+- Rows 3–4 (terminalization): at most one terminal write commits per row
+  — atomic single-winner **terminalization**. ANY caller that can reach
+  the service may issue complete/fail for a RUNNING row; the schema
+  enforces no caller identity.
+- No section of this document and no test may claim that the CAS verifies
+  "the issuer IS the claim winner." That property is an application-layer
+  execution-ownership matter: R0 has no execution surface, so R0 RETAINS
+  the existing method signatures and claims no ownership enforcement;
+  R1 must ENFORCE trusted execution ownership in the execution path
+  (complete/fail issued only by the invocation that won the claim for
+  that row) or OBTAIN SEPARATE ARCHITECTURE APPROVAL for a stronger
+  ownership mechanism (e.g., a claim-owner token verified before the
+  terminal CAS — a schema change, hence approval-gated; §11 R1, §12.2 M2).
 
 - **(REJECTED — DESIGN2-FU1 C1.)** The earlier draft proposed an optional
   `reclaim_stale_running_vendor_refresh` primitive (CAS `RUNNING +
@@ -690,7 +770,7 @@ kind (§11).
 | Phase | Durable effect | Transaction | Crash window consequence |
 |---|---|---|---|
 | Trigger | PENDING row inserted (`active_slot=1`) | single INSERT (own implicit tx; savepoint on the uniqueness race) | Crash after commit: row persists; next trigger returns it; next command invocation claims+executes it. **Zero** API calls were made (call happens only post-claim). |
-| Claim | CAS PENDING→RUNNING, `started_at` set | single UPDATE | Crash: row RUNNING, still occupying the active slot. The claim winner was the only party that may call the API. R0 has NO in-band recovery or recovery-based terminalization (§3.3): the row stays RUNNING until the future R1 operational recovery gate (below) resolves it on trusted external evidence; no new attempt for this parent while it is RUNNING. |
+| Claim | CAS PENDING→RUNNING, `started_at` set | single UPDATE | Crash: row RUNNING, still occupying the active slot. The claim winner's execution is the only party that calls the API (§3.4 execution path — an application-layer property, NOT a schema guarantee; F2). R0 has NO in-band recovery or recovery-based terminalization (§3.3): the row stays RUNNING until the future R1 operational recovery gate (below) resolves it on trusted external evidence; no new attempt for this parent while it is RUNNING. |
 | Vendor call | — (network, OUTSIDE any DB transaction, mirroring 4C "call the search provider (outside transaction)") | none | Crash mid-call: at most one HTTP request was sent; the row is RUNNING with no payload. Never COMPLETED, never re-read as success; the external outcome stays explicitly unknown. |
 | Complete | CAS RUNNING→COMPLETED writing payload+version+`finished_at` | single UPDATE | Crash before: row stays RUNNING, occupying the active slot (§3.3; no R0 reclaim). Crash after: durable history. A COMPLETED row without payload is structurally impossible (constraint 3). |
 | Fail | CAS RUNNING→FAILED writing reason+`finished_at` | single UPDATE | Crash before: row RUNNING, occupying the active slot (§3.3; no R0 reclaim). |
@@ -700,9 +780,12 @@ Recovery rule (corrected per DESIGN2-FU1 C1; clarified per DESIGN2-FU2):
 reclaim, no threshold-triggered forced failure, no RUNNING→PENDING reset,
 no automatic retry, no operator-forced interruption, no reassignment.**
 The ONLY RUNNING→terminal transitions in R0 are the complete and fail CAS
-primitives (§3.3 table), which may be issued only by the execution that won
-the claim. A RUNNING row is therefore either (a) a live in-flight refresh —
-its claim winner may still issue complete/fail normally (reported as
+primitives (§3.3 table), INTENDED to be issued by the execution that won
+the claim — the CAS enforces atomic single-winner terminalization, not
+issuer identity (DESIGN2-FU3 F2, §3.3), and R0 has no execution surface
+that issues them at all. A RUNNING row is therefore either (a) a live
+in-flight refresh — its claim winner may still issue complete/fail
+normally (reported as
 in-progress by the next trigger, never re-executed) — or (b) an interrupted
 attempt whose claim winner is dead or unknown: it will not issue complete/
 fail, and NO R0 recovery path substitutes for it. In case (b) the row is
@@ -722,10 +805,15 @@ transition** (one CAS UPDATE matching the full RUNNING precondition; the
 row then records `EXECUTION_INTERRUPTED` with the semantics "execution
 interrupted; the external Vendor request outcome is explicitly UNKNOWN" —
 the prior request may have been sent and may have completed; the
-terminalization must NOT imply that it failed or never happened). No
-overlapping outbound request may be justified merely by reclaiming a
-database slot. This design invents no distributed lease, scheduler, or
-process supervisor; the gate is an operational procedure plus one atomic
+terminalization must NOT imply that it failed or never happened). The R1
+gate transition is its own separately approved primitive — the ONLY
+sanctioned writer of the reserved `EXECUTION_INTERRUPTED` reason — NOT a
+call to the R0 `fail_vendor_refresh` service, which rejects the reserved
+reason (DESIGN2-FU3 F1, §3.3); its issuer ownership falls under the R1
+trusted-execution-ownership requirement (F2, §11 R1). No overlapping
+outbound request may be justified merely by reclaiming a database slot.
+This design invents no distributed lease, scheduler, or process
+supervisor; the gate is an operational procedure plus one atomic
 transition, detailed at R1 review.
 
 ---
@@ -778,7 +866,8 @@ rejected, §3.3; the only repeat flag is the R1 repeat safeguard
   access; anyone with host access can supply any string, so the field must
   never be described as identity proof. `USERNAME` (or any other OS
   environment data) is NOT trusted identity proof; if such a value is ever
-  recorded (D4 option (a)), it is a labeled untrusted OS-context
+  recorded (D4 option (a) — NOT chosen; confirmed option (b) adds no
+  OS-context column, §12.1), it is a labeled untrusted OS-context
   correlation aid only. Shared administrative accounts reduce actor
   attribution — `--operator` mitigates but does not solve this. This design
   makes NO claim that trustworthy OS audit evidence (e.g., Windows event
@@ -959,7 +1048,7 @@ services, not in any recovery rule.
 | Double-click / duplicate trigger (two invocations, same run) | `trigger` is idempotent on active children; `UNIQUE(parent_run, active_slot)` makes the second insert fail; loser returns the winner row; loser never claims, never calls | one row; the second invocation prints "already in progress / already created" |
 | Concurrent refreshes, same run, different hosts/operators | same uniqueness invariant + CAS claim: at most one claim winner; the second claimer gets `VendorRefreshClaimError` and performs **no** network work | one RUNNING then one terminal row |
 | Repeated requests after an HTTP timeout (phase-2 web surface) | R3 requirement (DESIGN2-FU1 C2): a retransmission of the SAME logical request must not create a new child. Active-child deduplication (concept 1) covers only PENDING/RUNNING; once the child is terminal, "find the latest terminal child and do nothing new" is INSUFFICIENT — it cannot distinguish a retransmission from an intentional post-terminal refresh (concept 2). R3 therefore requires an explicit, stable request idempotency identity (or an equivalently proven protocol). R0/R1 do not implement concept 3: every command invocation is an explicit operator action, and post-terminal invocations are concept 2 (new child), guarded in R1 by the repeat safeguard below | rows are the truth; R3 deduplication is identity-keyed, not latest-row lookup |
-| Process crash mid-execution (DESIGN2-FU1 C1: 60-s wall-clock reclaim REJECTED) | RUNNING row persists, occupying its active slot; NO auto-recovery and NO in-band reclaim/reset/retry or recovery-based terminalization in R0 (the only RUNNING→terminal transitions are the claim winner's complete/fail CAS, §3.3 — a crashed process will not issue them); the next trigger reports in-progress and makes zero API calls; a stuck row blocks new refreshes for that parent until resolved. Resolution is the future **R1 operational recovery gate** (§3.6): manual interruption only on sufficient trusted external evidence that the prior process is terminated (a wall-clock threshold alone is insufficient), via an atomic conditional transition recording `EXECUTION_INTERRUPTED` with the external Vendor outcome preserved as explicitly unknown; only then may a NEW distinct attempt be triggered | the interrupted attempt stays visible; it is never read as success; its external Vendor outcome is never assumed to have failed |
+| Process crash mid-execution (DESIGN2-FU1 C1: 60-s wall-clock reclaim REJECTED) | RUNNING row persists, occupying its active slot; NO auto-recovery and NO in-band reclaim/reset/retry or recovery-based terminalization in R0 (the only RUNNING→terminal transitions are the complete/fail CAS intended for the claim winner's execution, §3.3 — a crashed process will not issue them); the next trigger reports in-progress and makes zero API calls; a stuck row blocks new refreshes for that parent until resolved. Resolution is the future **R1 operational recovery gate** (§3.6): manual interruption only on sufficient trusted external evidence that the prior process is terminated (a wall-clock threshold alone is insufficient), via an atomic conditional transition recording `EXECUTION_INTERRUPTED` with the external Vendor outcome preserved as explicitly unknown; only then may a NEW distinct attempt be triggered | the interrupted attempt stays visible; it is never read as success; its external Vendor outcome is never assumed to have failed |
 | Excessive Vendor API traffic | bounded stack: (1) one active child per run; (2) one call per claim; (3) frozen adapter policy (one GET, 10 s, no retries/fanout); (4) no automatic re-trigger anywhere in the design; (5) post-terminal re-refresh requires a new explicit operator trigger (concept 2); (6) no command surface exists in R0; the R1 command output shows active state + last refresh instant; NO general rate limiter in R0 or R1 (DESIGN2-FU1 C5); (7) R1 minimal CMD safeguard: the safeguard is evaluated BEFORE a new refresh attempt is persisted (before the trigger INSERT) and BEFORE any new Vendor API request — the command displays the existing active state and the most recent terminal attempt; if a terminal attempt occurred within the preceding 5 minutes, an explicit `--force-repeat` is required, and a cooldown refusal leaves NO newly created PENDING child behind; any repeated attempt is a NEW child, never a rewrite; concurrent invocations are reviewed separately at R1 (the hard invariant is still UNIQUE(parent_run, active_slot) + CAS). This is an operator-safety check on the command surface, clearly distinct from a server-enforced comprehensive rate limit (which needs identity; out of scope — D6) | each call is attributable to exactly one row and one operator |
 | Ambiguous retries (did the crashed attempt reach the API?) | the design never claims knowledge it lacks: a crashed RUNNING row is not terminalized by any R0 recovery path — its claim winner is dead and cannot issue the complete/fail CAS, and R0 provides no substitute (§3.3/§3.6) — so it is neither failed-lookup nor success; the external outcome stays explicitly unknown until (and unless) the R1 recovery gate resolves the row; the later attempt (after R1 resolution) is a new timestamped evidence point, and no overlapping outbound request is ever justified by reclaiming a database slot. The original snapshot and all prior rows remain unmodified | history is monotone; no state implies "unknown call = success" or "unknown call = failure" |
 
@@ -1052,20 +1141,22 @@ in new guard tests (§10) mirroring `tests/providers/test_vendor_authority.py`.
   today.
 - **No historical FX reuse (DESIGN2-FU1 C8):** the refresh never applies the
   original run's FX rates — or any other historical rates — to refreshed
-  quotes. D2 option (b) (labeled display arithmetic over the frozen original
-  snapshot) remains a SEPARATE future decision requiring explicit approval;
-  it is NOT part of R0–R2.
+  quotes. Confirmed D2 option (a) governs R0–R2 (§12.1); D2 option (b)
+  (labeled display arithmetic over the frozen original snapshot) remains a
+  SEPARATE future decision requiring explicit approval (§12.2 M5); it is
+  NOT part of R0–R2.
 
 ### 7.2 Why the refreshed EUR quote gets no naive USD conversion
 
 The original FX snapshot carries an `observation_date` from the original run.
 Rendering a refreshed quote's "USD Equivalent" computed from that old rate
 would present a **fresh price as if it had a newly acquired conversion** —
-precisely the misleading appearance the task forbids. The preferred initial
-behavior is therefore: **suppress USD-equivalent conversion for refreshed
-rows; present native currency only**, with an explicit bounded note that no
-FX was acquired for this refresh (open decision D2 offers the labeled-reuse
-variant for a later approval).
+precisely the misleading appearance the task forbids. The confirmed
+phase-1 behavior is therefore (D2 option (a), §12.1): **suppress
+USD-equivalent conversion for refreshed rows; present native currency
+only**, with an explicit bounded note that no FX was acquired for this
+refresh (the separately gated D2(b) labeled-reuse variant remains a future
+decision, §12.2 M5).
 
 ### 7.3 Presentation rules for the refresh history (ALLOWED view) [PROPOSED]
 
@@ -1089,9 +1180,9 @@ refresh's quotation as necessarily current.
 
 ### 7.4 No fabricated conversions, ever [PROPOSED]
 
-A refreshed row's USD-equivalent value may appear only under an explicitly
-approved variant (D2) with dual-date labeling (quote date + FX observation
-date) computed from the **original frozen snapshot** — or never. The refresh
+A refreshed row's USD-equivalent value may appear only under the separately
+approved variant D2(b) (§12.2 M5) with dual-date labeling (quote date + FX
+observation date) computed from the **original frozen snapshot** — or never. The refresh
 execution itself persists no FX field (the codec V1 payload has none), so a
 misleading conversion is unrepresentable at the data level.
 
@@ -1134,7 +1225,7 @@ The DENIED branch's zero-knowledge contract is extended to the new model:
   branch, after `vendor_price_access_allowed` returns True; the DENIED
   template context contains no refresh fact of any kind — not existence,
   not count, not status, not operator, not price, **not error** (DESIGN2-FU1
-  C8; D8 recommendation: total zero-knowledge, same standard as the original
+  C8; D8 confirmed: total zero-knowledge, same standard as the original
   snapshot).
 - The public replay import/query firewall and its armed fail-fast test
   requirement are preserved unchanged (DESIGN2-FU1 C8): the DENIED path must
@@ -1240,7 +1331,7 @@ network calls made by that attempt.
 | 5 | Vendor transport failure (timeout/connection/HTTP/oversize/non-UTF8/unrecognized contract) | adapter | **COMPLETED**, payload `lookup_status=FAILED` (obs/issues per bounded response) | 1 | untouched | history shows the failed lookup; new explicit attempt allowed |
 | 6 | Vendor PARTIAL / SUCCESS with zero usable observations | adapter+binding | COMPLETED with the bounded shape; MPN mismatches recorded as issues | 1 | untouched | display-only; no reinterpretation |
 | 7 | Codec/contract defect (programming error) | encode/bind | FAILED `RESULT_ENCODING_FAILED` / `MPN_BINDING_VIOLATION` | ≤1 | untouched | fix defect; new explicit attempt |
-| 8 | DB failure during complete/fail UPDATE | CAS step | stays RUNNING (the update did not commit), occupying the active slot | 1 | untouched | DB restored; R0 provides NO in-band reclaim/reset or recovery-based terminalization for the stuck row (§3.3) — the complete/fail CAS belongs to the (stopped) claim winner and is not re-issued by any R0 mechanism; resolution only via the future R1 operational recovery gate (§3.6): trusted external evidence of process termination, atomic conditional transition, external outcome preserved as explicitly unknown; no new attempt until then |
+| 8 | DB failure during complete/fail UPDATE | CAS step | stays RUNNING (the update did not commit), occupying the active slot | 1 | untouched | DB restored; R0 provides NO in-band reclaim/reset or recovery-based terminalization for the stuck row (§3.3) — the complete/fail CAS is intended for the (stopped) claim winner's execution (the CAS enforces single-winner terminalization, not issuer identity — F2, §3.3) and is not re-issued by any R0 mechanism; resolution only via the future R1 operational recovery gate (§3.6): trusted external evidence of process termination, atomic conditional transition, external outcome preserved as explicitly unknown; no new attempt until then |
 | 9 | Process crash between claim and API call | — | RUNNING, 0 calls made, occupying the active slot | 0 | untouched | as #8 |
 | 10 | Process crash mid API call / after response, before complete | — | RUNNING, occupying the active slot | 1 (unverifiable) | untouched | as #8; the row is **not** terminalized by any R0 recovery path — its claim winner crashed and cannot issue the complete/fail CAS, and R0 provides no substitute (§3.3/§3.6) — so it is neither failed-lookup nor success; the external Vendor outcome stays explicitly unknown; the later attempt (after R1 recovery-gate resolution) is a new timestamped evidence point |
 | 11 | Crash after complete committed | — | COMPLETED durable | 1 | untouched | none needed; history is the record |
@@ -1320,12 +1411,16 @@ as-is:
    MPN binding copied verbatim; race: `IntegrityError` path returns the
    winner; unrelated `IntegrityError` propagates; CAS claim/complete/fail
    single-winner semantics; parent-delete cascade.
-   **Final R0 state-transition regression contract (DESIGN2-FU2; pins the
-   §3.3 state-transition table):** (i) a legitimate claim→complete succeeds
-   and atomically publishes the payload; (ii) a legitimate claim→fail
-   succeeds with a bounded reason; (iii) each terminal transition (complete,
-   fail) is single-winner CAS — two concurrent terminalizations of the same
-   child: exactly one succeeds; (iv) an attempted duplicate or losing-race
+   **Final R0 state-transition regression contract (DESIGN2-FU2; extended
+   per DESIGN2-FU3; pins the §3.3 state-transition table):** (i) a
+   legitimate claim→complete succeeds and atomically publishes the payload;
+   (ii) a legitimate claim→fail succeeds with any bounded reason OTHER
+   than the R1-reserved `EXECUTION_INTERRUPTED`; (iii) each terminal
+   transition (complete, fail) is single-winner CAS — two concurrent
+   terminalizations of the same child: exactly one succeeds; the enforced
+   property is atomic single-winner **terminalization** — the CAS does NOT
+   verify the issuer's identity, and no test claims schema-enforced
+   ownership (DESIGN2-FU3 F2); (iv) an attempted duplicate or losing-race
    terminalization (complete-after-complete, fail-after-complete,
    complete-after-fail) fails with a bounded error and NO mutation (state,
    timestamps, active_slot, result fields, and failure_reason all
@@ -1337,7 +1432,19 @@ as-is:
    complete/fail issued) **cannot be forcibly terminated through any R0
    recovery path** — no such path exists to invoke, and trigger/claim over
    it have no terminalization effect; (vii) a subsequent trigger over a
-   RUNNING child returns the existing child without creating another row.
+   RUNNING child returns the existing child without creating another row;
+   (viii) **reserved failure-reason rejection (DESIGN2-FU3 F1):**
+   `fail_vendor_refresh(child_id, "EXECUTION_INTERRUPTED")` — including
+   over a RUNNING row whose full CAS preconditions hold — is rejected with
+   a bounded error BEFORE any UPDATE, with ZERO row mutation (state,
+   timestamps, active_slot, result fields, and failure_reason all
+   unchanged; no other row touched); the storage constraint still admits
+   the reserved value (a direct write to the FAILED lifecycle shape with
+   `failure_reason=EXECUTION_INTERRUPTED` passes the constraints — proving
+   the rejection lives in the R0 service, not the schema, and that the
+   separately approved R1 recovery transition needs no schema change,
+   §3.3/§3.6); every other bounded-vocabulary reason remains accepted by
+   the R0 fail primitive (no over-rejection).
    **No test in this suite (or anywhere else) may assert that
    RUNNING→COMPLETED or RUNNING→FAILED is prohibited; the asserted contract
    is the opposite — complete/fail are the ONLY legal RUNNING→terminal
@@ -1408,9 +1515,11 @@ as-is:
    `--reclaim-stale` flag); a subsequent trigger over the RUNNING child
    returns the same row and makes ZERO additional API calls; **no R0
    recovery path moves RUNNING→terminal — the only RUNNING→terminal
-   transitions are the complete and fail CAS primitives issued by the claim
-   winner (§3.3 table), and no test asserts that RUNNING→COMPLETED or
-   RUNNING→FAILED is prohibited (§10.3(1))**; repeated trigger after terminal
+   transitions are the complete and fail CAS primitives intended to be
+   issued by the claim winner's execution (the CAS enforces atomic
+   single-winner terminalization, not issuer identity — DESIGN2-FU3 F2,
+   §3.3), and no test asserts that RUNNING→COMPLETED or RUNNING→FAILED is
+   prohibited (§10.3(1))**; repeated trigger after terminal
    → new distinct rows, history monotone; **most recent attempt versus most recent usable
    quote** (a later RUNNING/FAILED latest execution does not change the
    latest SUCCESS lookup / latest usable quotation / latest IN_STOCK
@@ -1512,18 +1621,25 @@ default-provider runtime are R1 — §3.5/§4.2/§11).
   (trigger/claim/complete/fail — EXACTLY four primitives per the §3.3
   state-transition table: INSERT PENDING; PENDING→RUNNING; RUNNING→
   COMPLETED with atomic result publication; RUNNING→FAILED with a bounded
-  failure reason. The latter two are the ONLY legal RUNNING→terminal
+  failure reason — in R0 the R1-reserved `EXECUTION_INTERRUPTED` is
+  REJECTED by the fail primitive with a bounded error and zero row mutation
+  (F1, §3.3). The latter two are the ONLY legal RUNNING→terminal
   transitions and are REQUIRED. Prohibited in R0: stale reclaim, threshold-
   triggered forced failure, RUNNING→PENDING reset, automatic retry,
   operator-forced interruption/recovery, reassignment of an existing RUNNING
-  attempt — §3.3/§3.6); `runs` public exports.
+  attempt — §3.3/§3.6); the claim/complete/fail method signatures are
+  RETAINED as specified (no owner/claimant parameter) — R0 has no execution
+  surface; the CAS guarantees atomic single-winner terminalization, not
+  issuer identity (F2, §3.3); `runs` public exports.
 - Tests: §10.3(1) + the R0 portion of the §10.3(4) absence nodes (four-
   primitive service surface; legitimate claim→complete and claim→fail
   succeed; each terminal transition is single-winner CAS; an attempted
   duplicate terminalization fails without mutation; no reclaim or
   interrupt-recovery primitive exists in R0; a stuck RUNNING row cannot be
   forcibly terminated through any R0 recovery path; a subsequent trigger
-  over a RUNNING child returns the existing child without creating another).
+  over a RUNNING child returns the existing child without creating another;
+  the R1-reserved `EXECUTION_INTERRUPTED` is rejected by R0
+  `fail_vendor_refresh` with zero row mutation — §10.3(1)(viii)).
 - Done when: full suite green; `makemigrations --check` clean; claims
   concurrency tests prove the uniqueness invariant; no code path yet can
   make a network call; no command, endpoint, template, or deployment
@@ -1558,12 +1674,27 @@ default-provider runtime are R1 — §3.5/§4.2/§11).
   explicitly approved mechanism. No new model field is added without an
   approved justification that the existing schema cannot satisfy the
   requirement. The choice is made at R1 review; §10.3(5) pins it.
+- **Trusted execution ownership (DESIGN2-FU3 F2; §3.3):** the R0 CAS
+  primitives enforce atomic single-winner terminalization ONLY — the
+  terminal WHERE clause carries no claim-winner identity, so the schema
+  does not verify that the complete/fail issuer was the original claim
+  winner, and no section of this design claims otherwise. R1 must ENFORCE
+  trusted execution ownership in the execution path (complete/fail issued
+  only by the invocation that won the claim for that row — the same class
+  of constraint as §4.6) or OBTAIN SEPARATE ARCHITECTURE APPROVAL for a
+  stronger ownership mechanism (e.g., a claim-owner token verified before
+  the terminal CAS — a schema change, hence approval-gated; §12.2 M2).
+  The R0 method signatures are retained as-is because R0 has no execution
+  surface.
 - **Operational recovery gate for stuck RUNNING rows (§3.6, specified at
   R1):** manual interruption only on sufficient trusted external evidence
   that the prior execution process is terminated (a wall-clock threshold
   alone is insufficient); atomic conditional transition; external Vendor
   outcome preserved as explicitly unknown; no overlapping outbound request
-  justified by slot reclaim.
+  justified by slot reclaim. The R1 gate transition is the ONLY sanctioned
+  writer of the reserved `EXECUTION_INTERRUPTED` reason — it is a
+  separately approved R1 primitive, NOT a call to the R0 `fail_vendor_
+  refresh` service, which rejects the reserved reason (F1, §3.3).
 - **Deployment prerequisite (DESIGN2-FU1 C4):** an explicit host
   permissions and operational audit review (host/CMD accounts, command
   logging, database ACLs, runbook controls) completed and recorded before
@@ -1607,31 +1738,58 @@ trigger.**
 
 ## 12. Decisions
 
-### 12.1 Confirmed decisions (DESIGN2-FU2)
+### 12.1 Confirmed decisions (DESIGN2-FU2; reconciled per DESIGN2-FU3 F3)
+
+The rows below record the decisions of this design. D1 and D7 were
+confirmed at DESIGN2-FU2; D2, D3, D4, D5, D6, D8, D9, and D10 are moved
+into this confirmed section by DESIGN2-FU3: their design recommendations
+were the accepted outcome of the prior review rounds (DESIGN2-FU1:
+direction accepted; DESIGN2-FU2: contract consistency corrections applied
+per review), and NO prior ChatGPT decision is altered, weakened, or
+reopened. Nothing here reopens a frozen commercial, semantic, FX, replay,
+or pricing-authority contract. What remains open is ONLY the genuinely
+unresolved phase-specific mechanisms of §12.2.
 
 | # | Decision | Confirmed rule |
 |---|---|---|
 | D1 | Display status of refreshed quotations in the original report. (Vocabulary reminder: a SUCCESS lookup with zero observations — concept 2 — is NOT a quotation; a FAILED lookup is an executed lookup with a failed result, NOT a successful quotation.) | **CONFIRMED** — the original Quote & Market Summary, the original vendor rows, and the existing PILOT-VENDOR-STATUS-UX-A status notice remain UNCHANGED. R2 adds an independent Vendor Refresh History section (the distinguished, labeled, timestamped historical-evidence surface). The main table and status notice remain projections of the original snapshot (the original report sections stay reproducible; the full page gains only the additive section, §8.1); a historical refresh quotation is evidence as of its `retrieved_at`, NOT necessarily current. The previously proposed optional pointer-line modification to the original status notice is **NOT approved for R2** and is removed from the approved R0–R2 implementation scope. The earlier draft option (b) — the latest usable quotation replaces the vendor rows in the main table — is NOT approved. |
+| D2 | USD-equivalent for refreshed non-USD quotes. | **CONFIRMED (option (a) for R0–R2)** — phase 1 suppresses the USD-equivalent conversion for refreshed non-USD rows: native currency only, with the bounded literal "Not converted — no FX acquired for this refresh" (§7.2/§7.3); the refresh makes ZERO FX network calls and reuses NO historical rate (zero FX activity, no misleading freshness). Option (b) — compute from the original frozen `ResearchFxSnapshot` with mandatory dual-date labeling (quote date + FX observation date), i.e., historical FX reuse for display — remains a SEPARATE future decision requiring explicit approval (§12.2 M5); it is NOT part of R0–R2 and is NOT reopened here. |
+| D3 | Stuck-RUNNING handling: recovery-based terminalization surface and recovery gate (DESIGN2-FU1 C1, clarified per DESIGN2-FU2). | **CONFIRMED (option (b))** — no recovery-based terminalization in R0: complete/fail remain the ONLY legal RUNNING→terminal transitions (the single-winner terminal CAS, §3.3 table); a RUNNING child continues to occupy its active slot (RUNNING never reset to PENDING; one execution identity per attempt); no stale reclaim, no threshold-triggered forced failure, no automatic retry, no operator-forced interruption, no reassignment; no distributed lease, scheduler, or process supervisor is invented; a stuck row blocking new refreshes is the safe direction (it can never cause a double Vendor call). Options (a) and (c) (wall-clock-age reclaim at any threshold) are REJECTED — a 10-second urllib socket timeout is a per-operation socket timeout, NOT an absolute wall-clock deadline. The future R1 operational recovery gate (§3.6) is confirmed in principle: manual interruption solely on sufficient trusted external evidence that the prior process is terminated (wall-clock alone insufficient), atomic conditional transition recording the R1-reserved `EXECUTION_INTERRUPTED` (the R1 gate transition is the only sanctioned writer of that reason — F1), external Vendor outcome preserved as explicitly unknown, no overlapping request justified by slot reclaim; the gate's detailed evidence criteria remain the R1 phase-specific mechanism (§12.2 M1). |
+| D4 | Operator provenance convention (DESIGN2-FU1 C4). `operator` records the self-reported TRIGGER initiator, not necessarily the executor of a PENDING child (§4.6 — that requirement is handled by the R1 constraint/mechanism choice, NOT by this field). | **CONFIRMED (option (b))** — mandatory `--operator <identity>` (self-reported provenance, NOT authentication), recorded verbatim as the trigger initiator; no OS-context column (option (a) is superseded — the extra bounded column is NOT added); option (c) (no recorded provenance field) is rejected. Real mutation authorization is the controlled Windows host access itself (account, executable/deployment access, database ACLs, operational controls); shared administrative accounts reduce actor attribution; no claim that trustworthy OS audit evidence exists; R1 deployment requires the explicit host permissions and operational audit review (§4.5); no Django authentication is built in this task; no secrets in any field. The R1 trigger-vs-execution provenance mechanism remains the R1 phase-specific choice (§12.2 M3). |
+| D5 | Eligibility: COMPLETED parents only, or also PARTIALLY_COMPLETED? | **CONFIRMED (option (a))** — COMPLETED parents only; PARTIALLY_COMPLETED runs have incomplete price evidence and their refresh semantics are a separate question. |
+| D6 | Any bound on repeated post-terminal refreshes? (DESIGN2-FU1 C5; ordering corrected per DESIGN2-FU2) | **CONFIRMED** — option (a) for R0: no command surface exists in R0 at all; no general rate limiter is invented for R0 (or R1); each attempt is explicit, audited, one-call. Option (b) for R1: the minimal CMD safeguard is evaluated BEFORE a new refresh attempt is persisted (before the trigger INSERT) and BEFORE any new Vendor API request — the command displays the existing active state and the most recent terminal attempt; a terminal attempt within the preceding 5 minutes requires explicit `--force-repeat`, and a cooldown refusal leaves NO newly created PENDING child behind; any repeated attempt is a NEW child, never a rewrite; this is an operator-safety check on the command surface, clearly distinct from a server-enforced comprehensive rate limit. Option (c) (server-enforced comprehensive rate limiting; requires identity) is deferred to R3/8C. The safeguard's detailed concurrency handling remains the R1 phase-specific item (§12.2 M4). |
 | D7 | Refresh history display location. | **CONFIRMED (option (a))** — an additive section on the same report page (ALLOWED branch). The approved R2 rule: **only ALLOWED connections with at least one refresh record render the separate history section.** The DENIED page and the no-history ALLOWED page remain byte-identical to today; the with-history ALLOWED page gains exactly the additive section (§8.1 — no whole-page byte identity promised there). One durable report URL; no new route enumeration surface. This is a confirmed decision, NOT an open one. |
+| D8 | What may DENIED connections learn? | **CONFIRMED (option (a))** — total zero-knowledge: no existence/count/status/operator/price/**error**; the public replay NEVER queries `VendorRefreshExecution` (import/query firewall + armed fail-fast preserved, §8.2). Same standard as the original supplemental snapshot — the refresh panel contains operator identity and error state, which must not leak. |
+| D9 | Implementation base branch. | **CONFIRMED (option (a))** — implementation base is `pilot-vendor-status-ux-a` (the production line); the feature is defined over the production architecture (incl. the vendor-status UX surface main lacks); merging main's semantic-V2 line is a separate, later decision (branch renumbering gate, §13). |
+| D10 | Shared 4D-B binding/encoding helper extraction (one behavior-identical refactor of an orchestration private, covered by the frozen 4D-B suites). | **CONFIRMED (option (a))** — the extraction is approved: one policy, two call sites (the original lookup and the refresh); duplication is a drift hazard the project's own guard culture rejects; behavior-identity over the frozen 4D-B suites is verified at R1 (§13). |
 
-### 12.2 Open decisions requiring ChatGPT approval
+### 12.2 Genuinely unresolved phase-specific mechanisms (kept open, DESIGN2-FU3 F3)
 
-| # | Decision | Options | Design recommendation |
+After the F3 reconciliation, NO D-numbered decision remains open: the
+previously approved recommendations are confirmed in §12.1, and only the
+genuinely unresolved phase-specific mechanisms below remain open, each at
+the named phase gate. None of them reopens a frozen commercial, semantic,
+FX, replay, or pricing-authority contract; each is a mechanism choice or
+procedure detail INSIDE an already-confirmed decision.
+
+| # | Mechanism | Phase gate | What is open (and what is already fixed) |
 |---|---|---|---|
-| D2 | USD-equivalent for refreshed non-USD quotes. | (a) Phase 1: suppress (native currency only; bounded "Not converted — no FX acquired for this refresh" literal). (b) Compute from the original frozen `ResearchFxSnapshot` with mandatory dual-date labeling (quote date + FX observation date) — i.e., historical FX reuse for display. | **(a)** — zero FX activity, NO historical FX reuse, no misleading freshness; (b) is display-arithmetic over frozen evidence and remains a SEPARATE future decision requiring explicit approval — NOT part of R0–R2 (§7.1). |
-| D3 | Stuck-RUNNING handling: recovery-based terminalization surface and recovery gate (DESIGN2-FU1 C1, clarified per DESIGN2-FU2). | (a) [REJECTED] `--reclaim-stale` flag, threshold 60 s — a 10-second urllib socket timeout is a per-operation socket timeout, NOT an absolute wall-clock deadline; a RUNNING process may still be alive after the threshold, so wall-clock-age reclaim could justify an overlapping outbound Vendor request. (b) No recovery-based terminalization in R0: complete/fail remain the ONLY legal RUNNING→terminal transitions (the claim winner's single-winner CAS, §3.3 table); a RUNNING child continues to occupy its active slot (RUNNING never reset to PENDING; one execution identity per attempt); no stale reclaim, no threshold-triggered forced failure, no automatic retry, no operator-forced interruption, no reassignment; resolution of a stuck RUNNING row only via the future R1 operational recovery gate (§3.6): manual interruption solely on sufficient trusted external evidence that the prior process is terminated (wall-clock alone insufficient), atomic conditional transition, external Vendor outcome preserved as explicitly unknown, no overlapping request justified by slot reclaim. (c) A different wall-clock threshold. | **(b)** — (a) and (c) are rejected for the same reason. No distributed lease, scheduler, or process supervisor is invented. The normal complete/fail CAS is unaffected by this decision (it is the required terminalization of a live attempt). A stuck row blocking new refreshes is the safe direction: it can never cause a double Vendor call. |
-| D4 | Operator provenance convention (DESIGN2-FU1 C4). `operator` records the self-reported TRIGGER initiator, not necessarily the executor of a PENDING child (§4.6 — that requirement is handled by the R1 constraint/mechanism choice, NOT by this field). | (a) Mandatory `--operator <identity>` (self-reported provenance, NOT authentication); also record the OS `USERNAME` environment value in a second column explicitly labeled untrusted OS context (correlation aid only — `USERNAME` is NOT trusted identity proof; this option adds one bounded column, acceptable only if approved, since the existing schema has no OS-context field, and it never serves as an execution-provenance record). (b) `--operator` only. (c) OS account only, no recorded provenance field. | **(b)** — the minimum; (a) is acceptable only with the untrusted-context labeling and never as an identity claim; (c) is rejected (no actor provenance on the row). Real mutation authorization is the controlled Windows host access itself (account, executable/deployment access, database ACLs, operational controls); shared administrative accounts reduce actor attribution. Regardless of the choice, R1 deployment requires the explicit host permissions and operational audit review (§4.5); no Django authentication is built in this task. No secrets in any field. |
-| D5 | Eligibility: COMPLETED parents only, or also PARTIALLY_COMPLETED? | (a) COMPLETED only (task wording; 7C-A alignment). (b) Include PARTIALLY_COMPLETED. | **(a)** — the business requirement names COMPLETED runs; PARTIALLY_COMPLETED runs have incomplete price evidence and their refresh semantics are a separate question. |
-| D6 | Any bound on repeated post-terminal refreshes? (DESIGN2-FU1 C5; ordering corrected per DESIGN2-FU2) | (a) R0: none — no command surface exists in R0 at all; no general rate limiter is invented for R0 (or R1); each attempt is explicit, audited, one-call. (b) R1 minimal CMD safeguard: the safeguard is evaluated BEFORE a new refresh attempt is persisted (before the trigger INSERT) and BEFORE any new Vendor API request — the command displays the existing active state and the most recent terminal attempt; a terminal attempt within the preceding 5 minutes requires explicit `--force-repeat`, and a cooldown refusal leaves NO newly created PENDING child behind; any repeated attempt is a NEW child, never a rewrite; concurrent invocations are reviewed separately at R1 (the hard invariant is still UNIQUE(parent_run, active_slot) + CAS). This is an operator-safety check on the command surface — clearly distinct from a server-enforced comprehensive rate limit. (c) Server-enforced comprehensive rate limiting (requires identity; R3/8C scope). | **(a)** for R0; **(b)** for R1 (detailed implementation and race handling subject to R1 review); **(c)** deferred to R3. |
-| D8 | What may DENIED connections learn? | (a) Total zero-knowledge (no existence/count/status/operator/price/**error**; no `VendorRefreshExecution` query at all). (b) Existence + status only, no prices. | **(a)** — same standard as the original supplemental snapshot; the refresh panel contains operator identity and error state, which must not leak; the public replay import/query firewall + armed fail-fast are preserved (§8.2). |
-| D9 | Implementation base branch. | (a) `pilot-vendor-status-ux-a` (the production line). (b) `main`. | **(a)** — the feature is defined over the production architecture (incl. the vendor-status UX surface main lacks); merging main's semantic-V2 line is a separate, later decision. |
-| D10 | Shared 4D-B binding/encoding helper extraction (one behavior-identical refactor of an orchestration private, covered by the frozen 4D-B suites). | (a) Approve the extraction. (b) Keep the refresh self-contained with a duplicated policy (two copies of the 2A binding + brand-new policy). | **(a)** — one policy, two call sites; duplication is a drift hazard the project's own guard culture rejects. |
+| M1 | R1 operational recovery gate (confirmed D3(b) part, §3.6): what constitutes "sufficient trusted external evidence" that the prior execution process is terminated; the operational procedure; the details of the separately approved R1 transition that records the reserved `EXECUTION_INTERRUPTED`. | R1 design gate | Procedure + evidence criteria + the R1 transition's own issuance/ownership rules only. The R0 behavior (NO recovery-based terminalization; slot occupancy; no lease/scheduler/supervisor) is fixed. |
+| M2 | R1 trusted execution ownership (DESIGN2-FU3 F2, §3.3): enforce trusted execution ownership in the execution path (complete/fail issued only by the invocation that won the claim for that row) versus separate architecture approval for a stronger ownership mechanism (e.g., a claim-owner token verified before the terminal CAS — a schema change). | R1 design gate | Enforcement mechanism only. Atomic single-winner terminalization is already guaranteed by the R0 CAS; the schema is NOT claimed to enforce ownership, and the R0 method signatures are retained. |
+| M3 | R1 trigger-vs-execution provenance (confirmed D4(b) part, §4.6): option 1 (constrain execution to the creating invocation; a pre-existing PENDING child is reported, not executed) versus option 2 (record/obtain truthful execution provenance through an explicitly approved mechanism, potentially adding a model field with approved justification). | R1 design gate | Mechanism choice only. The `operator` meaning (self-reported TRIGGER initiator), the R0 schema, and the no-new-field default are fixed; §10.3(5) pins the chosen mechanism. |
+| M4 | R1 repeat-safeguard concurrency (confirmed D6(b) part, §5.2): two invocations can both pass the display-based safeguard before either persists; detailed race handling. | R1 review | Race handling only. The hard invariants are fixed: UNIQUE(parent_run, active_slot) + CAS; safeguard evaluated BEFORE persistence and BEFORE any Vendor API request; a cooldown refusal leaves no new PENDING child. |
+| M5 | D2(b): historical FX reuse for display (compute the refreshed non-USD quote's USD-equivalent from the original frozen `ResearchFxSnapshot` with mandatory dual-date labeling). | Separate future decision | Requires explicit approval; NOT part of R0–R2. R2 implements confirmed D2(a) only. |
+| M6 | R3 (deferred; NOT part of the first implementation): 8C authenticated operator identity; bounded cooldown policy (confirmed D6(c) deferral); request idempotency identity (concept 3 — a retransmission of the SAME logical request creates no new child; latest-terminal-child lookup is insufficient); separate security review of the Web POST mutation surface. | R3 / 8C | Out of scope for R0–R2; mechanism design not started. |
 
 ---
 
-## 13. Remaining risks (phase assignments, DESIGN2-FU2)
+## 13. Remaining risks (phase assignments, DESIGN2-FU3)
 
 **Assigned to R1 (reviewed at the R1 design gate):**
+- Trusted execution ownership (DESIGN2-FU3 F2): the CAS enforces
+  single-winner terminalization, not issuer identity; R1 must enforce
+  ownership in the execution path or obtain approval for a stronger
+  mechanism (§3.3/§11 R1; §12.2 M2).
 - Trigger-vs-execution operator provenance (§4.6): the choice between
   constraining execution to the creating invocation and recording/obtaining
   truthful execution provenance through an explicitly approved mechanism;
@@ -1655,9 +1813,11 @@ trigger.**
   with-history ALLOWED page (§8.1).
 - Deterministic four-concept projections over mixed histories (identical-
   timestamp tie-breaks, PARTIAL inclusion, erasure-proof, §8.3).
-- D2 (USD-equivalent for refreshed non-USD quotes) remains OPEN: R2 must
-  not implement option (b) — historical FX reuse for display — without
-  separate explicit approval.
+- D2 option (a) is CONFIRMED for R2 (suppress; native currency only + the
+  bounded "Not converted — no FX acquired for this refresh" literal; zero
+  FX activity): R2 must NOT implement option (b) — historical FX reuse for
+  display — without separate explicit approval (separately gated future
+  decision, §12.2 M5).
 - web-boundaries allowlist extension (§10.3(10)) — gated, recorded,
   adversarially pinned.
 
@@ -1720,15 +1880,18 @@ test execution used the in-memory SQLite test DB per `tests/conftest.py`.
 | Historical replay reproducible; separate refresh projection; public replay firewall; failed refresh never erases success | §8 |
 | Required test list + test-preservation invariant + recorded baseline | §1.4, §10 |
 | Design doc only; no code/test/migration/settings changes; no commit/push | this document (new untracked file); working tree otherwise untouched |
-| Stale reclaim REJECTED; no recovery-based terminalization in R0 — complete/fail remain the ONLY legal RUNNING→terminal transitions (single-winner CAS issued by the claim winner; legitimate claim→complete and claim→fail succeed; duplicate terminalization fails without mutation; no test asserts RUNNING→COMPLETED or RUNNING→FAILED is prohibited); no stale reclaim, no threshold-triggered forced failure, no RUNNING→PENDING reset, no automatic retry, no operator-forced interrupt/recovery, no RUNNING reassignment; RUNNING occupies its slot; one execution identity per attempt; R1 operational recovery gate (trusted external evidence, atomic conditional transition, unknown external outcome, no overlap justified by slot reclaim); no lease/scheduler/supervisor invented | §3.3 (state-transition table), §3.4, §3.6, §5.1–5.3, §9 rows 8–10, §10.3(1)(4)(5), §11 (R0/R1), §12.2 D3 |
+| Stale reclaim REJECTED; no recovery-based terminalization in R0 — complete/fail remain the ONLY legal RUNNING→terminal transitions (single-winner terminal CAS — atomic single-winner TERMINALIZATION, not issuer identity (F2); legitimate claim→complete and claim→fail succeed; duplicate terminalization fails without mutation; no test asserts RUNNING→COMPLETED or RUNNING→FAILED is prohibited); no stale reclaim, no threshold-triggered forced failure, no RUNNING→PENDING reset, no automatic retry, no operator-forced interrupt/recovery, no RUNNING reassignment; RUNNING occupies its slot; one execution identity per attempt; R1 operational recovery gate (trusted external evidence, atomic conditional transition, unknown external outcome, no overlap justified by slot reclaim); no lease/scheduler/supervisor invented | §3.3 (state-transition table), §3.4, §3.6, §5.1–5.3, §9 rows 8–10, §10.3(1)(4)(5), §11 (R0/R1), §12.1 D3 |
 | The `vendor_refresh` management command + the default-provider runtime belong to R1, NOT R0; R0 has exactly persistence, model + migration, lifecycle claims, bounded errors and exports, offline tests; no management command, provider call, HTTP endpoint, template, or deployment in R0 | §3.5, §4.2, §10.3(4)(5), §11 (R0/R1) |
 | D1 confirmed: original Quote & Market Summary + original vendor rows + existing PILOT-VENDOR-STATUS-UX-A status notice unchanged; R2 adds an independent Vendor Refresh History section; the optional status-notice pointer line is NOT approved for R2 (removed from the approved R0–R2 scope). D7 confirmed: only ALLOWED connections with at least one refresh record render the separate history section (a confirmed decision, NOT open) | §8.3, §12.1 |
-| `operator` = self-reported TRIGGER initiator, not necessarily the executor of a PENDING child; R1 must constrain which invocation may execute it or record/obtain truthful execution provenance through an explicitly approved mechanism; no new model field without an approved justification that the existing schema cannot satisfy the requirement | §3.1, §3.3, §4.6, §10.3(5), §11 (R1), §12.2 D4 |
+| `operator` = self-reported TRIGGER initiator, not necessarily the executor of a PENDING child; R1 must constrain which invocation may execute it or record/obtain truthful execution provenance through an explicitly approved mechanism; no new model field without an approved justification that the existing schema cannot satisfy the requirement | §3.1, §3.3, §4.6, §10.3(5), §11 (R1), §12.1 D4, §12.2 M3 |
 | Idempotency: three distinct concepts (active-child dedup / intentional post-terminal new child / same-request retransmission); R0 guarantees only concept 1 + CAS single-claim; R3 requires explicit stable request idempotency identity (latest-terminal-child lookup insufficient); R3 mechanism NOT added to R0 | §3.3, §5.2, §11 (R3) |
 | Four-concept quotation vocabulary (latest execution / latest SUCCESS lookup incl. zero observations / latest usable quotation incl. PARTIAL / latest IN_STOCK positive-price); FAILED ≠ successful quotation; OUT_OF_STOCK/UNKNOWN/zero-price never mislabeled as purchaseable quotes; no "necessarily current" wording; deterministic ordering + identical-timestamp tie-breaker (`id` DESC); frozen codec unchanged | §7.3, §8.3, §9 row 13, §10.3(2)(4)(6), §11 (R2), §12.1 D1 |
-| `--operator` self-reported provenance of the TRIGGER initiator, NOT authentication and NOT necessarily execution provenance (`USERNAME` not trusted identity proof; authorization = controlled Windows account access + executable/deployment access + database ACLs + operational controls; shared admin accounts reduce attribution; no unverified OS audit claims; R1 host permissions + operational audit review prerequisite; no Django authentication; trigger-vs-execution gap handled per §4.6) | §3.1, §3.3, §4.2, §4.4, §4.5, §4.6, §11 (R1), §12.2 D4 |
-| No command surface in R0; no general rate limiter in R0 or R1; R1 minimal CMD safeguard (display active state + most recent terminal attempt; 5-minute `--force-repeat` gate; the safeguard is evaluated BEFORE a new refresh attempt is persisted and BEFORE any new Vendor API request — a cooldown refusal leaves NO newly created PENDING child; NEW child only, never a rewrite; concurrent invocations reviewed separately at R1); operator-safety check ≠ server-enforced rate limit | §3.5, §4.2, §5.2, §10.3(5), §11 (R0/R1), §12.2 D6 |
+| `--operator` self-reported provenance of the TRIGGER initiator, NOT authentication and NOT necessarily execution provenance (`USERNAME` not trusted identity proof; authorization = controlled Windows account access + executable/deployment access + database ACLs + operational controls; shared admin accounts reduce attribution; no unverified OS audit claims; R1 host permissions + operational audit review prerequisite; no Django authentication; trigger-vs-execution gap handled per §4.6) | §3.1, §3.3, §4.2, §4.4, §4.5, §4.6, §11 (R1), §12.1 D4 |
+| No command surface in R0; no general rate limiter in R0 or R1; R1 minimal CMD safeguard (display active state + most recent terminal attempt; 5-minute `--force-repeat` gate; the safeguard is evaluated BEFORE a new refresh attempt is persisted and BEFORE any new Vendor API request — a cooldown refusal leaves NO newly created PENDING child; NEW child only, never a rewrite; concurrent invocations reviewed separately at R1); operator-safety check ≠ server-enforced rate limit | §3.5, §4.2, §5.2, §10.3(5), §11 (R0/R1), §12.1 D6 |
 | `editable=False` is NOT a write barrier (ORM `.update()`/raw SQL bypass it); CHECK/UNIQUE enforce stored shapes + at most one active child; CAS services enforce permitted transitions; no "row never modified" proof; parent/child MPN equality and frozen codec validity are application-level validations; removed test claim that `editable=False` rejects arbitrary writes | §3.1, §10.3(1) |
 | `CommercialLookupQuery` strips surrounding whitespace (verified §1.2); constructed query MPN must exactly equal the immutable captured canonical MPN or fail closed (`MPN_QUERY_NORMALIZATION_MISMATCH`, zero network calls); stored `result_schema_version` agrees with payload codec schema version; invalid payloads rejected by producer or fail closed on read; frozen 2A binding + codec preserved | §1.2, §3.1, §3.4, §6.2, §10.3(2) |
-| Original persisted snapshots + original replay projections unchanged; R2 separate additive projection; NO whole-page byte-identity promise for the with-history ALLOWED page (DENIED + no-history pages byte-identical); DENIED zero-knowledge incl. errors + no `VendorRefreshExecution` query; public replay firewall + armed fail-fast preserved; no influence on Machine Price / Reviewed Price / semantic authority / comparables / original quote statistics; no FX retrieval, no FX cache writes, no historical FX reuse | §7.1, §7.4, §8.1, §8.2, §8.5, §10.3(6)(7)(8), §11 (R2), §12.1 D7, §12.2 D2/D8 |
+| Original persisted snapshots + original replay projections unchanged; R2 separate additive projection; NO whole-page byte-identity promise for the with-history ALLOWED page (DENIED + no-history pages byte-identical); DENIED zero-knowledge incl. errors + no `VendorRefreshExecution` query; public replay firewall + armed fail-fast preserved; no influence on Machine Price / Reviewed Price / semantic authority / comparables / original quote statistics; no FX retrieval, no FX cache writes, no historical FX reuse | §7.1, §7.4, §8.1, §8.2, §8.5, §10.3(6)(7)(8), §11 (R2), §12.1 D2/D7/D8 |
 | 5,959-node historical baseline (agent-reported; MUST be independently verified before any implementation — gate preserved); C9 regression coverage (SUCCESS-zero-observations; PARTIAL-with-valid-observations; FAILED-after-success; zero-price/OUT_OF_STOCK; most recent attempt vs most recent usable quote; identical-timestamp ordering; query normalization mismatch; schema-version mismatch; DB structural constraints vs application immutability; recovery-based terminalization absent from R0 + no implicit retry path + legitimate claim→complete/claim→fail succeed (single-winner terminal CAS; duplicate terminalization fails without mutation; a stuck RUNNING row cannot be forcibly terminated via any R0 recovery path; a trigger over RUNNING returns the existing child); original alias snapshot / comparables / review / execution evidence untouched); no existing test deleted, renamed, skipped, xfailed, deselected, ignored, weakened, or replaced | §1.4, §10.2, §10.3(1), §9 invariant, §13 |
+| R0 `fail_vendor_refresh` REJECTS the R1-reserved `EXECUTION_INTERRUPTED` with a bounded error and ZERO row mutation although the value exists in the model vocabulary (storage constraint still admits it — the separately approved R1 recovery transition needs no schema change; the R1 gate transition is its own primitive, not a call to the R0 fail service; the R0 regression requirement pins rejection + zero mutation + no over-rejection of other bounded reasons, §10.3(1)(viii)) | §3.1, §3.3, §3.6, §10.3(1), §11 (R0/R1) |
+| CAS single-winner guarantee = atomic single-winner terminalization, NOT claim-winner identity: the terminal WHERE clause carries no caller identity; no schema-enforced ownership claim anywhere; R0 retains the existing method signatures (no execution surface); R1 must enforce trusted execution ownership or obtain separate architecture approval for a stronger ownership mechanism (§12.2 M2) | §3.3, §3.6, §9 row 8, §10.3(1)(iii)/(4), §11 (R1), §13 |
+| D1–D10 reconciled (DESIGN2-FU3 F3): previously approved decisions moved to the confirmed section (D2(a) for R0–R2, D3(b), D4(b), D5(a), D6(a/b/c), D8(a), D9(a), D10(a); D1/D7 unchanged); only genuinely unresolved phase-specific mechanisms remain open (M1–M6); no frozen commercial, semantic, FX, replay, or pricing-authority contract reopened | §12.1, §12.2, §13 |
