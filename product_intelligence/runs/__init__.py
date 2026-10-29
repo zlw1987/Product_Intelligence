@@ -65,9 +65,22 @@ __all__ = [
     "TERMINAL_STATES",
     "trigger_comparable_research",
     "UnsupportedResearchRunStateChange",
+    "VendorRefreshClaimError",
+    "VendorRefreshCompletionError",
+    "VendorRefreshError",
+    "VendorRefreshExecution",
+    "VendorRefreshFailureError",
+    "VendorRefreshFailureReason",
+    "VendorRefreshState",
+    "VendorRefreshTriggerError",
+    "VendorRefreshTriggerSource",
+    "claim_vendor_refresh",
+    "complete_vendor_refresh",
+    "fail_vendor_refresh",
+    "trigger_vendor_refresh",
 ]
 
-_MODEL_EXPORTS = frozenset({"ALLOWED_TRANSITIONS", "ResearchRun", "TERMINAL_STATES", "PriceIntelligenceSnapshot", "ExecutionEvidenceRecord", "AiAssistedReviewCandidate", "ComparableResearchExecution", "ComparableResearchState", "ComparableResearchFailureReason", "ResearchSupplementSnapshot", "ResearchMicronAliasSnapshot", "FxObservationStore"})
+_MODEL_EXPORTS = frozenset({"ALLOWED_TRANSITIONS", "ResearchRun", "TERMINAL_STATES", "PriceIntelligenceSnapshot", "ExecutionEvidenceRecord", "AiAssistedReviewCandidate", "ComparableResearchExecution", "ComparableResearchState", "ComparableResearchFailureReason", "ResearchSupplementSnapshot", "ResearchMicronAliasSnapshot", "FxObservationStore", "VendorRefreshExecution", "VendorRefreshState", "VendorRefreshFailureReason", "VendorRefreshTriggerSource"})
 
 # Evidence enums and primitives are pure Python (no Django import), so they can
 # be exposed directly from this package without lazy loading.
@@ -99,6 +112,20 @@ _COMPARABLE_EXPORTS = frozenset({
     "complete_comparable_research",
     "fail_comparable_research",
     "trigger_comparable_research",
+})
+
+# VREF-R0 vendor-refresh lifecycle exports (exactly four primitives plus
+# the bounded errors they raise)
+_VENDOR_REFRESH_EXPORTS = frozenset({
+    "VendorRefreshError",
+    "VendorRefreshTriggerError",
+    "VendorRefreshClaimError",
+    "VendorRefreshCompletionError",
+    "VendorRefreshFailureError",
+    "trigger_vendor_refresh",
+    "claim_vendor_refresh",
+    "complete_vendor_refresh",
+    "fail_vendor_refresh",
 })
 
 
@@ -150,6 +177,11 @@ def __getattr__(name: str) -> object:
     if name in _COMPARABLE_EXPORTS:
         from product_intelligence.runs import comparable_execution_claims
         return getattr(comparable_execution_claims, name)
+
+    # Vendor-refresh lifecycle exports (VREF-R0)
+    if name in _VENDOR_REFRESH_EXPORTS:
+        from product_intelligence.runs import vendor_refresh_claims
+        return getattr(vendor_refresh_claims, name)
 
     if name in _MODEL_EXPORTS:
         # Import from runs.models (the main models.py file)

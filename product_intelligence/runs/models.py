@@ -1596,3 +1596,428 @@ class FxObservationStore(models.Model):
             f"FxObservationStore {self.feed_id} {self.observation_date} "
             f"({self.content_sha256[:12]}…)"
         )
+
+
+# ---------------------------------------------------------------------------
+# VendorRefreshState / VendorRefreshFailureReason / VendorRefreshTriggerSource
+# — VREF-R0 bounded vocabularies
+# ---------------------------------------------------------------------------
+
+
+class VendorRefreshState:
+    """Lifecycle vocabulary for a vendor-refresh execution attempt.
+
+    This is a runs-layer vocabulary, not a domain enum. The domain owns
+    ResearchRunState; VendorRefreshExecution is a runs-layer persistence
+    concept with its own bounded vocabulary (VREF-R0, DESIGN2 §3.1).
+
+    PENDING — created by an explicit operator trigger; not yet claimed.
+    RUNNING — claimed; one execution is in progress (the R1 surface).
+    COMPLETED — finished normally; the result payload is populated.
+    FAILED — finished with a bounded failure reason.
+
+    In R0 the complete and fail CAS primitives are the ONLY legal
+    RUNNING→terminal transitions. R0 contains no recovery-based
+    terminalization: no stale reclaim, no threshold-triggered forced
+    failure, no RUNNING→PENDING reset, no automatic retry, no
+    operator-forced interruption, and no reassignment of an existing
+    RUNNING attempt (DESIGN2 §3.3 state-transition table).
+    """
+
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+
+    CHOICES: tuple[tuple[str, str], ...] = (
+        (PENDING, "PENDING"),
+        (RUNNING, "RUNNING"),
+        (COMPLETED, "COMPLETED"),
+        (FAILED, "FAILED"),
+    )
+
+    TERMINAL_STATES: frozenset[str] = frozenset({COMPLETED, FAILED})
+    ACTIVE_STATES: frozenset[str] = frozenset({PENDING, RUNNING})
+
+
+# ---------------------------------------------------------------------------
+# VendorRefreshFailureReason — VREF-R0 bounded vocabulary
+# ---------------------------------------------------------------------------
+
+
+class VendorRefreshFailureReason:
+    """Bounded failure-reason vocabulary for VendorRefreshExecution.
+
+    These are the only reasons a vendor-refresh child attempt can be
+    FAILED. They represent refresh-machinery defects and pre-flight
+    binding failures, NOT bounded vendor lookup outcomes: an executed
+    lookup with a FAILED result is persisted as a COMPLETED payload with
+    ``lookup_status=FAILED`` (exactly the 4D-B semantics).
+
+    VENDOR_LOOKUP_CONFIG_MISSING — the deployment vendor-lookup base URL
+        is absent/blank; the attempt fails before any network call.
+    MPN_BINDING_VIOLATION — the execution-time re-check found
+        ``child.requested_mpn != parent.manufacturer_part_number``.
+    MPN_QUERY_NORMALIZATION_MISMATCH — the frozen query type would
+        transmit an MPN different from the immutable captured binding;
+        the attempt fails closed before any network call.
+    RESULT_ENCODING_FAILED — the result could not be encoded with the
+        frozen supplement codec.
+    EXECUTION_INTERRUPTED — reserved EXCLUSIVELY for the separately
+        approved R1 operational recovery transition (DESIGN2 §3.6). The
+        R0 ``fail_vendor_refresh`` service REJECTS this value with zero
+        row mutation (DESIGN2-FU3 F1); the storage constraints still
+        admit it so the R1 transition needs no schema change.
+    INTERNAL_ERROR — unclassifiable internal error.
+    """
+
+    VENDOR_LOOKUP_CONFIG_MISSING = "VENDOR_LOOKUP_CONFIG_MISSING"
+    MPN_BINDING_VIOLATION = "MPN_BINDING_VIOLATION"
+    MPN_QUERY_NORMALIZATION_MISMATCH = "MPN_QUERY_NORMALIZATION_MISMATCH"
+    RESULT_ENCODING_FAILED = "RESULT_ENCODING_FAILED"
+    EXECUTION_INTERRUPTED = "EXECUTION_INTERRUPTED"
+    INTERNAL_ERROR = "INTERNAL_ERROR"
+
+    ALL: frozenset[str] = frozenset({
+        VENDOR_LOOKUP_CONFIG_MISSING,
+        MPN_BINDING_VIOLATION,
+        MPN_QUERY_NORMALIZATION_MISMATCH,
+        RESULT_ENCODING_FAILED,
+        EXECUTION_INTERRUPTED,
+        INTERNAL_ERROR,
+    })
+
+    # The R0 fail primitive accepts exactly this set: the full bounded
+    # vocabulary MINUS the R1-reserved value (DESIGN2-FU3 F1).
+    R0_LEGAL: frozenset[str] = ALL - frozenset({EXECUTION_INTERRUPTED})
+
+
+# ---------------------------------------------------------------------------
+# VendorRefreshTriggerSource — VREF-R0 bounded vocabulary
+# ---------------------------------------------------------------------------
+
+
+class VendorRefreshTriggerSource:
+    """Bounded trigger-source vocabulary for VendorRefreshExecution.
+
+    ``MANAGEMENT_COMMAND`` is the only V1 member. The vocabulary is
+    extensible by a later approved phase; R0 records exactly what
+    triggered the refresh, as self-reported provenance.
+    """
+
+    MANAGEMENT_COMMAND = "MANAGEMENT_COMMAND"
+
+    ALL: frozenset[str] = frozenset({MANAGEMENT_COMMAND})
+
+
+# ---------------------------------------------------------------------------
+# VendorRefreshExecution — VREF-R0
+# ---------------------------------------------------------------------------
+
+
+class VendorRefreshExecution(models.Model):
+    """One vendor-refresh execution attempt for a COMPLETED ResearchRun.
+
+    VREF-R0 (DESIGN2 §3.1).
+
+    This is a runs-layer lifecycle record. One parent ResearchRun can
+    have multiple VendorRefreshExecution children (a new explicit refresh
+    attempt after terminal history). At most one child may be active
+    (PENDING or RUNNING) at a time: the hard concurrency invariant is
+    UNIQUE(parent_run, active_slot) with active_slot = 1 for active rows
+    and NULL for terminal rows.
+
+    The model is storage, not interpretation: ``result_payload`` is the
+    frozen research-layer supplement codec V1 payload
+    (``research/commercial_supplement_codec.py``); the refresh-specific
+    provenance (parent run, MPN binding, operator, trigger source,
+    lifecycle timestamps) lives in the model columns.
+
+    Fields
+    ------
+
+    id
+        UUID primary key, app-generated.
+
+    parent_run
+        ForeignKey to ResearchRun, CASCADE delete, no reverse accessor.
+
+    requested_mpn
+        Immutable requested canonical MPN binding. Set at trigger time to
+        ``parent_run.manufacturer_part_number`` verbatim. Re-verified at
+        execution time (application-level check); a mismatch is
+        MPN_BINDING_VIOLATION, never a silent rewrite.
+
+    state
+        PENDING / RUNNING / COMPLETED / FAILED.
+
+    active_slot
+        Nullable PositiveSmallIntegerField. 1 when active
+        (PENDING/RUNNING), NULL when terminal. The lifecycle sentinel.
+
+    trigger_source
+        Bounded provenance of what class of actor triggered the refresh.
+
+    operator
+        Self-reported identity string of the actor who TRIGGERED the
+        refresh (the INSERT of the PENDING row). Set once at trigger
+        time; never modified by claim, complete, or fail. It is
+        self-reported provenance, NOT authentication, and NOT necessarily
+        an attestation of who eventually claims and executes the PENDING
+        child (trigger and claim are distinct primitives; the R1
+        provenance requirement is owned by the R1 gate).
+
+    created_at / started_at / finished_at
+        Lifecycle timestamps: trigger/creation, claim, terminal.
+
+    result_schema_version
+        NULL until COMPLETED. Codec version of result_payload; frozen
+        V1 = 1.
+
+    result_payload
+        NULL until COMPLETED. Codec-validated vendor supplemental
+        payload (frozen supplement codec V1).
+
+    failure_reason
+        NULL except when FAILED. One of VendorRefreshFailureReason.
+
+    Lifecycle shapes (enforced by CHECK on the stored row, for any
+    writer that goes through the database):
+
+    PENDING:   active_slot=1, started_at=NULL, finished_at=NULL,
+               result_schema_version=NULL, result_payload=NULL,
+               failure_reason=NULL
+
+    RUNNING:   active_slot=1, started_at!=NULL, finished_at=NULL,
+               result_schema_version=NULL, result_payload=NULL,
+               failure_reason=NULL
+
+    COMPLETED: active_slot=NULL, started_at!=NULL, finished_at!=NULL,
+               result_schema_version>=1, result_payload!=NULL,
+               failure_reason=NULL
+
+    FAILED:    active_slot=NULL, started_at!=NULL, finished_at!=NULL,
+               result_schema_version=NULL, result_payload=NULL,
+               failure_reason in the bounded vocabulary
+
+    Immutability — what the constraints do and do not guarantee
+    (DESIGN2-FU1 C6):
+
+    - ``editable=False`` is Django model/ORM metadata (form and admin
+      behavior), NOT a write barrier. ``QuerySet.update()`` and raw SQL
+      bypass the four CAS lifecycle primitives and the field flags.
+    - The DB CHECK/UNIQUE constraints enforce valid stored shapes and at
+      most one active child per parent run — for any writer.
+    - The CAS services in ``runs/vendor_refresh_claims.py`` enforce the
+      permitted application state transitions (single conditional
+      UPDATE; a mismatched precondition affects zero rows and raises a
+      bounded error).
+    - Neither the constraints nor the field flags prove a row was never
+      modified after commit. Rows are durable application history, not
+      tamper-proof records.
+
+    No application write path exists other than the four CAS primitives
+    (trigger insert / claim / complete / fail), and none of them touches
+    the parent ResearchRun or any original snapshot/evidence artifact of
+    the parent.
+    """
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+    )
+
+    parent_run = models.ForeignKey(
+        "ResearchRun",
+        on_delete=models.CASCADE,
+        related_name="+",  # No reverse accessor on ResearchRun
+    )
+
+    requested_mpn = models.TextField(
+        editable=False,
+        help_text=(
+            "Immutable requested canonical MPN binding, captured verbatim "
+            "from parent_run.manufacturer_part_number at trigger time. "
+            "Re-verified at execution time; a mismatch fails closed "
+            "(MPN_BINDING_VIOLATION), never a silent rewrite."
+        ),
+    )
+
+    state = models.CharField(
+        max_length=16,
+        choices=VendorRefreshState.CHOICES,
+        default=VendorRefreshState.PENDING,
+        editable=False,
+    )
+
+    active_slot = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        editable=False,
+        help_text="Lifecycle sentinel. 1 when PENDING/RUNNING, NULL when terminal.",
+    )
+
+    trigger_source = models.CharField(
+        max_length=32,
+        editable=False,
+        help_text=(
+            "Bounded provenance of what class of actor triggered the "
+            "refresh (VendorRefreshTriggerSource)."
+        ),
+    )
+
+    operator = models.CharField(
+        max_length=128,
+        editable=False,
+        help_text=(
+            "Self-reported identity of the actor who TRIGGERED the refresh "
+            "(the PENDING-row INSERT). Set once at trigger time; never "
+            "modified by claim, complete, or fail. Provenance, not "
+            "authentication; not necessarily the eventual executor."
+        ),
+    )
+
+    created_at = models.DateTimeField(
+        default=timezone.now,
+        editable=False,
+    )
+    started_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        editable=False,
+    )
+    finished_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        editable=False,
+    )
+
+    # Result fields — populated only in COMPLETED state.
+    result_schema_version = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        editable=False,
+        help_text="Codec version of result_payload (frozen V1 = 1). NULL until COMPLETED.",
+    )
+    result_payload = models.JSONField(
+        null=True,
+        blank=True,
+        editable=False,
+        help_text=(
+            "Codec-validated vendor supplemental payload (frozen "
+            "research/commercial_supplement_codec.py V1). NULL until COMPLETED."
+        ),
+    )
+
+    # Failure reason — populated only in FAILED state.
+    failure_reason = models.CharField(
+        max_length=64,
+        null=True,
+        blank=True,
+        editable=False,
+        help_text="Failure reason when state is FAILED. NULL otherwise.",
+    )
+
+    class Meta:
+        constraints = [
+            # Active-slot value restriction: only 1 or NULL.
+            models.CheckConstraint(
+                condition=models.Q(active_slot=1)
+                | models.Q(active_slot__isnull=True),
+                name="vendor_refresh_active_slot_is_one_or_null",
+            ),
+            # One active child per parent: UNIQUE(parent_run, active_slot).
+            # active_slot=1 -> only one row per parent can have it.
+            # active_slot=NULL -> many terminal rows per parent are allowed.
+            models.UniqueConstraint(
+                fields=["parent_run", "active_slot"],
+                name="vendor_refresh_one_active_per_parent",
+            ),
+            # Lifecycle shape: state + active_slot + timestamps + result
+            # fields must match exactly one of the four stored shapes.
+            models.CheckConstraint(
+                condition=models.Q(
+                    state=VendorRefreshState.PENDING,
+                    active_slot=1,
+                    started_at__isnull=True,
+                    finished_at__isnull=True,
+                    result_schema_version__isnull=True,
+                    result_payload__isnull=True,
+                    failure_reason__isnull=True,
+                )
+                | models.Q(
+                    state=VendorRefreshState.RUNNING,
+                    active_slot=1,
+                    started_at__isnull=False,
+                    finished_at__isnull=True,
+                    result_schema_version__isnull=True,
+                    result_payload__isnull=True,
+                    failure_reason__isnull=True,
+                )
+                | models.Q(
+                    state=VendorRefreshState.COMPLETED,
+                    active_slot__isnull=True,
+                    started_at__isnull=False,
+                    finished_at__isnull=False,
+                    result_schema_version__isnull=False,
+                    result_schema_version__gte=1,
+                    result_payload__isnull=False,
+                    failure_reason__isnull=True,
+                )
+                | models.Q(
+                    state=VendorRefreshState.FAILED,
+                    active_slot__isnull=True,
+                    started_at__isnull=False,
+                    finished_at__isnull=False,
+                    result_schema_version__isnull=True,
+                    result_payload__isnull=True,
+                    failure_reason__isnull=False,
+                ),
+                name="vendor_refresh_lifecycle_shape",
+            ),
+            # requested_mpn must be non-empty (the captured binding).
+            models.CheckConstraint(
+                condition=models.Q(requested_mpn__gt=""),
+                name="vendor_refresh_requested_mpn_non_empty",
+            ),
+            # operator must be non-empty (self-reported trigger provenance).
+            models.CheckConstraint(
+                condition=models.Q(operator__gt=""),
+                name="vendor_refresh_operator_non_empty",
+            ),
+            # trigger_source must be a bounded vocabulary value.
+            models.CheckConstraint(
+                condition=models.Q(
+                    trigger_source__in=sorted(list(VendorRefreshTriggerSource.ALL))
+                ),
+                name="vendor_refresh_valid_trigger_source",
+            ),
+            # failure_reason must be a known vocabulary value when set.
+            models.CheckConstraint(
+                condition=models.Q(failure_reason__isnull=True)
+                | models.Q(
+                    failure_reason__in=sorted(list(VendorRefreshFailureReason.ALL))
+                ),
+                name="vendor_refresh_valid_failure_reason",
+            ),
+        ]
+        indexes = [
+            # Deterministic history reads: ordering by created_at with an
+            # identical-timestamp tie-breaker on id (DESIGN2 §3.1/§8.3).
+            models.Index(
+                fields=["parent_run", "created_at", "id"],
+                name="vendor_refresh_history_idx",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return (
+            f"VendorRefreshExecution {self.id} "
+            f"[{self.parent_run_id} {self.state}]"
+        )
+
+    @property
+    def current_state(self) -> str:
+        """The state as a string constant."""
+        return self.state
