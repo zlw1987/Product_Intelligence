@@ -1887,11 +1887,28 @@ class TestOperatorBoundaryClosure(TestCase):
         assert VendorRefreshExecution.objects.filter(parent_run=run).count() == 1
 
     def test_operator_whitespace_only_preserved_verbatim(self) -> None:
-        """No stripping: a whitespace-only operator is legal (length 10)
-        and is recorded exactly as provided."""
+        """No stripping: leading/trailing whitespace on a normal value is
+        preserved (length 10), and GENUINELY whitespace-only operators are
+        legal (length 1..128) and recorded exactly as provided."""
         run = _make_completed_run()
         child = trigger_vendor_refresh(run.id, operator="  padded  ")
         assert child.operator == "  padded  "
+
+        # Genuine whitespace-only coverage (the prior node body only
+        # exercised padded non-whitespace content):
+        # a length-1 whitespace value is the sharpest no-strip probe
+        # (stripping would turn it into an empty string and reject it),
+        # a mixed-whitespace value must not be normalized, and the
+        # all-whitespace form of the 128-character bound must be accepted.
+        for ws in (" ", " \t\n ", " " * 128):
+            assert ws.isspace() and not ws.strip()
+            assert 1 <= len(ws) <= 128
+            run_ws = _make_completed_run()
+            child_ws = trigger_vendor_refresh(run_ws.id, operator=ws)
+            assert child_ws.operator == ws
+            assert VendorRefreshExecution.objects.filter(
+                parent_run=run_ws
+            ).count() == 1
 
     def test_operator_empty_rejected_with_zero_mutation(self) -> None:
         run = _make_completed_run()
