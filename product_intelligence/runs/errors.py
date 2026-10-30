@@ -147,9 +147,13 @@ class VendorRefreshTriggerError(VendorRefreshError):
 
     The bounded reasons cover parent eligibility and trigger-input
     validation. ``operator`` is self-reported provenance, not
-    authentication; an empty or non-string operator is refused here so
-    the row's non-empty CHECK never fires through the race-recovery
-    path.
+    authentication; a non-string or out-of-bounds (length not 1..128)
+    operator is refused here — the bound is service-level, because the
+    database CHECK covers non-emptiness only and SQLite does not enforce
+    ``CharField.max_length`` — so the row's non-empty CHECK never fires
+    through the race-recovery path. A non-string ``trigger_source``
+    (including an unhashable list/dict) is refused with a bounded error,
+    never a native TypeError.
     """
 
     REASON_PARENT_NOT_FOUND: str = "parent_not_found"
@@ -211,7 +215,10 @@ class VendorRefreshFailureError(VendorRefreshError):
     bounded error BEFORE any UPDATE (zero row mutation) even though the
     value exists in the model vocabulary — the storage constraint admits
     it for the separately approved R1 recovery transition (DESIGN2-FU3
-    F1). Every other bounded-vocabulary reason is legal in R0.
+    F1). Every other bounded-vocabulary reason is legal in R0. The check
+    is fail-closed on type: a non-string reason (including an unhashable
+    list/dict) is rejected with a bounded error, never a native
+    TypeError.
     """
 
     REASON_RESERVED_EXECUTION_INTERRUPTED: str = "reserved_execution_interrupted"

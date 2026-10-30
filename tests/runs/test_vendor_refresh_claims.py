@@ -1821,3 +1821,297 @@ class TestCascadeAndIsolation(TestCase):
         assert (
             snap.payload["vendor_commercial_result"]["lookup_status"] == "FAILED"
         ), "the original vendor artifact must keep its original payload"
+
+
+# ---------------------------------------------------------------------------
+# VREF-R0-FU1 — input boundary closure (trigger + fail primitives)
+# ---------------------------------------------------------------------------
+
+
+def _parent_row_snapshot(run: ResearchRun) -> dict:
+    """Every stored column of the parent ResearchRun row (zero-mutation
+    proof: a trigger refusal must leave the parent byte-identical)."""
+    return dict(ResearchRun.objects.filter(pk=run.pk).values().first())
+
+
+class TestOperatorBoundaryClosure(TestCase):
+    """Fix 1 — ``operator`` is a string of length 1..128 inclusive, bound
+    at the service level (SQLite does not enforce ``CharField.max_length``),
+    recorded verbatim without stripping or truncation; refusals carry a
+    bounded error with no row mutation and no echo of the untrusted
+    input content."""
+
+    def test_operator_length_128_accepted_and_preserved_verbatim(self) -> None:
+        run = _make_completed_run()
+        operator = "A" * 128
+        child = trigger_vendor_refresh(run.id, operator=operator)
+        assert child.operator == operator
+        assert len(child.operator) == 128
+        assert VendorRefreshExecution.objects.filter(parent_run=run).count() == 1
+
+    def test_operator_length_129_rejected_before_insert(self) -> None:
+        run = _make_completed_run()
+        parent_before = _parent_row_snapshot(run)
+        with pytest.raises(VendorRefreshTriggerError) as exc_info:
+            trigger_vendor_refresh(run.id, operator="B" * 129)
+        assert (
+            exc_info.value.reason
+            == VendorRefreshTriggerError.REASON_INVALID_OPERATOR
+        )
+        assert VendorRefreshExecution.objects.count() == 0
+        assert _parent_row_snapshot(run) == parent_before
+
+    def test_operator_very_long_input_yields_bounded_error_message(self) -> None:
+        run = _make_completed_run()
+        marker = "SECRET-OPERATOR-CONTENT"  # 23 characters
+        operator = marker * 5000  # 115,000 characters
+        assert len(operator) == 115_000
+        parent_before = _parent_row_snapshot(run)
+        with pytest.raises(VendorRefreshTriggerError) as exc_info:
+            trigger_vendor_refresh(run.id, operator=operator)
+        assert (
+            exc_info.value.reason
+            == VendorRefreshTriggerError.REASON_INVALID_OPERATOR
+        )
+        message = str(exc_info.value)
+        assert len(message) <= 512
+        assert marker not in message
+        assert operator[:64] not in message
+        assert VendorRefreshExecution.objects.count() == 0
+        assert _parent_row_snapshot(run) == parent_before
+
+    def test_operator_length_1_accepted_and_preserved_verbatim(self) -> None:
+        run = _make_completed_run()
+        child = trigger_vendor_refresh(run.id, operator="A")
+        assert child.operator == "A"
+        assert VendorRefreshExecution.objects.filter(parent_run=run).count() == 1
+
+    def test_operator_whitespace_only_preserved_verbatim(self) -> None:
+        """No stripping: a whitespace-only operator is legal (length 10)
+        and is recorded exactly as provided."""
+        run = _make_completed_run()
+        child = trigger_vendor_refresh(run.id, operator="  padded  ")
+        assert child.operator == "  padded  "
+
+    def test_operator_empty_rejected_with_zero_mutation(self) -> None:
+        run = _make_completed_run()
+        parent_before = _parent_row_snapshot(run)
+        with pytest.raises(VendorRefreshTriggerError) as exc_info:
+            trigger_vendor_refresh(run.id, operator="")
+        assert (
+            exc_info.value.reason
+            == VendorRefreshTriggerError.REASON_INVALID_OPERATOR
+        )
+        assert VendorRefreshExecution.objects.count() == 0
+        assert _parent_row_snapshot(run) == parent_before
+
+    def test_operator_none_rejected_with_zero_mutation(self) -> None:
+        run = _make_completed_run()
+        parent_before = _parent_row_snapshot(run)
+        with pytest.raises(VendorRefreshTriggerError) as exc_info:
+            trigger_vendor_refresh(run.id, operator=None)  # type: ignore[arg-type]
+        assert (
+            exc_info.value.reason
+            == VendorRefreshTriggerError.REASON_INVALID_OPERATOR
+        )
+        assert VendorRefreshExecution.objects.count() == 0
+        assert _parent_row_snapshot(run) == parent_before
+
+    def test_operator_unhashable_list_rejected_with_zero_mutation(self) -> None:
+        run = _make_completed_run()
+        parent_before = _parent_row_snapshot(run)
+        with pytest.raises(VendorRefreshTriggerError) as exc_info:
+            trigger_vendor_refresh(run.id, operator=["op-a"])  # type: ignore[arg-type]
+        assert (
+            exc_info.value.reason
+            == VendorRefreshTriggerError.REASON_INVALID_OPERATOR
+        )
+        assert VendorRefreshExecution.objects.count() == 0
+        assert _parent_row_snapshot(run) == parent_before
+
+    def test_operator_error_message_bounded_and_content_free(self) -> None:
+        """Every refusal shape (non-string, unhashable, over-long string)
+        yields a bounded message that carries no input content."""
+        run = _make_completed_run()
+        for bad in (None, 42, ["op-a"], "Z" * 500):
+            with pytest.raises(VendorRefreshTriggerError) as exc_info:
+                trigger_vendor_refresh(run.id, operator=bad)  # type: ignore[arg-type]
+            message = str(exc_info.value)
+            assert len(message) <= 512
+            assert "Z" * 64 not in message
+        assert VendorRefreshExecution.objects.count() == 0
+
+
+class TestTriggerSourceBoundaryClosure(TestCase):
+    """Fix 2 — ``trigger_source`` fails closed on type: unhashable values
+    (list/dict) do not leak a native TypeError from the set membership
+    test; other invalid non-string values are rejected through the
+    existing bounded error class; the valid vocabulary is unchanged."""
+
+    def test_trigger_source_unhashable_list_rejected_fail_closed(self) -> None:
+        run = _make_completed_run()
+        parent_before = _parent_row_snapshot(run)
+        with pytest.raises(VendorRefreshTriggerError) as exc_info:
+            trigger_vendor_refresh(
+                run.id,
+                operator="op-a",
+                trigger_source=[
+                    VendorRefreshTriggerSource.MANAGEMENT_COMMAND
+                ],  # type: ignore[arg-type]
+            )
+        assert (
+            exc_info.value.reason
+            == VendorRefreshTriggerError.REASON_INVALID_TRIGGER_SOURCE
+        )
+        assert VendorRefreshExecution.objects.count() == 0
+        assert _parent_row_snapshot(run) == parent_before
+
+    def test_trigger_source_unhashable_dict_rejected_fail_closed(self) -> None:
+        run = _make_completed_run()
+        parent_before = _parent_row_snapshot(run)
+        with pytest.raises(VendorRefreshTriggerError) as exc_info:
+            trigger_vendor_refresh(
+                run.id,
+                operator="op-a",
+                trigger_source={
+                    "value": VendorRefreshTriggerSource.MANAGEMENT_COMMAND
+                },  # type: ignore[arg-type]
+            )
+        assert (
+            exc_info.value.reason
+            == VendorRefreshTriggerError.REASON_INVALID_TRIGGER_SOURCE
+        )
+        assert VendorRefreshExecution.objects.count() == 0
+        assert _parent_row_snapshot(run) == parent_before
+
+    def test_trigger_source_none_rejected_fail_closed(self) -> None:
+        run = _make_completed_run()
+        parent_before = _parent_row_snapshot(run)
+        with pytest.raises(VendorRefreshTriggerError) as exc_info:
+            trigger_vendor_refresh(
+                run.id, operator="op-a", trigger_source=None  # type: ignore[arg-type]
+            )
+        assert (
+            exc_info.value.reason
+            == VendorRefreshTriggerError.REASON_INVALID_TRIGGER_SOURCE
+        )
+        assert VendorRefreshExecution.objects.count() == 0
+        assert _parent_row_snapshot(run) == parent_before
+
+    def test_trigger_source_int_rejected_fail_closed(self) -> None:
+        run = _make_completed_run()
+        parent_before = _parent_row_snapshot(run)
+        with pytest.raises(VendorRefreshTriggerError) as exc_info:
+            trigger_vendor_refresh(
+                run.id, operator="op-a", trigger_source=42  # type: ignore[arg-type]
+            )
+        assert (
+            exc_info.value.reason
+            == VendorRefreshTriggerError.REASON_INVALID_TRIGGER_SOURCE
+        )
+        assert VendorRefreshExecution.objects.count() == 0
+        assert _parent_row_snapshot(run) == parent_before
+
+    def test_trigger_source_long_invalid_string_bounded_message(self) -> None:
+        run = _make_completed_run()
+        parent_before = _parent_row_snapshot(run)
+        bad = "S" * 100_000
+        with pytest.raises(VendorRefreshTriggerError) as exc_info:
+            trigger_vendor_refresh(run.id, operator="op-a", trigger_source=bad)
+        message = str(exc_info.value)
+        assert len(message) <= 512
+        assert bad[:64] not in message
+        assert VendorRefreshExecution.objects.count() == 0
+        assert _parent_row_snapshot(run) == parent_before
+
+    def test_trigger_source_valid_vocabulary_unchanged(self) -> None:
+        """No over-rejection: the single V1 member is still accepted.
+        The vocabulary itself is unchanged."""
+        assert VendorRefreshTriggerSource.ALL == frozenset(
+            {VendorRefreshTriggerSource.MANAGEMENT_COMMAND}
+        )
+        run = _make_completed_run()
+        child = trigger_vendor_refresh(
+            run.id,
+            operator="op-a",
+            trigger_source=VendorRefreshTriggerSource.MANAGEMENT_COMMAND,
+        )
+        assert child.trigger_source == VendorRefreshTriggerSource.MANAGEMENT_COMMAND
+
+
+class TestFailReasonBoundaryClosure(TestCase):
+    """Fix 2 — ``failure_reason`` fails closed on type: unhashable values
+    (list/dict) do not leak a native TypeError; other invalid non-string
+    values are rejected through the existing bounded error class; every
+    refusal happens BEFORE any UPDATE (zero row mutation over a row whose
+    full CAS preconditions hold). The reserved-value rejection and the
+    accepted-vocabulary behavior are pinned by the pre-existing nodes."""
+
+    def _running_child(self) -> tuple[ResearchRun, VendorRefreshExecution]:
+        run = _make_completed_run()
+        return run, _make_running_child(run)
+
+    def test_fail_reason_unhashable_list_rejected_zero_mutation(self) -> None:
+        run, child = self._running_child()
+        before = _row_snapshot(child.pk)
+        assert before["state"] == VendorRefreshState.RUNNING
+        with pytest.raises(VendorRefreshFailureError) as exc_info:
+            fail_vendor_refresh(
+                child.id,
+                [VendorRefreshFailureReason.INTERNAL_ERROR],  # type: ignore[arg-type]
+            )
+        assert (
+            exc_info.value.reason
+            == VendorRefreshFailureError.REASON_INVALID_FAILURE_REASON
+        )
+        assert _row_snapshot(child.pk) == before
+
+    def test_fail_reason_unhashable_dict_rejected_zero_mutation(self) -> None:
+        run, child = self._running_child()
+        before = _row_snapshot(child.pk)
+        assert before["state"] == VendorRefreshState.RUNNING
+        with pytest.raises(VendorRefreshFailureError) as exc_info:
+            fail_vendor_refresh(
+                child.id,
+                {"value": VendorRefreshFailureReason.INTERNAL_ERROR},  # type: ignore[arg-type]
+            )
+        assert (
+            exc_info.value.reason
+            == VendorRefreshFailureError.REASON_INVALID_FAILURE_REASON
+        )
+        assert _row_snapshot(child.pk) == before
+
+    def test_fail_reason_none_rejected_zero_mutation(self) -> None:
+        run, child = self._running_child()
+        before = _row_snapshot(child.pk)
+        assert before["state"] == VendorRefreshState.RUNNING
+        with pytest.raises(VendorRefreshFailureError) as exc_info:
+            fail_vendor_refresh(child.id, None)  # type: ignore[arg-type]
+        assert (
+            exc_info.value.reason
+            == VendorRefreshFailureError.REASON_INVALID_FAILURE_REASON
+        )
+        assert _row_snapshot(child.pk) == before
+
+    def test_fail_reason_int_rejected_zero_mutation(self) -> None:
+        run, child = self._running_child()
+        before = _row_snapshot(child.pk)
+        assert before["state"] == VendorRefreshState.RUNNING
+        with pytest.raises(VendorRefreshFailureError) as exc_info:
+            fail_vendor_refresh(child.id, 42)  # type: ignore[arg-type]
+        assert (
+            exc_info.value.reason
+            == VendorRefreshFailureError.REASON_INVALID_FAILURE_REASON
+        )
+        assert _row_snapshot(child.pk) == before
+
+    def test_fail_reason_long_invalid_string_bounded_message(self) -> None:
+        run, child = self._running_child()
+        before = _row_snapshot(child.pk)
+        bad = "F" * 100_000
+        with pytest.raises(VendorRefreshFailureError) as exc_info:
+            fail_vendor_refresh(child.id, bad)
+        message = str(exc_info.value)
+        assert len(message) <= 512
+        assert bad[:64] not in message
+        assert _row_snapshot(child.pk) == before

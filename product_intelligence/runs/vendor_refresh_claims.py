@@ -3,14 +3,22 @@
 Runs-layer only. Provides exactly four lifecycle primitives for
 VendorRefreshExecution children of a COMPLETED ResearchRun:
 
-- ``trigger_vendor_refresh``: INSERT a PENDING child (idempotent on an
-  existing active child; a post-terminal invocation creates a NEW child).
+- ``trigger_vendor_refresh``: INSERT a PENDING child (trigger input is
+  validated fail-closed first: operator is a string of length 1..128,
+  recorded verbatim; trigger_source is a string in the bounded
+  vocabulary, non-string values rejected without a native TypeError);
+  idempotent on an existing active child; a post-terminal invocation
+  creates a NEW child).
 - ``claim_vendor_refresh``: CAS PENDING -> RUNNING (atomic single-winner
   claim; one conditional UPDATE).
 - ``complete_vendor_refresh``: CAS RUNNING -> COMPLETED, atomically
-  publishing the codec-validated result payload in the same UPDATE.
+  publishing the result payload in the same UPDATE (the R0 service
+  validates only the bounded V1 schema-version agreement; full codec
+  validity is the future R1 producer's and R2 reader's job).
 - ``fail_vendor_refresh``: CAS RUNNING -> FAILED with a validated bounded
-  failure reason in the same UPDATE.
+  failure reason in the same UPDATE (fail-closed on type: a non-string
+  reason, including an unhashable list/dict, is rejected with a bounded
+  error, never a native TypeError).
 
 These are the COMPLETE set of legal row transitions in R0 (DESIGN2 §3.3
 state-transition table). What R0 forbids is EXTRA recovery-based
@@ -30,20 +38,21 @@ caller as the original claim winner; no ownership enforcement is claimed
 or implemented in R0 (R0 has no execution surface). The R1 gate owns
 that decision.
 
-Payload validation (DESIGN2 §3.1, FU1 C7): full frozen-codec validity of
-a refresh payload is enforced by the appropriate producer (the frozen
-``encode_research_supplement_result`` before the complete CAS) and by
-the appropriate reader (the frozen ``decode_research_supplement_result``
-in history replay, failing closed) — not by this runs-layer service.
-This module therefore does NOT import the research core (the
-architecture guards pin that runs/ stays free of research imports; the
-exception mechanism is locked to an unrelated evaluation harness).
-What the complete primitive enforces before the conditional UPDATE is
-the bounded agreement: the stored ``result_schema_version`` must equal
-the payload's codec schema version, and both must be the frozen V1.
+Payload validation (DESIGN2 §3.1, FU1 C7): the R0 complete service
+validates ONLY the bounded V1 schema-version agreement — before the
+conditional UPDATE, the stored ``result_schema_version`` must equal the
+payload's codec schema version, and both must be the frozen V1.
 An invalid pairing is rejected with a bounded error BEFORE any UPDATE:
-zero row mutation, no malformed COMPLETED row. No second codec is
-introduced and the frozen codec is unmodified.
+zero row mutation, no malformed COMPLETED row. Full frozen-codec
+validity of the payload is NOT an R0 concern: per the frozen DESIGN2 it
+belongs to the future R1 producer (the frozen
+``encode_research_supplement_result`` before the complete CAS) and the
+future R2 reader (the frozen ``decode_research_supplement_result`` in
+history replay, failing closed). This module therefore does NOT import
+the research core (the architecture guards pin that runs/ stays free of
+research imports; the exception mechanism is locked to an unrelated
+evaluation harness). No second codec is introduced and the frozen codec
+is unmodified.
 
 Concurrency: the UNIQUE(parent_run, active_slot) constraint is the hard
 invariant against concurrent double-creation; on an insert conflict the
@@ -94,9 +103,19 @@ __all__ = [
 # version is the value of its top-level ``schema_version`` key, exactly
 # as the frozen decoder reads it; the bounded agreement check below is
 # performed at that level, keeping this runs module free of research
-# imports (DESIGN2 §3.1: full codec validity is the producer's and the
-# reader's job, fail-closed).
+# imports (DESIGN2 §3.1: in R0 the complete service validates only this
+# bounded agreement; full codec validity is the future R1 producer's
+# and the future R2 reader's job, fail-closed).
 _FROZEN_SUPPLEMENT_CODEC_VERSION: Final[int] = 1
+
+# The service-level operator bound (DESIGN2 §3.1: CharField(128),
+# "free text, bounded length"). Enforced here, in the service: the
+# database CHECK covers non-emptiness only, and SQLite does not enforce
+# Django CharField.max_length, so without this check an over-long
+# operator would be silently persisted. A valid operator is recorded
+# verbatim — no stripping, no truncation.
+_MIN_OPERATOR_LEN: Final[int] = 1
+_MAX_OPERATOR_LEN: Final[int] = 128
 
 
 def _active_children(parent_run_id: str):
@@ -119,6 +138,19 @@ def trigger_vendor_refresh(
     trigger_source: str = VendorRefreshTriggerSource.MANAGEMENT_COMMAND,
 ) -> VendorRefreshExecution:
     """Create or locate a vendor-refresh child for a parent ResearchRun.
+
+    Trigger input (validated fail-closed BEFORE any lookup or INSERT):
+
+    - ``operator`` must be a string of length 1..128 inclusive
+      (``invalid_operator``); it is recorded verbatim — no stripping,
+      no truncation. The bound is service-level: the database CHECK
+      covers non-emptiness only, and SQLite does not enforce
+      ``CharField.max_length``. The error names the type or the length,
+      never the input's content.
+    - ``trigger_source`` must be a string in the bounded vocabulary
+      (``invalid_trigger_source``); a non-string value — including an
+      unhashable list/dict, which would otherwise leak a native
+      ``TypeError`` from the membership test — is rejected here.
 
     Eligibility (fail-closed, bounded reasons; DESIGN2 §3.3):
 
@@ -162,25 +194,42 @@ def trigger_vendor_refresh(
     target_id = str(run_id)
 
     # Trigger input validation (before any parent lookup or INSERT):
-    # operator is mandatory self-reported provenance, recorded verbatim;
-    # trigger_source is bounded.
-    if not isinstance(operator, str) or not operator:
+    # operator is mandatory self-reported provenance, recorded verbatim
+    # and bounded to 1..128 characters; trigger_source is bounded and
+    # fail-closed on type. Rejections echo the type or the length, never
+    # the (untrusted) input content.
+    if not isinstance(operator, str):
         raise VendorRefreshTriggerError(
             run_id=target_id,
             reason=VendorRefreshTriggerError.REASON_INVALID_OPERATOR,
             detail=(
                 "operator is the mandatory self-reported identity of the "
-                f"trigger initiator; got {operator!r}"
+                f"trigger initiator; expected a string, "
+                f"got {type(operator).__name__}"
             ),
         )
-    if trigger_source not in VendorRefreshTriggerSource.ALL:
+    if not _MIN_OPERATOR_LEN <= len(operator) <= _MAX_OPERATOR_LEN:
+        raise VendorRefreshTriggerError(
+            run_id=target_id,
+            reason=VendorRefreshTriggerError.REASON_INVALID_OPERATOR,
+            detail=(
+                "operator is the mandatory self-reported identity of the "
+                "trigger initiator; expected a string of length "
+                f"{_MIN_OPERATOR_LEN} to {_MAX_OPERATOR_LEN} inclusive, "
+                f"got length {len(operator)}"
+            ),
+        )
+    if (
+        not isinstance(trigger_source, str)
+        or trigger_source not in VendorRefreshTriggerSource.ALL
+    ):
         raise VendorRefreshTriggerError(
             run_id=target_id,
             reason=VendorRefreshTriggerError.REASON_INVALID_TRIGGER_SOURCE,
             detail=(
                 "trigger_source must be one of "
                 f"{sorted(VendorRefreshTriggerSource.ALL)}; "
-                f"got {trigger_source!r}"
+                f"got {type(trigger_source).__name__}"
             ),
         )
 
@@ -356,11 +405,13 @@ def complete_vendor_refresh(
 
     An invalid pairing is rejected with ``VendorRefreshCompletionError``
     BEFORE any UPDATE: zero row mutation, no malformed COMPLETED row.
-    Full codec validity beyond that agreement is the producer's job
-    (the frozen encoder, before the complete CAS) and the reader's job
-    (the frozen decoder in history replay, failing closed) — DESIGN2
-    §3.1. No new codec is introduced and the frozen codec is
-    unmodified.
+    That bounded V1 schema-version agreement is EXACTLY what the R0
+    complete service validates — nothing more. Full codec validity of
+    the payload internals is not an R0 concern: per the frozen DESIGN2
+    it belongs to the future R1 producer (the frozen encoder, before
+    the complete CAS) and the future R2 reader (the frozen decoder in
+    history replay, failing closed) — DESIGN2 §3.1. No new codec is
+    introduced and the frozen codec is unmodified.
 
     Raises
     ------
@@ -486,6 +537,12 @@ def fail_vendor_refresh(
     preconditions hold. Every other bounded-vocabulary reason is
     accepted (no over-rejection).
 
+    The check is fail-closed on type: a non-string reason — including
+    an unhashable list/dict, which would otherwise leak a native
+    ``TypeError`` from the set membership test — is rejected with
+    ``invalid_failure_reason`` BEFORE any UPDATE; the error names the
+    type, never the content.
+
     Raises
     ------
     VendorRefreshFailureError
@@ -496,6 +553,10 @@ def fail_vendor_refresh(
     target_id = str(child_id)
 
     # --- Pre-mutation validation (zero row mutation on failure) ---------
+    # The reserved-value check stays first (DESIGN2-FU3 F1); the ==
+    # comparison is safe for any type, so non-string input cannot
+    # bypass it, and the reserved string value always maps to
+    # reserved_execution_interrupted before the type check below.
     if failure_reason == VendorRefreshFailureReason.EXECUTION_INTERRUPTED:
         raise VendorRefreshFailureError(
             child_id=target_id,
@@ -506,13 +567,16 @@ def fail_vendor_refresh(
             ),
             reason=VendorRefreshFailureError.REASON_RESERVED_EXECUTION_INTERRUPTED,
         )
-    if failure_reason not in VendorRefreshFailureReason.ALL:
+    if (
+        not isinstance(failure_reason, str)
+        or failure_reason not in VendorRefreshFailureReason.ALL
+    ):
         raise VendorRefreshFailureError(
             child_id=target_id,
             detail=(
                 "failure_reason must be one of "
                 f"{sorted(VendorRefreshFailureReason.R0_LEGAL)}; "
-                f"got {failure_reason!r}"
+                f"got {type(failure_reason).__name__}"
             ),
             reason=VendorRefreshFailureError.REASON_INVALID_FAILURE_REASON,
         )
