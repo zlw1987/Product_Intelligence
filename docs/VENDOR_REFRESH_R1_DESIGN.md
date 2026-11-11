@@ -1,23 +1,29 @@
-# PRODUCT-INTEL.VREF-R1-DESIGN-FU2 — Vendor Refresh R1 Execution & Operator Safety Architecture (revised)
+# PRODUCT-INTEL.VREF-R1-DESIGN-FU3 — Vendor Refresh R1 Execution & Operator Safety Architecture (revised)
 
 **Design-Only Revision for ChatGPT Final Architecture Review**
 
-- **Task type:** DESIGN ONLY (VREF-R1-DESIGN-FU2). No implementation. No
-  source, test, migration, settings, or deployment changes were made by
-  this revision. One file exists and is modified by this revision: this
-  document (on branch `feature/vendor-refresh-r1-design`, on top of the
-  candidate commit `429cb5eafab0930b13518aedef4b4ea35e628c0a`).
+- **Task type:** DESIGN ONLY (VREF-R1-DESIGN-FU3). Small documentation
+  correction. No implementation. No source, test, migration, settings, or
+  deployment changes were made by this revision. One file exists and is
+  modified by this revision: this document (on branch
+  `feature/vendor-refresh-r1-design`, on top of the candidate commit
+  `ec5410c0c41c4b5694d97d53112598eb169c93c1`).
 - **Review baseline (candidate under review):**
-  `429cb5eafab0930b13518aedef4b4ea35e628c0a` ("PRODUCT-INTEL.
-  VREF-R1-DESIGN-FU1: architecture contract closure (F1-F5 corrections;
-  design only)"). Verdict of record: **R1 architecture direction
+  `ec5410c0c41c4b5694d97d53112598eb169c93c1` ("PRODUCT-INTEL.
+  VREF-R1-DESIGN-FU2: final contract consistency closure (F1-F4
+  corrections; design only)"). Verdict of record: **FU2 corrections
   ACCEPTED. Design NOT FROZEN. R1 implementation NOT AUTHORIZED. No R1
-  recovery implementation is authorized by this task.**
-- **Prior review baseline (FU1 vs candidate, retained for the record):**
-  `a18f1ccc4d0475c575742ca55a45d15c936fccf9` ("docs: propose vendor
-  refresh R1 execution safety architecture"). Verdict of record at that
-  gate: R1 design NOT FROZEN; R1 implementation NOT AUTHORIZED; FU1
-  corrected findings F1–F5 (table below, unchanged by this revision).
+  recovery implementation is authorized by this task.** This revision
+  corrects findings F1–F3 below (frozen-API fidelity + test-stage
+  consistency); it preserves every accepted FU1/FU2 architecture
+  decision, M3 Option A, the M4 SQLite lock strategy, the existing R0
+  tests, and the O1–O9 decisions. R1-4 remains BLOCKED pending O8 and
+  separate review. DESIGN2 remains APPROVED / FROZEN.
+- **Prior review baselines (retained for the record):**
+  `429cb5eafab0930b13518aedef4b4ea35e628c0a` (FU1; verdict: R1
+  architecture direction ACCEPTED, design NOT FROZEN) and
+  `a18f1ccc4d0475c575742ca55a45d15c936fccf9` (original candidate; FU1
+  corrected findings F1–F5, table below, unchanged by this revision).
 - **Frozen R0 implementation baseline (work base for this design):**
   `3983db4b57e9b960d5bf6841042c93a14687fdd0`
   (branch `feature/vendor-refresh-r0`, tip commit
@@ -45,7 +51,8 @@
   reviewer). The pushed document is NOT an approved design and does NOT
   authorize implementation.
 
-**FU2 revision history (this document vs candidate `429cb5e`):**
+**FU2 revision history (candidate `429cb5e` → `ec5410c`; retained for
+the record, unchanged by this revision):**
 
 | Finding (FU2) | Defect in FU1 | Correction (sections) |
 |---|---|---|
@@ -54,14 +61,24 @@
 | F3 — terminalization outcomes conflated | S9/fail boundaries conflated "CAS loser (0 rows)" with "write failure" and asserted "child stays RUNNING" without a fresh read; no contract for ambiguous commit outcomes; `fail_vendor_refresh` was not explicitly barred as a substitute for resolving an unknown successful completion | §3.2 (T1–T4 terminal-CAS outcome contract; `terminalization_outcome_unknown`), §5, §6, §7 (W6–W8), §10.2 (S9 + [S4']), §10.3, §8.3 (outcome classes / exit codes), §12 (rows 7–9), §15 R1-2, §16 |
 | F4 — R1-2 test-evolution timing inconsistent | §13's file-change schedule placed the `test_no_vendor_refresh_execution_module_exists` evolution (stage A) at R1-3 and §12 row 18 paired "rows 1–2 stage A at R1-2/R1-3" ambiguously — but R1-2 is the substep that FIRST introduces `execution/vendor_refresh.py`, and the R0 node (body: `vendor_refresh*.py` glob emptiness over `execution/`) must evolve IN PLACE at that substep or the gate fails | §11 (row 2 restated: evolves exactly when R1-2 first introduces the glob-matching modules), §12 (row 18 unambiguous per-row timing), §13 (schedule row), §15 (R1-2/R1-3 gate criteria) |
 
-- **All already-correct FU1 corrections (its F1–F5) are preserved by this
-  revision; FU2 changes no frozen contract, adds no schema, and authorizes
-  no implementation (documentation-only).**
+**FU3 revision history (this document vs candidate `ec5410c`):**
+
+| Finding (FU3) | Defect in FU2 | Correction (sections) |
+|---|---|---|
+| F1 — T1–T4 not aligned with the ACTUAL frozen R0 service API | The T1–T4 contract was written as if R1 observed the UPDATE rowcount ("1 row affected" / "0 rows, no exception"). The frozen `complete_vendor_refresh` / `fail_vendor_refresh` RETURN the re-read row on success, do NOT expose the rowcount, and RAISE the typed error (`VendorRefreshCompletionError` / `VendorRefreshFailureError` with `reason=None`) on a zero-row CAS; invalid input/version rejections (explicit `reason`) are raised BEFORE any UPDATE and are not CAS losers. The "no R1 module catches ANY terminal CAS error" guard was incompatible with the T2 handling the frozen API requires | §3.2 (T1/T2/T2b/T3/T4 rewritten service-accurate; pinned exception-handling guard: claim errors NEVER caught; completion/failure errors caught ONLY at the bounded read-only post-CAS reconciliation; no second terminal write, no retry, no additional network call, no resumption), §5, §6, §10.1, §10.2 (S9 + V6 note + outer boundary + property (3)), §10.3, §12 (rows 7, 19), §1.9, Appendix A.4, §16 |
+| F2 — impossible sequential direct-executor test | §12 row 20's D node expected TWO SEQUENTIAL direct executor calls on a RUNNING child to both perform a lookup — impossible: the first call terminalizes the child (T1), so the second call's state re-assert refuses the terminal row BEFORE the factory (zero lookups). The two-lookup limit materializes only under genuine concurrency (both read RUNNING before either terminalizes) or after an uncommitted first terminalization (T3/T4, row still RUNNING per fresh read) | §12 row 20 (D = sequential-after-terminalization refusal, ZERO additional lookups; C = genuine concurrent two-lookup / one-terminal-write; M = optional mocked interleaving, labeled not a concurrency proof), §3.2 (documented limit, authority bullet, LB-1, "NOT guarantee"), §4.2 (I4), §14 (risk 1), §13 (row 20 suite notes) |
+| F3 — test-stage consistency | (a) "row 2 stage B" was referenced at R1-4 in §12 row 18 / §13 / §15 but never defined in §11 row 2 (no new execution module lands at R1-4); (b) §11 row 1 stage A's forbidden-flag token list (incl. "force") plus "help text token-free" would have prohibited the APPROVED `--force-repeat` flag; (c) §12 row 1's C node pinned "3 IN PROGRESS reports" although losers that lock in after the winner has terminalized legitimately report COOLDOWN REFUSAL — both outcomes are acceptable only with zero creation/claim/construction/lookup | §11 (row 1 stage A: `--force-repeat` = the ONE approved force-related flag; token scan scoped to all OTHER flag names; help-text pin scoped accordingly), §12 (row 1 C node; row 18 stage names; command-suite summary), §13 (schedule row), §15 (R1-4), §16 |
+
+- **All already-correct FU1 corrections (its F1–F5) and FU2 corrections
+  (its F1–F4) are preserved by this revision; FU3 changes no frozen
+  contract, adds no schema, and authorizes no implementation
+  (documentation-only).**
 - **Every statement is marked:**
   - **[VERIFIED]** — read directly from the frozen SHAs (candidate-session
-    verifications retained; FU1 session's verifications in §1.7; this
-    FU2 session's added verifications are in §1.8 and Appendix A.3), with
-    file/line references; or established by a controlled probe recorded in
+    verifications retained; FU1 session's verifications in §1.7; FU2
+    session's in §1.8 / Appendix A.3; this FU3 session's added
+    verifications are in §1.9 and Appendix A.4), with file/line
+    references; or established by a controlled probe recorded in
     Appendix A.
   - **[PROPOSED]** — a design decision in this document, requiring ChatGPT
     approval before any implementation.
@@ -282,6 +299,25 @@ content):
 | DESIGN2 threat-model wording re-confirmed: §4.2 "a compromised host can invoke the command (true of any server-side capability — the threat model is external/subnet actors, and this removes them from the mutation surface entirely)"; §4.5 self-reported provenance + the R1 deployment host-permissions/operational-audit review | `a87ff1b:docs/VENDOR_ONLY_REFRESH_DESIGN.md` | FU2-F1: the rescoped LB-1 statement is made against exactly this frozen model — the scoped CMD-path guarantee covers the model's actor classes; the direct-executor-reuse limit is the model's explicitly excluded privileged class. |
 | Reserved-value storage fact re-confirmed: R0 test `test_reserved_reason_still_representable_in_database` (L1260) pins that the CHECK constraint admits `EXECUTION_INTERRUPTED` — i.e. raw SQL is a privileged writer of the reserved value independent of any R1 module | `tests/runs/test_vendor_refresh_claims.py` at 3983db4 | FU2-F2: the privileged-writer limit statement (§3.1 F2-4) is exact — the AST pin bounds the R1 PYTHON surface; host-privileged raw SQL is the same excluded threat class. |
 | R0 claims suite re-run at 429cb5e (R0 files ≡ 3983db4) for this revision | `python -m pytest tests/runs/test_vendor_refresh_claims.py -p no:warnings` | **115 passed, 5 subtests passed in 0.88 s** (baseline re-confirmation; documentation-only revision — no source/test file touched). |
+
+### 1.9 FU3 revision verifications (this session, at ec5410c ≡ 3983db4
+for all R0 files) [VERIFIED]
+
+Direct reads performed for this revision (no file modified except this
+document; the FU2 commit `ec5410c` is documentation-only —
+`git show --stat ec5410c` = `docs/VENDOR_REFRESH_R1_DESIGN.md` solely —
+so every R0 source/test file read below is the byte-identical 3983db4
+content):
+
+| Fact | Reference | Why it matters |
+|---|---|---|
+| `complete_vendor_refresh` success path RETURNS `VendorRefreshExecution.objects.get(id=target_id)` (the re-read row); the UPDATE rowcount (`rows`) is a service-local and is NOT part of the R0 API. Zero-row path RAISES `VendorRefreshCompletionError(child_id, detail=…)` with NO `reason=` — detail "no VendorRefreshExecution with ID …" (row absent) or "child is in state {state}, expected RUNNING" (row present, non-matching shape) | `runs/vendor_refresh_claims.py` L490–511 | FU3-F1: T1 = the service's normal return; T2 = the typed exception with `reason=None`. R1 never sees "0 rows" directly from the frozen service. |
+| `fail_vendor_refresh` has the identical shape: success RETURNS the re-read row; zero-row RAISES `VendorRefreshFailureError` with NO `reason=` | `runs/vendor_refresh_claims.py` L600–611 | Fail-side T1/T2 pin. |
+| `VendorRefreshCompletionError.__init__(child_id, detail=None, *, reason=None)` with `REASON_INVALID_SCHEMA_VERSION = "invalid_schema_version"` and `REASON_INVALID_PAYLOAD = "invalid_payload"`; the explicit-reason raises occur BEFORE any UPDATE (pre-mutation validation) | `runs/errors.py` L188–209 | FU3-F1: T2b — invalid input/version errors are classified by `reason` (never by detail-text parsing) and are NOT CAS losers. |
+| `VendorRefreshFailureError.__init__(child_id, detail=None, *, reason=None)` with `REASON_RESERVED_EXECUTION_INTERRUPTED = "reserved_execution_interrupted"` and `REASON_INVALID_FAILURE_REASON = "invalid_failure_reason"`; explicit-reason raises occur BEFORE any UPDATE | `runs/errors.py` L211–234 | Fail-side T2b pin; the reserved-reason rejection (R0 F1) is an input rejection, not a CAS miss. |
+| `VendorRefreshClaimError.__init__(child_id, detail=None)` — NO `reason` attribute; raised on a 0-row claim with the same detail shapes; a claim error means the claim was NOT won | `runs/errors.py` L176–186; `runs/vendor_refresh_claims.py` L360–377 | FU3-F1: claim errors are NEVER caught on the R1 surface and must never be treated as proof of successful ownership. |
+| `VendorRefreshCompletionError` docstring: "The CAS itself matches the stored RUNNING shape; it does not authenticate the caller as the original claim winner (that decision is owned by the R1 gate)" | `runs/errors.py` L188–195 | The frozen R0 contract explicitly allocates the ownership decision to the R1 gate — the FU2-F1 scoped LB-1 guarantee stands on that allocation; T2 reconciliation is read-only and infers nothing about ownership. |
+| R0 claims suite re-run at ec5410c (R0 files ≡ 3983db4) for this revision | `python -m pytest tests/runs/test_vendor_refresh_claims.py -p no:warnings` | **115 passed, 5 subtests passed** (baseline re-confirmation; documentation-only revision — no source/test file touched). |
 
 ---
 
@@ -704,7 +740,8 @@ UPDATE runs_vendorrefreshexecution
   a PENDING row is the separate orphan case, §3.3 — never terminalized
   by M1); absent → `not_found` (parent-deleted cascade or bad id).
 - **T3 / T4** → the operation applies the §3.2 terminal-CAS outcome
-  contract (FU2-F3): definite write failure ⇒ fresh read (RUNNING
+  contract (FU3-F1; the private CAS sees the rowcount directly — the
+  frozen services do not): definite write failure ⇒ fresh read (RUNNING
   established ⇒ `terminalization_not_recorded`, non-zero exit; terminal
   ⇒ T2 report); ambiguous commit outcome ⇒ fresh read on a new
   connection (terminal ⇒ T2 report; RUNNING ⇒ T3; read failure ⇒
@@ -915,19 +952,25 @@ execution are SEPARATED contracts with exactly ONE claim site in R1:
   is inferred. It then runs preflight S4–S6, constructs the adapter from
   the supplied factory (S7, §3.2 adapter contract), performs the single
   lookup, binds/encodes, and terminalizes (S8–S9).
-- **No bypass by catching a failed claim.** No R1 module catches
-  `VendorRefreshClaimError` (or any claim/terminal CAS error) to infer
-  ownership or to proceed to execution. A claim failure is always
-  terminal for the invocation that hit it: on the command path a claim
-  raise inside the serialized transaction rolls back the whole
-  transaction (W1 — no row, zero calls; structurally unreachable because
-  the claim targets the command's own fresh INSERT, but fail-closed
-  nonetheless); elsewhere it propagates bounded. The candidate's
-  "execute re-claims defensively and the command's earlier claim makes
-  that re-claim fail" path is DELETED: a re-claim on an already-RUNNING
-  child must fail under the frozen R0 CAS (PENDING only, verified
-  §1.7), so the candidate's normal success path was self-contradictory.
-  AST pin + adversarial node: §12 row 19.
+- **No bypass by catching a failed claim (FU3-F1, exact).** No R1
+  module catches `VendorRefreshClaimError` (or any claim error) AT ALL
+  — to infer ownership, to proceed to execution, or otherwise. A claim
+  error proves the claim was NOT won; it must never be treated as proof
+  of successful ownership (by the claimant or by anyone else), and no
+  code path may resume execution or make a Vendor call after one. A
+  claim failure is always terminal for the invocation that hit it: on
+  the command path a claim raise inside the serialized transaction
+  rolls back the whole transaction (W1 — no row, zero calls;
+  structurally unreachable because the claim targets the command's own
+  fresh INSERT, but fail-closed nonetheless); elsewhere it propagates
+  bounded. The candidate's "execute re-claims defensively and the
+  command's earlier claim makes that re-claim fail" path is DELETED: a
+  re-claim on an already-RUNNING child must fail under the frozen R0
+  CAS (PENDING only, verified §1.7), so the candidate's normal success
+  path was self-contradictory. The terminal-CAS errors are the one
+  narrow exception — caught ONLY at the pinned read-only
+  terminalization reconciliation (the FU3-F1 guard in the §3.2 T1–T4
+  contract; AST-pinned, §12 row 19).
 - **Exactly one claim per normal command invocation.** Success path:
   exactly one (step [f]). Every other path: zero (ineligible, IN PROGRESS,
   COOLDOWN REFUSAL, anomaly, DB busy). Pinned by the runtime claim-count
@@ -1004,30 +1047,40 @@ exactly:
   fail-closed PRECONDITION (it refuses PENDING / terminal / absent rows
   with zero calls) — it is NOT caller-ownership authentication, and no
   ownership fact is inferred from any row state. A RUNNING row does not
-  prove the caller won the claim: two direct calls against the same
-  still-RUNNING child both pass the re-assert (below). Ownership holds
+  prove the caller won the claim: a direct call against a still-RUNNING
+  child passes the re-assert without being the claim winner (below).
+  Ownership holds
   by the path's structure (single claim site + creator-only execution,
   §3.3/§3.4/§10.2), not by anything the executor checks. The frozen R0
   schema carries no owner token (R0 F2: the CAS guarantees atomic
   single-winner terminalization, NOT issuer identity; verified
   §1.2/DESIGN2 §3.3).
-- **The documented limit (adversarially pinned, §12 row 20):** two
-  direct calls against the same still-RUNNING child (e.g. a crash
-  orphan) — by the same or different host processes — both pass the
-  state re-assert and both reach the lookup before either completes:
-  TWO Vendor HTTP requests on the same MPN, then exactly ONE terminal
-  write (the second terminal CAS loses — T2). This is the limit of the
-  LB guarantee's scope. It is (a) never reachable from the R1 command
-  surface (losers report at the snapshot and never reach the executor;
-  the command calls the executor exactly once, post-commit, on the
-  child it created+claimed; a second command invocation over the same
-  parent sees the active child and exits — §3.4), and (b) the same
-  privileged-writer class as calling the R0 complete/fail CAS directly
-  or issuing raw SQL — explicitly OUTSIDE the frozen threat model
-  (DESIGN2 §4.2: the threat model is external/subnet actors, removed
-  from the mutation surface by host-access authorization; "a
-  compromised host can invoke the command (true of any server-side
-  capability)") and NOT claimed to be prevented.
+- **The documented limit (adversarially pinned, §12 row 20):** direct
+  calls of the executor bypass the CMD path's structural bound. A
+  single direct call against a still-RUNNING child (e.g. a crash
+  orphan) passes the state re-assert and issues a lookup — without
+  being the creating/claiming invocation (ownership is not verified).
+  TWO direct calls may EACH issue a lookup only when both read RUNNING
+  before either terminalizes — genuine concurrency (§12 row 20 C node:
+  two Vendor requests, then the frozen complete service admits exactly
+  ONE terminal write — one thread's call returns (T1), the other's
+  raises the typed zero-row-shape error → T2 report) — or when the
+  first call's terminalization did not commit and the row is RUNNING
+  per fresh read (T3/T4 shape). SEQUENTIAL direct calls after the
+  child is durably terminalized issue NO second lookup: the state
+  re-assert refuses the terminal row before the factory (zero calls —
+  §12 row 20 D node). This is the limit of the LB guarantee's scope. It
+  is (a) never reachable from the R1 command surface (losers report at
+  the snapshot and never reach the executor; the command calls the
+  executor exactly once, post-commit, on the child it created+claimed;
+  a second command invocation over the same parent sees the active
+  child and exits — §3.4), and (b) the same privileged-writer class as
+  calling the R0 complete/fail CAS directly or issuing raw SQL —
+  explicitly OUTSIDE the frozen threat model (DESIGN2 §4.2: the threat
+  model is external/subnet actors, removed from the mutation surface by
+  host-access authorization; "a compromised host can invoke the command
+  (true of any server-side capability)") and NOT claimed to be
+  prevented.
 - **The restricted-internal-executor alternative was considered and not
   chosen:** making the core module-private (command calls a private
   function; `execution/__init__.py` exports only the runtime entry)
@@ -1088,8 +1141,8 @@ stated exactly (LB):
   call site in R1 (§10.2), in the single command invocation's own
   post-commit stack, only on the invocation's OWN child (ownership
   proof §3.4 [O]); losers exit at [D1]/[O] before the executor; the
-  executor never claims; no R1 module catches a claim failure to
-  proceed to it. (ii) CLAIM CAS — at most one claim winner per child
+  executor never claims; no R1 module catches a claim failure AT ALL
+  (FU3-F1: not even to proceed to it). (ii) CLAIM CAS — at most one claim winner per child
   (any writer), so at most one command invocation can be the
   creating+claiming invocation for a given child. (iii) FROZEN ADAPTER
   POLICY — one GET per `lookup()`, no retries. **What the bound is
@@ -1098,8 +1151,9 @@ stated exactly (LB):
   requests: two in-flight lookups can both complete while only one
   terminal write ever commits — and it is NOT claimed against direct
   executor calls outside the CMD path (the documented limit above;
-  §12 row 20 demonstrates it: two direct calls on a still-RUNNING
-  child ⇒ two lookups, one terminal write).
+  §12 row 20 demonstrates it: concurrent direct calls on a still-RUNNING
+  child ⇒ two lookups, one terminal write; a sequential direct call
+  after terminalization ⇒ refused at the re-assert, zero lookups).
 - **LB-2 (exactly, success path).** EXACTLY ONE `lookup()` invocation
   (and, modulo a transport failure returning a bounded FAILED response
   after that single request, exactly one HTTP request) ONLY WHEN the
@@ -1135,55 +1189,109 @@ child, zero calls for every loser and every terminal child, ever" is
 REPLACED by LB-1/LB-2/LB-3 — "ever" is not claimed against arbitrary
 privileged writers, and LB-1 is scoped to the CMD path (FU2-F1).**
 
-**The terminal CAS outcome contract (T1–T4; FU2-F3).** Applies to
-EVERY R1 terminal CAS issued by the executor or the recovery operation
-— complete (S9), fail (any bounded post-claim defect at [A]/S4–S8),
-row 10 (recovery). The four outcomes are SEPARATE; conflating them was
-the FU1 defect:
+**The terminal CAS outcome contract (T1–T4; FU2-F3, FU3-F1 aligned
+with the ACTUAL frozen R0 service API).** The frozen services do NOT
+expose the UPDATE rowcount (verified §1.9): on success they RETURN
+the re-read `VendorRefreshExecution`; on a zero-row CAS they RAISE the
+typed error with `reason=None` (detail "child is in state …, expected
+RUNNING" — row present — or "no VendorRefreshExecution with ID
+…" — row absent); on invalid input they RAISE the same typed
+classes WITH an explicit reason, BEFORE any UPDATE; Django database
+errors (locked / IO / connection) PROPAGATE untyped. The executor
+therefore classifies outcomes by (return / typed error + `reason` /
+database error), never by a rowcount it cannot see. The contract
+applies to EVERY R1 terminalization — complete (S9), fail (bounded
+post-claim defect at [A]/S4–S8), row 10 (recovery):
 
-- **T1 — successful complete CAS.** 1 row affected; the terminal shape
-  is durably recorded (complete ⇒ COMPLETED + payload; fail ⇒ FAILED +
-  R0_LEGAL reason; row 10 ⇒ FAILED + EXECUTION_INTERRUPTED, I8).
-  Report the recorded shape; bounded exit 0.
-- **T2 — CAS loser: zero rows affected because the child is ALREADY
-  TERMINAL.** No exception; the conditional UPDATE matched nothing
-  because a terminal write had already committed (another executor, a
-  non-command writer's R0 complete/fail, or row 10). Contract: FRESH
-  READ the child; report the ACTUAL durable state verbatim (state,
-  finished_at, reason / payload presence); zero further writes by this
-  invocation; **do NOT assert RUNNING** — the 0-row result and the read
-  establish terminal; **do NOT call `fail_vendor_refresh` as a
-  substitute for resolving an unknown successful completion** — for a
-  lost COMPLETE the row is terminal and a fail is both a no-op and a
-  false reclassification of a successful lookup; for a lost FAIL the
-  row is likewise terminal and is reported as-is. Bounded exit 0 (the
-  row is resolved; nothing is stuck; the loser's own result, if any,
-  is simply not persisted — append-only: no rewrite).
-- **T3 — definite database write failure BEFORE commit.** The UPDATE
-  raised (locked / integrity / IO) and the transaction rolled back —
-  the write demonstrably did not commit. Contract: FRESH READ (new
+- **T1 — successful terminal CAS.** The frozen service call RETURNS
+  (the re-read row) — the normal return of the frozen service is the
+  success indicator. The terminal shape is durably recorded (complete
+  ⇒ COMPLETED + payload; fail ⇒ FAILED + R0_LEGAL reason; row 10 ⇒
+  FAILED + EXECUTION_INTERRUPTED, I8). Report the recorded shape;
+  bounded exit 0. (Row 10's private R1 CAS sees the rowcount directly:
+  T1 = 1 row.)
+- **T2 — CAS loser: the child was ALREADY TERMINAL when the UPDATE
+  ran.** The frozen service RAISES `VendorRefreshCompletionError` /
+  `VendorRefreshFailureError` with `reason=None` (zero-row shape: the
+  conditional UPDATE matched nothing because a terminal write had
+  already committed — another executor, a non-command writer's R0
+  complete/fail, or row 10). Contract: the pinned reconciliation catch
+  (below) FRESH-READS the child and distinguishes — TERMINAL
+  (COMPLETED/FAILED): report the ACTUAL durable state verbatim (state,
+  finished_at, reason / payload presence); ABSENT: bounded not-found
+  report (read-only; nothing to terminalize); PENDING or other
+  non-terminal shape: bounded anomaly report (read-only; no state is
+  asserted). In all three: zero further writes by this invocation; do
+  NOT assert RUNNING — the read establishes what it establishes; do
+  NOT call `fail_vendor_refresh` as a substitute for resolving an
+  unknown successful completion — for a lost COMPLETE the row is
+  terminal and a fail is both a no-op and a false reclassification of
+  a successful lookup; for a lost FAIL the row is likewise terminal
+  and is reported as-is. Bounded exit 0 (the row is resolved or gone;
+  nothing is stuck; the loser's own result, if any, is simply not
+  persisted — append-only: no rewrite). (Row 10: the private CAS's
+  0-row result feeds this identical re-read/report.)
+- **T2b — invalid input / version rejection is NOT a CAS loser
+  (FU3-F1).** The same typed classes WITH an explicit `reason`
+  (`invalid_schema_version` / `invalid_payload` for complete;
+  `invalid_failure_reason` / `reserved_execution_interrupted` for
+  fail) are raised BEFORE any UPDATE (verified R0 shape): they are
+  programming defects, not races. The reconciliation classifies by
+  `reason` (never by detail-text parsing) and routes them to the outer
+  boundary as a bounded defect — no terminal-state report, no T2
+  classification. On the S9 path the frozen V1 encoder makes an
+  `invalid_*` pairing structurally unreachable; if reached, it is a
+  defect report.
+- **T3 — definite database write failure BEFORE commit.** The service
+  call RAISES a Django database error (e.g. `OperationalError:
+  database is locked`) — NOT a typed VendorRefresh error — and the
+  write demonstrably did not commit. Contract: FRESH READ (new
   connection where needed): RUNNING — established by the read, not
-  assumed ⇒ bounded `terminalization_not_recorded`, non-zero exit; the
-  row remains RUNNING (a reported HOLD; later resolution by the
+  assumed ⇒ bounded `terminalization_not_recorded`, non-zero exit;
+  the row remains RUNNING (a reported HOLD; later resolution by the
   recovery gate / operator re-check, W8). If the read shows terminal
   instead (another writer terminalized in the interval) ⇒ T2 report,
   exit 0. No retry (frozen no-retry stance, §9 case 7); no
   `fail_vendor_refresh` after a complete attempt.
 - **T4 — ambiguous database/connection failure: the commit outcome
   CANNOT be reliably known** (connection dropped mid-commit, I/O error
-  after the statement was dispatched). Contract: NEITHER outcome is
-  assumed. FRESH READ on a new connection: terminal ⇒ T2 report
-  (exit 0 — the completion IS durably recorded); RUNNING ⇒ T3 (non-
-  zero exit); read ALSO fails ⇒ bounded
-  `terminalization_outcome_unknown`, zero writes, no
+  after the statement was dispatched): the service call raises a
+  Django database error of a shape where neither commit nor rollback is
+  provable. Contract: NEITHER outcome is assumed. FRESH READ on a new
+  connection: terminal ⇒ T2 report (exit 0 — the completion IS
+  durably recorded); RUNNING ⇒ T3 (non-zero exit); read ALSO fails
+  ⇒ bounded `terminalization_outcome_unknown`, zero writes, no
   `fail_vendor_refresh` (a successful lookup is never reclassified
   under a failed reason), no RUNNING assertion, non-zero exit,
   operator re-check per the runbook (manual fresh read; the O8 audit
   trail records the follow-up).
-- Across T1–T4: at most one terminal write per child (I3); no terminal
-  row is ever rewritten; every stdout report is either the actual
-  durable state established by a fresh read or an explicit unknown —
-  never an assumption.
+- **The pinned exception-handling guard (FU3-F1; AST-pinned, §12 row
+  19):**
+  - `VendorRefreshClaimError` (and any claim error): NEVER caught in
+    any R1 module. A claim error proves the claim was NOT won; it must
+    never be treated as proof of successful ownership and never used
+    to proceed to execution or make a Vendor call. The single claim
+    site (command, inside the serialized txn) propagates it → total
+    rollback (W1).
+  - `VendorRefreshCompletionError` / `VendorRefreshFailureError`:
+    caught ONLY at the pinned terminalization-reconciliation site (the
+    post-claim executor, around its complete/fail calls), and only in
+    the pinned shape: classify by `reason` (None ⇒ T2; explicit
+    ⇒ T2b), FRESH READ (bounded, read-only), report / raise
+    `VendorRefreshExecutionError`. NO second terminal write, NO retry
+    of the CAS, NO factory/`lookup()` call, NO execution resumption.
+  - Django database errors: handled ONLY at the same reconciliation
+    site (T3/T4 classification), then wrapped in
+    `VendorRefreshExecutionError` (bounded, non-zero exit).
+  - No R1 module catches ANY error to resume execution or make another
+    Vendor call. (Row 10 at R1-4: the private CAS handles its own
+    rowcount/DB outcomes in the identical pinned T2/T3/T4 shape; it
+    calls no frozen terminal service and catches no frozen service
+    error.)
+- Across T1–T4/T2b: at most one terminal write per child (I3); no
+  terminal row is ever rewritten; every stdout report is either the
+  actual durable state established by a fresh read or an explicit
+  unknown — never an assumption.
 
 **What it does NOT guarantee against arbitrary privileged Python/DB
 writers [PROPOSED — unchanged from candidate, restated over the new
@@ -1193,10 +1301,11 @@ can call `fail_vendor_refresh(child, INTERNAL_ERROR)` on a RUNNING row
 recovery operation with a false `--attest-host-inventory` (the
 attestation is Class A; O8 cross-checks it after the fact), call the
 public executor on a RUNNING child it did not claim (second lookup —
-the residual above), call the public executor TWICE on the same
-still-RUNNING child (both calls pass the state re-assert and both reach
-the lookup — two Vendor requests, one terminal write; §12 row 20 pins
-this as the documented limit of LB-1's scope), call the recovery
+the residual above), concurrently invoke the public executor twice on
+the same still-RUNNING child (both may reach the lookup — two Vendor
+requests — while the database admits exactly one terminal write; §12
+row 20 pins this as the documented limit of LB-1's scope), call the
+recovery
 operation with a struct that passes V1–V5 (fresh, consistent, clean —
 but forged or mis-scoped: V2 validates structure/freshness/outcome, not
 truth — §3.1 F2-4), import the recovery module and call
@@ -1513,7 +1622,7 @@ python manage.py vendor_refresh <parent-run-uuid> --operator <id> [--force-repea
         -> S9 complete_vendor_refresh(child.id, 1, encoded)
    (any bounded post-claim defect at S4–S8 -> fail_vendor_refresh(bounded
    R0_LEGAL reason); the fail's own outcome per T1–T4; NO fail after a
-   complete attempt; single outer boundary, §3.2 FU2-F3, §10.2/§10.3)
+   complete attempt; single outer boundary, §3.2 FU3-F1, §10.2/§10.3)
 ```
 
 **Ownership proof under the lock** [PROPOSED, derived from verified
@@ -1653,8 +1762,11 @@ rejected by the R0 fail primitive and unwritable by any R1 code.
   a guarantee of the CMD execution path; it is NOT claimed against
   arbitrary privileged writers, and the terminal CAS is NOT a lookup
   bound (§3.2; the direct-executor-reuse limit is adversarially pinned
-  at §12 row 20: two direct calls on a still-RUNNING child ⇒ two
-  lookups, one terminal write). [R1 structure + frozen adapter policy;
+  at §12 row 20: concurrent direct calls on a still-RUNNING child may
+  each reach the lookup — two Vendor requests, one terminal write —
+  while a sequential second direct call after terminalization is
+  machine-refused at the re-assert, zero calls). [R1 structure + frozen
+  adapter policy;
   replaces the candidate's "exactly one per successfully claimed child …
   ever" formulation.]
 - **I5** — On the R1 command path, a child is first durably observed in
@@ -1747,30 +1859,43 @@ frozen DESIGN2 §4.2; `op`: self-reported provenance, verbatim).
      [S7] adapter = vendor_adapter_factory()       (FIRST construction; counting-fake
           in tests) ; response = adapter.lookup(query)   (THE single lookup; no open txn)
      [S8] encoded = bind_and_encode_vendor_lookup(child.requested_mpn, response)  (D10 helper)
-     [S9] complete_vendor_refresh(child.id, 1, encoded) (single UPDATE)
-          -> terminal CAS outcome T1-T4 (§3.2 FU2-F3):
-             T1 -> bounded stdout: COMPLETED (lookup_status=...); exit 0
-             T2 (0 rows: child already terminal) -> FRESH READ, report
-                ACTUAL durable state verbatim; zero further writes; NO
-                RUNNING assertion; fail NOT issued; exit 0
-             T3 (definite write failure) -> fresh read establishes
-                RUNNING -> terminalization_not_recorded; exit != 0
-             T4 (ambiguous commit outcome) -> fresh read: terminal ->
-                T2; RUNNING -> T3; read fails ->
-                terminalization_outcome_unknown; zero writes; NO fail;
-                exit != 0
+     [S9] complete_vendor_refresh(child.id, 1, encoded)
+          (frozen R0 service — FU3-F1: RETURNS the re-read row on
+           success; RAISES the typed completion error with reason=None
+           on a zero-row CAS; RAISES it WITH an explicit reason on
+           invalid input, pre-UPDATE; PROPAGATES Django DB errors)
+          -> terminal CAS outcome T1-T4 (§3.2):
+             T1 (service RETURNS) -> bounded stdout: COMPLETED
+                (lookup_status=...); exit 0
+             T2 (typed error, reason=None: child already terminal) ->
+                pinned READ-ONLY reconciliation: FRESH READ, report
+                ACTUAL durable state verbatim (or bounded not-found /
+                anomaly report); zero further writes; NO RUNNING
+                assertion; fail NOT issued; no retry; exit 0
+             T2b (typed error, explicit reason: invalid input — NOT a
+                CAS loser) -> outer-boundary defect handling
+             T3 (definite Django DB error: write did not commit) ->
+                fresh read establishes RUNNING ->
+                terminalization_not_recorded; exit != 0
+             T4 (ambiguous Django DB error: commit outcome unknown) ->
+                fresh read: terminal -> T2; RUNNING -> T3; read fails
+                -> terminalization_outcome_unknown; zero writes; NO
+                fail; exit != 0
 
 POST-CLAIM FAILURE PATH (A/S4..S8 defect — BEFORE any complete attempt):
      bounded R0_LEGAL reason r in {MPN_BINDING_VIOLATION, VENDOR_LOOKUP_CONFIG_MISSING,
                                    MPN_QUERY_NORMALIZATION_MISMATCH, RESULT_ENCODING_FAILED,
                                    INTERNAL_ERROR}
      -> fail_vendor_refresh(child.id, r)  (single UPDATE)
-     -> the fail's own outcome per T1-T4 (§3.2): T1 -> command stdout:
-        FAILED (reason=r); exit 0. T2 -> child already terminal: fresh
-        read, report ACTUAL durable state; no rewrite; exit 0. T3 ->
-        fresh read establishes RUNNING -> terminalization_not_recorded;
-        exit != 0. T4 -> fresh read: terminal -> T2; RUNNING -> T3; read
-        fails -> terminalization_outcome_unknown; exit != 0.
+     -> the fail's own outcome per T1-T4 (§3.2): T1 (service RETURNS) ->
+        command stdout: FAILED (reason=r); exit 0. T2 (typed failure
+        error, reason=None: child already terminal) -> read-only
+        reconciliation: fresh read, report ACTUAL durable state; no
+        rewrite; exit 0. T2b (explicit reason) -> defect handling.
+        T3 -> fresh read establishes RUNNING ->
+        terminalization_not_recorded; exit != 0. T4 -> fresh read:
+        terminal -> T2; RUNNING -> T3; read fails ->
+        terminalization_outcome_unknown; exit != 0.
      -> raise VendorRefreshExecutionError (bounded; T1/T3/T4 cases)
      -> NO fail is issued after a COMPLETE attempt (S9): a successful
         lookup is never reclassified under a failed reason; S9's T3/T4
@@ -1802,7 +1927,7 @@ stack on the command surface; the claim CAS makes single-ownership true even
 for races the lock does not serialize (defense in depth); complete/fail
 are issued only by that invocation's stack; losers (snapshot exit) make
 zero claim attempts and zero lookups; no R1 module catches a claim
-failure to proceed; the only other legal terminalizer is the
+failure at all (FU3-F1); the only other legal terminalizer is the
 evidence-gated recovery OPERATION (its low-level CAS is module-private
 and single-caller — §3.1 FU2-F2; BLOCKED at R1-4), which writes the
 reserved reason and never a result, and never a lookup. The LB-1 lookup
@@ -1822,9 +1947,9 @@ writes, not external requests (T2/W11).
 | Config/binding/normalization checks (S4–S6) | parent SELECT; env read; in-memory string compare | NO | none | trivial | → bounded fail UPDATE (below) |
 | Vendor call (S7) | factory invocation (FIRST construction) + ONE GET (frozen adapter policy: 10 s socket timeout, 1 MiB bound, no retries) | YES — outside every transaction | exactly once | ≤ ~10 s + scheduling | transport failure → bounded FAILED RESPONSE (not exception) → normal completion with lookup_status=FAILED; `ValueError` in `_ensure_configured` (malformed non-blank URL) → raises before any HTTP request (0 requests) → INTERNAL_ERROR fail path; factory raising → no object → INTERNAL_ERROR fail path |
 | Binding/encode (S8) | in-memory | NO | none | trivial | codec error → RESULT_ENCODING_FAILED fail path |
-| complete (S9) | single UPDATE | NO | none | trivial | T1–T4 (§3.2 FU2-F3): T1 recorded → exit 0; T2 (0 rows, child already terminal) → fresh read, report ACTUAL durable state, zero further writes, NO RUNNING assertion, fail NOT issued → exit 0; T3 (definite write failure) → fresh read establishes RUNNING → `terminalization_not_recorded` → exit != 0; T4 (ambiguous commit) → fresh read: terminal → T2; RUNNING → T3; read fails → `terminalization_outcome_unknown` → exit != 0 |
-| fail (any) | single UPDATE | NO | none | trivial | T1–T4 as complete (T1 → FAILED stdout, exit 0; T2 → actual terminal shape reported, no rewrite, exit 0; T3/T4 → `terminalization_not_recorded` / `terminalization_outcome_unknown`, exit != 0) |
-| Recovery operation (row 10; BLOCKED at R1-4) | V1–V5 (attestation flag; evidence struct present/class/fresh/consistent/clean; row fresh-read RUNNING; record write) + single UPDATE | NO | none (no factory exists in the recovery path) | trivial (scanner seam ≤ 60 s runs in the command, pre-operation) | every refusal zero-CAS; T1 RECOVERED (exit 0); T2 → fresh read, ACTUAL terminal shape (W11, exit 0); T3 → `terminalization_not_recorded` (fresh read establishes RUNNING, exit != 0); T4 → `terminalization_outcome_unknown` or T2/T3 (exit != 0 where unresolved); record written pre-CAS on every exit where the store is available |
+| complete (S9) | frozen R0 service call (one conditional UPDATE inside) | NO | none | trivial | T1–T4/T2b (§3.2 FU3-F1): T1 (service RETURNS) → exit 0; T2 (typed completion error, `reason=None`: child already terminal) → read-only reconciliation: fresh read, report ACTUAL durable state (or bounded not-found / anomaly), zero further writes, NO RUNNING assertion, fail NOT issued → exit 0; T2b (explicit `reason`: invalid input — NOT a CAS loser) → outer-boundary defect handling; T3 (definite Django DB error) → fresh read establishes RUNNING → `terminalization_not_recorded` → exit != 0; T4 (ambiguous DB error) → fresh read: terminal → T2; RUNNING → T3; read fails → `terminalization_outcome_unknown` → exit != 0 |
+| fail (any) | frozen R0 service call (one conditional UPDATE inside) | NO | none | trivial | T1–T4/T2b as complete (T1 → FAILED stdout, exit 0; T2 → actual terminal shape reported by read-only reconciliation, no rewrite, exit 0; T3/T4 → `terminalization_not_recorded` / `terminalization_outcome_unknown`, exit != 0) |
+| Recovery operation (row 10; BLOCKED at R1-4) | V1–V5 (attestation flag; evidence struct present/class/fresh/consistent/clean; row fresh-read RUNNING; record write) + the module-private CAS (single UPDATE; the rowcount IS visible to this R1 primitive) | NO | none (no factory exists in the recovery path) | trivial (scanner seam ≤ 60 s runs in the command, pre-operation) | every refusal zero-CAS; T1 (1 row) RECOVERED (exit 0); T2 (0 rows) → fresh read, ACTUAL terminal shape (W11, exit 0); T3 → `terminalization_not_recorded` (fresh read establishes RUNNING, exit != 0); T4 → `terminalization_outcome_unknown` or T2/T3 (exit != 0 where unresolved); record written pre-CAS on every exit where the store is available |
 
 No statement of any R1 path holds a transaction open across S7; the
 adapter factory is never invoked inside a transaction. [PROPOSED
@@ -1946,7 +2071,10 @@ present, collection failed, store unavailable, pending row, not found —
 a refusal alerts the operator that the row remains RUNNING and needs
 follow-up), and T3/T4 terminalization outcomes (not recorded; outcome
 unknown — a non-zero exit is the alert that a fresh read / re-check is
-required). This mirrors the frozen DESIGN2
+required); and programming/unexpected errors (database busy/locked at
+the lock statement, a T2b invalid-input/version defect, or any
+non-bounded raise — the `pilot_check` non-zero class). This mirrors the
+frozen DESIGN2
 §10.3(5) exit-code contract and the `pilot_check` precedent.
 
 Normal command outcome classes: CREATED_EXECUTED / IN_PROGRESS (incl.
@@ -2078,8 +2206,8 @@ completeness):
 - **B. Two non-R1-surface sequences (programmatic claim + post-claim
   executor) on the same PENDING child:** the claim CAS admits exactly one
   winner; the loser's claim raises `VendorRefreshClaimError` — a
-  failure that is NEVER caught to proceed (F1 no-bypass rule; §12 row
-  19) — so the loser never reaches the executor: one lookup total
+  failure that is NEVER caught to proceed (FU1-F1 no-bypass rule; FU3-F1:
+claim errors are never caught at all, in any R1 module; §12 row 19) — so the loser never reaches the executor: one lookup total
   (LB-1/LB-2 for the winner; LB-3 for the loser). (The R1 command
   surface has no such path at all — its claim is inside its own
   transaction; this case bounds hypothetical/future non-command users.)
@@ -2115,7 +2243,7 @@ terminal CAS bounds terminal writes, not external requests.
 
 | Module (path) | Content | Import allowlist (pinned by new AST guards, §12) |
 |---|---|---|
-| `product_intelligence/execution/vendor_refresh.py` (NEW; R1-2) | `execute_claimed_vendor_refresh(child_id, *, vendor_adapter=None, vendor_adapter_factory=None) -> VendorRefreshExecution` — the POST-CLAIM execution body (§3.2 contract: state re-assert (NOT ownership authentication, FU2-F1); S4–S6 preflight; S7 factory+lookup; S8 encode; S9 complete with the T1–T4 terminal-CAS outcome contract, FU2-F3; single outer boundary — bounded defect at [A]/S4–S8 → `fail_vendor_refresh(R0_LEGAL reason)` (its own outcome per T1–T4) + raise `VendorRefreshExecutionError`; NO fail after a complete attempt; T3/T4 → `terminalization_not_recorded` / `terminalization_outcome_unknown`, fresh-read established, never assumed). `VendorRefreshExecutionError` (bounded, execution-layer, mirrors `ComparableResearchExecutionError` L116; non-persisted reasons incl. `terminalization_outcome_unknown`). **NO claim: the module does not reference `claim_vendor_refresh` in any form (AST-pinned, §12 row 19) and catches no claim/terminal CAS error for control flow.** | `product_intelligence.runs` PUBLIC symbols only (complete/fail + bounded errors + model for the state re-assert); `product_intelligence.execution.vendor_commercial_binding` (the D10 helper); `product_intelligence.providers.commercial` (`CommercialLookupQuery`, `LookupStatus` — the network-free contract types, as the frozen 4D-B orchestration does); `os` (env read of `PI_VENDOR_LOOKUP_BASE_URL`); stdlib. **NO import of `providers.internal_vendor` in any form** (I13/AST); the adapter arrives ONLY as a parameter (instance or zero-arg factory). NO web, NO research.identity direct (2A happens inside the helper), NO fx, NO semantic, NO comparable, NO search, NO page fetch. |
+| `product_intelligence/execution/vendor_refresh.py` (NEW; R1-2) | `execute_claimed_vendor_refresh(child_id, *, vendor_adapter=None, vendor_adapter_factory=None) -> VendorRefreshExecution` — the POST-CLAIM execution body (§3.2 contract: state re-assert (NOT ownership authentication, FU2-F1); S4–S6 preflight; S7 factory+lookup; S8 encode; S9 complete with the T1–T4 terminal-CAS outcome contract, FU2-F3; single outer boundary — bounded defect at [A]/S4–S8 → `fail_vendor_refresh(R0_LEGAL reason)` (its own outcome per T1–T4) + raise `VendorRefreshExecutionError`; NO fail after a complete attempt; T3/T4 → `terminalization_not_recorded` / `terminalization_outcome_unknown`, fresh-read established, never assumed). `VendorRefreshExecutionError` (bounded, execution-layer, mirrors `ComparableResearchExecutionError` L116; non-persisted reasons incl. `terminalization_outcome_unknown`). **NO claim: the module does not reference `claim_vendor_refresh` in any form (AST-pinned, §12 row 19) and catches no claim error at all; it catches `VendorRefreshCompletionError`/`VendorRefreshFailureError` ONLY at the pinned read-only terminalization-reconciliation site (T2/T2b) and Django DB errors ONLY there (T3/T4) — FU3-F1 guard, §12 row 19.** | `product_intelligence.runs` PUBLIC symbols only (complete/fail + bounded errors + model for the state re-assert); `product_intelligence.execution.vendor_commercial_binding` (the D10 helper); `product_intelligence.providers.commercial` (`CommercialLookupQuery`, `LookupStatus` — the network-free contract types, as the frozen 4D-B orchestration does); `os` (env read of `PI_VENDOR_LOOKUP_BASE_URL`); stdlib. **NO import of `providers.internal_vendor` in any form** (I13/AST); the adapter arrives ONLY as a parameter (instance or zero-arg factory). NO web, NO research.identity direct (2A happens inside the helper), NO fx, NO semantic, NO comparable, NO search, NO page fetch. |
 | `product_intelligence/execution/vendor_refresh_runtime.py` (NEW; R1-2) | `execute_claimed_vendor_refresh_with_default_providers(child_id)` — thin command-stack entry: supplies the concrete `InternalVendorAdapter` CLASS as the `vendor_adapter_factory` (function-level import — the ONLY R1 module importing `providers.internal_vendor`; DESIGN2 §3.5 placement preserved) and delegates ONCE. **Constructs nothing itself** (O9: deliberate deviation from `comparable_runtime.py`'s eager construction — §3.2). | `product_intelligence.execution.vendor_refresh`; `product_intelligence.providers.internal_vendor` (adapter class only, function-level). |
 | `product_intelligence/execution/vendor_commercial_binding.py` (NEW; R1-1 — D10 helper) | `bind_and_encode_vendor_lookup(requested_mpn: str, response) -> dict` — the moved 4D-B binding/encoding policy: per-candidate frozen 2A `compare_part_numbers` (EXACT/NORMALIZED_EXACT → `SupplementSourceObservation(brand_new=True, brand_new_basis="VENDOR_API_POLICY")`; else `SupplementSourceIssue(MPN_MISMATCH, "vendor_mpn_mismatch")`); provider issues copied bounded (detail=None); final status mapping (transport FAILED → `"FAILED"` + `retrieved_at=None`; else `response.status.value` + `response.retrieved_at`); `ResearchSupplementResult` construction + `encode_research_supplement_result`; `SupplementCodecError` propagates | `product_intelligence.research.identity` (`compare_part_numbers`); `product_intelligence.research.commercial_supplement_codec` (dataclasses + encoder); `product_intelligence.providers.commercial` (`LookupStatus`); stdlib. Pure function: no DB, no env, no network, no adapter import. |
 | `product_intelligence/execution/orchestration.py` (MODIFIED — behavior-identical; R1-1) | `_try_vendor_commercial_lookup` (L1124–1257) keeps: config check, query build, ONE adapter call; the step-6/7 binding+encode block is REPLACED by a call to `bind_and_encode_vendor_lookup(request.manufacturer_part_number, response)`. No other orchestration line changes. | existing + `product_intelligence.execution.vendor_commercial_binding` |
@@ -2208,7 +2336,9 @@ execute_claimed_vendor_refresh(child_id, *, vendor_adapter=None,
  │       NO terminal write (a PENDING orphan is machine-refused here — M3,
  │       for ANY caller)
  │  # THIS FUNCTION NEVER CALLS claim_vendor_refresh (AST-pinned, row 19);
- │  # no R1 module catches a claim/terminal CAS error to proceed
+ │  # no R1 module catches a CLAIM error at all (FU3-F1); terminal CAS
+ │  # errors are caught ONLY in the pinned read-only reconciliation
+ │  # below (T2/T2b/T3/T4) — never to proceed or resume
  │  [S4] parent = load parent_run
  │       parent COMPLETED re-check (defensive)
  │       child.requested_mpn == parent.manufacturer_part_number
@@ -2225,20 +2355,30 @@ execute_claimed_vendor_refresh(child_id, *, vendor_adapter=None,
  │            child.requested_mpn, response)     # D10 helper; pure
  │       # SupplementCodecError → fail RESULT_ENCODING_FAILED → raise
  │  [S9] runs.complete_vendor_refresh(child.id, 1, encoded)
- │       # terminal CAS outcome T1–T4 (§3.2 FU2-F3):
- │       # T1 1 row → COMPLETED recorded; bounded stdout COMPLETED; exit 0
- │       # T2 0 rows, no exception → child ALREADY TERMINAL: fresh read,
- │       #     report ACTUAL durable state verbatim; zero further writes;
- │       #     NO RUNNING assertion; fail_vendor_refresh NOT issued (not a
- │       #     substitute for an unknown successful completion); exit 0
- │       #     (TERMINAL_REPORTED)
- │       # T3 definite write failure (rolled back) → fresh read:
- │       #     RUNNING established → terminalization_not_recorded, exit
- │       #     != 0; terminal → T2 report, exit 0
- │       # T4 ambiguous commit outcome → fresh read (new connection):
- │       #     terminal → T2; RUNNING → T3; read fails →
- │       #     terminalization_outcome_unknown; zero writes; NO fail; NO
- │       #     RUNNING assertion; exit != 0
+ │       # frozen R0 service (FU3-F1): RETURNS the re-read row on
+ │       # success; RAISES the typed completion error with reason=None
+ │       # on a zero-row CAS; RAISES it WITH an explicit reason on
+ │       # invalid input (pre-UPDATE); PROPAGATES Django DB errors
+ │       # terminal CAS outcome T1–T4 (+T2b; §3.2):
+ │       # T1 service RETURNS → COMPLETED recorded; bounded stdout
+ │       #     COMPLETED; exit 0
+ │       # T2 typed error, reason=None (child ALREADY TERMINAL) →
+ │       #     RECONCILIATION (the ONLY permitted catch — read-only):
+ │       #     fresh read, report ACTUAL durable state verbatim (or
+ │       #     bounded not-found / anomaly); zero further writes;
+ │       #     NO RUNNING assertion; fail_vendor_refresh NOT issued
+ │       #     (not a substitute for an unknown successful completion);
+ │       #     no retry; exit 0 (TERMINAL_REPORTED)
+ │       # T2b typed error, explicit reason (invalid input — NOT a CAS
+ │       #     loser) → outer-boundary defect handling; no T2 report
+ │       # T3 definite Django DB error (write did not commit) →
+ │       #     reconciliation fresh read: RUNNING established →
+ │       #     terminalization_not_recorded, exit != 0; terminal → T2,
+ │       #     exit 0
+ │       # T4 ambiguous Django DB error (commit outcome unknown) →
+ │       #     fresh read (new connection): terminal → T2; RUNNING →
+ │       #     T3; read fails → terminalization_outcome_unknown; zero
+ │       #     writes; NO fail; NO RUNNING assertion; exit != 0
  └─────── SINGLE OUTER BOUNDARY (post-claim): any bounded defect at
          [A]/S4–S8 (BEFORE a complete attempt) maps to ONE R0_LEGAL fail
          reason + fail_vendor_refresh + raise
@@ -2247,7 +2387,12 @@ execute_claimed_vendor_refresh(child_id, *, vendor_adapter=None,
          reported, exit 0; T3/T4 → terminalization_not_recorded /
          terminalization_outcome_unknown, non-zero exit). NO fail is
          issued after a complete attempt (S9): a successful lookup is
-         never reclassified (T2/T3/T4 per §3.2).
+         never reclassified (T2/T3/T4 per §3.2). Exception-handling
+         guard (FU3-F1, pinned §12 row 19): claim errors are NEVER
+         caught in any R1 module; completion/failure errors (and
+         Django DB errors) are caught ONLY in this reconciliation,
+         read-only — no second terminal write, no retry, no factory/
+         lookup call, no execution resumption.
 
 RECOVERY COMMAND  (runs/management/commands/vendor_refresh_recovery.py)
 handle(child_uuid: str, *, operator: str, evidence: str,
@@ -2305,7 +2450,8 @@ handle(child_uuid: str, *, operator: str, evidence: str,
  │           _terminalize_execution_interrupted — row-10 single
  │           conditional UPDATE; the ONLY R1 Python writer of
  │           EXECUTION_INTERRUPTED; NOT exported (AST-pinned, §12 row 9)
- │           → T1–T4 (§3.2 FU2-F3): T1 → RECOVERED (record
+ │           → T1–T4 (§3.2 FU3-F1; the private CAS sees the rowcount
+ │           directly — the frozen services do not): T1 (1 row) → RECOVERED (record
  │           evidence_clean; digest in stdout); T2 → ALREADY_TERMINAL
  │           (fresh read, ACTUAL durable shape — W11: interruption never
  │           recorded over a real result); T3 → TERMINALIZATION_NOT_
@@ -2320,23 +2466,30 @@ handle(child_uuid: str, *, operator: str, evidence: str,
 
 **Graph properties (pinned by §12):** (1) exactly one claim call site in
 R1 — the normal command's [f]; (2) the execution core and runtime never
-claim; (3) no R1 module catches a claim/terminal CAS error for control
-flow (a CAS failure is always terminal for the invocation that hit it);
-(4) the network call site is unique — core [S7], strictly post-commit
-and post-preflight; (5) the recovery path shares NO node with the
-execution path (no factory, no lookup, no execution import); (6) every
-exit path is LB-classified (§3.2 table); (7) NO graph node authenticates
-the executor's or the recovery operation's caller: ownership is
-structural (single claim site + creator-only path), and [A]'s RUNNING
-re-assert / V3's row read are fail-closed preconditions, NOT ownership
-authentication — the LB-1 scope (§3.2 FU2-F1) and the §12 row 20
-adversarial pin state the limit; (8) every terminal CAS in the graph
-(core S9 fail, core S9 complete, operation V6 row 10) carries the T1–T4
-outcome contract (§3.2 FU2-F3) — no RUNNING assertion without a fresh
-read, no fail as a substitute for an unknown successful completion;
-(9) the row-10 CAS is reachable from EXACTLY ONE graph node (operation
-V6) and that node is preceded by V1–V5 — the evidence gate governs the
-authorized writer itself (§3.1 FU2-F2).
+claim; (3) claim errors are NEVER caught in any R1 module (a failed
+claim is terminal for the invocation — total rollback at the command
+site; never treated as ownership proof), and terminal CAS errors
+(typed completion/failure, reason=None) plus Django DB errors are
+caught ONLY at the pinned read-only reconciliation — classify, fresh
+read, report; no second terminal write, no retry, no additional
+network call; every such failure is terminal for the invocation
+(FU3-F1); (4) the network call site is unique — core [S7], strictly
+post-commit and post-preflight; (5) the recovery path shares NO node
+with the execution path (no factory, no lookup, no execution import);
+(6) every exit path is LB-classified (§3.2 table); (7) NO graph node
+authenticates the executor's or the recovery operation's caller:
+ownership is structural (single claim site + creator-only path), and
+[A]'s RUNNING re-assert / V3's row read are fail-closed preconditions,
+NOT ownership authentication — the LB-1 scope (§3.2 FU2-F1) and the
+§12 row 20 adversarial pin state the limit; (8) every terminal CAS in
+the graph (core S9 fail, core S9 complete, operation V6 row 10)
+carries the T1–T4 outcome contract (§3.2 FU3-F1, service-accurate —
+the frozen services expose no rowcount; the R1 private CAS does) — no
+RUNNING assertion without a fresh read, no fail as a substitute for an
+unknown successful completion; (9) the row-10 CAS is reachable from
+EXACTLY ONE graph node (operation V6) and that node is preceded by
+V1–V5 — the evidence gate governs the authorized writer itself
+(§3.1 FU2-F2).
 
 ### 10.3 Expected behaviors (task §7) [PROPOSED]
 
@@ -2368,25 +2521,33 @@ authorized writer itself (§3.1 FU2-F2).
 - **Database failure** (locked/IO during the serialized txn): full
   rollback, zero claims, zero lookups, bounded "DATABASE BUSY/ERROR — no
   state changed", non-zero exit (W1). During a terminal CAS (W8), the
-  T1–T4 contract applies (§3.2 FU2-F3): T3 (definite write failure)
-  → fresh read establishes RUNNING → bounded "terminalization NOT
-  recorded" stdout, non-zero exit, recovery gate (R1-4) is the only
-  later path (reported HOLD while blocked); T4 (ambiguous commit
-  outcome) → fresh read: terminal → report actual (exit 0); RUNNING →
-  T3; read failure → "terminalization OUTCOME UNKNOWN", manual re-check,
-  non-zero exit. No RUNNING is asserted without a fresh read
-  establishing it.
+  T1–T4 contract applies (§3.2 FU3-F1, service-accurate): T3 (definite
+  write failure — the service call raises a Django database error, NOT
+  a typed VendorRefresh error) → fresh read establishes RUNNING →
+  bounded "terminalization NOT recorded" stdout, non-zero exit,
+  recovery gate (R1-4) is the only later path (reported HOLD while
+  blocked); T4 (ambiguous commit outcome — a Django database error of
+  a shape where neither commit nor rollback is provable) → fresh read:
+  terminal → report actual (exit 0); RUNNING → T3; read failure →
+  "terminalization OUTCOME UNKNOWN", manual re-check, non-zero exit. T2
+  is NOT a database failure: it is the typed zero-row-shape error
+  (`reason=None`) handled by the read-only reconciliation (§3.2). No
+  RUNNING is asserted without a fresh read establishing it.
 - **Lost terminalization race (T2)** (row 3 vs row 10, row 3 vs row 4,
   row 4 vs row 4, or any same-shape pair): the CAS admits exactly one
-  terminal write (I3); the loser — zero rows affected because the child
-  is ALREADY TERMINAL — re-reads and reports the ACTUAL durable state
-  verbatim with zero mutation (W11); no rewrite; no fail as a
-  substitute for an unknown successful completion; recovery never
-  records an interruption over a real result. NOTE (W12/FU2-F1): a lost
-  race prevents double TERMINALIZATION only — the terminal CAS is NOT a
-  lookup bound: it cannot prevent an overlapping second LOOKUP issued
-  by a still-alive original (that is the evidence gate's job, §3.1) nor
-  a second lookup from two direct executor calls (§12 row 20).
+  terminal write (I3); the loser — the frozen service RAISES the typed
+  completion/failure error with `reason=None` because the child is
+  ALREADY TERMINAL — is handled by the pinned read-only reconciliation:
+  fresh read, report the ACTUAL durable state verbatim with zero
+  mutation (W11); no rewrite; no fail as a substitute for an unknown
+  successful completion; recovery never records an interruption over a
+  real result. (Invalid input/version rejections carry an explicit
+  `reason` and are T2b defects, NOT CAS losers — §3.2 FU3-F1.) NOTE
+  (W12/FU2-F1): a lost race prevents double TERMINALIZATION only — the
+  terminal CAS is NOT a lookup bound: it cannot prevent an overlapping
+  second LOOKUP issued by a still-alive original (that is the evidence
+  gate's job, §3.1) nor a second lookup from concurrent direct executor
+  calls (§12 row 20).
 - **Unknown persistence outcome (T4)**: the commit outcome cannot be
   reliably known (connection dropped mid-commit, I/O error after the
   statement was dispatched). Neither outcome is assumed: fresh read on a
@@ -2447,12 +2608,14 @@ mandated surface; each evolves IN PLACE (same node ID; docstring
 corrected; body staged per substep so it is green at every gate — and
 each stage lands at the substep that FIRST breaks the node's R0-only
 assertion: **row 2 stage A at R1-2** (when `execution/vendor_refresh.py`
-is first introduced), row 1 stage A + row 3 stage 1 at R1-3, stage
-B/stage 2 at R1-4 post-unblock).
+is first introduced), row 1 stage A + row 3 stage 1 at R1-3, row 1
+stage B + row 3 stage 2 at R1-4 post-unblock. Row 2 has NO further
+stage: no new execution module lands at R1-4, so its stage A pin
+remains in force unchanged (FU3-F3).)
 
 | # | Original node (line at 3983db4) | Original meaning | Evolved body — staged (PROPOSED) | Original safety intent preserved | New adversarial R1 regression coverage |
 |---|---|---|---|---|---|
-| 1 | `TestNoRecoverySurface::test_no_vendor_refresh_management_command_exists` (L1446) | "R0 ships no command surface: no `vendor_refresh*` file in `runs/management/commands`" | **Stage A (approved at the R1-3 gate):** assert the EXACT set of `vendor_refresh*` files in `runs/management/commands` == `{vendor_refresh.py}` (exact membership — the recovery command does NOT exist yet, R1-4 BLOCKED; any other file fails); parse the normal command's argument parser: exactly 1 positional (PARENT run UUID) and exactly the flags `--operator` (required) and `--force-repeat` (optional) — NO child-id positional, NO `--evidence*`, NO `--attest*`, NO `--reclaim-stale` or any token-bearing flag (reclaim/reset/retry/recover/recovery/force/stale/reassign/resurrect/interrupt), NO undocumented flag; help text token-free. **Stage B (approved at the R1-4 gate, post-unblock ONLY):** set == `{vendor_refresh.py, vendor_refresh_recovery.py}` + Stage A pins + the recovery command's parser: exactly 1 positional (CHILD UUID) + `--operator` (required) + `--evidence` (required, choices exactly `{reboot, process-scan, operator-stop}`) + `--attest-host-inventory` (required) and nothing else | The original invariant ("no unapproved execution/recovery surface") becomes a STRICTER exact-membership pin at every stage: R1 may add only the approved command files with only the approved arguments — a hidden fifth flag, a third file, or a premature recovery file fails closed. The absence property is subsumed by exact membership | New nodes in `tests/runs/test_vendor_refresh_command.py`: unknown/forbidden flag → parser error with zero DB statements (ORM spy, mirroring R0's `test_reserved_rejection_issues_no_db_statement` pattern); child-id positional on the normal command → parser error; invocation over an ineligible parent (not COMPLETED / no MPN / missing) → bounded refusal, zero children, zero factory invocations (counting fake), zero lookups; exit-code matrix per §8.3. At Stage B additionally: recovery parser pins + §12 row 8 suite |
+| 1 | `TestNoRecoverySurface::test_no_vendor_refresh_management_command_exists` (L1446) | "R0 ships no command surface: no `vendor_refresh*` file in `runs/management/commands`" | **Stage A (approved at the R1-3 gate):** assert the EXACT set of `vendor_refresh*` files in `runs/management/commands` == `{vendor_refresh.py}` (exact membership — the recovery command does NOT exist yet, R1-4 BLOCKED; any other file fails); parse the normal command's argument parser: exactly 1 positional (PARENT run UUID) and exactly the flags `--operator` (required) and `--force-repeat` (optional) — `--force-repeat` is the ONE approved force-related flag (exact name pinned; its only meaning: cooldown bypass, §3.4) — NO child-id positional, NO `--evidence*`, NO `--attest*`, NO other flag whose name carries a forbidden surface token (reclaim/reset/retry/recover/recovery/force/stale/reassign/resurrect/interrupt — the token scan applies to flag names OTHER than the approved `--force-repeat`), NO undocumented flag; help text token-free except the documented `--force-repeat` help. **Stage B (approved at the R1-4 gate, post-unblock ONLY):** set == `{vendor_refresh.py, vendor_refresh_recovery.py}` + Stage A pins + the recovery command's parser: exactly 1 positional (CHILD UUID) + `--operator` (required) + `--evidence` (required, choices exactly `{reboot, process-scan, operator-stop}`) + `--attest-host-inventory` (required) and nothing else | The original invariant ("no unapproved execution/recovery surface") becomes a STRICTER exact-membership pin at every stage: R1 may add only the approved command files with only the approved arguments — a hidden fifth flag, a third file, or a premature recovery file fails closed. The absence property is subsumed by exact membership | New nodes in `tests/runs/test_vendor_refresh_command.py`: unknown/forbidden flag → parser error with zero DB statements (ORM spy, mirroring R0's `test_reserved_rejection_issues_no_db_statement` pattern); child-id positional on the normal command → parser error; invocation over an ineligible parent (not COMPLETED / no MPN / missing) → bounded refusal, zero children, zero factory invocations (counting fake), zero lookups; exit-code matrix per §8.3. At Stage B additionally: recovery parser pins + §12 row 8 suite |
 | 2 | `TestNoRecoverySurface::test_no_vendor_refresh_execution_module_exists` (L1457) | "R0 ships no execution/runtime surface: no `vendor_refresh*.py` in `execution/`, nothing network-capable added" — the R0 body is an EMPTINESS assertion (`assert not list(execution_root.glob("vendor_refresh*.py"))`) that R1-2's introduction of `vendor_refresh.py`/`vendor_refresh_runtime.py` necessarily breaks | **Stage A (approved at the R1-2 gate — the substep that FIRST introduces `execution/vendor_refresh.py`; the node evolves IN PLACE exactly when its R0-only assertion stops being true — node ID `TestNoRecoverySurface::test_no_vendor_refresh_execution_module_exists` preserved; no deletion/rename/skip/xfail/deselection/ignore/weakening):** assert the EXACT R1 execution vendor surface — `vendor_refresh*.py` in `execution/` == `{vendor_refresh.py, vendor_refresh_runtime.py}`; the complete new-module set for the refresh feature in `execution/` == `{vendor_commercial_binding.py, vendor_refresh.py, vendor_refresh_runtime.py}` (the helper is deliberately NOT `vendor_refresh`-prefixed); **`execution/vendor_refresh_runtime.py` is the ONLY R1 module importing `providers.internal_vendor`** (function-level, as factory source); **`execution/vendor_refresh.py` imports NO provider class in any form** (AST — I13, the FU1-F2 core of the zero-construction contract); `vendor_commercial_binding.py` is pure (no DB/env/network/adapter imports); `vendor_refresh.py` references NO `claim` symbol in any form (AST — FU1-F1 no-double-claim). (The R1-1 gate lands ONLY `vendor_commercial_binding.py`, which the `vendor_refresh*.py` glob does not match — the R0 node stays literally green through R1-1; no stage is needed there.) | The original invariant ("no network-capable surface before approval") becomes the STRICTER pin "the network-capable surface is exactly the approved set, the concrete-adapter touchpoint is singular and located, and the execution core cannot claim or import the adapter" — the original safety intent preserved in place at the node's existing ID | New nodes in `tests/execution/test_vendor_refresh_network_boundary.py` (frozen DESIGN2 §10.3(3) allowlist, extended to the helper): AST import allowlists per §10.1 table (no SearchProvider/PageFetcher/serper/http_page/semantic/comparable/providers.fx/FxObservationStore in any R1 module; runs files import no providers/web; only `runs/management/commands/vendor_refresh.py` imports execution — O4); counting-factory sentinels: zero construction AND zero `lookup()` on every losing/ineligible/config-missing/normalization-mismatch/state-refusal path; exactly-one-construction + exactly-one-`lookup()` on the winning path; plus the §12 row 20 direct-executor-reuse limit node (D/M portion, in `tests/execution/test_vendor_refresh_execution.py`) |
 | 3 | `TestNoRecoverySurface::test_public_api_has_no_vendor_refresh_recovery_symbols` (L1435) | "No `runs.__all__` vendor symbol carries a forbidden surface token (reclaim/reset/retry/recover/recovery/force/stale/reassign/resurrect/interrupt)" | **Stage 1 (approved at the R1-3 gate; the R1-1/R1-2 gates keep the LITERAL R0 body — no runs exports are added before R1-4):** the vendor-symbols set of `runs.__all__` == EXACTLY the R0 nine (`trigger_vendor_refresh`, `claim_vendor_refresh`, `complete_vendor_refresh`, `fail_vendor_refresh`, `VendorRefreshError`, `VendorRefreshTriggerError`, `VendorRefreshClaimError`, `VendorRefreshCompletionError`, `VendorRefreshFailureError`) AND the R0 forbidden-token scan over them (strengthened: exact membership subsumes the token scan). **Stage 2 (approved at the R1-4 gate, post-unblock ONLY):** the vendor-symbols set == EXACTLY the R0 nine PLUS the strict R1 allowlist `{recover_vendor_refresh_execution, VendorRefreshRecoveryError, VendorRefreshRecoveryEvidenceError}` AND the R0 forbidden-token scan applied to ALL vendor symbols EXCEPT the allowlisted R1 set. **Naming (FU1-F4):** the R1 symbols carry their true token-bearing function (`recover…/…Recovery…`) by design — the candidate's token-free `manual_terminalize…` names are rejected as guard evasion; the guard's original intent ("no UNAPPROVED recovery surface in the public API") is what both stages enforce, with the approved surface pinned by exact membership instead of hidden by naming. The node ID is unchanged at every stage (collection identity preserved); the docstring is corrected to state the stage's exact meaning | "No recovery symbol in the public API" → "no UNAPPROVED recovery symbol": exact membership pins the approved one (and its absence pre-unblock), the token scan keeps catching any other (stale/reclaim/reset/… or a second recovery pair) drift | New nodes in `tests/runs/test_vendor_refresh_recovery.py` (post-unblock): importing the three allowlisted symbols from `product_intelligence.runs` works; importing ANY other token-bearing recovery name (e.g. `recover_vendor_refresh`, `force_recover_vendor_refresh_execution`, `VendorRefreshRecovery` — the allowlist minus suffix, the allowlist plus a token) raises AttributeError; a test-local mutation adding a fourth vendor symbol (token-bearing or not) fails the exact-membership assertion (the allowlist is strict, not open-ended) |
 
@@ -2558,13 +2721,13 @@ construction.
 
 | # | Scenario (task §9 item) | Nodes (suite) | Class |
 |---|---|---|---|
-| 1 | One complete successful command invocation; exactly one lookup for the winner; at most one per child | D (END-TO-END, the F1 demonstration): fresh COMPLETED parent → `Command.handle()` over the real command class (no monkeypatching of the flow) with a counting factory + canned adapter fake: asserts EXACTLY — 1 trigger INSERT, 1 claim UPDATE (ORM spy over the command module's `claim_vendor_refresh` binding), 1 factory invocation, 1 `lookup()` call, 1 complete UPDATE; child COMPLETED with payload (`lookup_status=SUCCESS`, observations bound); parent + all original artifacts byte-identical (I7); bounded stdout (COMPLETED class); exit 0. D (claim count): same node asserts the spy saw NO second claim on any re-entry. C: 4 concurrent full command invocations (file DB, counting factory with a short in-lookup sleep) → exactly 1 lookup total, exactly 1 claim UPDATE total, 1 RUNNING-then-terminal child, 3 IN PROGRESS reports, per-worker sentinels show 0 factory invocations + 0 `lookup()` for each loser | D+C |
+| 1 | One complete successful command invocation; exactly one lookup for the winner; at most one per child | D (END-TO-END, the F1 demonstration): fresh COMPLETED parent → `Command.handle()` over the real command class (no monkeypatching of the flow) with a counting factory + canned adapter fake: asserts EXACTLY — 1 trigger INSERT, 1 claim UPDATE (ORM spy over the command module's `claim_vendor_refresh` binding), 1 factory invocation, 1 `lookup()` call, 1 complete UPDATE; child COMPLETED with payload (`lookup_status=SUCCESS`, observations bound); parent + all original artifacts byte-identical (I7); bounded stdout (COMPLETED class); exit 0. D (claim count): same node asserts the spy saw NO second claim on any re-entry. C (FU3-F3): 4 concurrent full command invocations (file DB, counting factory with a short in-lookup sleep) → exactly ONE new child (RUNNING-then-terminal), exactly 1 lookup total, exactly 1 claim UPDATE total; each of the other 3 invocations reports IN PROGRESS (its in-lock snapshot saw the winner's child still active) or COOLDOWN REFUSAL (it locked in only after the winner had terminalized within 300 s) — both outcomes legitimate, and in both the per-worker sentinels show 0 trigger INSERTs, 0 claim UPDATEs, 0 factory invocations + 0 `lookup()`; invariants: at most one active child at any instant (I1), at most one new child per round | D+C |
 | 2 | Loser makes zero calls (LB-3) | D: pre-claimed child → `execute_claimed_vendor_refresh` directly (post-claim, valid) → exactly 1 lookup (scoped authority, §3.2 FU2-F1: a single direct call standing in for the creating invocation's own post-claim stack); D: PENDING child → executor → `state_not_running` bounded, ZERO factory invocations (counting fake), ZERO `lookup()`, row byte-identical (M3 machine guard); D: terminal child → same; D: absent child → `state_not_found`; C: losers of row 1's race → zero construction + zero `lookup()` (per-worker counting factories); M: R0-primitive-level double claim (two threads, same PENDING child) → one winner, the loser's `VendorRefreshClaimError` is propagated by a test-local sequence that mimics a non-R1 caller and is NEVER caught to proceed (§9 case B) | D+C+M |
 | 3 | No call with missing/malformed Vendor configuration (LB-precise) | D: env cleared → child FAILED `VENDOR_LOOKUP_CONFIG_MISSING`, factory 0, `lookup()` 0, HTTP 0, payload fields NULL, reason exact; D: blank (whitespace) base URL → same; D: malformed non-blank base URL → factory 1 (object constructed — side-effect-free, §1.7), `lookup()` 1 (raises in `_ensure_configured`), **HTTP 0** (socket opener spy), FAILED `INTERNAL_ERROR`; D: factory itself raising → factory 1 (failed), no object, `lookup()` 0, HTTP 0, FAILED `INTERNAL_ERROR` (the §10.3 split, each branch separately pinned) | D |
 | 4 | No call when `CommercialLookupQuery` changes captured MPN | D: child row with surrounding-whitespace `requested_mpn` (fixture-level; trigger verbatim-capture already R0-pinned) → executor → FAILED `MPN_QUERY_NORMALIZATION_MISMATCH`, factory 0, `lookup()` 0, `requested_mpn` byte-identical after (never rewritten); M: same with a counting factory | D+M |
 | 5 | Frozen 2A and 4D-B policy equivalence | D: for a fixed response corpus (SUCCESS/PARTIAL/FAILED/mixed-candidate shapes incl. one-char MPN mismatch, missing explicit MPN, zero-price, OUT_OF_STOCK, UNKNOWN availability): `bind_and_encode_vendor_lookup(mpn, response)` output BYTE-EQUAL to the pre-extraction orchestration path's encoded payload (golden dicts captured from the frozen 4D-B fixtures); D: full frozen 4D-B + codec + provider suites green (19+19+46+165+127+14) | D |
 | 6 | Normal COMPLETED / bounded FAILED / transport-FAILED-result distinction | D: (a) SUCCESS response → COMPLETED, `lookup_status=SUCCESS`, observations bound (EXACT/NORMALIZED_EXACT, `VENDOR_API_POLICY`); (b) PARTIAL → COMPLETED `PARTIAL` with usable observations + bounded issues; (c) transport FAILED response → **COMPLETED** `lookup_status=FAILED`, `retrieved_at=None`, zero observations — child state NOT FAILED; (d) codec `SupplementCodecError` → FAILED `RESULT_ENCODING_FAILED` (factory 1, `lookup()` 1, HTTP 1); (c) vs (d) asserted as distinct rows/states | D |
-| 7 | Crash windows and stuck RUNNING behavior | D/M: W2–W9 of §7 — patched raise/stop between steps (after claim; during call; after response; during complete; during fail): row shape, call count (LB-precise), byte-identity asserted per window; D: stuck RUNNING (claim committed, no CAS issued) → trigger returns it, claim rejects, command reports IN PROGRESS (factory 0, `lookup()` 0), executor-on-stuck-row only via documented authority (not by the command) (R0 node retained); D (FU2-F3, CAS-lost race, exact): a competing terminal write commits first (test-local row-4 or row-10 writer), then the complete UPDATE affects 0 rows → the executor FRESH-READS, reports the ACTUAL durable terminal shape (all-fields snapshot), issues ZERO further terminal writes (ORM spy), does NOT call `fail_vendor_refresh` (spy), does NOT assert RUNNING (the snapshot proves terminal), bounded exit 0 (TERMINAL_REPORTED); D (FU2-F3, T3 exact): the complete UPDATE raises `OperationalError` (definite rollback) → fresh read establishes RUNNING → `terminalization_not_recorded`, non-zero exit, no fail issued, row snapshot RUNNING (read-established); D (FU2-F3, T4 unknown persistence, exact): the complete UPDATE raises AFTER statement dispatch (ambiguous) → fresh read patched to (a) COMPLETED → T2 report, exit 0; (b) RUNNING → T3, non-zero exit; (c) read ALSO fails → `terminalization_outcome_unknown`, zero writes (ORM spy), no fail, no RUNNING assertion, non-zero exit; M: recovery gate over a stuck RUNNING (post-unblock suite) → row 10 exactly once; M: recovery vs complete race (W11) → single terminal write, loser reports actual shape, zero mutation; M: W12 shape (post-unblock) → premature row-10 over a still-"alive" original (test-local second executor simulating the original) → the overlap is DEMONSTRATED as the evidence gate's responsibility: the CAS alone did not prevent the second lookup — the node's docstring states the gate (not the DB) is the protection, pinned against false claims | D+M |
+| 7 | Crash windows and stuck RUNNING behavior | D/M: W2–W9 of §7 — patched raise/stop between steps (after claim; during call; after response; during complete; during fail): row shape, call count (LB-precise), byte-identity asserted per window; D: stuck RUNNING (claim committed, no CAS issued) → trigger returns it, claim rejects, command reports IN PROGRESS (factory 0, `lookup()` 0), executor-on-stuck-row only via documented authority (not by the command) (R0 node retained); D (FU3-F1, T2 CAS-lost race, exact via the frozen service API): a competing terminal write commits first (test-local row-4 or row-10 writer), then the executor's real `complete_vendor_refresh` call RAISES the typed `VendorRefreshCompletionError` with `reason=None` (zero-row shape) → the pinned read-only reconciliation FRESH-READS, reports the ACTUAL durable terminal shape (all-fields snapshot), issues ZERO further terminal writes (ORM spy), does NOT call `fail_vendor_refresh` (spy), does NOT assert RUNNING (the snapshot proves terminal), no retry, bounded exit 0 (TERMINAL_REPORTED); D (FU3-F1, T2b exact): `complete_vendor_refresh` invoked with a deliberately invalid (version, payload) pairing → `VendorRefreshCompletionError` with explicit `reason` (`invalid_schema_version` / `invalid_payload`) BEFORE any UPDATE → classified as a programming defect (outer-boundary handling), NOT as a T2 CAS loser, zero row mutation, no terminal-state report; D (FU3-F1, T3 exact): the complete service call raises `OperationalError: database is locked` (definite write failure — a Django DB error, not a typed VendorRefresh error) → reconciliation fresh read establishes RUNNING → `terminalization_not_recorded`, non-zero exit, no fail issued, row snapshot RUNNING (read-established); D (FU3-F1, T4 unknown persistence, exact): the complete service call raises an ambiguous connection error AFTER statement dispatch → fresh read patched to (a) COMPLETED → T2 report, exit 0; (b) RUNNING → T3, non-zero exit; (c) read ALSO fails → `terminalization_outcome_unknown`, zero writes (ORM spy), no fail, no RUNNING assertion, non-zero exit; M: recovery gate over a stuck RUNNING (post-unblock suite) → row 10 exactly once; M: recovery vs complete race (W11) → single terminal write, loser reports actual shape, zero mutation; M: W12 shape (post-unblock) → premature row-10 over a still-"alive" original (test-local second executor simulating the original) → the overlap is DEMONSTRATED as the evidence gate's responsibility: the CAS alone did not prevent the second lookup — the node's docstring states the gate (not the DB) is the protection, pinned against false claims | D+M |
 | 8 | Recovery gate: evidence machinery (post-unblock suite; R1-4) | D: recovery command without `--attest-host-inventory` → parser error, ZERO DB statements (ORM spy); D: unknown flag (including a superseded operator-supplied record flag such as `--evidence-record` — the record is operation-written, V4) → parser error, zero DB statements; D: each Class M refusal — scan non-empty (predicate hit at `started_at + 30 s`) → EVIDENCE_PRESENT, row byte-identical, record written with outcome `evidence_present`; boot time < `started_at` → REBOOT_ORDER_VIOLATED, row byte-identical, record written with outcome `reboot_order_violated`; scanner raising / timing out / unparseable / returning an EMPTY table (scan_total = 0 is a broken scan) → EVIDENCE_COLLECTION_FAILED (fail-closed), zero mutation, record written with outcome `collection_failed`; evidence dir absent/unwritable → EVIDENCE_STORE_UNAVAILABLE (stdout-only refusal — no record possible); D: row-shape refusals — PENDING row → PENDING_ROW (the gate never touches orphans, M3); COMPLETED/FAILED row → ALREADY_TERMINAL + actual-shape report, zero mutation; absent → NOT_FOUND; D: CAS winner shape — row 10 exactly (I9 identity fields byte-identical; `failure_reason=EXECUTION_INTERRUPTED`; CHECK-admitted); D (FU2-F2, operation-level gate, exact): direct calls of the public operation — without the evidence struct (evidence_missing) / with a STALE struct (captured_at older than 60 s: a replayed clean scan is refused, evidence_stale) / with mismatched class (evidence_inconsistent) / with non-clean outcome (predicate_present) / with scan_total = 0 (collection_failed) / with host_inventory_attested=False (attestation_missing) → each: bounded refusal, ZERO CAS (ORM spy: no UPDATE on the child), row byte-identical; D (FU2-F2): the attestation flag ALONE (True) with NO machine evidence struct → refusal — the flag is not verified termination (§3.1 V1/V2 split); D (FU2-F2): `_terminalize_execution_interrupted` is NOT exported — absent from `runs.__all__` and the lazy export map (the §11 row 3 stage-2 allowlist is exactly the three public symbols), referenced only inside `runs/vendor_refresh_recovery.py`, only from the validated operation (AST); D (FU2-F2/F3): row-10 T2/T3/T4 nodes — CAS loser (0 rows) → fresh read, ACTUAL terminal shape reported, zero further writes; definite write failure → T3; ambiguous → T4 (shared §3.2 contract; the record was already written pre-CAS with outcome `evidence_clean`); M (FU2-F2, privileged-writer limit): a direct operation call with a struct that PASSES V1–V5 (fresh, consistent, clean — forged or mis-scoped) reaches the CAS and terminalizes: the node's docstring pins that V2 validates structure/freshness/outcome, NOT truth — the truth control is Class A + O8 (§3.1 F2-4) — the node demonstrates the documented limit, labeled as such (like row 20); D: R0 `fail_vendor_refresh` over the same RUNNING row with the reserved reason → still rejected with zero mutation (FU1-F1 re-pin); D (the no-false-claim pin): the recovery module + recovery command docstrings carry the pinned attestation-limit statement (the software collects/verifies structure and machine-evaluates the predicate; the flag records an attestation, never proves termination; O8 cross-checks) — a meta-node asserting the statement's presence so a future edit cannot silently re-claim proof; D: evidence record shape — exact key set per class (incl. the `outcome` vocabulary `evidence_clean` / `evidence_present` / `reboot_order_violated` / `collection_failed` / `row_not_running_at_gate`), digest in stdout, refusal records written too | D+M |
 | 9 | Reserved failure reason written only by the approved R1 recovery path (post-unblock; FU2-F2) | D: the public operation (with a validated evidence struct) writes the row-10 shape successfully (CHECK-admitted, R0-pinned); D: AST scan — the ONLY module that references `EXECUTION_INTERRUPTED` as a WRITE value (in an update/terminalization call) is `runs/vendor_refresh_recovery.py`, at EXACTLY ONE site: the module-private `_terminalize_execution_interrupted` UPDATE (model vocabulary + migration + the R0 service's rejection check are pinned read/definition references; no other module, and no R1 public export, writes the reserved value); D: the private CAS is NOT exported and is referenced only from the validated operation (row 8 nodes); D: the operation issues NO network and constructs NO adapter (sentinel); M: concurrent recovery + original complete (two threads, file DB) → exactly one terminal write (I3), the loser's T2 report carries the actual durable shape; C: 4-worker recovery race over one RUNNING row → one writer wins (T1), three T2 reports of the actual durable shape, row byte-stable | D+M+C |
 | 10 | Existing PENDING never silently executed; truthful operator provenance (M3) | D: programmatic trigger creates PENDING (non-command fixture); command invocation → stdout reports child id + state PENDING + recorded operator + created_at; row count unchanged; child still PENDING; factory 0; `lookup()` 0; `operator` field byte-identical (I6/§3.3 Option A pin); D: DIRECT executor call on the orphan PENDING row → `state_not_running` bounded, factory 0, `lookup()` 0, row byte-identical (the machine guard behind the procedural rule); D: full command lifecycle on a fresh parent → row `operator` == the `--operator` value verbatim AND that invocation was the executor (single-invocation proof via the counting factory owned by the same process) | D |
@@ -2575,17 +2738,16 @@ construction.
 | 15 | Zero FX and zero unapproved provider calls; import allowlists | D: sentinel instrumentation — `FxObservationStore` query spy (0 reads, 0 writes), `EcbFxProvider` construction sentinel (never), `SerperSearchProvider` never imported (AST + runtime), `HttpPageFetcher`/`HttpPdfFetcher` never constructed, semantic runtime never imported, `trigger_comparable_research` never called, `claim_execution`/`complete_execution` (ResearchRun-level) never called; D: network-boundary AST allowlists per §10.1 (all 8 new/modified R1 files) + the I13 pins (runtime is the ONLY `providers.internal_vendor` importer; the core is provider-class-free; only `runs/management/commands/vendor_refresh.py` imports execution — O4) + the counting-factory one-allowed-call probe (frozen DESIGN2 §10.3(3) shape) | D |
 | 16 | No new browser mutation surface | D: URLconf route set byte-equal to the frozen R0/production set (no new route); D: `web/views.py` + `web/urls.py` + `web/commercial_access.py` unchanged (hash pin vs 3983db4 blobs); D: no new POST handler, no CSRF surface, no template change (web file-set diff == ∅); D: full web-boundary suite (167) green unchanged | D |
 | 17 | No regression from 4D-B helper extraction | D: frozen 4D-B/codec/provider/authority suites green (counts per §11); D: golden-dict equivalence (#5); D: orchestration behavior invariants — config-absent → no call/no snapshot; description-only → no call; success → one call + snapshot (frozen cases A–J re-run); M: helper called from both call sites with identical policy inputs → identical outputs (drift canary) | D+M |
-| 18 | All previously frozen safety and authority boundaries | D: FULL suite — 6,082 frozen R0 nodes (the §11 staged in-place evolutions applied AT THEIR GATES ONLY — EXACTLY: row 2 stage A at R1-2, the substep that FIRST introduces `execution/vendor_refresh.py` (FU2-F4: the R0 glob assertion stops being true there); row 1 stage A + row 3 stage 1 at R1-3; row 3 stage 2 + rows 1–2 stage B at R1-4 post-unblock; ChatGPT approves each stage at its gate; node IDs unchanged at every stage) + all new R1 nodes → 0 removed / 0 renamed; `python manage.py check` clean; `python manage.py makemigrations --check --dry-run` → "No changes detected" (no R1 schema change); `git diff --check` clean; node-level collection diff vs 6,082 = additions only (recounted per gate); at the R1-1…R1-3 gates the recovery surface does not exist — row 3 stage 1 pins exactly that | D |
-| 19 | NO DOUBLE CLAIM; single authoritative call graph (FU1-F1) | D: AST — the ONLY R1 module referencing `claim_vendor_refresh` is `runs/management/commands/vendor_refresh.py`, at EXACTLY ONE call site (inside the serialized txn); `execution/vendor_refresh.py` and `execution/vendor_refresh_runtime.py` contain NO reference to any claim symbol in any form (import, call, name string); D: AST — NO R1 module has an `except` handler naming `VendorRefreshClaimError` (or any runs CAS error) as a caught type used for control-flow continuation (a raise may be re-raised/wrapped at the outer boundary — the pattern is pinned by the two allowed exception types: `VendorRefreshExecutionError` wrapping, `SystemExit`/`OperationalError` bounded handling); M: monkeypatch the command module's `claim_vendor_refresh` binding to RAISE (simulating the structurally-unreachable in-txn claim failure) → the transaction rolls back (no row), factory 0, `lookup()` 0, bounded non-zero exit, and the raise is NOT caught to proceed (the executor is never entered); D: full successful invocation (row 1) re-asserted here — claim UPDATE count == 1 (no duplicate claim anywhere in the lifetime); C: row 1's 4-worker race → claim UPDATE count == 1 total (the loser made zero claim attempts — it exited at the snapshot) | D+M+C |
-| 20 | LB-1 scope limit — direct executor reuse (FU2-F1 adversarial pin) | D: a crash-orphan RUNNING child (REAL `trigger_vendor_refresh` + REAL `claim_vendor_refresh`; no executor call — the W2 orphan shape) → the core executor is invoked TWICE on it, sequentially, with a recording fake adapter: both invocations pass the state re-assert, BOTH issue a lookup (2 lookups recorded), exactly ONE complete CAS commits — the second invocation's complete is a T2 loser: it fresh-reads, reports the ACTUAL durable COMPLETED shape (all-fields snapshot), issues zero further writes (ORM spy), no fail issued; C: two worker threads against a file DB with a sleep inside the fake `lookup` — both reach the lookup before either completes (two concurrent Vendor requests demonstrated); the terminal CAS admits exactly one terminal write (I3). The node's docstring carries the pinned limit statement: the RUNNING re-assert is NOT ownership authentication; the terminal CAS bounds terminal writes, NOT external requests; LB-1 is scoped to the authorized cooperating CMD execution path; this node demonstrates the limit of direct executor reuse (privileged-writer class, §3.2; outside the frozen threat model, DESIGN2 §4.2) — a meta-pin so a future edit cannot silently re-claim a universal at-most-one-lookup guarantee | D+C |
+| 18 | All previously frozen safety and authority boundaries | D: FULL suite — 6,082 frozen R0 nodes (the §11 staged in-place evolutions applied AT THEIR GATES ONLY — EXACTLY: row 2 stage A at R1-2, the substep that FIRST introduces `execution/vendor_refresh.py` (FU2-F4: the R0 glob assertion stops being true there); row 1 stage A + row 3 stage 1 at R1-3; row 1 stage B + row 3 stage 2 at R1-4 post-unblock; ChatGPT approves each stage at its gate; node IDs unchanged at every stage) + all new R1 nodes → 0 removed / 0 renamed; `python manage.py check` clean; `python manage.py makemigrations --check --dry-run` → "No changes detected" (no R1 schema change); `git diff --check` clean; node-level collection diff vs 6,082 = additions only (recounted per gate); at the R1-1…R1-3 gates the recovery surface does not exist — row 3 stage 1 pins exactly that | D |
+| 19 | NO DOUBLE CLAIM; single authoritative call graph (FU1-F1; FU3-F1 guard) | D: AST — the ONLY R1 module referencing `claim_vendor_refresh` is `runs/management/commands/vendor_refresh.py`, at EXACTLY ONE call site (inside the serialized txn); `execution/vendor_refresh.py` and `execution/vendor_refresh_runtime.py` contain NO reference to any claim symbol in any form (import, call, name string); D (FU3-F1): AST — NO R1 module has an `except` naming `VendorRefreshClaimError` (or any claim error) in ANY form — claim errors are NEVER caught: a claim error proves the claim was NOT won, is never treated as proof of successful ownership, and no code proceeds to execution or makes a Vendor call after one (the single claim site propagates it → total rollback); D (FU3-F1): AST — the ONLY R1 module with an `except` naming `VendorRefreshCompletionError` or `VendorRefreshFailureError` is `execution/vendor_refresh.py`, and ONLY in the pinned reconciliation shape: catch → classify by `reason` (None ⇒ T2 read-only reconciliation; explicit ⇒ T2b defect routing) → bounded FRESH READ (SELECT only — ORM spy) → report / raise `VendorRefreshExecutionError`; no branch issues a second terminal write, retries the CAS, invokes the factory, or calls `lookup()`, and no branch resumes execution; D (FU3-F1): AST — no R1 `except` over any runs CAS/terminal error has a body that issues a terminal write, a claim, a factory invocation, or a `lookup()` (reconciliation branches are read-only: SELECT + report); M: monkeypatch the command module's `claim_vendor_refresh` binding to RAISE (simulating the structurally-unreachable in-txn claim failure) → the transaction rolls back (no row), factory 0, `lookup()` 0, bounded non-zero exit, and the raise is NOT caught to proceed (the executor is never entered); D: full successful invocation (row 1) re-asserted here — claim UPDATE count == 1 (no duplicate claim anywhere in the lifetime); C: row 1's 4-worker race → claim UPDATE count == 1 total (the loser made zero claim attempts — it exited at the snapshot) | D+M+C |
+| 20 | LB-1 scope limit — direct executor reuse (FU2-F1 adversarial pin; FU3-F2 corrected) | Setup for all nodes: a crash-orphan RUNNING child (REAL `trigger_vendor_refresh` + REAL `claim_vendor_refresh`; no executor call — the W2 orphan shape). D (sequential after terminalization — the re-assert machine guard): one direct executor call with a recording fake adapter → lookup #1, complete service RETURNS (T1, COMPLETED); a SECOND direct call, sequentially → state re-assert REFUSES (row terminal) → `state_not_running` bounded, ZERO factory invocations, ZERO additional lookups, row byte-identical. C (genuine concurrent direct reuse — file DB; the only shape in which two direct calls EACH reach the lookup): two worker threads, separate Django connections, a sleep inside the recording fake `lookup` so BOTH pass the state re-assert and reach the lookup before either terminalizes → 2 lookups recorded (two Vendor requests demonstrated); the frozen complete service admits exactly ONE terminal write (I3): one thread's call RETURNS (T1), the other's RAISES the typed zero-row-shape error (`reason=None`) → its pinned read-only reconciliation reports the ACTUAL durable COMPLETED shape (T2), zero further writes (ORM spy), no retry. M (optional MOCKED interleaving — labeled M, NOT a concurrency proof per the §12 legend): monkeypatched re-assert/terminalization interleaving reproduces the same 2-lookup / 1-terminal-write accounting without threads. The nodes' docstring carries the pinned limit statement: the state re-assert is NOT ownership authentication; the terminal CAS bounds terminal writes, NOT external requests; LB-1 is scoped to the authorized cooperating CMD execution path; sequential direct reuse after terminalization is machine-refused (zero calls) while genuine concurrent direct calls on a still-RUNNING child may each reach the lookup — this node demonstrates that documented limit (privileged-writer class, §3.2; outside the frozen threat model, DESIGN2 §4.2) — a meta-pin so a future edit cannot silently re-claim a universal at-most-one-lookup guarantee | D+C+M |
 
 Command-suite summary (`tests/runs/test_vendor_refresh_command.py`,
 frozen DESIGN2 §10.3(5) scope + this design's additions): run-uuid parse
 (bounded 404-style), operator mandatory/verbatim/bounded, recorded
 provenance exact (`trigger_source=MANAGEMENT_COMMAND`), bounded stdout
 (no secrets, no base URL, no raw vendor content, no raw exception text),
-exit-code matrix, no reclaim/child-id/`--evidence*` flag on the normal
-command (evolution row 1 stage A), in-progress report, safeguard ordering
+exit-code matrix, no reclaim/stale/reset/retry/child-id/`--evidence*`/`--attest*` flag on the normal command — `--force-repeat` is the ONE approved force-related flag (evolution row 1 stage A, exact-name pin), in-progress report, safeguard ordering
 + refusal zero-persistence/zero-claim (row 11), Option-A provenance pin +
 PENDING-never-executed (row 10), DATABASE BUSY path (row 12b),
 end-to-end success (row 1). Recovery-suite
@@ -2612,11 +2774,11 @@ frozen D9); no merge of development main.
 | `product_intelligence/execution/vendor_refresh_runtime.py` | NEW | R1-2 | `execute_claimed_vendor_refresh_with_default_providers` (supplies the `InternalVendorAdapter` class as the zero-arg factory; the ONLY `providers.internal_vendor` importer in R1; constructs nothing itself — O9) |
 | `product_intelligence/execution/__init__.py` | MODIFY (additive) | R1-2 | export exactly `execute_claimed_vendor_refresh`, `execute_claimed_vendor_refresh_with_default_providers`, `VendorRefreshExecutionError` (adversarial exact-set pin, §12 row 18 context); the executor export's documented authority is the scoped CMD-path contract (§3.2 FU2-F1 — LB-1 scope; RUNNING re-assert is not ownership authentication; direct reuse outside the CMD path is the documented limit, §12 row 20) |
 | `product_intelligence/runs/management/commands/vendor_refresh.py` | NEW | R1-3 | normal command (§3.4 flow — the ONLY claim call site —, §10.2 graph, §8.3 stdout/exit contract) |
-| `tests/execution/test_vendor_refresh_execution.py` | NEW | R1-2/R1-3 | §12 rows 1–6, 13–15, 17, 19, 20 (D/M nodes; row 20 includes the FU2-F1 direct-executor-reuse limit node) |
+| `tests/execution/test_vendor_refresh_execution.py` | NEW | R1-2/R1-3 | §12 rows 1–6, 13–15, 17, 19, 20 (D/M nodes; row 20 includes the FU2-F1/FU3-F2 direct-executor-reuse limit nodes — D sequential-after-terminalization refusal + M mocked interleaving) |
 | `tests/execution/test_vendor_refresh_network_boundary.py` | NEW | R1-2 | §12 rows 2, 15 (AST allowlists + counting-factory sentinels) |
 | `tests/runs/test_vendor_refresh_command.py` | NEW | R1-3 | §12 rows 10, 11, 1 (command D/C nodes) + §11 row 1 stage A new nodes |
-| `tests/runs/test_vendor_refresh_concurrency.py` | NEW | R1-3 | §12 rows 1, 11, 12, 19, 20 (C nodes + file-DB fixture, §12 infra; row 20 includes the FU2-F1 concurrent direct-reuse demonstration) |
-| `tests/runs/test_vendor_refresh_claims.py` | MODIFY (in-place staged evolutions ONLY) | R1-2 (row 2 stage A — `test_no_vendor_refresh_execution_module_exists` evolves IN PLACE when R1-2 first introduces `execution/vendor_refresh.py`: same node ID; strictly pins the approved module surface; original safety intent preserved; no deletion/rename/skip/xfail/deselection/ignore/weakening); R1-3 (row 1 stage A, row 3 stage 1); R1-4 (row 1 stage B, row 2 stage B, row 3 stage 2) | §11 rows 1–3 (ChatGPT-approved per stage at the named gate); node IDs unchanged at every stage |
+| `tests/runs/test_vendor_refresh_concurrency.py` | NEW | R1-3 | §12 rows 1, 11, 12, 19, 20 (C nodes + file-DB fixture, §12 infra; row 20 includes the FU3-F2 genuine concurrent direct-reuse demonstration) |
+| `tests/runs/test_vendor_refresh_claims.py` | MODIFY (in-place staged evolutions ONLY) | R1-2 (row 2 stage A — `test_no_vendor_refresh_execution_module_exists` evolves IN PLACE when R1-2 first introduces `execution/vendor_refresh.py`: same node ID; strictly pins the approved module surface; original safety intent preserved; no deletion/rename/skip/xfail/deselection/ignore/weakening); R1-3 (row 1 stage A, row 3 stage 1); R1-4 (row 1 stage B, row 3 stage 2 — row 2 has NO stage B: no new execution module lands at R1-4, so its stage A pin remains in force unchanged) | §11 rows 1–3 (ChatGPT-approved per stage at the named gate); node IDs unchanged at every stage |
 | `product_intelligence/runs/vendor_refresh_recovery.py` | NEW | R1-4 **[BLOCKED pending O8]** | the M1 surface (FU2-F2 split): the ONLY approved public recovery entrypoint `recover_vendor_refresh_execution` (V1–V6 evidence-gated INSIDE the operation; T1–T4 outcome mapping) + module-private low-level CAS `_terminalize_execution_interrupted` (row-10 single UPDATE, sole writer of EXECUTION_INTERRUPTED, NOT exported) + the evidence machinery (scanner seam `scan_process_table`/`read_boot_time`, pure `evaluate_scan_predicate`, `build_evidence_record`/`write_evidence_record`); honest token-bearing names (FU1-F4); module docstring carries the pinned attestation-limit statement (the flag is not verified termination) |
 | `product_intelligence/runs/errors.py` | MODIFY (additive) | R1-4 **[BLOCKED]** | append `VendorRefreshRecoveryError` (5 reasons: `already_terminal` / `pending_row` / `not_found` / `terminalization_not_recorded` / `terminalization_outcome_unknown`) + `VendorRefreshRecoveryEvidenceError` (8 bounded refusal reasons, §3.1 FU2-F2); existing classes untouched |
 | `product_intelligence/runs/__init__.py` | MODIFY (additive) | R1-4 **[BLOCKED]** | `_VENDOR_REFRESH_R1_EXPORTS` + `__all__` + lazy `__getattr__` branch for EXACTLY the three allowlisted symbols (§11 row 3 stage 2) |
@@ -2784,14 +2946,14 @@ itself; no frozen contract is re-opened.
 **Unresolved risks carried forward (honest inventory):**
 
 1. Privileged-writer residual (M2/F2): host-level code/SQL can bypass
-   all service-level guarantees — including two direct executor calls
-   on the same still-RUNNING child (both reach the lookup — two
-   requests, one terminal write; the LB-1 scope limit, adversarially
-   pinned at §12 row 20), a direct call of the module-private CAS, a
-   forged fresh evidence struct through the public recovery operation
-   (§3.1 F2-4, pinned at §12 row 8), or raw SQL writing the
-   CHECK-admitted reserved value — accepted per the frozen threat model
-   (DESIGN2 §4.2), stated, not hidden.
+   all service-level guarantees — including concurrent direct executor
+   calls on the same still-RUNNING child (both may reach the lookup —
+   two Vendor requests; the database admits one terminal write; the
+   LB-1 scope limit, adversarially pinned at §12 row 20), a direct call
+   of the module-private CAS, a forged fresh evidence struct through
+   the public recovery operation (§3.1 F2-4, pinned at §12 row 8), or
+   raw SQL writing the CHECK-admitted reserved value — accepted per the
+   frozen threat model (DESIGN2 §4.2), stated, not hidden.
 2. Orphaned PENDING via non-command triggers blocks the parent's refresh
    until a future approved gate (O3) — inert (zero external outcome),
    reported on every invocation, machine-refused by the executor.
@@ -2875,8 +3037,10 @@ substep touches development main.
   three allowlisted public symbols — the private CAS is NOT exported)
   + `runs/management/commands/
   vendor_refresh_recovery.py` + recovery suite (§12 rows 7 recovery
-  parts, 8, 9; §11 rows 1–2 stage B + row 3 stage 2 APPROVED at this
-  gate — the staged allowlist evolution, node IDs unchanged). Gate
+  parts, 8, 9; §11 row 1 stage B + row 3 stage 2 APPROVED at this
+  gate — the staged allowlist evolution, node IDs unchanged; row 2's
+  stage A pin (R1-2) remains in force unchanged — no stage B exists
+  for it (FU3-F3). Gate
   criteria: reserved reason writable ONLY by the module-private CAS,
   reachable ONLY through the validated public entrypoint (AST pin,
   row 9); the operation-level evidence validation (V1–V5) is pinned —
@@ -2905,19 +3069,19 @@ each substep is separately reviewed and approved.
 | Required final check | Where satisfied |
 |---|---|
 | One authoritative command-to-execution call graph | §10.2 (the single graph; §5 its projection; §12 row 19 pins its properties; properties (7)–(9) the FU2 additions) |
-| No double claim | §3.2 (one claim site), §3.4 step [f], §10.2 [f] + graph property (1)/(2), §12 rows 1/19 (runtime claim-count == 1; AST single call site; in-txn claim-raise rollback node) |
+| No double claim | §3.2 (one claim site), §3.4 step [f], §10.2 [f] + graph property (1)/(2)/(3), §12 rows 1/19 (runtime claim-count == 1; AST single call site; in-txn claim-raise rollback; claim errors NEVER caught in any R1 module — FU3-F1) |
 | No network inside DB transactions | §3.4 (COMMIT precedes S7), §6 table, I10, §12 row 12 |
 | No invented ownership guarantee in R0 | §3.2 (R0 F2 restated: CAS = single-winner terminalization, NOT issuer identity; no owner token — the M2 approval-gated alternative explicitly NOT invoked; the RUNNING re-assert is NOT ownership authentication — FU2-F1), §14 (e)/(f) |
-| Lookup guarantee exactly scoped; terminal CAS not claimed as a request bound | §3.2 (LB-1 scoped to the authorized cooperating CMD execution path; the documented limit; restricted-internal alternative considered and not chosen; threat-model fit), §4.2 (I4), §5, §10.1 (execution `__init__` note), §10.2 (executor precondition + property (7)), §10.3 (W12 note), §12 row 20 (adversarial limit pin), §13, §14 risk 1 |
+| Lookup guarantee exactly scoped; terminal CAS not claimed as a request bound | §3.2 (LB-1 scoped to the authorized cooperating CMD execution path; the documented limit; restricted-internal alternative considered and not chosen; threat-model fit), §4.2 (I4), §5, §10.1 (execution `__init__` note), §10.2 (executor precondition + property (7)), §10.3 (W12 note), §12 row 20 (adversarial limit pin: sequential-after-terminalization refusal, zero calls; genuine concurrent two-lookup / one-terminal-write), §13, §14 risk 1 |
 | No unchecked recovery portrayed as trusted evidence | §3.1 (Class M/A/H split; machine collection at command time; the ONLY approved public entrypoint with operation-level V1–V5 validation — the attestation flag records an assertion, it is NOT verified termination; record + CAS + T1–T4 inside the gate; O8 as the trust regime; the no-false-claim docstring pin §12 row 8), R1-4 BLOCKED; no R1 recovery implementation authorized by this revision |
 | Recovery evidence governs the authorized writer (private CAS vs public gate) | §3.1 (F2-1 private `_terminalize_execution_interrupted` — not exported, single-caller, AST-pinned; F2-2 public evidence-gated operation; F2-3 why the split; F2-4 privileged-writer limits), §4.1 row 10, §10.1 (recovery module + errors + `runs/__init__` rows), §10.2 ([S2']–[S4'] + property (9)), §12 rows 8–9, §13, §14 O1/O2, §15 R1-4 |
-| Terminalization outcomes separated (T1–T4) | §3.2 (the T1–T4 contract; `terminalization_outcome_unknown`), §5 (S9 + post-claim failure path), §6 (complete/fail/recovery rows), §7 (W6–W8/W9), §10.2 (S9 + V6 + property (8)), §10.3 (database-failure / lost-race / unknown-outcome bullets), §8.3 (outcome classes + exit codes), §12 rows 7–9, §15 R1-2 |
+| Terminalization outcomes separated (T1–T4) | §3.2 (T1/T2/T2b/T3/T4 contract aligned with the ACTUAL frozen R0 service API — FU3-F1: no rowcount exposure; typed `reason=None` zero-row errors; T2b explicit-reason input rejections are not CAS losers; `terminalization_outcome_unknown`; the pinned exception-handling guard), §5 (S9 + post-claim failure path), §6 (complete/fail/recovery rows), §7 (W6–W8/W9), §10.2 (S9 + V6 + properties (3)/(8)), §10.3 (database-failure / lost-race / unknown-outcome bullets), §8.3 (outcome classes + exit codes), §12 rows 7–9, 19, §15 R1-2 |
 | No audit claim beyond retained evidence | §3.1 ("Limit of the machine predicate": retained fields = predicate parameters + matching rows + total count, NOT the full raw scan; what the O8 audit can and cannot re-derive; no reconstruction claim for unretained evidence; record `outcome` vocabulary reconciled with the pre-CAS write), §8.3 (no full process-table dump), §12 row 8 (record-shape pins) |
 | R1-2 test evolution in place at the module-introducing substep | §11 row 2 (evolves IN PLACE at R1-2 — the substep that first introduces `vendor_refresh.py`; node ID preserved; strictly pins the approved module surface; original safety intent preserved; no deletion/rename/skip/xfail/deselection/ignore/weakening), §12 row 18 (per-row timing unambiguous), §13 (schedule row), §15 (R1-2/R1-3 gate criteria) |
 | No hidden recovery capability escaping test guards | §11 (staged exact-membership pins at every gate — the recovery surface is pinned ABSENT pre-unblock by row 3 stage 1 and row 1 stage A; token-bearing honest names; allowlist drift nodes), §12 rows 8–9 (incl. the non-exported private-CAS pin) |
 | M4 SQLite transaction strategy remains explicit and independently testable | §3.4 A3 (zero-row lock statement, verified §1.6), §6, §12 rows 11/12 (C nodes, file DB, O6) |
 | Frozen DESIGN2 decisions and R0 behavior unchanged | §2.2, §4.1 (rows 1–9 reproduced), §11 (all R0 failure-reason rejection tests preserved), §14 contradiction check (a)–(f), §13 (R0 files explicitly not changed) |
-| All conflicting cross-references reconciled | §3.2↔§10.2 (claim/execute separation — the FU1-F1 contradiction deleted; authority precondition matches the graph), §3.2↔§10.1 (F2 factory wiring matches the zero-construction table; export authority note matches LB-1 scope), §3.1↔§4.1 row 10↔§7 W11/W12↔§15 R1-4 (BLOCKED status consistent everywhere), §5↔§10.2 (projection vs authoritative graph), §3.1↔§10.1↔§13 (recovery surface naming/signatures consistent across module map, call graph, and schedule), §11 row 2↔§12 row 18↔§13↔§15 (row 2 stage A at R1-2 — FU2-F4), FU2-F1 LB wording uniform in §3.2/§4.2 I4/§5/§7/§9/§10.2/§10.3/§12, T1–T4 wording uniform in §3.2/§5/§6/§7/§8.3/§10.2/§10.3/§12 |
+| All conflicting cross-references reconciled | §3.2↔§10.2 (claim/execute separation — the FU1-F1 contradiction deleted; authority precondition matches the graph), §3.2 T1–T4↔§5/§6/§10.2/§10.3/§12 row 7 (FU3-F1: service-API-accurate everywhere — the frozen services expose no rowcount), §3.2↔§10.1 (F2 factory wiring matches the zero-construction table; export authority note matches LB-1 scope; catch guard wording matches row 19), §3.1↔§4.1 row 10↔§7 W11/W12↔§15 R1-4 (BLOCKED status consistent everywhere), §5↔§10.2 (projection vs authoritative graph), §3.1↔§10.1↔§13 (recovery surface naming/signatures consistent across module map, call graph, and schedule), §11 row 2↔§12 row 18↔§13↔§15 (row 2 stage A at R1-2 — FU2-F4; row 2 has NO stage B — FU3-F3), §11 row 1↔§12 command-suite summary (`--force-repeat` = the ONE approved force-related flag — FU3-F3), FU2-F1 LB wording uniform in §3.2/§4.2 I4/§5/§7/§9/§10.2/§10.3/§12, T1–T4 wording uniform in §3.2/§5/§6/§7/§8.3/§10.2/§10.3/§12 |
 
 ---
 
@@ -3025,10 +3189,39 @@ python -m pytest tests/runs/test_vendor_refresh_claims.py -p no:warnings
     # re-run this session: 115 passed, 5 subtests passed in 0.88 s
 ```
 
+### Appendix A.4 — FU3 revision verifications (this session)
+
+Direct reads at ec5410c (worktree `C:/dev/Product_Intelligence_vref_r1_
+design`; the FU2 commit is documentation-only — `git show --stat
+ec5410c` = `docs/VENDOR_REFRESH_R1_DESIGN.md` solely — so every R0
+source/test file read below is the byte-identical 3983db4 content; no
+file was modified except this document; §1.9 records the facts):
+
+```
+git show --stat ec5410c…                          # docs/VENDOR_REFRESH_R1_DESIGN.md only
+git show 3983db4:product_intelligence/runs/errors.py
+    # VendorRefreshClaimError L176-186 (child_id, detail=None — NO
+    # reason attribute); VendorRefreshCompletionError L188-209
+    # (reason=None default; REASON_INVALID_SCHEMA_VERSION /
+    # REASON_INVALID_PAYLOAD); VendorRefreshFailureError L211-234
+    # (reason=None default; REASON_RESERVED_EXECUTION_INTERRUPTED /
+    # REASON_INVALID_FAILURE_REASON); completion docstring: the CAS
+    # matches the RUNNING shape and does NOT authenticate the caller —
+    # "that decision is owned by the R1 gate"
+git show 3983db4:product_intelligence/runs/vendor_refresh_claims.py
+    # complete L490-511 / fail L600-611: success RETURNS
+    # objects.get(id=target_id); zero-row -> typed error with NO reason
+    # (detail "child is in state …" / "no VendorRefreshExecution with
+    # ID …"); invalid input -> typed error WITH explicit reason,
+    # pre-UPDATE; rowcount (`rows`) is service-local, not in the API
+python -m pytest tests/runs/test_vendor_refresh_claims.py -p no:warnings
+    # re-run this session: 115 passed, 5 subtests passed in 0.85 s
+```
+
 ---
 
-**Final status: `VREF-R1-DESIGN-FU2 REVISED — PENDING CHATGPT FINAL
-ARCHITECTURE REVIEW` (R1 architecture direction accepted at the FU1
-gate; R1 design NOT FROZEN; R1 implementation NOT AUTHORIZED; no R1
-recovery implementation authorized by this task; R1-4 BLOCKED pending
-O8)**
+**Final status: `VREF-R1-DESIGN-FU3 REVISED — PENDING CHATGPT FINAL
+APPROVAL` (FU2 corrections accepted; R1 design NOT FROZEN; R1
+implementation NOT AUTHORIZED; no R1 recovery implementation authorized
+by this task; R1-4 BLOCKED pending O8; DESIGN2 APPROVED / FROZEN,
+unchanged)**
