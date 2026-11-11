@@ -1154,19 +1154,14 @@ def _try_vendor_commercial_lookup(
         # Not configured — no vendor call, no supplemental snapshot
         return None
 
+    from product_intelligence.execution.vendor_commercial_binding import (
+        bind_and_encode_vendor_lookup,
+    )
     from product_intelligence.providers.commercial import (
         CommercialLookupQuery,
-        LookupStatus,
     )
     from product_intelligence.providers.internal_vendor import (
         InternalVendorAdapter,
-    )
-    from product_intelligence.research.commercial_supplement_codec import (
-        ResearchSupplementResult,
-        SupplementSourceIssue,
-        VendorCommercialResult,
-        SupplementSourceObservation,
-        encode_research_supplement_result,
     )
 
     # Build lookup query from the request's canonical MPN
@@ -1178,76 +1173,12 @@ def _try_vendor_commercial_lookup(
     adapter = InternalVendorAdapter()
     response = adapter.lookup(query)
 
-    # Filter candidates through frozen 2A identity binding
-    bound_observations: list[SupplementSourceObservation] = []
-    bound_issues: list[SupplementSourceIssue] = []
-
-    for candidate in response.candidates:
-        assessment = compare_part_numbers(
-            request.manufacturer_part_number,
-            candidate.explicit_candidate_mpn,
-        )
-        if assessment.match_type.value in ("EXACT", "NORMALIZED_EXACT"):
-            # Identity-bound — apply business policy.
-            # Brand New is a business-policy conclusion that applies ONLY
-            # after frozen 2A has successfully identity-bound the vendor
-            # observation to the requested product.
-            bound_observations.append(SupplementSourceObservation(
-                source_name=candidate.source_name,
-                explicit_candidate_mpn=candidate.explicit_candidate_mpn,
-                vendor_mpn_match_type=assessment.match_type.value,
-                price_amount=candidate.price_amount,
-                currency_code=candidate.currency_code,
-                availability=candidate.availability.value,
-                price_basis=candidate.price_basis.value,
-                quantity=candidate.quantity,
-                note_kind=candidate.note_kind.value if candidate.note_kind else None,
-                brand_new=True,
-                brand_new_basis="VENDOR_API_POLICY",
-            ))
-        else:
-            # MPN mismatch — bounded detail only, never raw provider text
-            bound_issues.append(SupplementSourceIssue(
-                source_name=candidate.source_name,
-                outcome="MPN_MISMATCH",
-                detail="vendor_mpn_mismatch",
-            ))
-
-    # Copy issues from the original response.
-    # Provider-layer issues carry bounded outcome only (no arbitrary detail).
-    for issue in response.issues:
-        bound_issues.append(SupplementSourceIssue(
-            source_name=issue.source_name,
-            outcome=issue.outcome.value,
-            detail=None,
-        ))
-
-    # Determine final lookup status
-    if response.status == LookupStatus.FAILED:
-        # Whole transport failure — encode as FAILED
-        final_status = "FAILED"
-        retrieved_at = None
-    else:
-        final_status = response.status.value
-        retrieved_at = response.retrieved_at
-
-    # Encode the supplemental result
-    try:
-        supplement_result = ResearchSupplementResult(
-            vendor_commercial_result=VendorCommercialResult(
-                lookup_status=final_status,
-                retrieved_at=retrieved_at,
-                observations=tuple(bound_observations),
-                source_issues=tuple(bound_issues),
-            ),
-        )
-        encoded = encode_research_supplement_result(supplement_result)
-    except SupplementCodecError:
-        # Codec error — propagate (programming/contract defect).
-        # No raw exception text in logs.
-        raise
-
-    return encoded
+    # Bind the returned candidates through frozen 2A identity and encode
+    # the supplemental result (VREF-R1-1: the 4D-B binding/encoding policy,
+    # moved verbatim into the shared pure helper).
+    return bind_and_encode_vendor_lookup(
+        request.manufacturer_part_number, response
+    )
 
 
 # ---------------------------------------------------------------
