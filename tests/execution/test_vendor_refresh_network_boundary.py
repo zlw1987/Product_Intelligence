@@ -241,6 +241,45 @@ class TestCoreImportBoundary(TestCase):
         offenders = imported - allowlist
         assert not offenders, f"core imports outside the pinned allowlist: {offenders}"
 
+    def test_core_t4_fresh_read_close_is_gated_not_blind(self) -> None:
+        """FU1-F2 — the T4 reconciliation's connection close is
+        explicitly gated, never blind: the function that closes the
+        default connection also checks the atomic-block state (no
+        close inside a managed transaction) and the in-memory
+        database form (no in-memory test DB destruction)."""
+        tree = _tree(CORE_PATH)
+        funcs = [n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)]
+        close_funcs = [
+            f
+            for f in funcs
+            if any(
+                isinstance(sub, ast.Call)
+                and isinstance(sub.func, ast.Attribute)
+                and sub.func.attr == "close"
+                for sub in ast.walk(f)
+            )
+        ]
+        assert close_funcs, (
+            "the T4 fresh read must explicitly close the possibly-"
+            "compromised connection outside a managed transaction"
+        )
+        for func in close_funcs:
+            attrs = {
+                sub.attr for sub in ast.walk(func) if isinstance(sub, ast.Attribute)
+            }
+            names = {
+                sub.id for sub in ast.walk(func) if isinstance(sub, ast.Name)
+            }
+            assert "in_atomic_block" in attrs, (
+                f"{func.name}: the connection close is not gated on the "
+                "atomic-block state (blind close risk inside a managed "
+                "transaction)"
+            )
+            assert "_is_in_memory_database_name" in names, (
+                f"{func.name}: the connection close is not gated on the "
+                "in-memory database form (in-memory test DB destroy risk)"
+            )
+
     def test_core_imports_no_provider_class_in_any_form(self) -> None:
         imported = _imported_modules(_tree(CORE_PATH))
         for module in imported:

@@ -1,5 +1,33 @@
 """VREF-R1-2 — post-claim vendor-refresh execution core (deterministic + mocked-race nodes).
 
+VREF-R1-2-FU1 — execution failure boundary corrections:
+
+* F1 — the S4 parent load classifies faults precisely: a database
+  read error (fault-injected ``django.db.OperationalError``) is a
+  bounded INTERNAL_ERROR infrastructure failure (MPN_BINDING_VIOLATION
+  is NOT persisted; zero construction, zero lookup); an unexpected
+  programming error propagates (never silently converted into
+  missing-parent evidence).
+* F2 — the T3/T4 reconciliation fresh read is over a trustworthy
+  connection: under the suite's managed transaction the connection is
+  never closed (no blind close; the in-memory suite DB is not
+  destroyed); the ACTUAL connection-recovery property (the
+  possibly-compromised DBAPI connection demonstrably replaced by a
+  verified new one over a FILE-BACKED SQLite database, the production
+  non-managed context) is proven by the clean-subprocess probe nodes
+  at the bottom of this module — a patched
+  ``_reconciliation_fresh_read`` returning a canned row is not
+  sufficient evidence by itself.
+* F3 — a T2 typed CAS error with reason=None triggers READ-ONLY
+  reconciliation: terminal -> the actual durable row is returned;
+  absent -> bounded state_not_found; PENDING / RUNNING -> bounded
+  state_not_running REFUSAL carrying the actual read-established state
+  (never a normal return); fresh-read database error -> bounded
+  terminalization_outcome_unknown (no raw DatabaseError escapes).
+* F4 — an invalid child_id is never reflected verbatim in the public
+  error message (bounded state_not_found; zero DB, adapter, or
+  network activity).
+
 Covers ``product_intelligence.execution.vendor_refresh.execute_claimed_
 vendor_refresh`` and the runtime entry
 ``execute_claimed_vendor_refresh_with_default_providers`` over the
@@ -57,17 +85,25 @@ reused here for policy equivalence (design section 12 rows 5/6/17).
 
 from __future__ import annotations
 
+import json
 import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
 import uuid
 from contextlib import nullcontext
 from datetime import datetime, timezone
 from decimal import Decimal
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 from django.db import OperationalError
 from django.db import connections
 from django.test import TestCase
+from django.test.utils import CaptureQueriesContext
 
 from product_intelligence.domain import ResearchRequest
 from product_intelligence.domain.enums import ResearchRunState
@@ -412,6 +448,52 @@ class TestArgumentDiscipline(TestCase):
                 )
         assert excinfo.value.reason == VendorRefreshExecutionError.REASON_STATE_NOT_FOUND
         assert factory.invocations == 0
+        assert len(fail_spy.calls) == 0
+
+    def test_invalid_uuid_long_input_not_reflected_bounded_state_not_found(self) -> None:
+        """FU1-F4 — a very long invalid child_id is refused with the
+        bounded state_not_found reason and the input is NEVER
+        reflected verbatim in the public error message; zero DB,
+        adapter, or network activity."""
+        factory = _CountingFactory({"response": build_success_exact_match_response()})
+        fail_spy = _spied_service(fail_vendor_refresh)
+        very_long = "invalid-uuid-" + "z" * 4096
+        with (
+            patch.object(core, "fail_vendor_refresh", fail_spy),
+            patch.dict(os.environ, {CONFIGURED_ENV: CONFIGURED_BASE_URL}),
+            CaptureQueriesContext(connections["default"]) as captured,
+        ):
+            with pytest.raises(VendorRefreshExecutionError) as excinfo:
+                execute_claimed_vendor_refresh(very_long, vendor_adapter_factory=factory)
+        assert excinfo.value.reason == VendorRefreshExecutionError.REASON_STATE_NOT_FOUND
+        assert excinfo.value.child_id is None  # no identity carried
+        assert very_long not in str(excinfo.value)  # not reflected verbatim
+        assert len(captured.captured_queries) == 0  # no DB activity
+        assert factory.invocations == 0  # no adapter -> no lookup -> no network
+        assert len(fail_spy.calls) == 0
+
+    def test_invalid_uuid_sensitive_marker_not_reflected_bounded_state_not_found(self) -> None:
+        """FU1-F4 — a unique sensitive marker embedded in the invalid
+        input is never reflected in the public error message; the
+        reason remains bounded state_not_found; zero DB, adapter, or
+        network activity."""
+        factory = _CountingFactory({"response": build_success_exact_match_response()})
+        fail_spy = _spied_service(fail_vendor_refresh)
+        marker = "SENSITIVE-MARKER-7f3e9d1a-b4c2"
+        bad_id = f"not-a-uuid-{marker}-tail"
+        with (
+            patch.object(core, "fail_vendor_refresh", fail_spy),
+            patch.dict(os.environ, {CONFIGURED_ENV: CONFIGURED_BASE_URL}),
+            CaptureQueriesContext(connections["default"]) as captured,
+        ):
+            with pytest.raises(VendorRefreshExecutionError) as excinfo:
+                execute_claimed_vendor_refresh(bad_id, vendor_adapter_factory=factory)
+        assert excinfo.value.reason == VendorRefreshExecutionError.REASON_STATE_NOT_FOUND
+        assert excinfo.value.child_id is None  # no identity carried
+        assert marker not in str(excinfo.value)
+        assert bad_id not in str(excinfo.value)
+        assert len(captured.captured_queries) == 0  # no DB activity
+        assert factory.invocations == 0  # no adapter -> no lookup -> no network
         assert len(fail_spy.calls) == 0
 
 
@@ -854,6 +936,100 @@ class TestMPNBindingViolation(TestCase):
 
 
 # ---------------------------------------------------------------------------
+# S4 — parent-load fault classification (FU1-F1)
+# ---------------------------------------------------------------------------
+
+
+class TestParentLoadFaults(TestCase):
+    """FU1-F1 — the S4 parent load classifies faults precisely:
+
+    * a DATABASE read error (fault-injected ``django.db.
+      OperationalError``) is a bounded INTERNAL_ERROR infrastructure
+      failure — NEVER an MPN identity conflict (MPN_BINDING_VIOLATION
+      is not persisted), with ZERO adapter construction and ZERO
+      Vendor lookup;
+    * an unexpected programming error PROPAGATES — it is never
+      silently converted into missing-parent evidence and issues zero
+      terminal writes (the child stays RUNNING).
+
+    Genuine missing-parent facts and parent state/MPN contract
+    violations retain MPN_BINDING_VIOLATION (the TestMPNBindingViolation
+    nodes above)."""
+
+    def test_parent_load_database_error_is_internal_error_not_binding_violation(self) -> None:
+        """Fault injection: the parent read raises ``django.db.
+        OperationalError`` — MPN_BINDING_VIOLATION is NOT persisted,
+        no Vendor construction/lookup occurs, and the approved bounded
+        INTERNAL_ERROR infrastructure handling applies (the single
+        outer-boundary fail with its own T1-T4 contract)."""
+        run = _make_completed_run()
+        child = _make_running_child(run)
+        fail_spy = _spied_service(fail_vendor_refresh)
+        complete_spy = _spied_service(complete_vendor_refresh)
+        factory = _CountingFactory({"response": build_success_exact_match_response()})
+        parent_descriptor = VendorRefreshExecution.parent_run
+        with (
+            patch.object(
+                parent_descriptor,
+                "get_object",
+                side_effect=OperationalError(
+                    "fault: parent read infrastructure failure"
+                ),
+            ),
+            patch.object(core, "fail_vendor_refresh", fail_spy),
+            patch.object(core, "complete_vendor_refresh", complete_spy),
+            patch.dict(os.environ, {CONFIGURED_ENV: CONFIGURED_BASE_URL}),
+        ):
+            with pytest.raises(VendorRefreshExecutionError) as excinfo:
+                execute_claimed_vendor_refresh(child.id, vendor_adapter_factory=factory)
+        # Bounded infrastructure failure — NOT an MPN identity conflict.
+        assert excinfo.value.reason == VendorRefreshFailureReason.INTERNAL_ERROR
+        assert excinfo.value.reason != VendorRefreshFailureReason.MPN_BINDING_VIOLATION
+        assert excinfo.value.durable_state == VendorRefreshState.FAILED
+        # MPN_BINDING_VIOLATION is not persisted.
+        row = _row_snapshot(child.pk)
+        assert row["state"] == VendorRefreshState.FAILED
+        assert row["failure_reason"] == VendorRefreshFailureReason.INTERNAL_ERROR
+        assert row["failure_reason"] != VendorRefreshFailureReason.MPN_BINDING_VIOLATION
+        assert row["result_schema_version"] is None
+        assert row["result_payload"] is None
+        # Zero adapter construction -> zero Vendor lookup.
+        assert factory.invocations == 0
+        assert len(fail_spy.calls) == 1  # the single outer-boundary fail
+        assert len(complete_spy.calls) == 0
+
+    def test_parent_load_programming_error_is_not_missing_parent_evidence(self) -> None:
+        """An unexpected programming error from the parent load
+        PROPAGATES: it is never silently converted into missing-parent
+        evidence (MPN_BINDING_VIOLATION) nor into a bounded
+        infrastructure failure — the child stays RUNNING, zero writes,
+        zero construction."""
+        run = _make_completed_run()
+        child = _make_running_child(run)
+        before = _row_snapshot(child.pk)
+        fail_spy = _spied_service(fail_vendor_refresh)
+        complete_spy = _spied_service(complete_vendor_refresh)
+        factory = _CountingFactory({"response": build_success_exact_match_response()})
+        parent_descriptor = VendorRefreshExecution.parent_run
+        with (
+            patch.object(
+                parent_descriptor,
+                "get_object",
+                side_effect=TypeError("fault: programming defect in parent load"),
+            ),
+            patch.object(core, "fail_vendor_refresh", fail_spy),
+            patch.object(core, "complete_vendor_refresh", complete_spy),
+            patch.dict(os.environ, {CONFIGURED_ENV: CONFIGURED_BASE_URL}),
+        ):
+            with pytest.raises(TypeError):
+                execute_claimed_vendor_refresh(child.id, vendor_adapter_factory=factory)
+        assert _row_snapshot(child.pk) == before  # zero writes
+        assert factory.invocations == 0
+        assert len(fail_spy.calls) == 0
+        assert len(complete_spy.calls) == 0
+
+
+# ---------------------------------------------------------------------------
 # S5 — deployment configuration
 # ---------------------------------------------------------------------------
 
@@ -1250,9 +1426,13 @@ class TestTerminalCasOutcomes(TestCase):
 
     def test_t2_anomalous_pending_shape_reported_without_running_assertion(self) -> None:
         """D — the reconciliation fresh read establishes a non-terminal
-        anomalous shape (PENDING): the ACTUAL shape is reported
-        (returned); no RUNNING assertion, no fail, no rewrite."""
+        anomalous shape (PENDING): a BOUNDED state_not_running REFUSAL
+        carrying the ACTUAL read-established state (FU1-F3 — strictly
+        stronger than a normal return); no RUNNING assertion, no
+        second terminal write, no fail, no retry, no second lookup,
+        no rewrite."""
         run, child, fail_spy, complete_spy = self._running_child_with_spy()
+        before = _row_snapshot(child.pk)
         factory = _CountingFactory({"response": build_success_exact_match_response()})
         anomalous_row = VendorRefreshExecution(
             state=VendorRefreshState.PENDING,
@@ -1272,13 +1452,98 @@ class TestTerminalCasOutcomes(TestCase):
             patch.object(core, "_reconciliation_fresh_read", lambda tid: anomalous_row),
             patch.dict(os.environ, {CONFIGURED_ENV: CONFIGURED_BASE_URL}),
         ):
-            returned = execute_claimed_vendor_refresh(child.id, vendor_adapter_factory=factory)
-        assert returned is anomalous_row
-        assert returned.state == VendorRefreshState.PENDING
+            with pytest.raises(VendorRefreshExecutionError) as excinfo:
+                execute_claimed_vendor_refresh(child.id, vendor_adapter_factory=factory)
+        # The bounded anomalous-state refusal: the ACTUAL read-
+        # established state (PENDING) is carried — never a normal
+        # return, never a RUNNING assertion, never a persisted reason.
+        err = excinfo.value
+        assert err.reason == VendorRefreshExecutionError.REASON_STATE_NOT_RUNNING
+        assert err.reason in VendorRefreshExecutionError.NON_PERSISTED_REASONS
+        assert err.durable_state == VendorRefreshState.PENDING
+        assert err.durable_state is not VendorRefreshState.RUNNING
+        # No fail issued; no second lookup after reconciliation began;
+        # exactly one complete attempt (the losing one).
         assert len(fail_spy.calls) == 0
+        assert len(factory.constructed[0].lookup_queries) == 1
         # The row on disk is untouched (the anomalous read was a
-        # report, not a rewrite).
-        assert _row_snapshot(child.pk)["state"] == VendorRefreshState.RUNNING
+        # refusal, not a rewrite).
+        assert _row_snapshot(child.pk) == before
+
+    def test_t2_anomalous_running_shape_refused_with_actual_state(self) -> None:
+        """D — the reconciliation fresh read establishes a non-terminal
+        anomalous shape (RUNNING): a BOUNDED state_not_running refusal
+        carrying the ACTUAL read-established state — the read-carried
+        state is a refusal, NOT a RUNNING assertion and NOT a normal
+        return; no fail, no rewrite, no second lookup (FU1-F3)."""
+        run, child, fail_spy, complete_spy = self._running_child_with_spy()
+        before = _row_snapshot(child.pk)
+        factory = _CountingFactory({"response": build_success_exact_match_response()})
+        anomalous_running = VendorRefreshExecution(
+            state=VendorRefreshState.RUNNING, active_slot=1, finished_at=None
+        )
+
+        def raise_zero_row_cas(*args, **kwargs):
+            raise VendorRefreshCompletionError(
+                child_id=str(child.id),
+                detail=f"child is in state {VendorRefreshState.COMPLETED}, expected RUNNING",
+            )
+
+        with (
+            patch.object(core, "fail_vendor_refresh", fail_spy),
+            patch.object(core, "complete_vendor_refresh", raise_zero_row_cas),
+            patch.object(
+                core, "_reconciliation_fresh_read", lambda tid: anomalous_running
+            ),
+            patch.dict(os.environ, {CONFIGURED_ENV: CONFIGURED_BASE_URL}),
+        ):
+            with pytest.raises(VendorRefreshExecutionError) as excinfo:
+                execute_claimed_vendor_refresh(child.id, vendor_adapter_factory=factory)
+        assert excinfo.value.reason == VendorRefreshExecutionError.REASON_STATE_NOT_RUNNING
+        assert excinfo.value.reason in VendorRefreshExecutionError.NON_PERSISTED_REASONS
+        assert excinfo.value.durable_state == VendorRefreshState.RUNNING  # read-carried
+        assert len(fail_spy.calls) == 0
+        assert len(factory.constructed[0].lookup_queries) == 1
+        assert _row_snapshot(child.pk) == before
+
+    def test_t2_fresh_read_database_error_terminalization_outcome_unknown(self) -> None:
+        """D — the reconciliation fresh read itself raises a database
+        error: bounded terminalization_outcome_unknown — no raw
+        DatabaseError escapes as the final public outcome; no fail,
+        no second complete, no second lookup (FU1-F3)."""
+        run, child, fail_spy, complete_spy = self._running_child_with_spy()
+        factory = _CountingFactory({"response": build_success_exact_match_response()})
+        complete_attempts = []
+
+        def raise_zero_row_cas(*args, **kwargs):
+            complete_attempts.append(1)
+            raise VendorRefreshCompletionError(
+                child_id=str(child.id),
+                detail=f"child is in state {VendorRefreshState.COMPLETED}, expected RUNNING",
+            )
+
+        def raise_read_error(tid):
+            raise OperationalError("cannot establish fresh read")
+
+        with (
+            patch.object(core, "fail_vendor_refresh", fail_spy),
+            patch.object(core, "complete_vendor_refresh", raise_zero_row_cas),
+            patch.object(core, "_reconciliation_fresh_read", raise_read_error),
+            patch.dict(os.environ, {CONFIGURED_ENV: CONFIGURED_BASE_URL}),
+        ):
+            with pytest.raises(VendorRefreshExecutionError) as excinfo:
+                execute_claimed_vendor_refresh(child.id, vendor_adapter_factory=factory)
+        # No raw DatabaseError escapes as the final public outcome.
+        assert type(excinfo.value) is VendorRefreshExecutionError
+        assert not isinstance(excinfo.value, OperationalError)
+        assert (
+            excinfo.value.reason
+            == VendorRefreshExecutionError.REASON_TERMINALIZATION_OUTCOME_UNKNOWN
+        )
+        assert excinfo.value.durable_state is None
+        assert len(fail_spy.calls) == 0
+        assert len(complete_attempts) == 1  # no retry
+        assert len(factory.constructed[0].lookup_queries) == 1  # no second lookup
 
     def test_t2b_invalid_payload_is_defect_not_cas_loser(self) -> None:
         """D — explicit reason (invalid_payload): a
@@ -1612,6 +1877,425 @@ class TestOuterBoundaryFailOutcomes(TestCase):
             == VendorRefreshExecutionError.REASON_TERMINALIZATION_OUTCOME_UNKNOWN
         )
         assert factory.invocations == 0
+
+
+# ---------------------------------------------------------------------------
+# T3/T4 — fresh-read connection property (FU1-F2)
+# ---------------------------------------------------------------------------
+
+
+class TestT4FreshReadConnectionProperty(TestCase):
+    """FU1-F2 — under the suite's MANAGED transaction (in-memory DB),
+    the reconciliation fresh read never closes the connection (no
+    blind close: the in-memory suite database would be destroyed and
+    the managed transaction state aborted); the read goes through the
+    wrapper's own usability gate. The actual new-connection property
+    (the possibly-compromised connection demonstrably replaced) is
+    proven by the file-backed subprocess nodes below, in the
+    production (non-managed, autocommit, file-based) context."""
+
+    def test_t3_definite_write_failure_confirmed_running_connection_untouched(self) -> None:
+        """1 — DEFINITE write failure (error observed before any
+        commit), confirmed RUNNING by the REAL fresh read:
+        terminalization_not_recorded with the actually-read state; the
+        managed connection is NOT closed (same DBAPI connection before
+        and after); zero executor writes, no fail."""
+        run = _make_completed_run()
+        child = _make_running_child(run)
+        before = _row_snapshot(child.pk)
+        factory = _CountingFactory({"response": build_success_exact_match_response()})
+        fail_spy = _spied_service(fail_vendor_refresh)
+
+        def raise_locked(*args, **kwargs):
+            raise OperationalError("database is locked")
+
+        conn = connections["default"]
+        conn.ensure_connection()
+        dbapi_before = id(conn.connection)
+        with (
+            patch.object(core, "fail_vendor_refresh", fail_spy),
+            patch.object(core, "complete_vendor_refresh", raise_locked),
+            patch.dict(os.environ, {CONFIGURED_ENV: CONFIGURED_BASE_URL}),
+        ):
+            with pytest.raises(VendorRefreshExecutionError) as excinfo:
+                execute_claimed_vendor_refresh(child.id, vendor_adapter_factory=factory)
+        assert (
+            excinfo.value.reason
+            == VendorRefreshExecutionError.REASON_TERMINALIZATION_NOT_RECORDED
+        )
+        assert excinfo.value.durable_state == VendorRefreshState.RUNNING  # read-established
+        # No blind close under the managed transaction.
+        assert id(conn.connection) == dbapi_before
+        assert _row_snapshot(child.pk) == before  # zero executor writes
+        assert len(fail_spy.calls) == 0
+        assert len(factory.constructed[0].lookup_queries) == 1  # no second lookup
+
+    def test_t4_ambiguous_write_confirmed_running_managed_transaction_no_close(self) -> None:
+        """2 — AMBIGUOUS write outcome under the managed in-memory
+        transaction: the REAL (unpatched) fresh read independently
+        confirms RUNNING through the wrapper's usability gate; the
+        managed connection is NOT closed; terminalization_not_recorded
+        (never assumed, never a fail)."""
+        run = _make_completed_run()
+        child = _make_running_child(run)
+        before = _row_snapshot(child.pk)
+        factory = _CountingFactory({"response": build_success_exact_match_response()})
+        fail_spy = _spied_service(fail_vendor_refresh)
+
+        def raise_ambiguous(*args, **kwargs):
+            raise OperationalError("connection dropped mid-commit")
+
+        conn = connections["default"]
+        conn.ensure_connection()
+        dbapi_before = id(conn.connection)
+        with (
+            patch.object(core, "fail_vendor_refresh", fail_spy),
+            patch.object(core, "complete_vendor_refresh", raise_ambiguous),
+            patch.dict(os.environ, {CONFIGURED_ENV: CONFIGURED_BASE_URL}),
+        ):
+            with pytest.raises(VendorRefreshExecutionError) as excinfo:
+                execute_claimed_vendor_refresh(child.id, vendor_adapter_factory=factory)
+        assert (
+            excinfo.value.reason
+            == VendorRefreshExecutionError.REASON_TERMINALIZATION_NOT_RECORDED
+        )
+        assert excinfo.value.durable_state == VendorRefreshState.RUNNING  # read-established
+        assert id(conn.connection) == dbapi_before  # no close inside the managed txn
+        assert _row_snapshot(child.pk) == before
+        assert len(fail_spy.calls) == 0
+        assert len(factory.constructed[0].lookup_queries) == 1  # no second lookup
+
+
+# ---------------------------------------------------------------------------
+# T3/T4 — file-backed connection-recovery property (FU1-F2; subprocess)
+# ---------------------------------------------------------------------------
+
+_FILE_BACKED_PROBE_SCRIPT = r'''
+"""T3/T4 file-backed connection-recovery probe.
+
+Runs in a clean subprocess over a FILE-BACKED SQLite database, OUTSIDE
+any managed transaction (the production post-commit context,
+autocommit). It proves the actual connection-recovery property: after
+an (ambiguous/definite) terminal-CAS database error, the
+reconciliation fresh read is over a NEW DBAPI connection — the
+possibly-compromised one was discarded, the replacement was
+demonstrated usable (lightweight statement), and the row was read
+over the replacement. A patched `_reconciliation_fresh_read` returning
+a canned row is not sufficient evidence by itself; this probe uses
+the REAL executor and the REAL fresh read."""
+import json
+import os
+import sys
+import traceback
+
+os.environ["DJANGO_SETTINGS_MODULE"] = "config.settings"
+import django
+
+django.setup()
+
+from django.core.management import call_command
+from django.db import OperationalError, connections
+
+call_command("migrate", run_syncdb=True, verbosity=0)
+conn = connections["default"]
+assert os.path.isfile(conn.settings_dict["NAME"]), "probe requires a file-backed database"
+assert conn.in_atomic_block is False, "probe requires the non-managed production context"
+
+from product_intelligence.domain import ResearchRequest
+from product_intelligence.domain.enums import ResearchRunState
+from product_intelligence.providers.commercial import (
+    CommercialSourceResponse,
+    LookupStatus,
+)
+from product_intelligence.runs import (
+    claim_vendor_refresh,
+    complete_vendor_refresh,
+    trigger_vendor_refresh,
+)
+from product_intelligence.runs.models import (
+    PriceIntelligenceSnapshot,
+    ResearchRun,
+    VendorRefreshExecution,
+)
+
+import product_intelligence.execution.vendor_refresh as core
+from product_intelligence.execution.vendor_refresh import (
+    VendorRefreshExecutionError,
+    execute_claimed_vendor_refresh,
+)
+
+MPN = "BCM957608-P2200GQF00"
+
+
+def make_running_child():
+    request = ResearchRequest(manufacturer_part_number=MPN, description="t4 probe")
+    run = ResearchRun.objects.create_from_request(request)
+    run.transition_to(ResearchRunState.RUNNING)
+    run.transition_to(ResearchRunState.COMPLETED)
+    PriceIntelligenceSnapshot.objects.create(
+        run=run,
+        schema_version=1,
+        payload={
+            "request": {"manufacturer_part_number": MPN, "description": "t4 probe"},
+            "assessments": [],
+            "buckets": [],
+            "exclusions": [],
+            "verification_status": "VERIFIED",
+        },
+    )
+    return claim_vendor_refresh(
+        trigger_vendor_refresh(run.id, operator="probe").id
+    )
+
+
+class CannedAdapter:
+    def lookup(self, query):
+        return CommercialSourceResponse(
+            status=LookupStatus.FAILED,
+            retrieved_at=None,
+            candidates=(),
+            issues=(),
+        )
+
+
+def run_scenario(name: str) -> dict:
+    os.environ["PI_VENDOR_LOOKUP_BASE_URL"] = "http://vendor.internal/api"
+    child = make_running_child()
+    conn.ensure_connection()
+    dbapi_before = id(conn.connection)
+    lookups = []
+
+    def factory():
+        adapter = CannedAdapter()
+        original = adapter.lookup
+
+        def counting(query):
+            lookups.append(1)
+            return original(query)
+
+        adapter.lookup = counting
+        return adapter
+
+    out = {"dbapi_before": dbapi_before}
+    real_complete = core.complete_vendor_refresh
+    original_get_new_connection = conn.get_new_connection
+
+    def invoke():
+        return execute_claimed_vendor_refresh(str(child.id), vendor_adapter_factory=factory)
+
+    try:
+        if name == "definite_verified_running":
+            def definite_failure(*a, **k):
+                raise OperationalError("database is locked")
+
+            core.complete_vendor_refresh = definite_failure
+            try:
+                returned = invoke()
+                out["returned_state"] = returned.state
+            except VendorRefreshExecutionError as e:
+                out["error"] = e.reason
+                out["durable_state"] = e.durable_state
+                out["row_state"] = VendorRefreshExecution.objects.get(id=child.id).state
+        elif name == "ambiguous_verified_completed":
+            def ambiguous_after_commit(*a, **k):
+                real_complete(*a, **k)  # the write durably commits
+                raise OperationalError("simulated ambiguous commit outcome")
+
+            core.complete_vendor_refresh = ambiguous_after_commit
+            try:
+                returned = invoke()
+                out["returned_state"] = returned.state
+                out["returned_schema"] = returned.result_schema_version
+                out["returned_lookup_status"] = (
+                    returned.result_payload["vendor_commercial_result"]["lookup_status"]
+                )
+                out["row_state"] = VendorRefreshExecution.objects.get(id=child.id).state
+            except VendorRefreshExecutionError as e:
+                out["error"] = e.reason
+                out["durable_state"] = e.durable_state
+        elif name == "ambiguous_verified_running":
+            def ambiguous_no_commit(*a, **k):
+                raise OperationalError("simulated ambiguous commit outcome")
+
+            core.complete_vendor_refresh = ambiguous_no_commit
+            try:
+                returned = invoke()
+                out["returned_state"] = returned.state
+            except VendorRefreshExecutionError as e:
+                out["error"] = e.reason
+                out["durable_state"] = e.durable_state
+                out["row_state"] = VendorRefreshExecution.objects.get(id=child.id).state
+        elif name == "ambiguous_reconnect_fails":
+            def ambiguous_no_commit2(*a, **k):
+                raise OperationalError("simulated ambiguous commit outcome")
+
+            core.complete_vendor_refresh = ambiguous_no_commit2
+
+            def broken_get_new_connection(conn_params):
+                raise OperationalError("simulated connection replacement failure")
+
+            conn.get_new_connection = broken_get_new_connection
+            try:
+                invoke()
+                out["returned"] = True
+            except VendorRefreshExecutionError as e:
+                out["error"] = e.reason
+                out["durable_state"] = e.durable_state
+                out["connection_none"] = conn.connection is None
+    finally:
+        core.complete_vendor_refresh = real_complete
+        conn.get_new_connection = original_get_new_connection
+    out["dbapi_after"] = id(conn.connection)
+    out["dbapi_changed"] = out["dbapi_after"] != out["dbapi_before"]
+    out["lookup_count"] = len(lookups)
+    return out
+
+
+results = None
+result_path = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "probe_result.json"
+)
+try:
+    results = {name: run_scenario(name) for name in sys.argv[1:]}
+    payload = json.dumps(results, default=str)
+except Exception:
+    with open(result_path, "w", encoding="utf-8") as f:
+        f.write(json.dumps({"probe_error": traceback.format_exc()}))
+    raise
+with open(result_path, "w", encoding="utf-8") as f:
+    f.write(payload)
+print("PROBE_RESULT:" + payload)
+'''
+
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _run_file_backed_probe() -> dict:
+    """Run the T3/T4 file-backed probe in a clean subprocess (a temp
+    file-backed SQLite database; the in-memory suite DB is untouched)
+    and return the parsed per-scenario results.
+
+    Spawn discipline: the child's stdin/stdout/stderr are NOT
+    redirected at all — with any redirection CPython duplicates the
+    child handles via ``DuplicateHandle`` (``_make_inheritable``), and
+    that is the exact call site of the documented load-sensitive
+    WinError 6/50 pipe-setup flake class of this Windows / Python
+    3.14 workstation. The probe writes its own result file instead;
+    a bounded spawn retry remains as the last-resort guard (no
+    assertion changes)."""
+    probe_dir = Path(tempfile.mkdtemp(prefix="vref_t4_file_backed_"))
+    try:
+        db_file = probe_dir / "t4_probe.sqlite3"
+        script_file = probe_dir / "t4_probe.py"
+        result_file = probe_dir / "probe_result.json"
+        script_file.write_text(_FILE_BACKED_PROBE_SCRIPT, encoding="utf-8")
+        env = dict(os.environ)
+        env["PYTHONPATH"] = str(REPO_ROOT)
+        env["PI_SQLITE_PATH"] = str(db_file)
+        attempt = 0
+        while True:
+            attempt += 1
+            try:
+                r = subprocess.run(
+                    [
+                        sys.executable,
+                        str(script_file),
+                        "definite_verified_running",
+                        "ambiguous_verified_completed",
+                        "ambiguous_verified_running",
+                        "ambiguous_reconnect_fails",
+                    ],
+                    env=env,
+                    cwd=str(REPO_ROOT),
+                    timeout=600,
+                )
+            except OSError as exc:
+                # The documented load-sensitive Windows subprocess-
+                # boundary flake class (WinError 6/50 in CreateProcess
+                # handle setup): bounded retry of the spawn; no
+                # assertion changes.
+                flake = ("WinError 6" in str(exc)) or ("WinError 50" in str(exc))
+                if attempt >= 3 or not flake:
+                    raise
+                time.sleep(0.5 * attempt)
+                continue
+            break
+        assert result_file.exists(), "probe produced no result file"
+        data = json.loads(result_file.read_text(encoding="utf-8"))
+        assert "probe_error" not in data, f"probe raised:\n{data['probe_error']}"
+        assert r.returncode == 0, f"probe exited with {r.returncode}"
+        return data
+    finally:
+        shutil.rmtree(probe_dir, ignore_errors=True)
+
+
+@pytest.fixture(scope="module")
+def file_backed_t4_probe_results() -> dict:
+    return _run_file_backed_probe()
+
+
+def test_t3_file_backed_definite_write_failure_confirmed_running_new_connection(
+    file_backed_t4_probe_results,
+) -> None:
+    """FU1-F2 (file-backed, production context) 1 — DEFINITE write
+    failure; the reconciliation read is over a NEW DBAPI connection
+    (the old one demonstrably discarded) and independently confirms
+    RUNNING -> terminalization_not_recorded; no second Vendor call."""
+    out = file_backed_t4_probe_results["definite_verified_running"]
+    assert out["dbapi_changed"] is True  # actual new connection established
+    assert out["error"] == "terminalization_not_recorded"
+    assert out["durable_state"] == "RUNNING"  # read-established, never assumed
+    assert out["row_state"] == "RUNNING"
+    assert out["lookup_count"] == 1
+
+
+def test_t4_file_backed_ambiguous_write_independently_verified_completed(
+    file_backed_t4_probe_results,
+) -> None:
+    """FU1-F2 (file-backed, production context) 2 — AMBIGUOUS write
+    outcome (the write durably committed, the signal was lost): the
+    NEW connection's independent read verifies COMPLETED — the actual
+    durable terminal result is preserved (returned, not an error);
+    no Vendor call retry, no fail."""
+    out = file_backed_t4_probe_results["ambiguous_verified_completed"]
+    assert out["dbapi_changed"] is True  # actual new connection established
+    assert "error" not in out  # the durable terminal result is returned
+    assert out["returned_state"] == "COMPLETED"
+    assert out["returned_schema"] == 1
+    assert out["returned_lookup_status"] == "FAILED"
+    assert out["row_state"] == "COMPLETED"
+    assert out["lookup_count"] == 1
+
+
+def test_t4_file_backed_ambiguous_write_independently_verified_running(
+    file_backed_t4_probe_results,
+) -> None:
+    """FU1-F2 (file-backed, production context) 3 — AMBIGUOUS write
+    outcome (no commit): the NEW connection's independent read
+    verifies RUNNING -> terminalization_not_recorded; no fail issued;
+    no Vendor call retry."""
+    out = file_backed_t4_probe_results["ambiguous_verified_running"]
+    assert out["dbapi_changed"] is True  # actual new connection established
+    assert out["error"] == "terminalization_not_recorded"
+    assert out["durable_state"] == "RUNNING"
+    assert out["row_state"] == "RUNNING"
+    assert out["lookup_count"] == 1
+
+
+def test_t4_file_backed_ambiguous_write_reconnect_failure_outcome_unknown(
+    file_backed_t4_probe_results,
+) -> None:
+    """FU1-F2 (file-backed, production context) 4 — AMBIGUOUS write
+    outcome where the connection REPLACEMENT itself fails: bounded
+    terminalization_outcome_unknown (no raw error escapes); the
+    possibly-compromised connection was discarded (None held); no
+    durable state assumed; no Vendor call retry."""
+    out = file_backed_t4_probe_results["ambiguous_reconnect_fails"]
+    assert out["error"] == "terminalization_outcome_unknown"
+    assert out["durable_state"] is None
+    assert out["connection_none"] is True  # the compromised connection was discarded
+    assert out["lookup_count"] == 1
 
 
 # ---------------------------------------------------------------------------
