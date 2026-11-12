@@ -1455,12 +1455,166 @@ class TestNoRecoverySurface(TestCase):
             assert not list(commands_root.glob("vendor_refresh*"))
 
     def test_no_vendor_refresh_execution_module_exists(self) -> None:
-        """R0 ships no execution/runtime surface (R1): no such module in
-        the execution package, and nothing network-capable was added."""
+        """VREF-R1-2 Stage A (IN-PLACE evolution of the R0 absence pin;
+        node ID preserved). The R0-only assertion ("no
+        vendor_refresh*.py in execution/") stops being true exactly
+        when the approved R1-2 execution core lands, so it evolves in
+        place into the exact approved surface pin. The original safety
+        intent ("no unapproved network-capable or recovery surface
+        before approval") is preserved and STRENGTHENED: the
+        network-capable surface is exactly the approved set, the
+        concrete-adapter touchpoint is singular and located, and the
+        execution core cannot claim or import the adapter.
+
+        Pins (design section 11, row 2, Stage A):
+
+        * `vendor_refresh*.py` in execution/ == EXACTLY
+          {vendor_refresh.py, vendor_refresh_runtime.py};
+        * the complete new-module set for the refresh feature in
+          execution/ (`vendor_*.py`) == EXACTLY
+          {vendor_commercial_binding.py, vendor_refresh.py,
+          vendor_refresh_runtime.py} (the R1-1 helper is deliberately
+          NOT vendor_refresh-prefixed);
+        * execution/vendor_refresh_runtime.py is the ONLY module in
+          execution/ importing providers.internal_vendor, and only
+          function-level (factory source; O9);
+        * execution/vendor_refresh.py imports NO provider class in any
+          form (the network-free providers.commercial contract type is
+          the only providers reference) and references NO claim symbol
+          in any form (POST-CLAIM ONLY; FU1-F1);
+        * vendor_commercial_binding.py remains pure (the R1-1 import
+          allowlist); no unapproved execution/recovery module exists
+          (no recovery module anywhere, no command surface).
+        """
+        import ast
         from pathlib import Path
 
         execution_root = Path("product_intelligence/execution").resolve()
-        assert not list(execution_root.glob("vendor_refresh*.py"))
+
+        # 1. The exact vendor_refresh* execution surface.
+        globbed = {
+            path.name for path in execution_root.glob("vendor_refresh*.py")
+        }
+        assert globbed == {
+            "vendor_refresh.py",
+            "vendor_refresh_runtime.py",
+        }, f"unapproved vendor_refresh* execution module set: {globbed}"
+
+        # 2. The complete new-module set for the refresh feature in
+        #    execution/: the R1-1 helper (deliberately not
+        #    vendor_refresh-prefixed) + the exact pair above.
+        feature_modules = {path.name for path in execution_root.glob("vendor_*.py")}
+        assert feature_modules == {
+            "vendor_commercial_binding.py",
+            "vendor_refresh.py",
+            "vendor_refresh_runtime.py",
+        }, f"unapproved refresh-feature execution module set: {feature_modules}"
+
+        # 3. No unapproved recovery module or command surface.
+        package_root = execution_root.parent
+        assert not list(package_root.rglob("vendor_refresh_recovery.py")), (
+            "the R1-4 recovery module must not exist while R1-4 is BLOCKED"
+        )
+        commands_root = package_root / "runs" / "management" / "commands"
+        if commands_root.is_dir():
+            assert not list(commands_root.glob("vendor_refresh*")), (
+                "the R1-3 command surface must not exist yet at R1-2"
+            )
+
+        def _imports_of(path: Path) -> list[ast.stmt]:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            return [
+                node
+                for node in ast.walk(tree)
+                if isinstance(node, (ast.Import, ast.ImportFrom))
+            ]
+
+        def _imported_modules(nodes: list[ast.stmt]) -> set[str]:
+            modules: set[str] = set()
+            for node in nodes:
+                if isinstance(node, ast.Import):
+                    modules.update(alias.name for alias in node.names)
+                elif node.module is not None:
+                    modules.add(node.module)
+            return modules
+
+        # 4. Among the R1 refresh-feature modules, the runtime is the
+        #    ONLY one importing providers.internal_vendor, and only
+        #    function-level (factory source; O9: it constructs nothing
+        #    itself). The pre-existing frozen 4D-B module
+        #    (orchestration.py) is not an R1 module and keeps its
+        #    frozen adapter import pinned by the 4D-B suites.
+        internal_vendor_importers: list[str] = []
+        for name in sorted(feature_modules):
+            imported = _imported_modules(_imports_of(execution_root / name))
+            if any(
+                module == "product_intelligence.providers.internal_vendor"
+                or module.startswith("product_intelligence.providers.internal_vendor.")
+                for module in imported
+            ):
+                internal_vendor_importers.append(name)
+        assert internal_vendor_importers == ["vendor_refresh_runtime.py"], (
+            f"R1 refresh-feature modules importing "
+            f"providers.internal_vendor must be exactly the runtime, "
+            f"got {internal_vendor_importers}"
+        )
+        runtime_tree = ast.parse(
+            (execution_root / "vendor_refresh_runtime.py").read_text(encoding="utf-8")
+        )
+        top_level_internal_vendor = [
+            node
+            for node in runtime_tree.body
+            if isinstance(node, ast.ImportFrom)
+            and node.module
+            and node.module.startswith("product_intelligence.providers.internal_vendor")
+        ]
+        assert not top_level_internal_vendor, (
+            "the runtime's providers.internal_vendor import must be "
+            "function-level (lazy factory source), not module-level"
+        )
+
+        # 5. The execution core imports NO provider class in any form
+        #    (the network-free providers.commercial contract type is the
+        #    only permitted providers reference) and references NO claim
+        #    symbol in any form (POST-CLAIM ONLY; FU1-F1 no-double-claim).
+        core_path = execution_root / "vendor_refresh.py"
+        core_tree = ast.parse(core_path.read_text(encoding="utf-8"))
+        for module in _imported_modules(_imports_of(core_path)):
+            if module == "product_intelligence.providers.commercial":
+                continue
+            assert not (
+                module == "product_intelligence.providers"
+                or module.startswith("product_intelligence.providers.")
+            ), f"core imports a provider module in some form: {module}"
+        for node in ast.walk(core_tree):
+            identifiers: list[str] = []
+            if isinstance(node, ast.Name):
+                identifiers.append(node.id)
+            elif isinstance(node, ast.Attribute):
+                identifiers.append(node.attr)
+            elif isinstance(node, ast.ImportFrom):
+                identifiers.extend(alias.name for alias in node.names)
+            elif isinstance(node, ast.Import):
+                identifiers.extend(alias.name or alias.asname or "" for alias in node.names)
+            for identifier in identifiers:
+                assert "claim" not in identifier.lower(), (
+                    f"core references a claim symbol in some form: {identifier}"
+                )
+
+        # 6. The R1-1 helper remains pure (the R1-1 import allowlist).
+        helper_imports = _imported_modules(
+            _imports_of(execution_root / "vendor_commercial_binding.py")
+        )
+        helper_allowlist = {
+            "__future__",
+            "typing",
+            "product_intelligence.providers.commercial",
+            "product_intelligence.research.identity",
+            "product_intelligence.research.commercial_supplement_codec",
+        }
+        assert helper_imports <= helper_allowlist, (
+            f"helper is no longer pure: {helper_imports - helper_allowlist}"
+        )
 
     def test_no_implicit_retry_after_failure(self) -> None:
         """Nothing revives or re-attempts a FAILED child: row count is
