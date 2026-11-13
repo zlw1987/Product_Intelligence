@@ -143,11 +143,20 @@ class TestStageASurfacePin(TestCase):
             )
 
     def test_no_vendor_refresh_command_or_recovery_symbol(self) -> None:
+        """The EXACT approved R1-3 command surface (VREF-R1-3, in-place
+        evolution of the R1-2 command-absence pin; node ID preserved):
+        the only ``vendor_refresh*`` command file is
+        ``vendor_refresh.py`` (R1-4 recovery remains prohibited — any
+        additional vendor_refresh-prefixed command, recovery command,
+        or recovery symbol fails closed). The runs public-export pin
+        (exactly the thirteen frozen R0 VendorRefresh-related names) is
+        preserved unchanged.
+        """
         commands_root = PACKAGE_ROOT / "runs" / "management" / "commands"
-        if commands_root.is_dir():
-            assert not list(commands_root.glob("vendor_refresh*")), (
-                "the R1-3 command surface must not exist yet at R1-2"
-            )
+        assert commands_root.is_dir()
+        assert {
+            p.name for p in commands_root.glob("vendor_refresh*")
+        } == {"vendor_refresh.py"}
         import product_intelligence.runs as runs_pkg
 
         vendor_symbols = {n for n in runs_pkg.__all__ if "vendor" in n.lower()}

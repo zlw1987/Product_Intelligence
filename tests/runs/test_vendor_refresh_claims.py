@@ -1433,26 +1433,198 @@ class TestNoRecoverySurface(TestCase):
         ]
 
     def test_public_api_has_no_vendor_refresh_recovery_symbols(self) -> None:
+        """VREF-R1-3 Stage 1 (IN-PLACE evolution of the R0 absence pin;
+        node ID preserved). The R0 body scanned ``runs.__all__`` for
+        forbidden recovery tokens; Stage 1 STRENGTHENS it into an exact
+        membership pin (design section 11, row 3): the VendorRefresh-
+        related names of the runs public API are EXACTLY the thirteen
+        frozen R0 names — the nine lifecycle service/error symbols of
+        design section 11 row 3 Stage 1 plus the four model/vocabulary
+        symbols — and no R1 recovery surface exists (R1-4 BLOCKED
+        pending O8; Stage 2 at the R1-4 gate is the only authorized
+        future change, and it adds exactly three allowlisted symbols).
+        The R0 forbidden-token scan is preserved across all thirteen.
+        """
         import product_intelligence.runs as runs_pkg
 
-        for name in runs_pkg.__all__:
+        vendor_symbols = {n for n in runs_pkg.__all__ if "vendor" in n.lower()}
+
+        # The nine lifecycle service/error symbols (design section 11,
+        # row 3, Stage 1 — exactly the R0 public surface).
+        lifecycle_nine = {
+            "trigger_vendor_refresh",
+            "claim_vendor_refresh",
+            "complete_vendor_refresh",
+            "fail_vendor_refresh",
+            "VendorRefreshError",
+            "VendorRefreshTriggerError",
+            "VendorRefreshClaimError",
+            "VendorRefreshCompletionError",
+            "VendorRefreshFailureError",
+        }
+        # The four model/vocabulary symbols (frozen R0 exports).
+        model_vocabulary_four = {
+            "VendorRefreshExecution",
+            "VendorRefreshState",
+            "VendorRefreshFailureReason",
+            "VendorRefreshTriggerSource",
+        }
+        # Pin the ENTIRE exact thirteen-symbol set (exact membership:
+        # any missing, extra, renamed, or recovery symbol fails).
+        assert vendor_symbols == lifecycle_nine | model_vocabulary_four, (
+            "the runs public API VendorRefresh-related names must be "
+            f"exactly the thirteen frozen R0 names; got {vendor_symbols}"
+        )
+        # The lifecycle service/error subset is EXACTLY the nine
+        # specified by frozen design section 11 row 3 Stage 1.
+        assert vendor_symbols & lifecycle_nine == lifecycle_nine, (
+            "the lifecycle service/error subset must be exactly the "
+            "nine frozen R0 symbols"
+        )
+        # Preserved R0 forbidden-token scan across ALL vendor symbols.
+        for name in vendor_symbols:
             lowered = name.lower()
-            if "vendor" not in lowered:
-                continue
             assert not any(
                 token in lowered for token in _FORBIDDEN_SURFACE_TOKENS
             ), f"forbidden R0 public symbol: {name}"
 
     def test_no_vendor_refresh_management_command_exists(self) -> None:
-        """R0 ships no command surface (the vendor_refresh command is
-        R1): no such command file exists in the runs package."""
+        """VREF-R1-3 Stage A (IN-PLACE evolution of the R0 absence pin;
+        node ID preserved). The R0-only assertion ("no ``vendor_refresh*``
+        file in ``runs/management/commands``") stops being true exactly
+        when the approved R1-3 command lands, so it evolves in place
+        into the EXACT approved command-surface pin (design section 11,
+        row 1, Stage A): the only ``vendor_refresh*`` command file is
+        ``vendor_refresh.py`` (the R1-4 recovery command does NOT exist
+        yet — any other file fails closed), registered from the runs
+        app, with exactly ONE positional (the PARENT run UUID) and
+        exactly the two flags ``--operator`` (required) and
+        ``--force-repeat`` (optional) — ``--force-repeat`` is the ONE
+        approved force-related flag (cooldown bypass only); NO child-id
+        positional, NO ``--evidence*`` / ``--attest*`` / other flag, NO
+        command-specific flag whose name carries a forbidden surface
+        token (the scan applies to flag names OTHER than the approved
+        ``--force-repeat``), and help text token-free except the
+        documented ``--force-repeat`` help. Stage B (R1-4, post-
+        unblock) is the only authorized future change.
+        """
         from pathlib import Path
+
+        from django.core.management import get_commands, load_command_class
+        from django.core.management.base import BaseCommand
 
         commands_root = Path(
             "product_intelligence/runs/management/commands"
         ).resolve()
-        if commands_root.is_dir():
-            assert not list(commands_root.glob("vendor_refresh*"))
+        assert commands_root.is_dir()
+        assert {
+            p.name for p in commands_root.glob("vendor_refresh*")
+        } == {"vendor_refresh.py"}, (
+            "the only approved R1-3 command is vendor_refresh.py; "
+            "R1-4 recovery remains prohibited"
+        )
+
+        # The command is registered from the runs app.
+        assert get_commands()["vendor_refresh"] == "product_intelligence.runs"
+        command = load_command_class("product_intelligence.runs", "vendor_refresh")
+        parser = command.create_parser("manage.py", "vendor_refresh")
+
+        # The Django base actions (identical for every command) are
+        # subtracted via a baseline parser of an EMPTY command, so the
+        # pin below is over the command's OWN argument surface only.
+        class _EmptyCommand(BaseCommand):
+            help = ""
+
+        baseline_parser = _EmptyCommand().create_parser("manage.py", "empty")
+        baseline_option_strings = {
+            option
+            for action in baseline_parser._actions
+            for option in action.option_strings
+        }
+        baseline_positionals = [
+            action
+            for action in baseline_parser._actions
+            if not action.option_strings
+        ]
+        assert not baseline_positionals
+
+        positionals = [
+            action
+            for action in parser._actions
+            if not action.option_strings and action not in baseline_positionals
+        ]
+        command_options = {
+            option
+            for action in parser._actions
+            for option in action.option_strings
+            if option not in baseline_option_strings
+        }
+
+        # Exactly ONE positional: the PARENT run UUID (NO child-id
+        # positional, no second positional).
+        assert len(positionals) == 1, (
+            "exactly one positional (the parent run UUID) is approved; "
+            f"got {len(positionals)}"
+        )
+        assert positionals[0].dest == "parent_run", (
+            f"the single positional must be the parent run UUID; "
+            f"got dest {positionals[0].dest!r}"
+        )
+
+        # Exactly the two approved flags (NO --evidence*, NO --attest*,
+        # no undocumented flag).
+        assert command_options == {"--operator", "--force-repeat"}, (
+            "the approved flags are exactly --operator and "
+            f"--force-repeat; got {command_options}"
+        )
+        operator_action = next(
+            action
+            for action in parser._actions
+            if "--operator" in action.option_strings
+        )
+        force_repeat_action = next(
+            action
+            for action in parser._actions
+            if "--force-repeat" in action.option_strings
+        )
+        assert operator_action.required is True
+        assert force_repeat_action.required is False
+        # store_true semantics (nargs 0, const True): an optional
+        # boolean flag, no value argument.
+        assert force_repeat_action.nargs == 0
+        assert force_repeat_action.const is True
+
+        # No command-specific flag name carries a forbidden surface
+        # token (the scan applies to flag names OTHER than the approved
+        # --force-repeat, whose name is exactly pinned above).
+        for option in command_options - {"--force-repeat"}:
+            lowered = option.lower()
+            assert not any(token in lowered for token in _FORBIDDEN_SURFACE_TOKENS), (
+                f"forbidden surface token in flag name: {option}"
+            )
+
+        # Command-specific help text token-free except the documented
+        # --force-repeat help (the ONE approved force-related flag).
+        # (The Django base mechanism's own options — e.g. --force-color
+        # — are not part of the command argument surface and are out of
+        # scope for this pin.)
+        command_specific_actions = [
+            action
+            for action in parser._actions
+            if any(option in command_options for option in action.option_strings)
+            or action in positionals
+        ]
+        help_texts = [command.help or ""]
+        for action in command_specific_actions:
+            if isinstance(action.help, str):
+                help_texts.append(action.help)
+        for text in help_texts:
+            lowered = text.lower()
+            if "force-repeat" in lowered:
+                continue
+            assert not any(token in lowered for token in _FORBIDDEN_SURFACE_TOKENS), (
+                f"forbidden surface token in command help text: {text!r}"
+            )
 
     def test_no_vendor_refresh_execution_module_exists(self) -> None:
         """VREF-R1-2 Stage A (IN-PLACE evolution of the R0 absence pin;
@@ -1484,7 +1656,9 @@ class TestNoRecoverySurface(TestCase):
           in any form (POST-CLAIM ONLY; FU1-F1);
         * vendor_commercial_binding.py remains pure (the R1-1 import
           allowlist); no unapproved execution/recovery module exists
-          (no recovery module anywhere, no command surface).
+          (no recovery module anywhere; the only command surface is
+          the approved R1-3 vendor_refresh.py — exact membership
+          pinned below).
         """
         import ast
         from pathlib import Path
@@ -1510,16 +1684,24 @@ class TestNoRecoverySurface(TestCase):
             "vendor_refresh_runtime.py",
         }, f"unapproved refresh-feature execution module set: {feature_modules}"
 
-        # 3. No unapproved recovery module or command surface.
+        # 3. No unapproved recovery module; the EXACT approved R1-3
+        #    command surface (VREF-R1-3: the R1-2 command-absence
+        #    assertion stops being true exactly when the approved
+        #    command lands, so it evolves in place into the exact
+        #    membership pin; the Stage A command-surface detail pins
+        #    live in test_no_vendor_refresh_management_command_exists).
         package_root = execution_root.parent
         assert not list(package_root.rglob("vendor_refresh_recovery.py")), (
             "the R1-4 recovery module must not exist while R1-4 is BLOCKED"
         )
         commands_root = package_root / "runs" / "management" / "commands"
-        if commands_root.is_dir():
-            assert not list(commands_root.glob("vendor_refresh*")), (
-                "the R1-3 command surface must not exist yet at R1-2"
-            )
+        assert commands_root.is_dir()
+        assert {
+            p.name for p in commands_root.glob("vendor_refresh*")
+        } == {"vendor_refresh.py"}, (
+            "the only approved R1-3 command is vendor_refresh.py; "
+            "R1-4 recovery remains prohibited"
+        )
 
         def _imports_of(path: Path) -> list[ast.stmt]:
             tree = ast.parse(path.read_text(encoding="utf-8"))
