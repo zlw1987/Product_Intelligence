@@ -66,12 +66,18 @@ Outcome classes:
 * ``FAILED`` — the child is durably FAILED by this invocation's single
   bounded post-claim defect write (T1 fail outcome, bounded R0_LEGAL
   reason); exit 0.
-* ``TERMINAL_REPORTED`` — the actual durable state is reported
-  verbatim (T2 lost-terminal-CAS report, the not-found anomaly, or a
-  non-terminal read-established anomaly; no second terminal write, no
-  assertion); exit 0.
+* ``TERMINAL_REPORTED`` — the actual durable TERMINAL state is
+  reported verbatim (T2 lost-terminal-CAS report, the not-found
+  anomaly, or a terminal read-established anomaly; no second terminal
+  write, no assertion); exit 0. A NON-TERMINAL read-established state
+  (PENDING / RUNNING / unknown) is NOT terminal-reported — it maps to
+  TERMINALIZATION_NOT_RECORDED below (VREF-R1-3-FU1 F1).
 * ``TERMINALIZATION_NOT_RECORDED`` — T3 (the fresh read established the
-  current durable shape; the child is not terminal); non-zero exit.
+  current durable shape; the child is not terminal), or the executor's
+  state refusal established a NON-TERMINAL durable state (PENDING /
+  RUNNING / unknown — the child is not durably terminal; bounded error
+  outcome, no second terminal write, no claim, no Vendor lookup, manual
+  re-check — VREF-R1-3-FU1 F1); non-zero exit.
 * ``TERMINALIZATION_OUTCOME_UNKNOWN`` — T4 (neither outcome is
   established; manual re-check); non-zero exit.
 * ``DATABASE_BUSY`` — contention beyond the busy timeout (or another
@@ -272,8 +278,13 @@ class Command(BaseCommand):
         # [S2] — the serialized short write transaction (M4 A3): the
         # safeguard decision, the trigger INSERT, and THE one and only
         # claim of this invocation, committed BEFORE any network
-        # activity. No network, no sleeps, no I/O inside.
+        # activity. No network, no sleeps, no I/O inside. The bounded
+        # reporting DATA for every branch is captured INSIDE the
+        # transaction; the corresponding stdout is emitted only AFTER
+        # the transaction has exited (VREF-R1-3-FU1 F2: no transaction
+        # lock is held during stdout writing).
         claimed = None
+        decision = None  # (kind, data, extra) — captured, not emitted
         try:
             with transaction.atomic():
                 # [L] — the zero-row lock statement: mutates NOTHING,
@@ -296,76 +307,73 @@ class Command(BaseCommand):
                 # executor call, zero network. A PENDING child is never
                 # claimed or executed by this command (M3 Option A).
                 if active_children:
-                    self._write("vendor refresh: outcome: IN_PROGRESS")
-                    for child in active_children:
-                        self._write(self._child_line(child))
-                    return EXIT_BOUNDED
-
-                # [c] — the latest terminal child (fresh, under the
-                # lock): max(finished_at), tie-break id DESC
-                # (deterministic; O7).
-                latest_terminal = (
-                    VendorRefreshExecution.objects.filter(
-                        parent_run_id=parent_id,
-                        state__in=sorted(VendorRefreshState.TERMINAL_STATES),
+                    decision = ("in_progress", active_children, None)
+                else:
+                    # [c] — the latest terminal child (fresh, under the
+                    # lock): max(finished_at), tie-break id DESC
+                    # (deterministic; O7).
+                    latest_terminal = (
+                        VendorRefreshExecution.objects.filter(
+                            parent_run_id=parent_id,
+                            state__in=sorted(VendorRefreshState.TERMINAL_STATES),
+                        )
+                        .order_by("-finished_at", "-id")
+                        .first()
                     )
-                    .order_by("-finished_at", "-id")
-                    .first()
-                )
 
-                # [D2] — the five-minute repeat safeguard (STRICT
-                # ``< 300 s``): refusal leaves NO new child, makes zero
-                # network calls. ``--force-repeat`` bypasses THIS
-                # refusal only.
-                now = timezone.now()
-                if (
-                    latest_terminal is not None
-                    and latest_terminal.finished_at is not None
-                    and (now - latest_terminal.finished_at)
-                    < timedelta(seconds=_COOLDOWN_SECONDS)
-                    and not force_repeat
-                ):
-                    self._write("vendor refresh: outcome: COOLDOWN_REFUSAL")
-                    age_seconds = int(
-                        (now - latest_terminal.finished_at).total_seconds()
-                    )
-                    self._write(
-                        "vendor refresh: blocking-child "
-                        f"{latest_terminal.id} state={latest_terminal.state} "
-                        f"finished-at={latest_terminal.finished_at.isoformat()} "
-                        f"age-seconds={age_seconds}"
-                    )
-                    return EXIT_BOUNDED
+                    # [D2] — the five-minute repeat safeguard (STRICT
+                    # ``< 300 s``): refusal leaves NO new child, makes
+                    # zero network calls. ``--force-repeat`` bypasses
+                    # THIS refusal only.
+                    now = timezone.now()
+                    if (
+                        latest_terminal is not None
+                        and latest_terminal.finished_at is not None
+                        and (now - latest_terminal.finished_at)
+                        < timedelta(seconds=_COOLDOWN_SECONDS)
+                        and not force_repeat
+                    ):
+                        decision = (
+                            "cooldown",
+                            latest_terminal,
+                            int(
+                                (now - latest_terminal.finished_at).total_seconds()
+                            ),
+                        )
+                    else:
+                        # [d] — the R0 trigger (INSERT; eligibility
+                        # re-checked in the service; the UNIQUE
+                        # constraint remains the hard invariant for any
+                        # writer that does not take the lock).
+                        child = trigger_vendor_refresh(
+                            parent_id, operator=operator
+                        )
 
-                # [d] — the R0 trigger (INSERT; eligibility re-checked
-                # in the service; the UNIQUE constraint remains the hard
-                # invariant for any writer that does not take the lock).
-                child = trigger_vendor_refresh(parent_id, operator=operator)
-
-                # [O] — the ownership proof under the lock: if the
-                # returned child was in the step-[b] snapshot, this
-                # invocation did NOT create it. Fail-closed: report and
-                # exit — NO claim, NO executor call, zero network.
-                # Structurally unreachable under the lock (a competing
-                # writer must hold the same RESERVED lock to INSERT).
-                if child.id in {a.id for a in active_children}:
-                    self._write("vendor refresh: outcome: IN_PROGRESS")
-                    self._write(self._child_line(child))
-                    self._write(
-                        "vendor refresh: note: anomaly - the trigger "
-                        "returned a pre-existing active child; no claim "
-                        "was issued"
-                    )
-                    return EXIT_BOUNDED
-
-                # [f] — THE one and only claim of this invocation
-                # (PENDING -> RUNNING, same transaction; exactly one on
-                # success, zero on every other path). A raise here
-                # (structurally unreachable) propagates OUT of the
-                # atomic block -> total rollback -> no row, zero calls,
-                # bounded non-zero exit at the outer boundary. It is
-                # NEVER caught to continue.
-                claimed = claim_vendor_refresh(child.id)
+                        # [O] — the ownership proof under the lock: if
+                        # the returned child was in the step-[b]
+                        # snapshot, this invocation did NOT create it.
+                        # Fail-closed: the transaction is marked to
+                        # ROLL BACK (the INSERT is discarded — a PENDING
+                        # row never reaches durability alone on the
+                        # command path, I5), NO claim, NO executor
+                        # call, zero network. Structurally unreachable
+                        # under the lock (a competing writer must hold
+                        # the same RESERVED lock to INSERT).
+                        if child.id in {a.id for a in active_children}:
+                            transaction.set_rollback(True)
+                            decision = ("in_progress_anomaly", child, None)
+                        else:
+                            # [f] — THE one and only claim of this
+                            # invocation (PENDING -> RUNNING, same
+                            # transaction; exactly one on success, zero
+                            # on every other path). A raise here
+                            # (structurally unreachable) propagates OUT
+                            # of the atomic block -> total rollback ->
+                            # no row, zero calls, bounded non-zero exit
+                            # at the outer boundary. It is NEVER caught
+                            # to continue.
+                            claimed = claim_vendor_refresh(child.id)
+                            decision = ("created", claimed, None)
         except VendorRefreshTriggerError as err:
             # [d] — the parent is not eligible (re-checked in the
             # service under the lock). The transaction rolled back:
@@ -389,6 +397,38 @@ class Command(BaseCommand):
                 "unavailable; no state changed; re-run manually"
             )
             return EXIT_DATABASE_BUSY
+
+        # [S2'] — the transaction has exited (committed on the created
+        # path; committed empty on the D1/D2 refusals; rolled back on
+        # the [O] anomaly). The bounded reporting is emitted NOW, with
+        # NO transaction lock held (VREF-R1-3-FU1 F2). Every refusal
+        # path commits nothing and calls nothing.
+        kind, data, extra = decision
+        if kind == "in_progress":
+            self._write("vendor refresh: outcome: IN_PROGRESS")
+            for child in data:
+                self._write(self._child_line(child))
+            return EXIT_BOUNDED
+        if kind == "cooldown":
+            latest_terminal, age_seconds = data, extra
+            self._write("vendor refresh: outcome: COOLDOWN_REFUSAL")
+            self._write(
+                "vendor refresh: blocking-child "
+                f"{latest_terminal.id} state={latest_terminal.state} "
+                f"finished-at={latest_terminal.finished_at.isoformat()} "
+                f"age-seconds={age_seconds}"
+            )
+            return EXIT_BOUNDED
+        if kind == "in_progress_anomaly":
+            self._write("vendor refresh: outcome: IN_PROGRESS")
+            self._write(self._child_line(data))
+            self._write(
+                "vendor refresh: note: anomaly - the trigger "
+                "returned a pre-existing active child; no claim "
+                "was issued"
+            )
+            return EXIT_BOUNDED
+        # kind == "created" — proceed post-commit.
 
         # [S3] — COMMIT: the child is durably RUNNING, BEFORE any
         # network activity (I10). On the command path a PENDING row is
@@ -469,14 +509,34 @@ class Command(BaseCommand):
             self._write(f"vendor refresh: outcome: FAILED failure-reason={reason}")
             return EXIT_BOUNDED
         if reason == VendorRefreshExecutionError.REASON_STATE_NOT_RUNNING:
-            # T2 report (or the read-established non-terminal anomaly):
-            # the ACTUAL durable state, verbatim — no assertion, no
-            # second terminal write.
+            # T2 report (or the read-established anomaly): the ACTUAL
+            # durable state, verbatim — no assertion, no second
+            # terminal write.
             state = str(err.durable_state) if err.durable_state is not None else "UNRESOLVED"
+            if state in VendorRefreshState.TERMINAL_STATES:
+                # The read establishes a durable TERMINAL child: bounded
+                # terminal reporting, exit 0 (preserved behavior).
+                self._write(
+                    f"vendor refresh: outcome: TERMINAL_REPORTED state={state}"
+                )
+                return EXIT_BOUNDED
+            # VREF-R1-3-FU1 F1: a NON-TERMINAL read-established state
+            # (PENDING / RUNNING / unknown) means the child is NOT
+            # durably terminal — it must not exit successfully. Bounded
+            # error outcome with the actual state, non-zero exit, manual
+            # re-check; no second terminal write, no claim, and no
+            # Vendor lookup is issued here (reporting only).
             self._write(
-                f"vendor refresh: outcome: TERMINAL_REPORTED state={state}"
+                f"vendor refresh: outcome: TERMINALIZATION_NOT_RECORDED "
+                f"state={state}"
             )
-            return EXIT_BOUNDED
+            self._write(
+                "vendor refresh: note: the read-established state is "
+                "non-terminal; the child is not durably terminal; the "
+                "recovery gate (R1-4) is blocked pending O8; manual "
+                "re-check per runbook"
+            )
+            return EXIT_UNEXPECTED
         if reason == VendorRefreshExecutionError.REASON_STATE_NOT_FOUND:
             self._write("vendor refresh: outcome: TERMINAL_REPORTED state=ABSENT")
             self._write(

@@ -1089,6 +1089,172 @@ class TestTerminalOutcomeMapping(TestCase):
         assert row["state"] == VendorRefreshState.FAILED
         assert row["result_payload"] is None
 
+    def test_state_not_running_pending_is_bounded_error_nonzero(self) -> None:
+        """VREF-R1-3-FU1 F1: a NON-TERMINAL read-established state
+        (PENDING) is NOT a successful terminal report — bounded error
+        outcome with the actual state, non-zero exit, manual re-check."""
+        run = self._parent()
+        code, text = self._run_with_executor_error(
+            run,
+            VendorRefreshExecutionError(
+                VendorRefreshExecutionError.REASON_STATE_NOT_RUNNING,
+                durable_state=VendorRefreshState.PENDING,
+            ),
+        )
+        assert code != 0
+        assert "outcome: TERMINALIZATION_NOT_RECORDED state=PENDING" in text
+        assert "the child is not durably terminal" in text
+        assert "recovery gate (R1-4) is blocked pending O8" in text
+
+    def test_state_not_running_running_is_bounded_error_nonzero(self) -> None:
+        """VREF-R1-3-FU1 F1: the same bounded error treatment over a
+        read-established RUNNING (otherwise anomalous) state."""
+        run = self._parent()
+        code, text = self._run_with_executor_error(
+            run,
+            VendorRefreshExecutionError(
+                VendorRefreshExecutionError.REASON_STATE_NOT_RUNNING,
+                durable_state=VendorRefreshState.RUNNING,
+            ),
+        )
+        assert code != 0
+        assert "outcome: TERMINALIZATION_NOT_RECORDED state=RUNNING" in text
+        assert "the child is not durably terminal" in text
+        assert "recovery gate (R1-4) is blocked pending O8" in text
+
+    def test_state_not_running_non_terminal_issues_no_further_write_or_claim(
+        self
+    ) -> None:
+        """VREF-R1-3-FU1 F1: the non-terminal report is reporting only
+        — the invocation's write statements are EXACTLY the trigger
+        INSERT + the zero-row lock UPDATE + the one claim UPDATE (the
+        command's own serialized transaction); the bounded error
+        outcome adds NO second terminal write, NO further claim, and
+        NO Vendor lookup."""
+        run = self._parent()
+
+        def raiser(child_id):
+            raise VendorRefreshExecutionError(
+                VendorRefreshExecutionError.REASON_STATE_NOT_RUNNING,
+                durable_state=VendorRefreshState.RUNNING,
+            )
+
+        with CaptureQueriesContext(connections["default"]) as ctx:
+            with patch.object(
+                command_module,
+                "execute_claimed_vendor_refresh_with_default_providers",
+                raiser,
+            ):
+                code, text = _invoke(str(run.id), "--operator", "op-a")
+        assert code != 0
+        upper = [q["sql"].lstrip().upper() for q in ctx.captured_queries]
+        assert sum(s.startswith("INSERT") for s in upper) == 1  # the trigger
+        assert sum(s.startswith("UPDATE") for s in upper) == 2  # lock + the one claim
+        assert sum(s.startswith("DELETE") for s in upper) == 0
+
+
+class TestStdoutOutsideWriteTransaction(TestCase):
+    """VREF-R1-3-FU1 F2: the IN_PROGRESS / COOLDOWN_REFUSAL / anomalous-
+    trigger branches emit their bounded stdout only AFTER the
+    serialized write transaction has exited — no transaction lock is
+    held during stdout writing. The positive control (the [L] zero-row
+    lock statement observed at savepoint depth +1 over the TestCase
+    frame) proves the instrumentation actually sees the command's
+    inner transaction; the refusal rows' byte-identity and zero-call
+    pins prove the business behavior is unchanged (no new child, no
+    claim, no lookup)."""
+
+    def _run_with_depth_spy(self, run: ResearchRun) -> tuple:
+        out = StringIO()
+        cmd = command_module.Command(stdout=out)
+        write_depths: list = []
+        real_write = cmd.stdout.write
+
+        def spy_write(msg, *args, **kwargs):
+            # Instance-attribute shadow: the first argument IS the line
+            # (no self binding).
+            write_depths.append((msg, len(connections["default"].savepoint_ids)))
+            return real_write(msg, *args, **kwargs)
+
+        cmd.stdout.write = spy_write
+        lock_depths: list = []
+        real_model = VendorRefreshExecution
+
+        class _RecordingQS:
+            def __init__(self, qs) -> None:
+                self._qs = qs
+
+            def update(self, *a, **k):
+                lock_depths.append(len(connections["default"].savepoint_ids))
+                return self._qs.update(*a, **k)
+
+        class _Proxy:
+            class objects:
+                @staticmethod
+                def filter(*args, **kwargs):
+                    qs = real_model.objects.filter(*args, **kwargs)
+                    if "active_slot" in kwargs:
+                        return _RecordingQS(qs)
+                    return qs
+
+        baseline = len(connections["default"].savepoint_ids)
+        stub = _recording_stub()
+        with (
+            patch.dict(os_environ(), {CONFIGURED_ENV: CONFIGURED_BASE_URL}),
+            patch.object(command_module, "VendorRefreshExecution", _Proxy),
+            patch.object(
+                command_module,
+                "execute_claimed_vendor_refresh_with_default_providers",
+                stub,
+            ),
+        ):
+            try:
+                cmd.handle(parent_run=str(run.id), operator="op-a", force_repeat=False)
+                code = None
+            except SystemExit as exc:
+                code = exc.code
+        return code, out.getvalue(), write_depths, lock_depths, baseline, stub
+
+    def test_in_progress_stdout_is_emitted_outside_the_write_transaction(self) -> None:
+        run = _make_completed_run()
+        orphan = _make_pending_child(run, operator="op-programmatic")
+        before = _row_snapshot(orphan.pk)
+        code, text, write_depths, lock_depths, baseline, stub = self._run_with_depth_spy(run)
+        # Positive control: the [L] zero-row lock statement ran INSIDE
+        # the command's serialized transaction (depth +1 over the
+        # TestCase frame).
+        assert lock_depths == [baseline + 1]
+        # Business behavior preserved: bounded IN_PROGRESS, exit 0, no
+        # new child, the orphan byte-identical, executor never entered.
+        assert code == 0
+        assert "outcome: IN_PROGRESS" in text
+        assert VendorRefreshExecution.objects.filter(parent_run=run).count() == 1
+        assert _row_snapshot(orphan.pk) == before
+        assert len(stub.calls) == 0
+        # F2: EVERY stdout line of the refusal invocation was emitted
+        # OUTSIDE the command's write transaction (baseline depth).
+        assert write_depths
+        assert all(depth == baseline for _, depth in write_depths)
+
+    def test_cooldown_refusal_stdout_is_emitted_outside_the_write_transaction(
+        self
+    ) -> None:
+        run = _make_completed_run()
+        _make_terminal_child(run, operator="op-t")  # finished just now: inside the window
+        code, text, write_depths, lock_depths, baseline, stub = self._run_with_depth_spy(run)
+        assert lock_depths == [baseline + 1]
+        # Business behavior preserved: bounded COOLDOWN_REFUSAL with the
+        # blocking child's facts, exit 0, no new child, executor never
+        # entered.
+        assert code == 0
+        assert "outcome: COOLDOWN_REFUSAL" in text
+        assert "blocking-child" in text
+        assert "age-seconds=" in text
+        assert VendorRefreshExecution.objects.filter(parent_run=run).count() == 1
+        assert len(stub.calls) == 0
+        assert write_depths
+        assert all(depth == baseline for _, depth in write_depths)
+
 
 class TestOuterBoundaryOutcomes(TestCase):
     """DATABASE_BUSY, the propagated claim failure, and non-bounded
