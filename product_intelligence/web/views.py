@@ -88,6 +88,9 @@ from .compact_quote_presentation import (
 from .micron_alias_presentation import (
     build_micron_alias_presentation,
 )
+from .vendor_status_presentation import (
+    build_vendor_api_status_presentation,
+)
 
 
 def _format_fx_retrieved_at(value: str | None) -> str | None:
@@ -571,6 +574,13 @@ def research_detail(request: HttpRequest, run_id: uuid.UUID) -> HttpResponse:
     #     evidence. It NEVER reads ResearchSupplementSnapshot and
     #     NEVER decodes the commercial supplement codec.
     #
+    # PRODUCT-INTEL.PILOT-VENDOR-STATUS-UX-A: the Vendor API status
+    # notice (availability of the internal vendor lookup, bounded to the
+    # persisted, codec-validated facts of THIS run) is built for the
+    # ALLOWED branch ONLY. The DENIED branch never reads or decodes the
+    # vendor supplemental artifact and its template context carries no
+    # vendor status fact of any kind.
+    #
     # The compact summary is constructed only when the existing price
     # snapshot decoded and passed the request-provenance check
     # (decoded_result is not None). Otherwise the existing report error
@@ -580,6 +590,14 @@ def research_detail(request: HttpRequest, run_id: uuid.UUID) -> HttpResponse:
     compact_quote = None
     compact_quote_unavailable = False
     replay = None
+    # PRODUCT-INTEL.PILOT-VENDOR-STATUS-UX-A: the decoded (or absent)
+    # vendor supplement evidence, captured from the ALLOWED replay only.
+    # The DENIED (public) replay never reads the vendor supplemental
+    # artifact, so this stays None there and no vendor status fact can
+    # reach an unauthorized template context. No second read/decode of
+    # the artifact happens: the replay boundary is the sole decoder.
+    vendor_supplement_evidence = None
+    vendor_api_status = None
 
     if decoded_result is not None:
         try:
@@ -602,6 +620,7 @@ def research_detail(request: HttpRequest, run_id: uuid.UUID) -> HttpResponse:
             # presentation link reconciliation.
             if vendor_commercial_access_allowed:
                 replay = replay_compact_quote_projection(str(run.id))
+                vendor_supplement_evidence = replay.supplemental_result
             else:
                 replay = replay_public_compact_quote_projection(run=run)
             projection = replay.projection
@@ -628,6 +647,20 @@ def research_detail(request: HttpRequest, run_id: uuid.UUID) -> HttpResponse:
             )
             compact_quote = None
             compact_quote_unavailable = True
+
+        # PRODUCT-INTEL.PILOT-VENDOR-STATUS-UX-A: bounded, display-only
+        # Vendor API status notice, ALLOWED connections only. It formats
+        # facts already carried by the decoded, persisted supplement
+        # result of THIS run (zero new reads, zero live work). When the
+        # summary failed closed above (compact_quote is None) no status
+        # notice is rendered: there is never a misleading success or
+        # partial-public fallback. A DENIED connection never reaches
+        # this line with vendor data: vendor_supplement_evidence is None
+        # there and the template renders the neutral access notice only.
+        if compact_quote is not None and vendor_commercial_access_allowed:
+            vendor_api_status = build_vendor_api_status_presentation(
+                vendor_supplement_evidence,
+            )
 
     # --- PRODUCT-INTEL.8A-FX-A1: FX freshness display (additive) ---
     #
@@ -778,6 +811,12 @@ def research_detail(request: HttpRequest, run_id: uuid.UUID) -> HttpResponse:
         # no vendor rows, no sensitive metadata projected into template context.
         # Used for neutral messaging only, never as the row-hiding mechanism.
         "vendor_commercial_access_allowed": vendor_commercial_access_allowed,
+        # PRODUCT-INTEL.PILOT-VENDOR-STATUS-UX-A: bounded display-only
+        # Vendor API status notice (ALLOWED connections only; None for a
+        # DENIED connection and on any fail-closed outcome). It carries
+        # no prices, no raw payload, and no fact beyond the persisted,
+        # codec-validated vendor supplement result of this run.
+        "vendor_api_status": vendor_api_status,
         # PRODUCT-INTEL.4D-D: display-only Micron packaging alias audit,
         # built exclusively from the persisted alias snapshot (zero live
         # work). None means "no alias snapshot for this run"; the

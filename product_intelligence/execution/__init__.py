@@ -69,6 +69,15 @@ from product_intelligence.execution.comparable_runtime import (
     execute_comparable_research_with_default_providers,
 )
 
+from product_intelligence.execution.vendor_refresh import (
+    VendorRefreshExecutionError,
+    execute_claimed_vendor_refresh,
+)
+
+from product_intelligence.execution.vendor_refresh_runtime import (
+    execute_claimed_vendor_refresh_with_default_providers,
+)
+
 from product_intelligence.execution.compact_quote_replay import (
     replay_compact_quote_projection,
 )
@@ -88,8 +97,11 @@ __all__ = [
     "SpecificationEvidenceSource",
     "SpecificationSourceOutcome",
     "SourceOutcomeState",
+    "VendorRefreshExecutionError",
     "AiAssistedMatchResult",
     "discover_enterprise_ssd_comparable_candidates",
+    "execute_claimed_vendor_refresh",
+    "execute_claimed_vendor_refresh_with_default_providers",
     "execute_comparable_research",
     "execute_comparable_research_with_default_providers",
     "execute_research_run",

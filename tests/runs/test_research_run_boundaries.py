@@ -340,6 +340,7 @@ def test_the_evaluation_corpus_is_not_persisted() -> None:
         "runs.ResearchMicronAliasSnapshot",  # 4D-D
         "runs.FxObservationStore",  # 8A-FX-A1
         "runs.SemanticDecisionRecord",  # S2-B
+        "runs.VendorRefreshExecution",  # VREF-R0
     }
     assert model_labels == expected
 

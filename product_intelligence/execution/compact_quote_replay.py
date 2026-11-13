@@ -19,6 +19,10 @@ What this module does:
 * Build the authority-safe CompactQuoteProjection
 * Derive bounded UNREVIEWED AI Working Quote rows from persisted candidate
   state only (HIGH + exact target SKU + no conflicts + full binding)
+* Expose the decoded (or absent) vendor supplement result on the replay
+  result for display-only status presentation
+  (PRODUCT-INTEL.PILOT-VENDOR-STATUS-UX-A) — the replay remains the sole
+  decoder of that artifact
 * Perform NO live provider or semantic work
 
 What this module does NOT do:
@@ -32,6 +36,12 @@ What this module does NOT do:
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from product_intelligence.research.commercial_supplement_codec import (
+        ResearchSupplementResult,
+    )
 
 from product_intelligence.research.compact_quote import (
     CompactQuoteProjection,
@@ -72,12 +82,22 @@ class CompactQuoteReplayResult:
         fx_snapshot: Decoded FX observation snapshot, or None if no FX evidence.
         run: The ResearchRun this replay is for.
         warnings: List of warnings encountered during replay.
+        supplemental_result: The decoded persisted vendor supplement
+            result, or None when the run has no ResearchSupplementSnapshot
+            row. Exposed for display-only status presentation
+            (PRODUCT-INTEL.PILOT-VENDOR-STATUS-UX-A): the replay is the
+            sole decoder of the vendor supplemental artifact, so the
+            presentation never re-reads or re-decodes it. This field
+            carries no new authority — the same decoded result already
+            drove the vendor row projection, and the public (denied)
+            replay never reads the artifact at all.
     """
 
     projection: CompactQuoteProjection
     fx_snapshot: FxObservationSnapshot | None
     run: ResearchRun
     warnings: tuple[str, ...]
+    supplemental_result: "ResearchSupplementResult | None" = None
 
 
 def derive_human_confirmed_assessment_indices(
@@ -350,4 +370,5 @@ def replay_compact_quote_projection(
         fx_snapshot=fx_snapshot,
         run=run,
         warnings=tuple(warnings),
+        supplemental_result=supplemental_result,
     )

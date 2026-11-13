@@ -599,7 +599,7 @@ class TestAuthorizedVendorTable:
         price_section_start = html.index("Price intelligence")
         assert compact_start < price_section_start
         assert html.index("Ingram (Vendor API)") < html.index("example.com</a>")
-        assert 'href="https://www.example.com/product/abc">example.com</a>' in html
+        assert 'href="https://www.example.com/product/abc" target="_blank" rel="noopener noreferrer">example.com</a>' in html
         assert "$2,023.27 USD" in html
         assert "€1,705.35 EUR" in html
         assert "€1,500.00 EUR" in html
@@ -872,7 +872,7 @@ class TestDeniedPublicTable:
         rows = _compact_rows(response)
         assert [r.source_display for r in rows] == ["example.com"]
         assert "€1,500.00 EUR" in html
-        assert 'href="https://www.example.com/product/abc">example.com</a>' in html
+        assert 'href="https://www.example.com/product/abc" target="_blank" rel="noopener noreferrer">example.com</a>' in html
 
         # Vendor rows absent from context AND HTML
         assert all("(Vendor API)" not in r.source_display for r in rows)
@@ -934,7 +934,7 @@ class TestPublicSourceLinks:
         assert response.status_code == 200
         html = response.content.decode()
         # Display: www.-stripped hostname; target: the full safe URL
-        assert 'href="https://www.example.com/product/abc">example.com</a>' in html
+        assert 'href="https://www.example.com/product/abc" target="_blank" rel="noopener noreferrer">example.com</a>' in html
 
     def test_unsafe_schemes_never_become_href(self) -> None:
         for bad_url in (
@@ -1083,7 +1083,7 @@ class TestErrorBehavior:
         # Public compact table renders normally
         assert "USD Equivalent" in html
         assert "€1,500.00 EUR" in html
-        assert 'href="https://www.example.com/product/abc">example.com</a>' in html
+        assert 'href="https://www.example.com/product/abc" target="_blank" rel="noopener noreferrer">example.com</a>' in html
         assert "Quote & Market Summary unavailable." not in html
 
     def test_authorized_malformed_fx_unavailable(self) -> None:

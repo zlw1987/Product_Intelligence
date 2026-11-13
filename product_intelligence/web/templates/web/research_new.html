@@ -3,44 +3,57 @@
 {% block title %}New research request — Product Intelligence{% endblock %}
 
 {% block content %}
-<h2>New research request</h2>
+<section class="pi-card pi-intake-card" aria-labelledby="intake-heading">
+  <div class="pi-card-head">
+    <p class="pi-eyebrow">Market research intake</p>
+    <h1 id="intake-heading">New research request</h1>
+    <p class="pi-lead">
+      Enter a manufacturer part number, a product description, or both.
+      Either field may be left blank — but not both.
+    </p>
+  </div>
 
-<p>
-  Enter a manufacturer part number, a product description, or both. Either
-  field may be left blank — but not both.
-</p>
+  <form method="post" action="{% url 'research-new' %}" novalidate id="research-new-form">
+    {% csrf_token %}
 
-<form method="post" action="{% url 'research-new' %}" novalidate id="research-new-form">
-  {% csrf_token %}
-
-  {% if form.non_field_errors %}
-    <ul class="errors">
-      {% for error in form.non_field_errors %}<li>{{ error }}</li>{% endfor %}
-    </ul>
-  {% endif %}
-
-  {% for field in form %}
-    <div class="field">
-      <label for="{{ field.id_for_label }}">{{ field.label }}</label>
-      {% if field.errors %}
+    {% if form.non_field_errors %}
+      <div class="pi-alert pi-alert-error" role="alert">
+        <p class="pi-alert-title">The request is incomplete</p>
         <ul class="errors">
-          {% for error in field.errors %}<li>{{ error }}</li>{% endfor %}
+          {% for error in form.non_field_errors %}<li>{{ error }}</li>{% endfor %}
         </ul>
-      {% endif %}
-      {{ field }}
-      {% if field.help_text %}<span class="help">{{ field.help_text }}</span>{% endif %}
-    </div>
-  {% endfor %}
+      </div>
+    {% endif %}
 
-  <button type="submit" id="research-submit-button">Run Market Research</button>
-</form>
+    {% for field in form %}
+      <div class="pi-field">
+        <label for="{{ field.id_for_label }}">
+          {{ field.label }}{% if field.name == "description" %} <span class="pi-optional-tag">(optional)</span>{% endif %}
+        </label>
+        {% if field.errors %}
+          <ul class="errors">
+            {% for error in field.errors %}<li>{{ error }}</li>{% endfor %}
+          </ul>
+        {% endif %}
+        {{ field }}
+        {% if field.help_text %}<span class="help">{{ field.help_text }}</span>{% endif %}
+      </div>
+    {% endfor %}
+
+    <button type="submit" id="research-submit-button" class="pi-btn-primary">Run Market Research</button>
+  </form>
+
+  <p class="pi-intake-note">
+    Submitting records the request and gives it a durable report address.
+  </p>
+</section>
 
 <script>
-  // Front-end-only duplicate-click guard (PROD-FIX1).
-  // Market research is synchronous and can take a long time, so rapid
-  // repeat clicks must not fire repeated submissions. This is UX
-  // protection only — NOT a backend dedupe guarantee, and it shares no
-  // state between users, runs, or MPNs.
+  // Front-end-only duplicate-click guard (PROD-FIX1, contract preserved by
+  // PILOT-UX-WORKBENCH-A1). Market research is synchronous and can take a
+  // long time, so rapid repeat clicks must not fire repeated submissions.
+  // This is UX protection only — NOT a backend dedupe guarantee, and it
+  // shares no state between users, runs, or MPNs.
   (function () {
     var form = document.getElementById("research-new-form");
     var button = document.getElementById("research-submit-button");
@@ -54,8 +67,4 @@
     });
   })();
 </script>
-
-<p class="notice">
-  Submitting records the request and gives it a durable report address.
-</p>
 {% endblock %}

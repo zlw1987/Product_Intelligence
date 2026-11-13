@@ -767,6 +767,20 @@ class TestURLEscaping(TestCase):
 
         self.assertContains(response, 'href="https://example.com/ssd-1tb"')
 
+    def test_external_source_links_open_in_new_tab(self) -> None:
+        """External source URLs open in a new tab (target="_blank")."""
+        run = _create_run()
+        result = _make_simple_result(run)
+        _attach_snapshot(run, result)
+
+        response = self.client.get(_detail_url(run))
+
+        # External source links must open in a new tab
+        self.assertContains(
+            response,
+            'target="_blank" rel="noopener noreferrer"',
+        )
+
     def test_javascript_url_is_not_hyperlinked(self) -> None:
         """A javascript: URL is never an href."""
         run = _create_run()

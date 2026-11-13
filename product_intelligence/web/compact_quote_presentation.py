@@ -42,9 +42,22 @@ Display rules:
   ``project_public_rows`` projects in). Any mapping mismatch fails closed
   by withholding the link; nothing is ever guessed.
 * URL safety reuses ``presentation._is_safe_href_url`` (no duplication).
-* Price / USD Equivalent / Inventory / Brand New / Note are the strings
+* Price / USD Equivalent / Inventory / Brand New are the strings
   already produced by the frozen ``CompactQuoteRow``; nothing is
   recomputed here and no price authority is re-derived in the template.
+* The frozen row ``note`` passes through unchanged, with ONE bounded
+  presentation-only addition (PRODUCT-INTEL.PILOT-VALUE-PRICE-QUALITY-B1):
+  when the row's own source-published price (the frozen normalized
+  ``price_amount`` Decimal) is exactly zero, a neutral verification
+  note is appended: ``Source-published price: <the row's own published
+  price string> — Verify price and purchasing availability with the
+  supplier.`` A published zero is the source's own value
+  (SOURCE_PUBLISHED_PRICE); the note does not classify it as a
+  placeholder, an error, or a free product, claims no supplier
+  availability, and changes no price, eligibility, bucket, snapshot,
+  or API semantics. It only tells the purchasing user which published
+  value to verify with the supplier (PROCUREMENT_ACTIONABILITY is the
+  supplier's to confirm, never the report's to assert).
 """
 
 from __future__ import annotations
@@ -199,6 +212,46 @@ def _format_usd_amount(amount: Decimal) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Source-published zero-price note (presentation only — B1)
+# ---------------------------------------------------------------------------
+
+_ZERO_PRICE_NOTE_SUFFIX = (
+    " — Verify price and purchasing availability with the supplier."
+)
+
+
+def _zero_price_note(price_original: str) -> str:
+    """The bounded neutral note for one source-published zero price.
+
+    ``price_original`` is the frozen row's own published-price string, so
+    the exact published amount and currency are preserved in the note.
+    The wording is deliberately non-authoritative: a published zero is not
+    called a placeholder, an error, or a free product, and supplier
+    availability is neither claimed nor denied.
+    """
+    return f"Source-published price: {price_original}{_ZERO_PRICE_NOTE_SUFFIX}"
+
+
+def _append_zero_price_note(
+    note: "str | None", row: "CompactQuoteRow"
+) -> "str | None":
+    """Append the zero-price verification note to one row's display note.
+
+    Applies ONLY when the frozen row's own source-published price
+    (``price_amount``, the exact normalized Decimal the row carries) is
+    exactly zero. An existing bounded note is preserved verbatim; the
+    zero note is appended with the same ``"; "`` join the frozen row
+    builders use (e.g. ``"Limited; Source-published price: ..."``).
+    Nothing about the row's price, currency, condition, availability,
+    or authority is touched.
+    """
+    if row.price_amount != 0:
+        return note
+    zero_note = _zero_price_note(row.price_original)
+    return f"{note}; {zero_note}" if note else zero_note
+
+
+# ---------------------------------------------------------------------------
 # Display data structures
 # ---------------------------------------------------------------------------
 
@@ -220,7 +273,10 @@ class CompactQuoteRowDisplay:
             ("Unavailable" when no persisted FX conversion exists).
         inventory: Display inventory label from the frozen row.
         brand_new: Display brand-new label from the frozen row.
-        note: Bounded display note; None renders blank.
+        note: Bounded display note; None renders blank. The frozen row
+            note passes through unchanged; for a source-published zero
+            price the bounded neutral verification note is appended
+            (presentation only — no price authority is re-derived).
     """
 
     source_display: str
@@ -517,7 +573,7 @@ def build_compact_quote_presentation(
                 match_evidence=match_evidence,
                 market_use=market_use,
                 brand_new=row.brand_new,
-                note=row.note,
+                note=_append_zero_price_note(row.note, row),
                 review_candidate_id=review_candidate_id,
                 review_state=review_state,
                 working_quote_disposition=working_quote_disposition,
