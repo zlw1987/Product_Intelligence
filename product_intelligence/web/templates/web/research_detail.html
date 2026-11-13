@@ -242,7 +242,7 @@
           <tr{% if row.review_candidate_id %} id="quote-row-{{ row.review_candidate_id }}"{% endif %}>
             <td>
               {% if row.source_url_safe %}
-                <a href="{{ row.source_url }}">{{ row.source_display }}</a>
+                <a href="{{ row.source_url }}" target="_blank" rel="noopener noreferrer">{{ row.source_display }}</a>
               {% else %}
                 {{ row.source_display }}
               {% endif %}
@@ -258,14 +258,14 @@
             </td>
             <td>
               {% if row.review_candidate_id %}
-                {% if row.source_url_safe %}<a href="{{ row.source_url }}">Open source</a> · {% endif %}
+                {% if row.source_url_safe %}<a href="{{ row.source_url }}" target="_blank" rel="noopener noreferrer">Open source</a> · {% endif %}
                 <a href="#ai-candidate-{{ row.review_candidate_id }}">Review / Verify</a>
                 <form method="post" action="{% url "research-review" run_id=run.id candidate_id=row.review_candidate_id %}" style="display:inline;">
                   {% csrf_token %}
                   <button type="submit" name="action" value="remove" class="pi-btn-sm">Remove</button>
                 </form>
               {% elif row.source_url_safe %}
-                <a href="{{ row.source_url }}">Open source</a>
+                <a href="{{ row.source_url }}" target="_blank" rel="noopener noreferrer">Open source</a>
               {% else %}
                 <span class="absent">Evidence only</span>
               {% endif %}
@@ -403,7 +403,7 @@
           <td>
             {% if micron_alias.requested_source_url %}
               {% if micron_alias.requested_source_url_safe %}
-                <a href="{{ micron_alias.requested_source_url }}">{{ micron_alias.requested_source_url }}</a>
+                <a href="{{ micron_alias.requested_source_url }}" target="_blank" rel="noopener noreferrer">{{ micron_alias.requested_source_url }}</a>
               {% else %}
                 {{ micron_alias.requested_source_url }}
               {% endif %}
@@ -415,7 +415,7 @@
           <td>
             {% if micron_alias.fetched_final_url %}
               {% if micron_alias.fetched_final_url_safe %}
-                <a href="{{ micron_alias.fetched_final_url }}">{{ micron_alias.fetched_final_url }}</a>
+                <a href="{{ micron_alias.fetched_final_url }}" target="_blank" rel="noopener noreferrer">{{ micron_alias.fetched_final_url }}</a>
               {% else %}
                 {{ micron_alias.fetched_final_url }}
               {% endif %}
@@ -483,7 +483,7 @@
             <tr>
               <td>
                 {% if row.source_url_safe %}
-                  <a href="{{ row.source_url }}">{{ row.source_url }}</a>
+                  <a href="{{ row.source_url }}" target="_blank" rel="noopener noreferrer">{{ row.source_url }}</a>
                 {% else %}
                   {{ row.source_url }}
                 {% endif %}
@@ -545,7 +545,7 @@
       <div class="evidence-entry">
         <p><strong>Source:</strong>
           {% if excl.assessment.source_url_safe %}
-            <a href="{{ excl.assessment.source_url }}">{{ excl.assessment.source_url }}</a>
+            <a href="{{ excl.assessment.source_url }}" target="_blank" rel="noopener noreferrer">{{ excl.assessment.source_url }}</a>
           {% else %}
             {{ excl.assessment.source_url }}
           {% endif %}
@@ -656,7 +656,7 @@
             </p>
             <p><strong>Source:</strong>
               {% if assessment.source_url_safe %}
-                <a href="{{ assessment.source_url }}">{{ assessment.source_url }}</a>
+                <a href="{{ assessment.source_url }}" target="_blank" rel="noopener noreferrer">{{ assessment.source_url }}</a>
               {% else %}
                 {{ assessment.source_url }}
               {% endif %}
@@ -682,7 +682,7 @@
       <div class="evidence-entry">
         <p><strong>Source:</strong>
           {% if excl.assessment.source_url_safe %}
-            <a href="{{ excl.assessment.source_url }}">{{ excl.assessment.source_url }}</a>
+            <a href="{{ excl.assessment.source_url }}" target="_blank" rel="noopener noreferrer">{{ excl.assessment.source_url }}</a>
           {% else %}
             {{ excl.assessment.source_url }}
           {% endif %}
@@ -779,7 +779,7 @@
           <div class="evidence-entry">
             <p><strong>Source:</strong>
               {% if assessment.source_url_safe %}
-                <a href="{{ assessment.source_url }}">{{ assessment.source_url }}</a>
+                <a href="{{ assessment.source_url }}" target="_blank" rel="noopener noreferrer">{{ assessment.source_url }}</a>
               {% else %}
                 {{ assessment.source_url }}
               {% endif %}
@@ -815,7 +815,7 @@
       <div class="evidence-entry">
         <p><strong>Source:</strong>
           {% if excl.assessment.source_url_safe %}
-            <a href="{{ excl.assessment.source_url }}">{{ excl.assessment.source_url }}</a>
+            <a href="{{ excl.assessment.source_url }}" target="_blank" rel="noopener noreferrer">{{ excl.assessment.source_url }}</a>
           {% else %}
             {{ excl.assessment.source_url }}
           {% endif %}
@@ -951,7 +951,7 @@
           <div class="evidence-entry">
             <p><strong>Source:</strong>
               {% if assessment.source_url_safe %}
-                <a href="{{ assessment.source_url }}">{{ assessment.source_url }}</a>
+                <a href="{{ assessment.source_url }}" target="_blank" rel="noopener noreferrer">{{ assessment.source_url }}</a>
               {% else %}
                 {{ assessment.source_url }}
               {% endif %}
@@ -1040,7 +1040,7 @@
                   <dt>Requested URL</dt>
                   <dd>
                     {% if attempt.requested_source_url_safe %}
-                      <a href="{{ attempt.requested_source_url }}">{{ attempt.requested_source_url }}</a>
+                      <a href="{{ attempt.requested_source_url }}" target="_blank" rel="noopener noreferrer">{{ attempt.requested_source_url }}</a>
                     {% else %}
                       {{ attempt.requested_source_url }}
                     {% endif %}
@@ -1050,7 +1050,7 @@
                   <dt>Final URL</dt>
                   <dd>
                     {% if attempt.fetched_final_url_safe %}
-                      <a href="{{ attempt.fetched_final_url }}">{{ attempt.fetched_final_url }}</a>
+                      <a href="{{ attempt.fetched_final_url }}" target="_blank" rel="noopener noreferrer">{{ attempt.fetched_final_url }}</a>
                     {% else %}
                       {{ attempt.fetched_final_url }}
                     {% endif %}
@@ -1086,7 +1086,7 @@
                   <dt>Requested URL</dt>
                   <dd>
                     {% if attempt.requested_source_url_safe %}
-                      <a href="{{ attempt.requested_source_url }}">{{ attempt.requested_source_url }}</a>
+                      <a href="{{ attempt.requested_source_url }}" target="_blank" rel="noopener noreferrer">{{ attempt.requested_source_url }}</a>
                     {% else %}
                       {{ attempt.requested_source_url }}
                     {% endif %}
@@ -1096,7 +1096,7 @@
                   <dt>Final URL</dt>
                   <dd>
                     {% if attempt.fetched_final_url_safe %}
-                      <a href="{{ attempt.fetched_final_url }}">{{ attempt.fetched_final_url }}</a>
+                      <a href="{{ attempt.fetched_final_url }}" target="_blank" rel="noopener noreferrer">{{ attempt.fetched_final_url }}</a>
                     {% else %}
                       {{ attempt.fetched_final_url }}
                     {% endif %}
@@ -1139,7 +1139,7 @@
                   <dt>Requested URL</dt>
                   <dd>
                     {% if attempt.requested_source_url_safe %}
-                      <a href="{{ attempt.requested_source_url }}">{{ attempt.requested_source_url }}</a>
+                      <a href="{{ attempt.requested_source_url }}" target="_blank" rel="noopener noreferrer">{{ attempt.requested_source_url }}</a>
                     {% else %}
                       {{ attempt.requested_source_url }}
                     {% endif %}
@@ -1149,7 +1149,7 @@
                   <dt>Final URL</dt>
                   <dd>
                     {% if attempt.fetched_final_url_safe %}
-                      <a href="{{ attempt.fetched_final_url }}">{{ attempt.fetched_final_url }}</a>
+                      <a href="{{ attempt.fetched_final_url }}" target="_blank" rel="noopener noreferrer">{{ attempt.fetched_final_url }}</a>
                     {% else %}
                       {{ attempt.fetched_final_url }}
                     {% endif %}
@@ -1187,7 +1187,7 @@
                   <dt>Source URL</dt>
                   <dd>
                     {% if attempt.source_url_safe %}
-                      <a href="{{ attempt.source_url }}">{{ attempt.source_url }}</a>
+                      <a href="{{ attempt.source_url }}" target="_blank" rel="noopener noreferrer">{{ attempt.source_url }}</a>
                     {% else %}
                       {{ attempt.source_url }}
                     {% endif %}
@@ -1197,7 +1197,7 @@
                   <dt>Final URL</dt>
                   <dd>
                     {% if attempt.final_url_safe %}
-                      <a href="{{ attempt.final_url }}">{{ attempt.final_url }}</a>
+                      <a href="{{ attempt.final_url }}" target="_blank" rel="noopener noreferrer">{{ attempt.final_url }}</a>
                     {% else %}
                       {{ attempt.final_url }}
                     {% endif %}
@@ -1267,7 +1267,7 @@
                       <dt>Source URL</dt>
                       <dd>
                         {% if attempt.source_url_safe %}
-                          <a href="{{ attempt.source_url }}">{{ attempt.source_url }}</a>
+                          <a href="{{ attempt.source_url }}" target="_blank" rel="noopener noreferrer">{{ attempt.source_url }}</a>
                         {% else %}
                           {{ attempt.source_url }}
                         {% endif %}
@@ -1277,7 +1277,7 @@
                       <dt>Final URL</dt>
                       <dd>
                         {% if attempt.final_url_safe %}
-                          <a href="{{ attempt.final_url }}">{{ attempt.final_url }}</a>
+                          <a href="{{ attempt.final_url }}" target="_blank" rel="noopener noreferrer">{{ attempt.final_url }}</a>
                         {% else %}
                           {{ attempt.final_url }}
                         {% endif %}
@@ -1322,7 +1322,7 @@
                                 <span class="evidence-ref">
                                   [{{ ref.evidence_layer }}]
                                   {% if ref.source_url_safe %}
-                                    <a href="{{ ref.source_url }}">{{ ref.source_name }}</a>
+                                    <a href="{{ ref.source_url }}" target="_blank" rel="noopener noreferrer">{{ ref.source_name }}</a>
                                   {% else %}
                                     {{ ref.source_name }}
                                   {% endif %}
@@ -1340,7 +1340,7 @@
                                 <span class="evidence-ref">
                                   [{{ ref.evidence_layer }}]
                                   {% if ref.source_url_safe %}
-                                    <a href="{{ ref.source_url }}">{{ ref.source_name }}</a>
+                                    <a href="{{ ref.source_url }}" target="_blank" rel="noopener noreferrer">{{ ref.source_name }}</a>
                                   {% else %}
                                     {{ ref.source_name }}
                                   {% endif %}
@@ -1358,7 +1358,7 @@
                                 <span class="evidence-ref">
                                   [{{ ref.evidence_layer }}]
                                   {% if ref.source_url_safe %}
-                                    <a href="{{ ref.source_url }}">{{ ref.source_name }}</a>
+                                    <a href="{{ ref.source_url }}" target="_blank" rel="noopener noreferrer">{{ ref.source_name }}</a>
                                   {% else %}
                                     {{ ref.source_name }}
                                   {% endif %}
@@ -1377,7 +1377,7 @@
                                 <span class="evidence-ref">
                                   [{{ ref.evidence_layer }}]
                                   {% if ref.source_url_safe %}
-                                    <a href="{{ ref.source_url }}">{{ ref.source_name }}</a>
+                                    <a href="{{ ref.source_url }}" target="_blank" rel="noopener noreferrer">{{ ref.source_name }}</a>
                                   {% else %}
                                     {{ ref.source_name }}
                                   {% endif %}
@@ -1399,7 +1399,7 @@
                                 <span class="evidence-ref">
                                   [{{ ref.evidence_layer }}]
                                   {% if ref.source_url_safe %}
-                                    <a href="{{ ref.source_url }}">{{ ref.source_name }}</a>
+                                    <a href="{{ ref.source_url }}" target="_blank" rel="noopener noreferrer">{{ ref.source_name }}</a>
                                   {% else %}
                                     {{ ref.source_name }}
                                   {% endif %}
@@ -1417,7 +1417,7 @@
                                 <span class="evidence-ref">
                                   [{{ ref.evidence_layer }}]
                                   {% if ref.source_url_safe %}
-                                    <a href="{{ ref.source_url }}">{{ ref.source_name }}</a>
+                                    <a href="{{ ref.source_url }}" target="_blank" rel="noopener noreferrer">{{ ref.source_name }}</a>
                                   {% else %}
                                     {{ ref.source_name }}
                                   {% endif %}
@@ -1435,7 +1435,7 @@
                                 <span class="evidence-ref">
                                   [{{ ref.evidence_layer }}]
                                   {% if ref.source_url_safe %}
-                                    <a href="{{ ref.source_url }}">{{ ref.source_name }}</a>
+                                    <a href="{{ ref.source_url }}" target="_blank" rel="noopener noreferrer">{{ ref.source_name }}</a>
                                   {% else %}
                                     {{ ref.source_name }}
                                   {% endif %}
@@ -1454,7 +1454,7 @@
                                 <span class="evidence-ref">
                                   [{{ ref.evidence_layer }}]
                                   {% if ref.source_url_safe %}
-                                    <a href="{{ ref.source_url }}">{{ ref.source_name }}</a>
+                                    <a href="{{ ref.source_url }}" target="_blank" rel="noopener noreferrer">{{ ref.source_name }}</a>
                                   {% else %}
                                     {{ ref.source_name }}
                                   {% endif %}
