@@ -525,18 +525,32 @@ class TestRuntimeImportBoundary(TestCase):
 # implementation base SHA 6c123229bf075d72704f233f7176651656540cf9
 # (task section 2: R1-1 source must remain byte-identical; no other
 # production file may change in R1-2).
+#
+# Recorded re-pin (PRODUCT-INTEL.MAIN-MERGE-FU1): the user-authorized
+# merge commit 5ead1624069bdea9bd265432d33bef3995d7b6c6 (approved merged
+# main) legitimately carries Semantic Authority S2-B/C changes in exactly
+# two protected files -- orchestration.py and runs/models.py. Their
+# full-file digests below are re-pinned to the approved merged-main
+# baseline (committed bytes, CRLF-normalized to LF exactly as this test
+# hashes them). The other seven digests remain byte-identical to the
+# approved R1-1 base. The protection contract is unchanged: any future
+# change to any of the nine protected files still fails this pin.
 _FROZEN_DIGESTS = {
     "product_intelligence/execution/vendor_commercial_binding.py": (
         "a1747442d9e935185840fd79a409368adf1fd263bcba6add2bd3b8af46b2ca56"
     ),
+    # Re-pinned (PRODUCT-INTEL.MAIN-MERGE-FU1) to the approved merged-main
+    # baseline 5ead162: legitimate Semantic Authority S2-B/C changes.
     "product_intelligence/execution/orchestration.py": (
-        "a44c928663c094c96042e4177c742e79bd7409a671057a3813d7321537a89f3e"
+        "29667958e499726b1aa1dfbb264b700cceb91311f5407b791d1b5b0a164bf8f9"
     ),
     "product_intelligence/runs/vendor_refresh_claims.py": (
         "33c5a6434a2f724dbb54ba07a380e79f4d211fed2128edfc45a1344e2c46e8c9"
     ),
+    # Re-pinned (PRODUCT-INTEL.MAIN-MERGE-FU1) to the approved merged-main
+    # baseline 5ead162: legitimate Semantic Authority S2-B/C changes.
     "product_intelligence/runs/models.py": (
-        "75327ed17e8875ea1ca4d57464a9bc12931d9694c48f1a4fad63241c59739981"
+        "5c7c733d951b64be507ebee019ce9ba259f55315eb50e241b76fe8ac442e646e"
     ),
     "product_intelligence/runs/errors.py": (
         "37231afca4d83eafd0bc966103830c4f178d182edc28ef732efe6cde6629b66e"
@@ -560,7 +574,15 @@ class TestFrozenSurfacesByteIdentical(TestCase):
     """The frozen R0/R1-1 production surfaces are byte-identical to
     the approved R1-1 implementation base (no R0 source change; the
     R1-1 D10 helper unchanged; the frozen 4D-B orchestration
-    unchanged)."""
+    unchanged).
+
+    Recorded re-pin (PRODUCT-INTEL.MAIN-MERGE-FU1): orchestration.py and
+    runs/models.py now use the approved merged-main baseline
+    (5ead1624069bdea9bd265432d33bef3995d7b6c6) because the user-authorized
+    merge legitimately carries Semantic Authority S2-B/C changes in
+    exactly those two files; the other seven protected files still pin
+    the approved R1-1 base unchanged.
+    """
 
     def test_frozen_production_surfaces_match_the_approved_r1_1_base(self) -> None:
         for relative_path, expected_digest in _FROZEN_DIGESTS.items():
