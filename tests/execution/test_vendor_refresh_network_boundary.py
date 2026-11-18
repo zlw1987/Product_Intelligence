@@ -161,8 +161,13 @@ class TestStageASurfacePin(TestCase):
 
         vendor_symbols = {n for n in runs_pkg.__all__ if "vendor" in n.lower()}
         # Exactly the frozen R0 public surface (four primitives + five
-        # bounded errors + the model/vocabulary exports) — no R1
-        # additions pre-R1-4 (the R1-4 recovery symbols do not exist).
+        # bounded errors + the model/vocabulary exports) + the two
+        # approved VENDOR-REFRESH-WEB additive names (the shared
+        # trigger + claim decision service and its bounded decision
+        # type — the command and the web POST trigger share one
+        # serialized decision). No R1-4 recovery symbol exists.
+        # Recorded in-place evolution of the thirteen-name pin
+        # (VENDOR-REFRESH-WEB; the R0/R1 names are unchanged).
         assert vendor_symbols == {
             "VendorRefreshError",
             "VendorRefreshTriggerError",
@@ -177,6 +182,8 @@ class TestStageASurfacePin(TestCase):
             "claim_vendor_refresh",
             "complete_vendor_refresh",
             "fail_vendor_refresh",
+            "trigger_and_claim_vendor_refresh",
+            "VendorRefreshTriggerDecision",
         }
 
     def test_r1_2_module_function_names_token_free(self) -> None:
@@ -549,8 +556,14 @@ _FROZEN_DIGESTS = {
     ),
     # Re-pinned (PRODUCT-INTEL.MAIN-MERGE-FU1) to the approved merged-main
     # baseline 5ead162: legitimate Semantic Authority S2-B/C changes.
+    # Re-pinned again (VENDOR-REFRESH-WEB): the additive WEB_UI
+    # trigger-source vocabulary member (VendorRefreshTriggerSource +
+    # its docstring; migration 0014 re-records the storage CHECK
+    # constraint over the widened bounded set). The protection contract
+    # is unchanged: any future change to runs/models.py still fails
+    # this pin until re-recorded as its own approved phase.
     "product_intelligence/runs/models.py": (
-        "5c7c733d951b64be507ebee019ce9ba259f55315eb50e241b76fe8ac442e646e"
+        "fb8ec8c3b66b3de9237e2af4115592df880e178a59c10dc8c8a147895908c917"
     ),
     "product_intelligence/runs/errors.py": (
         "37231afca4d83eafd0bc966103830c4f178d182edc28ef732efe6cde6629b66e"
@@ -582,6 +595,12 @@ class TestFrozenSurfacesByteIdentical(TestCase):
     merge legitimately carries Semantic Authority S2-B/C changes in
     exactly those two files; the other seven protected files still pin
     the approved R1-1 base unchanged.
+
+    Recorded re-pin (VENDOR-REFRESH-WEB): runs/models.py re-pinned again
+    for the additive WEB_UI trigger-source vocabulary member (the web
+    trigger provenance of record; migration 0014 re-records the
+    storage CHECK constraint). The other eight protected files are
+    unchanged.
     """
 
     def test_frozen_production_surfaces_match_the_approved_r1_1_base(self) -> None:

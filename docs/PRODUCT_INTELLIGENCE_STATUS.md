@@ -6,6 +6,238 @@
 
 
 
+**PRODUCT-INTEL.VENDOR-REFRESH-WEB (user-facing Refresh Vendor Prices
+action on the research detail page)
+
+— IMPLEMENTED / PENDING CHATGPT INDEPENDENT REVIEW (feature branch
+`feature/vendor-refresh-web` over the approved base
+`7de1ec5262213914c2be09c0048f20c9dcace003`; NOT merged, NOT deployed)**
+
+Bounded implementation phase on the base above (baseline collection
+**8,560, re-verified this session** — 195 files). Goal: an internal
+user clicks Refresh on the existing research detail page; the
+application queries the existing Vendor API adapter once; the page
+shows the latest refreshed vendor prices + timestamp WITHOUT repeating
+public market research.
+
+**Scope (of record).**
+
+1. **One shared decision service (extracted, behavior-identical).**
+   The R1-3 command's serialized [S2] decision — the M4 A3 zero-row
+   write lock, the fresh active-children snapshot, the in-progress
+   report, the five-minute repeat safeguard (STRICT `< 300 s`), the
+   trigger INSERT, the M3 Option A ownership proof, and THE one and
+   only claim — moved VERBATIM from
+   `runs/management/commands/vendor_refresh.py` into the new shared
+   application service
+   `runs/vendor_refresh_trigger.py::trigger_and_claim_vendor_refresh`
+   (bounded `VendorRefreshTriggerDecision` kinds: created /
+   in_progress / in_progress_anomaly / cooldown / ineligible /
+   database_busy; a claim failure still PROPAGATES — total rollback —
+   and is never caught to continue). The command and the web POST
+   trigger share exactly this one serialized decision: single-winner
+   execution, the five-minute cooldown, the in-progress refusal, and
+   post-claim execution ownership (only the invocation that creates
+   the child claims and executes it; a PENDING orphan is never claimed
+   or executed by either surface) are preserved. NO second refresh
+   engine: the post-claim execution stays the existing public
+   `execute_claimed_vendor_refresh_with_default_providers` entry (the
+   existing `InternalVendorAdapter`, at most one lookup, never
+   retried). The service is a `runs/` module importing NO execution
+   symbol (the O4 carve-out remains the command only); it is exported
+   through the runs public API.
+
+2. **CSRF-protected POST endpoint restricted to the existing corporate
+   Vendor Price access policy.** `POST
+   /research/<uuid>/vendor-refresh` (name
+   `research-vendor-refresh`; GET -> 405) in `web/views.py`:
+   the existing frozen 4D-C-SEC gate
+   (`vendor_price_access_allowed` over `REMOTE_ADDR` /
+   `PI_VENDOR_PRICE_ALLOWED_CIDRS`, fail-closed) authorizes the
+   operation BEFORE any database access; a DENIED request is
+   redirected neutrally with zero mutation and learns nothing (no
+   existence, state, operator, price, or error — the D8 standard).
+   CSRF is the standard Django middleware (no csrf_exempt anywhere on
+   the path). NOTE (recorded deviation): the vendor-refresh design of
+   record (`docs/VENDOR_ONLY_REFRESH_DESIGN.md` §4.3/§11) deferred
+   the web trigger (R3) behind 8C authenticated operator identity;
+   this task explicitly directs the web action NOW under the EXISTING
+   corporate access policy (no 8C, no new credential system, no new
+   infrastructure). The pilot's "reachability = authorized for this
+   pilot" assumption (PLAN §19) extends to this bounded mutation;
+   the recorded operator is the bounded literal `web` (self-reported
+   provenance, NOT authentication — DESIGN2 §4.5).
+
+3. **Correct web-trigger provenance (smallest necessary additive
+   migration).** The storage CHECK constraint
+   `vendor_refresh_valid_trigger_source` (migration 0013) admitted
+   exactly `MANAGEMENT_COMMAND`. The bounded vocabulary
+   `VendorRefreshTriggerSource` gains the additive member `WEB_UI`
+   (`runs/models.py`) and migration
+   `0014_vendor_refresh_web_ui_trigger_source.py` re-records the SAME
+   constraint over the widened set (RemoveConstraint + AddConstraint;
+   no column, no data migration, no other table/constraint touched;
+   every existing row stays legal). A web trigger records
+   `trigger_source=WEB_UI` + `operator="web"` — NEVER
+   `MANAGEMENT_COMMAND` (the command still records
+   `MANAGEMENT_COMMAND` + its explicit `--operator`, unchanged).
+
+4. **Latest completed refresh result displayed separately from the
+   original vendor snapshot.** `web/vendor_refresh_presentation.py`
+   (pure display module: DB-free, decode-free, provider-free; reuses
+   the frozen `research.compact_quote._format_price` + vendor-API
+   inventory mapping and the frozen issue labels) builds the bounded
+   "Vendor refresh" section rendered on the detail page for ALLOWED +
+   COMPLETED parents only: an active child (in-progress state with its
+   recorded facts) takes display precedence, else the latest terminal
+   child — a COMPLETED result shows the lookup status label, the
+   "Prices retrieved" instant where recorded, the identity-bound
+   observation rows (source, price in the frozen format, currency,
+   availability) and bounded issue lines; a FAILED child shows its
+   bounded failure-reason label; a COMPLETED child whose payload fails
+   the frozen codec fails closed as "recorded but unreadable"; the
+   section carries the bounded "Not converted — no FX acquired for
+   this refresh" literal (D2 option (a): no USD number, no historical
+   FX reuse). The transient POST outcome renders as a bounded notice
+   (completed / failed / in_progress / cooldown / not_eligible /
+   error — fixed vocabulary, fixed lines; the client-supplied flag
+   carries no vendor data). The original Quote & Market Summary vendor
+   rows + the PILOT-VENDOR-STATUS-UX-A status notice remain
+   projections of the ORIGINAL persisted artifacts, byte-identical
+   before/after a refresh (test-pinned). Recorded deviation from the
+   design's D7 byte-identity rule: the section (button + "no record
+   yet" line) renders for ALLOWED + COMPLETED parents even with NO
+   refresh history, because the user-facing action must be reachable
+   before the first record; DENIED pages and non-COMPLETED pages
+   remain byte-identical to today (the section never renders there).
+
+5. **Original report / authority invariants.** The refresh path never
+   touches the parent ResearchRun, PriceIntelligenceSnapshot (Machine
+   Price), Reviewed Price, matching decisions, human-review state,
+   FX/Micron/comparable artifacts, or the original
+   ResearchSupplementSnapshot (central regression test-pinned:
+   byte-identical before/after; the refresh adds exactly one append-
+   only row). No Celery, no new infrastructure, no Oracle access, no
+   automatic recovery, no reclaim/reset/retry surface (the R0/R1
+   state-transition contract stands; the reserved
+   EXECUTION_INTERRUPTED writer still does not exist).
+
+**Test-preservation record (exact).** Baseline 8,560 nodes (195
+files) re-verified at the base. Post-change collection **8,623
+(+63; 0 removed / 0 renamed — node-level diff of record:
+`tmp_wrw_nodes_before.txt` vs `tmp_wrw_nodes_after.txt`)**: 25 NEW web
+nodes (`tests/web/test_vendor_refresh_web.py`: CSRF 403/valid-token,
+GET 405, DENIED zero-mutation + zero-knowledge + armed no-query,
+cooldown strict-boundary + no-bypass, in-progress / orphan-never-
+claimed / single-winner, WEB_UI provenance, result visibility incl.
+failed-lookup-not-a-quotation / zero-observation / corrupted-payload-
+unreadable / original-region-byte-identical, parent + all artifacts
+byte-identity), 22 NEW service nodes
+(`tests/runs/test_vendor_refresh_trigger_service.py`: the six bounded
+kinds, force_repeat semantics, ineligibility pass-throughs, busy
+mapping, claim-propagation total rollback, O4 import discipline), 1
+NEW web-boundary node (exact recorded execution-allowlist pin), 15
+auto-expanded per-file boundary scans (the three new files: migration
+0014, the runs service, the web presentation module). **Recorded in-
+place evolutions (contracts preserved or strengthened; no node deleted
+/ skipped / xfailed / deselected / weakened):** (a)
+`tests/runs/test_vendor_refresh_command.py` — 14 spy patch targets
+move from the command module to the service module (the command no
+longer carries the trigger/claim references; every behavioral pin —
+stdout lines, exit codes, call counts, byte-identity, the
+stdout-outside-write-transaction depth pin, the zero-mutation pins —
+is unchanged); the single-claim-site AST pin re-targets the service
+(the service has EXACTLY ONE `claim_vendor_refresh` call site and the
+command ZERO references — strengthened: unique across the whole
+application); the command's django.utils pin evolves to timezone-only
+when present + the service's django.utils import pinned to exactly
+`{'timezone'}`; the URLconf route-set pin gains EXACTLY the one
+approved route (the pre-phase set asserted verbatim as the preserved
+subset). (b)
+`tests/runs/test_vendor_refresh_concurrency.py` — the embedded
+worker driver's counting spies re-target the service module (the
+command's execution entry unchanged); ALL 8 genuine file-backed C
+nodes pass unchanged (single winner, cooldown interleavings, SQLite
+locking, direct-executor reuse). (c)
+`tests/runs/test_vendor_refresh_claims.py` — the 13-name runs public-
+API vendor pin evolves to the 13 + 2 approved additive names (exact
+membership preserved); the trigger-source vocabulary pin evolves from
+the single V1 member to the exact approved two-member set (no
+over-rejection of either member; `WEB_POST` / `SCHEDULER` / unhashable
+/ None / int still refused by the unchanged sibling nodes). (d)
+`tests/execution/test_vendor_refresh_network_boundary.py` — the
+thirteen-name runs pin evolves to 13 + 2 (as in (c)); the
+`runs/models.py` file digest RE-PINNED `5c7c733d…` ->
+`fb8ec8c3b66b3de9237e2af4115592df880e178a59c10dc8c8a147895908c917`
+(the additive WEB_UI vocabulary member — a recorded re-pin event per
+the pin's own stated contract; the other eight protected files remain
+byte-identical to their pins). (e) `tests/web/test_web_boundaries.py`
+— the recorded allowlist extensions: `ALLOWED_EXECUTION_IMPORTS` +
+{execute_claimed_vendor_refresh_with_default_providers,
+VendorRefreshExecutionError};
+`ALLOWED_RESEARCH_IMPORTS['commercial_supplement_codec']` +
+decode_research_supplement_result; `ALLOWED_RESEARCH_IMPORTS[
+'compact_quote']` + {_format_price, _map_vendor_api_inventory} (the
+frozen display mappings reused verbatim); all pre-existing
+allowlist expectations preserved verbatim + the new exact-set pin.
+
+**Validation (exact).** (1) Focused batch (command + claims + network-
+boundary + web-boundaries suites): exit 0. (2) The 8 genuine file-
+backed concurrency C nodes: exit 0. (3) FULL pytest suite over the
+8,623 collection — ONE RUN: junit 8,686 test cases, **8,654 passed
++ 32 failed + 0 errors + 0 skipped** (`tmp_wrw_full_junit.xml` /
+`tmp_wrw_full_run.txt`). The 32 failures are PRE-EXISTING on the
+pristine base `7de1ec5` (verified in a detached base worktree: the
+same files fail there — 34 failures, a SUPERSET: the same 32 + 2
+base-only nodes); all 32 are (i) raw-byte digest pins over semantic-
+family / bundle-authority files whose WORKTREE bytes carry CRLF line
+endings on this `core.autocrlf=true` Windows checkout while the pins
+hash the committed LF bytes, and (ii) the `tests/scripts/test_preview_
+fixtures_safety.py` subprocess suite — neither class touches any
+file changed in this phase (none of the 32 names a vendor-refresh
+module, migration, route, template, or test); zero vendor-refresh-
+related failures. (4) `python manage.py check` — System check
+identified no issues (0 silenced), exit 0. (5) `python manage.py
+makemigrations --check --dry-run` — No changes detected, exit 0.
+(6) `git diff --check` — clean (the pre-existing autocrlf warnings
+only). (7) A live smoke of migration 0014 over a file-based SQLite
+database: the constraint is present, admits `WEB_UI` +
+`MANAGEMENT_COMMAND`, rejects `WEB_POST`.
+
+**Invariance (this phase).** No frozen execution core / claims /
+codec / adapter / orchestration surface changed (byte-verified by the
+re-pinned digest suite — 8 of 9 files unchanged); no research,
+domain, or providers module changed; no FX activity; no new model, no
+new command, no recovery surface (R1-4 remains absent — the
+reserved EXECUTION_INTERRUPTED writer still does not exist); the
+command's bounded stdout contract + exit codes + the `--force-repeat`
+semantics are unchanged (the full R1-3 D + C suites pass); the
+original report sections, Machine Price, Reviewed Price, matching
+decisions, human-review state, and the original vendor snapshot are
+never mutated by the refresh path (test-pinned); DENIED pages and
+non-COMPLETED pages are byte-identical to today (test-pinned). No
+restore / reset / checkout / stash / clean / amend / rebase / force-
+push used; the base verification worktree was removed after use.
+Unrelated pre-existing worktree artifacts + untracked ledgers
+preserved.
+
+**Next.** ChatGPT reviews the actual source diff + the test evidence
+(independent review of the implementation). Unresolved items of
+record: (1) the 32 pre-existing base failures above (workstation CRLF
+raw-byte digest-pin class + the preview-fixtures subprocess suite) —
+unrelated to this phase, not masked; (2) the R3 idempotency identity
+(concept 3: a retransmission of the SAME logical request must create
+no new child) remains a FUTURE decision per the design — this phase
+relies on the serialized decision's in-progress/cooldown refusals (a
+double-click races the lock and the loser is refused; a retransmission
+after the terminal + within the 5-minute window is cooldown-refused;
+after the window it is a NEW explicit attempt by design concept 2);
+(3) 8C authenticated operator identity remains the future hardening
+for this mutation surface (the current authorization is the existing
+corporate REMOTE_ADDR/CIDR policy by explicit product decision). Do
+not merge or deploy until the independent review completes.
+
+
 **PRODUCT-INTEL.SEMANTIC-AUTHORITY-V2-Q3-C-C1-FU4 + C2-FU2 (F-R6 /
 F-R2 Corrective Implementation)
 

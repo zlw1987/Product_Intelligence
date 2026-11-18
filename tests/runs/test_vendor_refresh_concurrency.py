@@ -255,6 +255,11 @@ def do_init(payload):
 
 def install_command_fakes(payload):
     import product_intelligence.runs.management.commands.vendor_refresh as cmd_module
+    # VENDOR-REFRESH-WEB (recorded in-place evolution): the command's
+    # trigger / claim references moved verbatim into the shared
+    # decision service; the counting spies re-target the service
+    # module (the command still owns the execution entry).
+    import product_intelligence.runs.vendor_refresh_trigger as trigger_service
     from product_intelligence.execution.vendor_refresh import (
         execute_claimed_vendor_refresh,
     )
@@ -278,16 +283,16 @@ def install_command_fakes(payload):
         counters["constructions"] += 1
         return CannedAdapter()
 
-    real_trigger = cmd_module.trigger_vendor_refresh
+    real_trigger = trigger_service.trigger_vendor_refresh
     def trigger_spy(*a, **k):
         counters["trigger_calls"] += 1
         return real_trigger(*a, **k)
-    real_claim = cmd_module.claim_vendor_refresh
+    real_claim = trigger_service.claim_vendor_refresh
     def claim_spy(*a, **k):
         counters["claim_calls"] += 1
         return real_claim(*a, **k)
-    cmd_module.trigger_vendor_refresh = trigger_spy
-    cmd_module.claim_vendor_refresh = claim_spy
+    trigger_service.trigger_vendor_refresh = trigger_spy
+    trigger_service.claim_vendor_refresh = claim_spy
     def fake_entry(child_id):
         return execute_claimed_vendor_refresh(
             child_id, vendor_adapter_factory=counting_factory

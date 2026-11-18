@@ -74,9 +74,11 @@ __all__ = [
     "VendorRefreshState",
     "VendorRefreshTriggerError",
     "VendorRefreshTriggerSource",
+    "VendorRefreshTriggerDecision",
     "claim_vendor_refresh",
     "complete_vendor_refresh",
     "fail_vendor_refresh",
+    "trigger_and_claim_vendor_refresh",
     "trigger_vendor_refresh",
 ]
 
@@ -115,7 +117,9 @@ _COMPARABLE_EXPORTS = frozenset({
 })
 
 # VREF-R0 vendor-refresh lifecycle exports (exactly four primitives plus
-# the bounded errors they raise)
+# the bounded errors they raise); VENDOR-REFRESH-WEB adds the shared
+# trigger + claim decision service and its bounded decision type
+# (the single serialized decision of the command and the web trigger)
 _VENDOR_REFRESH_EXPORTS = frozenset({
     "VendorRefreshError",
     "VendorRefreshTriggerError",
@@ -126,6 +130,10 @@ _VENDOR_REFRESH_EXPORTS = frozenset({
     "claim_vendor_refresh",
     "complete_vendor_refresh",
     "fail_vendor_refresh",
+})
+_VENDOR_REFRESH_TRIGGER_SERVICE_EXPORTS = frozenset({
+    "trigger_and_claim_vendor_refresh",
+    "VendorRefreshTriggerDecision",
 })
 
 
@@ -182,6 +190,12 @@ def __getattr__(name: str) -> object:
     if name in _VENDOR_REFRESH_EXPORTS:
         from product_intelligence.runs import vendor_refresh_claims
         return getattr(vendor_refresh_claims, name)
+
+    # Shared vendor-refresh trigger + claim decision service
+    # (VENDOR-REFRESH-WEB)
+    if name in _VENDOR_REFRESH_TRIGGER_SERVICE_EXPORTS:
+        from product_intelligence.runs import vendor_refresh_trigger
+        return getattr(vendor_refresh_trigger, name)
 
     if name in _MODEL_EXPORTS:
         # Import from runs.models (the main models.py file)

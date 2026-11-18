@@ -284,6 +284,117 @@
 </section>
 {% endif %}
 
+{# VENDOR-REFRESH-WEB: the latest vendor refresh, displayed SEPARATELY from the original vendor snapshot (the Quote & Market Summary vendor rows + status notice above remain projections of the ORIGINAL persisted artifacts, unchanged). ALLOWED connections only (the view sets these context values in the ALLOWED branch for COMPLETED parents only; a DENIED page renders nothing here — zero-knowledge). Refreshed prices are historical evidence as of the recorded retrieval instant and never enter Machine Price, Reviewed Price, matching decisions, or the original report statistics. #}
+{% if vendor_refresh_section %}
+<section class="pi-card pi-vendor-refresh" aria-label="Vendor refresh">
+  <h2>Vendor refresh</h2>
+
+  {% if vendor_refresh_notice == "completed" %}
+    <div class="pi-alert pi-alert-info" role="status">
+      <p>Vendor prices were refreshed. The latest refresh result is shown below.</p>
+    </div>
+  {% elif vendor_refresh_notice == "failed" %}
+    <div class="pi-alert pi-alert-warn" role="status">
+      <p>The vendor refresh did not complete successfully. The recorded result is shown below.</p>
+    </div>
+  {% elif vendor_refresh_notice == "in_progress" %}
+    <div class="pi-alert pi-alert-info" role="status">
+      <p>A vendor refresh is already in progress for this run. No new refresh was started.</p>
+    </div>
+  {% elif vendor_refresh_notice == "cooldown" %}
+    <div class="pi-alert pi-alert-info" role="status">
+      <p>A vendor refresh finished recently. Refreshes are limited to one per five minutes; please try again shortly.</p>
+    </div>
+  {% elif vendor_refresh_notice == "not_eligible" %}
+    <div class="pi-alert pi-alert-warn" role="status">
+      <p>This research run is not eligible for a vendor refresh.</p>
+    </div>
+  {% elif vendor_refresh_notice == "error" %}
+    <div class="pi-alert pi-alert-error" role="status">
+      <p>The vendor refresh could not be completed. No vendor data was changed. Please try again later or contact support.</p>
+    </div>
+  {% endif %}
+
+  {% if vendor_refresh %}
+    <p class="notice">
+      Refreshed vendor prices are separate from the original vendor snapshot above. They are evidence as of the recorded retrieval time and do not affect Machine Price, Reviewed Price, or matching.
+    </p>
+    <dl class="pi-summary">
+      <dt>Status</dt>
+      <dd>{{ vendor_refresh.state_label }}</dd>
+      <dt>Part number</dt>
+      <dd><code>{{ vendor_refresh.requested_mpn }}</code></dd>
+      <dt>Triggered by</dt>
+      <dd>{{ vendor_refresh.triggered_by }} ({{ vendor_refresh.operator }})</dd>
+      {% if vendor_refresh.created_at %}
+        <dt>Recorded</dt>
+        <dd>{{ vendor_refresh.created_at }}</dd>
+      {% endif %}
+      {% if vendor_refresh.started_at %}
+        <dt>Started</dt>
+        <dd>{{ vendor_refresh.started_at }}</dd>
+      {% endif %}
+      {% if vendor_refresh.finished_at %}
+        <dt>Finished</dt>
+        <dd>{{ vendor_refresh.finished_at }}</dd>
+      {% endif %}
+      {% if vendor_refresh.lookup_status_label %}
+        <dt>Vendor lookup</dt>
+        <dd>{{ vendor_refresh.lookup_status_label }}</dd>
+      {% endif %}
+      {% if vendor_refresh.retrieved_at %}
+        <dt>Prices retrieved</dt>
+        <dd>{{ vendor_refresh.retrieved_at }}</dd>
+      {% endif %}
+    </dl>
+
+    {% if vendor_refresh.unreadable %}
+      <p class="notice">A refresh result was recorded but could not be read, so no vendor result is shown for it.</p>
+    {% elif vendor_refresh.failure_label %}
+      <p class="notice">{{ vendor_refresh.failure_label }}</p>
+    {% else %}
+      {% if vendor_refresh.observations %}
+        <div class="spec-table-wrapper">
+          <table class="spec-table">
+            <thead>
+              <tr>
+                <th>Source</th>
+                <th class="pi-num">Price</th>
+                <th>Currency</th>
+                <th>Availability</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for obs in vendor_refresh.observations %}
+              <tr>
+                <td>{{ obs.source }}</td>
+                <td class="pi-num">{{ obs.price }}</td>
+                <td>{{ obs.currency }}</td>
+                <td>{{ obs.availability }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <p class="notice">Not converted — no FX acquired for this refresh.</p>
+      {% elif vendor_refresh.state == "COMPLETED" %}
+        <p class="notice">No usable vendor quote was recorded for this refresh.</p>
+      {% endif %}
+      {% for line in vendor_refresh.issue_lines %}
+        <p class="notice">{{ line }}</p>
+      {% endfor %}
+    {% endif %}
+  {% else %}
+    <p class="notice">No vendor refresh has been recorded for this run yet.</p>
+  {% endif %}
+
+  <form method="post" action="{% url 'research-vendor-refresh' run_id=run.id %}" style="margin-top: 1rem;">
+    {% csrf_token %}
+    <button type="submit" class="pi-btn-primary">Refresh Vendor Prices</button>
+  </form>
+</section>
+{% endif %}
+
 {% if review_candidates %}
   <h2>AI-assisted evidence & review</h2>
   <p>

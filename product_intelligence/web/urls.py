@@ -31,4 +31,12 @@ urlpatterns = [
     path("research/<uuid:run_id>/retry", views.research_retry, name="research-retry"),
     path("research/<uuid:run_id>/review/<uuid:candidate_id>", views.research_review, name="research-review"),
     path("research/<uuid:run_id>/comparables", views.research_comparables, name="research-comparables"),
+    # VENDOR-REFRESH-WEB: POST-only, CSRF-protected vendor refresh
+    # trigger (the existing 4D-C-SEC corporate Vendor Price access
+    # policy authorizes it; GET is refused with 405).
+    path(
+        "research/<uuid:run_id>/vendor-refresh",
+        views.research_vendor_refresh,
+        name="research-vendor-refresh",
+    ),
 ]

@@ -2,14 +2,25 @@
 3.3 / 3.4 / 5 / 8.3 / 10.2 / 11 row 1 Stage A / 12 rows 1, 10, 11,
 16, 19).
 
-The command ``runs/management/commands/vendor_refresh.py`` is the ONLY
-claim call site in R1: inside one serialized short write transaction
-(the M4 A3 zero-row lock statement + fresh active-children snapshot +
-cooldown decision + trigger INSERT + claim UPDATE) it commits a
-durably RUNNING child BEFORE any network activity (I10), and the same
-invocation then calls the public execution entry exactly once (M3
-Option A: only the invocation that creates the child may claim and
-execute it).
+The command ``runs/management/commands/vendor_refresh.py`` is the
+host-side surface of the shared vendor-refresh decision: inside one
+serialized short write transaction (the M4 A3 zero-row lock statement
++ fresh active-children snapshot + cooldown decision + trigger INSERT
++ claim UPDATE) it commits a durably RUNNING child BEFORE any network
+activity (I10), and the same invocation then calls the public
+execution entry exactly once (M3 Option A: only the invocation that
+creates the child may claim and execute it).
+
+VENDOR-REFRESH-WEB (recorded in-place evolution of this suite; node
+IDs preserved): the serialized decision moved verbatim from the
+command into the shared application service
+``product_intelligence/runs/vendor_refresh_trigger.py`` (the web POST
+trigger uses the SAME service — one serialized decision, one claim
+call site in the application). Every behavioral pin here (bounded
+stdout, exit codes, call counts, byte-identity, rollback shapes,
+stdout-outside-transaction) is preserved unchanged; the structural
+pins (claim-site AST, import allowlist, model-proxy patch targets)
+re-target the service module.
 
 Class discipline (design section 12 legend): the nodes in THIS file
 are D — deterministic sequential invocations over the in-memory suite
@@ -81,6 +92,18 @@ from product_intelligence.execution.vendor_refresh import (
     execute_claimed_vendor_refresh,
 )
 import product_intelligence.runs.management.commands.vendor_refresh as command_module
+
+# VENDOR-REFRESH-WEB (recorded in-place evolution): the command's
+# pre-extraction [S2] serialized decision (lock statement, active-
+# children snapshot, in-progress report, five-minute cooldown, trigger
+# INSERT, the M3 Option A ownership proof, and THE one and only claim)
+# moved verbatim into the shared decision service
+# ``product_intelligence.runs.vendor_refresh_trigger`` — the SAME
+# service the web POST trigger uses. Every behavioral pin below (stdout
+# lines, exit codes, call counts, byte-identity, rollback shapes) is
+# preserved; the structural pins re-target the service module (the
+# command no longer carries the trigger / claim references).
+import product_intelligence.runs.vendor_refresh_trigger as trigger_service
 
 from tests.execution.test_vendor_commercial_binding import (
     build_success_exact_match_response,
@@ -384,8 +407,8 @@ class TestParserSurfaceAndS0(TestCase):
         claim_spy = _spied_service(claim_vendor_refresh)
         with (
             patch.dict(os_environ(), {CONFIGURED_ENV: CONFIGURED_BASE_URL}),
-            patch.object(command_module, "trigger_vendor_refresh", trigger_spy),
-            patch.object(command_module, "claim_vendor_refresh", claim_spy),
+            patch.object(trigger_service, "trigger_vendor_refresh", trigger_spy),
+            patch.object(trigger_service, "claim_vendor_refresh", claim_spy),
             patch.object(
                 command_module,
                 "execute_claimed_vendor_refresh_with_default_providers",
@@ -440,8 +463,8 @@ class TestEndToEndSuccess(TestCase):
         fail_spy = _spied_service(core.fail_vendor_refresh)
         with (
             patch.dict(os_environ(), {CONFIGURED_ENV: CONFIGURED_BASE_URL}),
-            patch.object(command_module, "trigger_vendor_refresh", trigger_spy),
-            patch.object(command_module, "claim_vendor_refresh", claim_spy),
+            patch.object(trigger_service, "trigger_vendor_refresh", trigger_spy),
+            patch.object(trigger_service, "claim_vendor_refresh", claim_spy),
             patch.object(core, "complete_vendor_refresh", complete_spy),
             patch.object(core, "fail_vendor_refresh", fail_spy),
             patch.object(
@@ -595,8 +618,8 @@ class TestOptionAExistingChildren(TestCase):
         trigger_spy = _spied_service(trigger_vendor_refresh)
         with (
             patch.dict(os_environ(), {CONFIGURED_ENV: CONFIGURED_BASE_URL}),
-            patch.object(command_module, "trigger_vendor_refresh", trigger_spy),
-            patch.object(command_module, "claim_vendor_refresh", claim_spy),
+            patch.object(trigger_service, "trigger_vendor_refresh", trigger_spy),
+            patch.object(trigger_service, "claim_vendor_refresh", claim_spy),
             patch.object(
                 command_module,
                 "execute_claimed_vendor_refresh_with_default_providers",
@@ -689,8 +712,8 @@ class TestCooldownSafeguard(TestCase):
         with (
             patch("django.utils.timezone.now", lambda: self.FIXED),
             patch.dict(os_environ(), {CONFIGURED_ENV: CONFIGURED_BASE_URL}),
-            patch.object(command_module, "trigger_vendor_refresh", trigger_spy),
-            patch.object(command_module, "claim_vendor_refresh", claim_spy),
+            patch.object(trigger_service, "trigger_vendor_refresh", trigger_spy),
+            patch.object(trigger_service, "claim_vendor_refresh", claim_spy),
             patch.object(
                 command_module,
                 "execute_claimed_vendor_refresh_with_default_providers",
@@ -776,7 +799,7 @@ class TestCooldownSafeguard(TestCase):
         claim_spy = _spied_service(claim_vendor_refresh)
         with (
             patch.dict(os_environ(), {CONFIGURED_ENV: CONFIGURED_BASE_URL}),
-            patch.object(command_module, "claim_vendor_refresh", claim_spy),
+            patch.object(trigger_service, "claim_vendor_refresh", claim_spy),
             patch.object(
                 command_module,
                 "execute_claimed_vendor_refresh_with_default_providers",
@@ -1201,7 +1224,7 @@ class TestStdoutOutsideWriteTransaction(TestCase):
         stub = _recording_stub()
         with (
             patch.dict(os_environ(), {CONFIGURED_ENV: CONFIGURED_BASE_URL}),
-            patch.object(command_module, "VendorRefreshExecution", _Proxy),
+            patch.object(trigger_service, "VendorRefreshExecution", _Proxy),
             patch.object(
                 command_module,
                 "execute_claimed_vendor_refresh_with_default_providers",
@@ -1266,8 +1289,8 @@ class TestOuterBoundaryOutcomes(TestCase):
         claim_spy = _spied_service(claim_vendor_refresh)
         with (
             patch.dict(os_environ(), {CONFIGURED_ENV: CONFIGURED_BASE_URL}),
-            patch.object(command_module, "VendorRefreshExecution", _make_model_proxy()),
-            patch.object(command_module, "claim_vendor_refresh", claim_spy),
+            patch.object(trigger_service, "VendorRefreshExecution", _make_model_proxy()),
+            patch.object(trigger_service, "claim_vendor_refresh", claim_spy),
             patch.object(
                 command_module,
                 "execute_claimed_vendor_refresh_with_default_providers",
@@ -1300,8 +1323,8 @@ class TestOuterBoundaryOutcomes(TestCase):
         stub = _recording_stub()
         with (
             patch.dict(os_environ(), {CONFIGURED_ENV: CONFIGURED_BASE_URL}),
-            patch.object(command_module, "trigger_vendor_refresh", trigger_spy),
-            patch.object(command_module, "claim_vendor_refresh", raising_claim),
+            patch.object(trigger_service, "trigger_vendor_refresh", trigger_spy),
+            patch.object(trigger_service, "claim_vendor_refresh", raising_claim),
             patch.object(
                 command_module,
                 "execute_claimed_vendor_refresh_with_default_providers",
@@ -1396,10 +1419,18 @@ def _imported_modules(tree: ast.Module) -> set[str]:
 
 
 class TestSingleClaimSiteAst(TestCase):
-    """Row 19: the command is the ONLY R1 module referencing
-    ``claim_vendor_refresh`` — at EXACTLY ONE call site (inside the
-    serialized transaction); no R1 module catches a claim error; the
-    command's except bodies are read-only."""
+    """Row 19 (VENDOR-REFRESH-WEB recorded evolution; node IDs
+    preserved): the shared decision service
+    (``runs/vendor_refresh_trigger.py``) is the ONLY module in the
+    application referencing ``claim_vendor_refresh`` — at EXACTLY ONE
+    call site (inside the serialized transaction); the command and the
+    web view contain NO claim reference (they consume the service's
+    bounded decision); no module catches a claim error; the command's
+    except bodies are read-only."""
+
+    TRIGGER_SERVICE_PATH = (
+        PACKAGE_ROOT / "runs" / "vendor_refresh_trigger.py"
+    )
 
     def test_command_is_the_only_r1_module_referencing_the_claim_primitive(self) -> None:
         for name in sorted(R1_EXECUTION_FILES):
@@ -1417,31 +1448,47 @@ class TestSingleClaimSiteAst(TestCase):
                         f"R1 execution module {name} references the claim "
                         "primitive (FU1-F1: POST-CLAIM ONLY)"
                     )
-        # No OTHER runs module references it either.
+        # VENDOR-REFRESH-WEB evolution: the ONLY runs module
+        # referencing the claim primitive is the shared decision
+        # service (the command's pre-extraction [S2] block moved there
+        # verbatim); the command itself references it nowhere.
         for path in sorted((PACKAGE_ROOT / "runs").rglob("*.py")):
-            if path == COMMAND_PATH:
+            if path == self.TRIGGER_SERVICE_PATH:
                 continue
             tree = _tree(path)
             for node in ast.walk(tree):
                 if isinstance(node, ast.Name) and node.id == "claim_vendor_refresh":
                     pytest.fail(
                         f"runs module {path.name} references the claim "
-                        "primitive (the command is the only claim site)"
+                        "primitive (the shared decision service is the "
+                        "only claim site)"
                     )
 
     def test_command_has_exactly_one_claim_call_site(self) -> None:
-        tree = _tree(COMMAND_PATH)
-        call_sites = [
+        # VENDOR-REFRESH-WEB evolution: the EXACTLY-ONE claim call site
+        # now lives in the shared decision service (the single-winner
+        # guarantee is preserved — strengthened: the call site is
+        # unique across the WHOLE application, not per command);
+        # the command contains ZERO claim references.
+        service_tree = _tree(self.TRIGGER_SERVICE_PATH)
+        service_call_sites = [
             node
-            for node in ast.walk(tree)
+            for node in ast.walk(service_tree)
             if isinstance(node, ast.Call)
             and isinstance(node.func, ast.Name)
             and node.func.id == "claim_vendor_refresh"
         ]
-        assert len(call_sites) == 1, (
-            f"the command must contain EXACTLY ONE claim call site; "
-            f"got {len(call_sites)}"
+        assert len(service_call_sites) == 1, (
+            "the shared decision service must contain EXACTLY ONE "
+            f"claim call site; got {len(service_call_sites)}"
         )
+        command_tree = _tree(COMMAND_PATH)
+        for node in ast.walk(command_tree):
+            if isinstance(node, ast.Name):
+                assert node.id != "claim_vendor_refresh", (
+                    "the command references the claim primitive; the "
+                    "shared decision service is the only claim site"
+                )
 
     def test_no_r1_module_catches_a_claim_or_terminal_cas_error(self) -> None:
         claim_error = "VendorRefreshClaimError"
@@ -1554,8 +1601,12 @@ class TestCommandImportDiscipline(TestCase):
             f"the command imports outside the allowlist: "
             f"{imported - allowlist}"
         )
-        # The django.utils import is the ``timezone`` module reference
-        # only (no other django.utils symbol).
+        # VENDOR-REFRESH-WEB evolution (recorded): the in-transaction
+        # clock sample (``timezone.now()`` for the five-minute
+        # safeguard) moved with the serialized decision into the shared
+        # service, so the command's django.utils import, when present,
+        # remains the ``timezone`` module reference only (no other
+        # django.utils symbol) — the superset pin is preserved.
         tree = _tree(COMMAND_PATH)
         django_utils_names = {
             alias.name
@@ -1564,9 +1615,26 @@ class TestCommandImportDiscipline(TestCase):
             and node.module == "django.utils"
             for alias in node.names
         }
-        assert django_utils_names == {"timezone"}, (
-            f"the command's django.utils import must be exactly "
-            f"{{'timezone'}}; got {django_utils_names}"
+        assert django_utils_names <= {"timezone"}, (
+            "the command's django.utils import must be timezone-only; "
+            f"got {django_utils_names}"
+        )
+        # The shared service owns the clock sample: its django.utils
+        # import is EXACTLY the ``timezone`` module reference (the
+        # single host / single clock contract of the safeguard).
+        service_tree = _tree(
+            PACKAGE_ROOT / "runs" / "vendor_refresh_trigger.py"
+        )
+        service_django_utils_names = {
+            alias.name
+            for node in ast.walk(service_tree)
+            if isinstance(node, ast.ImportFrom)
+            and node.module == "django.utils"
+            for alias in node.names
+        }
+        assert service_django_utils_names == {"timezone"}, (
+            "the shared decision service's django.utils import must be "
+            f"exactly {{'timezone'}}; got {service_django_utils_names}"
         )
 
     def test_command_imports_no_provider_web_research_or_domain(self) -> None:
@@ -1605,6 +1673,13 @@ class TestNoBrowserSurface(TestCase):
     # The frozen route set of record at the R1-2 endpoint (design
     # section 12 row 16: URLconf route set byte-equal to the frozen
     # R0/production set — no new route).
+    #
+    # VENDOR-REFRESH-WEB (recorded in-place evolution; node ID
+    # preserved): the web trigger phase adds EXACTLY ONE route — the
+    # POST-only, CSRF-protected vendor-refresh action (authorized by
+    # the existing frozen 4D-C-SEC corporate Vendor Price access
+    # policy). The pre-phase frozen set is preserved verbatim below
+    # and asserted as the subset, so no R0/R1 route moved.
     FROZEN_ROUTES = [
         ("root", ""),
         ("healthz", "healthz"),
@@ -1617,6 +1692,10 @@ class TestNoBrowserSurface(TestCase):
         ),
         ("research-comparables", "research/<uuid:run_id>/comparables"),
     ]
+    WEB_PHASE_ROUTE = (
+        "research-vendor-refresh",
+        "research/<uuid:run_id>/vendor-refresh",
+    )
 
     def test_urlconf_route_set_is_the_frozen_set(self) -> None:
         from django.urls import get_resolver
@@ -1630,7 +1709,15 @@ class TestNoBrowserSurface(TestCase):
                     out.append((p.name, prefix + str(p.pattern)))
             return out
 
-        assert walk(get_resolver().url_patterns) == self.FROZEN_ROUTES
+        # Exact-set pin: the frozen set + exactly the one approved
+        # web-phase route (any other addition fails closed).
+        assert walk(get_resolver().url_patterns) == (
+            self.FROZEN_ROUTES + [self.WEB_PHASE_ROUTE]
+        )
+        # The pre-phase frozen set is preserved verbatim (subset in the
+        # recorded order).
+        actual = walk(get_resolver().url_patterns)
+        assert all(route in actual for route in self.FROZEN_ROUTES)
 
     def test_command_registry_gains_exactly_the_vendor_refresh_command(self) -> None:
         commands = get_commands()

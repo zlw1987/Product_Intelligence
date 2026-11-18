@@ -34,6 +34,8 @@ logger = logging.getLogger(__name__)
 from product_intelligence.execution import (
     ComparableResearchExecutionError,
     ExecutionError,
+    VendorRefreshExecutionError,
+    execute_claimed_vendor_refresh_with_default_providers,
     execute_comparable_research_with_default_providers,
     execute_research_run,
     replay_compact_quote_projection,
@@ -43,7 +45,12 @@ from product_intelligence.runs import (
     ClaimExecutionFailed,
     ComparableResearchClaimError,
     ComparableResearchTriggerError,
+    VendorRefreshExecution,
+    VendorRefreshState,
+    VendorRefreshTriggerDecision,
+    VendorRefreshTriggerSource,
     retry_run,
+    trigger_and_claim_vendor_refresh,
     trigger_comparable_research,
 )
 from product_intelligence.runs.models import (
@@ -73,6 +80,7 @@ from product_intelligence.research.compact_quote import (
 )
 from product_intelligence.research.commercial_supplement_codec import (
     SupplementCodecError,
+    decode_research_supplement_result,
 )
 from product_intelligence.research.fx_codec import FxCodecError
 from product_intelligence.research.micron_alias_codec import (
@@ -90,6 +98,48 @@ from .micron_alias_presentation import (
 )
 from .vendor_status_presentation import (
     build_vendor_api_status_presentation,
+)
+from .vendor_refresh_presentation import (
+    build_vendor_refresh_presentation,
+)
+
+# VENDOR-REFRESH-WEB: the bounded recorded operator for a browser
+# trigger. The pilot has no application authentication (8C remains
+# deferred), so no actor identity exists to record: the operator is
+# the bounded trigger-surface literal, never a claim of who clicked
+# (the DESIGN2 4.5 convention: operator is self-reported provenance,
+# NOT authentication). The trigger source is the bounded WEB_UI
+# vocabulary member (a web trigger is never mislabeled as
+# MANAGEMENT_COMMAND).
+_WEB_REFRESH_OPERATOR = "web"
+
+# VENDOR-REFRESH-WEB: the persisted post-claim defect reasons — a
+# web-invoked executor failure carrying one of these means the child
+# was durably FAILED by the single bounded fail write (the same
+# mapping the command uses).
+_VENDOR_REFRESH_PERSISTED_FAILURE_REASONS = frozenset(
+    {
+        "MPN_BINDING_VIOLATION",
+        "VENDOR_LOOKUP_CONFIG_MISSING",
+        "MPN_QUERY_NORMALIZATION_MISMATCH",
+        "RESULT_ENCODING_FAILED",
+        "INTERNAL_ERROR",
+    }
+)
+
+# VENDOR-REFRESH-WEB: the bounded transient notice states carried by
+# the ?vendor_refresh= query flag (client-supplied; only these
+# vocabulary members render, each with a fixed bounded line — the
+# flag never carries vendor data).
+_VENDOR_REFRESH_NOTICE_STATES = frozenset(
+    {
+        "completed",
+        "failed",
+        "in_progress",
+        "cooldown",
+        "not_eligible",
+        "error",
+    }
 )
 
 
@@ -662,6 +712,92 @@ def research_detail(request: HttpRequest, run_id: uuid.UUID) -> HttpResponse:
                 vendor_supplement_evidence,
             )
 
+    # --- VENDOR-REFRESH-WEB: latest vendor refresh record (ALLOWED,   ---
+    # --- COMPLETED parents only) ---
+    #
+    # Displayed SEPARATELY from the original vendor snapshot (the
+    # Quote & Market Summary vendor rows + the PILOT-VENDOR-STATUS-UX-A
+    # status notice remain projections of the ORIGINAL persisted
+    # artifacts, unchanged). Refresh records are historical evidence
+    # as of their own recorded instants: a refresh result is never
+    # merged, averaged, deduplicated, or backdated into the original
+    # report, and nothing here enters Machine Price, Reviewed Price,
+    # matching decisions, or any other authority path.
+    #
+    # DENIED zero-knowledge (the frozen D8 standard): this block runs
+    # ONLY in the ALLOWED branch for a COMPLETED parent, so a DENIED
+    # template context carries no refresh fact of any kind — not
+    # existence, not state, not operator, not price, not error — and
+    # the DENIED page queries no refresh row at all.
+    vendor_refresh = None
+    vendor_refresh_notice = None
+    vendor_refresh_section = False
+    if vendor_commercial_access_allowed and run.state == "COMPLETED":
+        # The section (and its action) exists for this connection +
+        # parent shape; a DENIED context and a non-COMPLETED parent
+        # carry no refresh fact of any kind.
+        vendor_refresh_section = True
+        # Bounded transient notice from the last POST (client-supplied
+        # flag; only the fixed vocabulary renders, each with a bounded
+        # fixed line — the flag carries no vendor data).
+        notice = request.GET.get("vendor_refresh")
+        if notice in _VENDOR_REFRESH_NOTICE_STATES:
+            vendor_refresh_notice = notice
+
+        # The one displayed record: an active child (PENDING/RUNNING —
+        # the in-progress state takes display precedence) or, absent
+        # one, the latest terminal child (the latest completed refresh
+        # result, or the latest bounded failure). Deterministic order
+        # (created_at DESC, id DESC tie-break — the frozen history
+        # ordering); a later failed attempt never erases an earlier
+        # record from the database (append-only).
+        refresh_row = (
+            VendorRefreshExecution.objects.filter(
+                parent_run=run,
+                state__in=sorted(VendorRefreshState.ACTIVE_STATES),
+            )
+            .order_by("-created_at", "-id")
+            .first()
+            or VendorRefreshExecution.objects.filter(parent_run=run)
+            .order_by("-created_at", "-id")
+            .first()
+        )
+
+        if refresh_row is not None:
+            decoded_refresh = None
+            refresh_unreadable = False
+            if refresh_row.state == VendorRefreshState.COMPLETED:
+                if isinstance(refresh_row.result_payload, dict):
+                    try:
+                        decoded_refresh = decode_research_supplement_result(
+                            refresh_row.result_payload
+                        )
+                    except SupplementCodecError:
+                        # Fail-closed: the record exists but its
+                        # payload did not pass the frozen codec —
+                        # displayed as "recorded but unreadable"; the
+                        # rest of the report is unaffected and no
+                        # numeric fabrication occurs.
+                        refresh_unreadable = True
+                        logger.warning(
+                            "Vendor refresh payload unreadable for "
+                            "run %s: codec error", run.id
+                        )
+                else:
+                    refresh_unreadable = True
+            vendor_refresh = build_vendor_refresh_presentation(
+                state=refresh_row.state,
+                operator=refresh_row.operator,
+                trigger_source=refresh_row.trigger_source,
+                requested_mpn=refresh_row.requested_mpn,
+                created_at=refresh_row.created_at,
+                started_at=refresh_row.started_at,
+                finished_at=refresh_row.finished_at,
+                failure_reason=refresh_row.failure_reason,
+                decoded=decoded_refresh,
+                unreadable=refresh_unreadable,
+            )
+
     # --- PRODUCT-INTEL.8A-FX-A1: FX freshness display (additive) ---
     #
     # Makes FX evidence freshness auditable on the report, in clear
@@ -817,6 +953,20 @@ def research_detail(request: HttpRequest, run_id: uuid.UUID) -> HttpResponse:
         # no prices, no raw payload, and no fact beyond the persisted,
         # codec-validated vendor supplement result of this run.
         "vendor_api_status": vendor_api_status,
+        # VENDOR-REFRESH-WEB: bounded display payload for the latest
+        # refresh record (ALLOWED + COMPLETED parents only; None on
+        # every DENIED context and for non-COMPLETED parents — the
+        # DENIED page renders no refresh section at all) and the
+        # bounded transient notice state from the last POST (one of
+        # the fixed vocabulary members, or None). Neither value
+        # carries raw payload content, exception text, or untrusted
+        # input.
+        "vendor_refresh": vendor_refresh,
+        "vendor_refresh_notice": vendor_refresh_notice,
+        # True only in the ALLOWED + COMPLETED context: the template
+        # renders the bounded "Vendor refresh" section (latest record
+        # + transient notice + the POST action) only under it.
+        "vendor_refresh_section": vendor_refresh_section,
         # PRODUCT-INTEL.4D-D: display-only Micron packaging alias audit,
         # built exclusively from the persisted alias snapshot (zero live
         # work). None means "no alias snapshot for this run"; the
@@ -1092,3 +1242,123 @@ def research_comparables(
         )
 
     return redirect("research-detail", run_id=run_id)
+
+
+@require_POST
+def research_vendor_refresh(
+    request: HttpRequest,
+    run_id: uuid.UUID,
+) -> HttpResponse:
+    """Trigger one vendor-only commercial refresh for a COMPLETED run.
+
+    VENDOR-REFRESH-WEB. POST-only, CSRF-protected (the standard Django
+    CSRF middleware; there is no ``csrf_exempt`` anywhere on this
+    path). Bounded flow:
+
+    1. **Access gate first, fail-closed:** the existing frozen
+       4D-C-SEC corporate Vendor Price access policy
+       (``vendor_price_access_allowed`` over ``REMOTE_ADDR`` /
+       ``PI_VENDOR_PRICE_ALLOWED_CIDRS``) authorizes the operation.
+       A DENIED request is redirected to the report with ZERO database
+       access and ZERO mutation (it learns nothing: no refresh fact of
+       any kind — no existence, state, operator, price, or error).
+    2. **One shared decision:** the serialized trigger + claim decision
+       (``trigger_and_claim_vendor_refresh`` — the SAME service the
+       management command uses; single-winner execution, the five-
+       minute cooldown, the in-progress refusal, and the M3 Option A
+       post-claim execution ownership are preserved verbatim). The
+       web trigger records the bounded ``WEB_UI`` trigger source and
+       the bounded web operator literal (never
+       ``MANAGEMENT_COMMAND``; provenance, not authentication).
+    3. **Post-commit execution, once:** only for the child THIS
+       request created and claimed, through the public execution API
+       (``execute_claimed_vendor_refresh_with_default_providers``) —
+       the existing Vendor API adapter is queried at most once and
+       never retried. No public market research is repeated: the
+       parent run, its price snapshot, Machine Price, Reviewed Price,
+       matching decisions, and every historical artifact are untouched.
+    4. **Bounded outcome:** every path redirects to the report with
+       one of the fixed ``?vendor_refresh=`` notice states
+       (completed / failed / in_progress / cooldown / not_eligible /
+       error) — never raw exception text, never untrusted input.
+
+    GET alone is never enough for this action (405): it is a
+    privileged mutation that spends Vendor API traffic and writes
+    durable commercial-evidence rows, so it is POST-only.
+    """
+    logger = getLogger(__name__)
+
+    # 1. Access gate BEFORE any database access (fail-closed; the
+    # DENIED request mutates nothing and reads nothing).
+    if not vendor_price_access_allowed(request):
+        return redirect("research-detail", run_id=run_id)
+
+    run = get_object_or_404(ResearchRun, pk=run_id)
+
+    # 2. The one shared serialized decision (no force_repeat: the web
+    # surface has no cooldown bypass — a cooldown refusal is reported
+    # and left untouched, zero mutation, zero network).
+    decision = trigger_and_claim_vendor_refresh(
+        run.id,
+        operator=_WEB_REFRESH_OPERATOR,
+        trigger_source=VendorRefreshTriggerSource.WEB_UI,
+    )
+
+    if decision.kind in (
+        VendorRefreshTriggerDecision.KIND_IN_PROGRESS,
+        VendorRefreshTriggerDecision.KIND_IN_PROGRESS_ANOMALY,
+    ):
+        return redirect(f"/research/{run.id}?vendor_refresh=in_progress")
+    if decision.kind == VendorRefreshTriggerDecision.KIND_COOLDOWN:
+        return redirect(f"/research/{run.id}?vendor_refresh=cooldown")
+    if decision.kind == VendorRefreshTriggerDecision.KIND_INELIGIBLE:
+        return redirect(f"/research/{run.id}?vendor_refresh=not_eligible")
+    if decision.kind == VendorRefreshTriggerDecision.KIND_DATABASE_BUSY:
+        return redirect(f"/research/{run.id}?vendor_refresh=error")
+
+    # 3. KIND_CREATED — post-commit execution through the public
+    # execution API, exactly once, for the child THIS request created
+    # and claimed (M3 Option A preserved: a pre-existing PENDING
+    # child is never claimed or executed by this surface).
+    claimed = decision.created_child
+    flag = "error"
+    try:
+        row = execute_claimed_vendor_refresh_with_default_providers(claimed.id)
+    except VendorRefreshExecutionError as err:
+        # Bounded executor outcome: a persisted failure reason means
+        # the child is durably FAILED (reported as such); every other
+        # bounded reason (terminalization not recorded / outcome
+        # unknown / state anomalies / contract defects) is a bounded
+        # error — no raw text, no untrusted input.
+        if err.reason in _VENDOR_REFRESH_PERSISTED_FAILURE_REASONS:
+            flag = "failed"
+        else:
+            logger.warning(
+                "Vendor refresh executor bounded outcome for run %s: %s",
+                run_id,
+                err.reason,
+            )
+            flag = "error"
+    except Exception:
+        # A non-bounded raise (the pilot_check non-zero class): log
+        # server-side, redirect with the bounded notice. No raw text
+        # reaches the browser.
+        logger.exception(
+            "Unexpected error during vendor refresh execution "
+            "for run %s", run_id
+        )
+        flag = "error"
+    else:
+        # The executor returns the ACTUAL durable terminal row (T1, or
+        # the T2/T4 reconciliation read) — reported verbatim, never
+        # assumed.
+        if row.state == VendorRefreshState.COMPLETED:
+            flag = "completed"
+        elif row.state == VendorRefreshState.FAILED:
+            flag = "failed"
+        else:
+            flag = "error"
+
+    # 4. Redirect (Post/Redirect/Get): the next GET renders the
+    # latest refresh record + the bounded transient notice.
+    return redirect(f"/research/{run.id}?vendor_refresh={flag}")

@@ -1924,11 +1924,23 @@ class VendorRefreshTriggerSource:
     ``MANAGEMENT_COMMAND`` is the only V1 member. The vocabulary is
     extensible by a later approved phase; R0 records exactly what
     triggered the refresh, as self-reported provenance.
+
+    ``WEB_UI`` (VENDOR-REFRESH-WEB, additive V2 member): a browser
+    POST trigger from the research detail page, authorized by the
+    existing frozen 4D-C-SEC corporate Vendor Price access gate
+    (``REMOTE_ADDR`` / ``PI_VENDOR_PRICE_ALLOWED_CIDRS`` —
+    presentation visibility policy repurposed for THIS bounded
+    mutation surface by explicit product decision; 8C application
+    authentication remains deferred and is NOT introduced). A web
+    trigger MUST record ``WEB_UI``; it is never mislabeled as
+    ``MANAGEMENT_COMMAND`` (the database CHECK constraint admits
+    exactly the bounded vocabulary).
     """
 
     MANAGEMENT_COMMAND = "MANAGEMENT_COMMAND"
+    WEB_UI = "WEB_UI"
 
-    ALL: frozenset[str] = frozenset({MANAGEMENT_COMMAND})
+    ALL: frozenset[str] = frozenset({MANAGEMENT_COMMAND, WEB_UI})
 
 
 # ---------------------------------------------------------------------------

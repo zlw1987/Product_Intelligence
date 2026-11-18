@@ -1469,11 +1469,21 @@ class TestNoRecoverySurface(TestCase):
             "VendorRefreshFailureReason",
             "VendorRefreshTriggerSource",
         }
-        # Pin the ENTIRE exact thirteen-symbol set (exact membership:
+        # VENDOR-REFRESH-WEB (recorded in-place evolution; node ID
+        # preserved): the shared trigger + claim decision service and
+        # its bounded decision type are the EXACTLY two approved
+        # additive public names (the command and the web POST trigger
+        # share one serialized decision; no recovery surface exists).
+        web_phase_two = {
+            "trigger_and_claim_vendor_refresh",
+            "VendorRefreshTriggerDecision",
+        }
+        # Pin the ENTIRE exact fifteen-symbol set (exact membership:
         # any missing, extra, renamed, or recovery symbol fails).
-        assert vendor_symbols == lifecycle_nine | model_vocabulary_four, (
+        assert vendor_symbols == lifecycle_nine | model_vocabulary_four | web_phase_two, (
             "the runs public API VendorRefresh-related names must be "
-            f"exactly the thirteen frozen R0 names; got {vendor_symbols}"
+            "exactly the thirteen frozen R0 names + the two approved "
+            f"VENDOR-REFRESH-WEB service names; got {vendor_symbols}"
         )
         # The lifecycle service/error subset is EXACTLY the nine
         # specified by frozen design section 11 row 3 Stage 1.
@@ -2378,11 +2388,32 @@ class TestTriggerSourceBoundaryClosure(TestCase):
         assert _parent_row_snapshot(run) == parent_before
 
     def test_trigger_source_valid_vocabulary_unchanged(self) -> None:
-        """No over-rejection: the single V1 member is still accepted.
-        The vocabulary itself is unchanged."""
+        """No over-rejection: every approved vocabulary member is
+        accepted; the vocabulary is EXACTLY the bounded set.
+
+        VENDOR-REFRESH-WEB (recorded in-place evolution; node ID
+        preserved): the additive V2 member ``WEB_UI`` (the browser
+        POST trigger) joins the frozen V1 member ``MANAGEMENT_COMMAND``.
+        The pre-evolution expectation (the single V1 member) is the
+        recorded class-A change of this phase: the task authorizes the
+        additive web trigger provenance, and the fail-closed behavior
+        (unknown values refused, incl. ``WEB_POST`` / ``SCHEDULER`` in
+        the sibling nodes) is unchanged and re-pinned below.
+        """
         assert VendorRefreshTriggerSource.ALL == frozenset(
-            {VendorRefreshTriggerSource.MANAGEMENT_COMMAND}
+            {
+                VendorRefreshTriggerSource.MANAGEMENT_COMMAND,
+                VendorRefreshTriggerSource.WEB_UI,
+            }
         )
+        # No over-rejection: BOTH members are accepted.
+        for member in sorted(VendorRefreshTriggerSource.ALL):
+            run = _make_completed_run()
+            child = trigger_vendor_refresh(
+                run.id, operator="op-a", trigger_source=member
+            )
+            assert child.trigger_source == member
+        # The frozen V1 member is recorded verbatim as before.
         run = _make_completed_run()
         child = trigger_vendor_refresh(
             run.id,

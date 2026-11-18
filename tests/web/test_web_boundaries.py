@@ -81,9 +81,18 @@ ALLOWED_RESEARCH_IMPORTS: dict[str, set[str]] = {
         "CompactQuoteProjection",  # 4D-C: display-only presentation consumes projection contract
         "CompactQuoteRow",  # 4D-C: display-only presentation consumes row contract
         "CompactQuoteProjectionError",  # 4D-C: fail-closed catch in views
+        # VENDOR-REFRESH-WEB: the frozen display mappings reused verbatim
+        # by the pure refresh display module (price formatting + the
+        # vendor-API inventory mapping; display-only, no authority).
+        "_format_price",
+        "_map_vendor_api_inventory",
     },
     "product_intelligence.research.commercial_supplement_codec": {
         "SupplementCodecError",  # 4D-C: fail-closed catch in views (authorized path)
+        # VENDOR-REFRESH-WEB: the frozen codec decoder, invoked ONLY in
+        # the view's ALLOWED branch for a COMPLETED parent (the refresh
+        # record's payload is the frozen supplement codec V1 payload).
+        "decode_research_supplement_result",
     },
     "product_intelligence.research.fx_codec": {
         "FxCodecError",  # 4D-C: fail-closed catch in views (persisted FX artifact)
@@ -106,6 +115,14 @@ ALLOWED_EXECUTION_IMPORTS: set[str] = {
     "execute_comparable_research_with_default_providers",
     "replay_compact_quote_projection",  # 4D-C: authorized-path historical replay
     "replay_public_compact_quote_projection",  # 4D-C: denied-path public-only replay
+    # VENDOR-REFRESH-WEB (the recorded allowlist extension, design
+    # section 10.3(10) pattern): the view's vendor-refresh POST path
+    # uses the public execution API exactly like the command does —
+    # the post-claim default-provider entry (the SAME runtime entry the
+    # command calls) and its bounded error type. Nothing else moves;
+    # the exact post-change set is adversarially pinned below.
+    "execute_claimed_vendor_refresh_with_default_providers",
+    "VendorRefreshExecutionError",
 }
 
 
@@ -410,6 +427,23 @@ def test_guard_rejects_execution_result_import() -> None:
     """Web layer may not import ExecutionResult (not needed by web)."""
     source = "from product_intelligence.execution import ExecutionResult"
     assert _execution_import_violation(source) is not None
+
+
+def test_execution_allowlist_is_the_exact_recorded_set() -> None:
+    """VENDOR-REFRESH-WEB: adversarial pin of the EXACT post-change
+    execution allowlist (the recorded extension is precisely the two
+    public post-claim vendor-refresh symbols; any future drift fails
+    closed here rather than in a per-file scan)."""
+    assert ALLOWED_EXECUTION_IMPORTS == {
+        "execute_research_run",
+        "ExecutionError",
+        "ComparableResearchExecutionError",
+        "execute_comparable_research_with_default_providers",
+        "replay_compact_quote_projection",
+        "replay_public_compact_quote_projection",
+        "execute_claimed_vendor_refresh_with_default_providers",
+        "VendorRefreshExecutionError",
+    }
 
 
 def test_guard_rejects_provider_import() -> None:
