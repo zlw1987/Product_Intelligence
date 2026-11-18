@@ -135,8 +135,11 @@ set of the pre-existing AD-092 workstation class (empty diff of
 record `tmp_wrw_failed_nodes.txt` vs `tmp_fu1_failed_nodes.txt`):
 raw-byte digest pins over semantic-family / bundle-authority files
 whose WORKTREE bytes carry CRLF on this `core.autocrlf=true` Windows
-checkout vs the committed LF pin bytes (22 nodes) + the
-tests/scripts/test_preview_fixtures_safety.py subprocess suite (10
+checkout vs the committed LF pin bytes (23 nodes: 1
+test_q3c_c1_corpus_integrity + 6 test_q3c_c2_label_governance + 5
+test_q3b5_p5_fu4_registration + 10 test_semantic_authority_v2_fu4 +
+1 test_semantic_decision_v2_fu4) + the
+tests/scripts/test_preview_fixtures_safety.py subprocess suite (9
 nodes); none names a file changed in this phase. (5) `python
 manage.py check` — System check identified no issues (0 silenced),
 exit 0. (6) `python manage.py makemigrations --check --dry-run` — No
