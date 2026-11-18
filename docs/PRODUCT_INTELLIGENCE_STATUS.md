@@ -6,6 +6,196 @@
 
 
 
+**PRODUCT-INTEL.VENDOR-REFRESH-WEB-FU2 (Final review corrections —
+persisted quote identity verification + neutral error notice,
+F4/F5)
+
+— IMPLEMENTED / PENDING CHATGPT INDEPENDENT REVIEW (feature branch
+`feature/vendor-refresh-web` over the FU1 branch endpoint
+`4f0e6de496e18115a25f65e04c7af6575667d540`; NOT merged, NOT
+deployed)**
+
+Bounded CORRECTIVE phase on the endpoint above (baseline collection
+**8,651, re-verified at the endpoint** (198 files)) resolving the TWO
+final-review findings F4/F5 over the AD-092/FU1 web presentation.
+**NO redesign**: the shared trigger/claim service, the command, the
+migrations, the five-minute cooldown semantics, concurrency
+ownership, authentication, the Oracle boundaries, the frozen codec,
+binder, scoring, and persistence contracts are UNCHANGED (the frozen
+nine-file digest pin passes; none of the nine protected files is
+changed). **NO architecture changes, NO new migration, NO new
+features** (`manage.py check` 0 issues; `makemigrations --check
+--dry-run` No changes detected).
+
+**Scope (of record).**
+
+1. **F4 — persisted quote identity verified before display.** The
+   FU1 `_decoded_result_has_usable_quote()` assumed codec-valid
+   observations are identity-bound to the current ResearchRun; the
+   frozen codec alone does not establish that (it admits the EXACT /
+   NORMALIZED_EXACT type vocabulary per observation without verifying
+   the claim against any requested part number, and the stored
+   `requested_mpn` is a recorded fact, not a schema guarantee). At
+   the authorized refresh presentation boundary (the view's ALLOWED
+   branch, `web/views.py`), the binding is now re-established with
+   the existing frozen 2A `compare_part_numbers` semantics (+ the
+   domain `ESTABLISHED_MATCH_TYPES`), via the new read-side helper
+   `_refresh_payload_is_identity_bound`: (a) the persisted row's
+   `requested_mpn` must agree with the parent ResearchRun's MPN — an
+   actually established EXACT / NORMALIZED_EXACT match (an empty side
+   or an UNKNOWN comparison is refused); (b) EVERY price
+   observation's `explicit_candidate_mpn` must be an actually
+   established EXACT / NORMALIZED_EXACT match against the row's
+   requested MPN, consistent with the recorded
+   `vendor_mpn_match_type` (the recorded type must EQUAL the type the
+   frozen comparator actually establishes — an over-claim or an
+   under-claim is refused, never silently downgraded). Applied to
+   BOTH (i) the historical last-usable-quote selection (`_decoded_
+   result_has_usable_quote` now requires the binding; an unbound row
+   is skipped, never selected) and (ii) the latest refresh display
+   (a COMPLETED row whose decoded payload fails verification is
+   displayed fail-closed: no payload fact — price, lookup status,
+   retrieval instant, or issue — is shown; a bounded
+   "identity could not be verified" line renders in place of the
+   result; the row's own lifecycle state/timestamps remain row
+   facts). A codec-valid payload with an unrelated MPN therefore
+   never appears as a usable quote, and a forged
+   `?vendor_refresh=completed` over such a latest row renders the
+   bounded `completed_no_quote` line, never the success line. The
+   frozen codec, binder, scoring, and persistence contracts are not
+   modified (the verification re-derives the binding at display
+   time; it never rewrites a row).
+2. **F5 — no forged operation-failure assertion.** A standalone
+   `GET ?vendor_refresh=error` with NO persisted refresh attempt
+   (no active, no terminal row) rendered the FU1 line "The vendor
+   refresh could not be completed for this request..." — an
+   operation-failure assertion based solely on client-controlled
+   input. `_backed_vendor_refresh_notice` now renders the new
+   bounded NEUTRAL `error_no_record` line instead ("No vendor
+   refresh is recorded for this run, so no refresh result is
+   available. To refresh vendor prices, use the button below.") —
+   it asserts no refresh occurred, succeeded, failed, or was rolled
+   back; it states only the established persisted truth (no record).
+   With a persisted attempt (active OR terminal — the operation is
+   established), the FU1 bounded line renders unchanged (truthful
+   POST/Redirect/GET preserved, incl. the real-POST outcome-unknown
+   shape pinned by FU1). No authentication or session infrastructure
+   added; POST/Redirect/GET, CSRF, and the corporate
+   REMOTE_ADDR/CIDR gate are unchanged; DENIED pages remain total
+   zero-knowledge (the neutral line renders only inside the ALLOWED
+   section; armed no-query pin passes unchanged).
+
+**Test-preservation record (exact).** **ZERO pre-existing node
+deleted / renamed / skipped / xfailed / deselected**; of the 53
+pre-existing web refresh nodes (25 parent + 28 FU1), 51 pass with
+their contracts unchanged and 2 are the recorded in-place expectation
+corrections below (strengthened, passing); **15 NEW web nodes**
+added. **Recorded in-place expectation
+corrections (2 nodes, names + purpose preserved; contracts
+STRENGTHENED — the task F5 directs the very behavior they pinned)**:
+`tests/web/test_vendor_refresh_web_fu1.py::TestForgedGetFlagsNo
+Record::test_forged_error_flag_with_no_record_renders_only_the_
+bounded_transient_line` and
+`::TestErrorNoticeWording::test_error_notice_line_over_forged_flag_
+makes_no_unchanged_data_claim` — the forged-no-record error case now
+pins the NEUTRAL line + the ABSENCE of the operation-failure
+assertion (FU1 pinned the assertion that F5 identifies as the
+defect); both still assert no success/failure/in-progress claim, no
+old data assurance, and the persisted "no record yet" truth.
+**15 NEW web nodes** (all in `tests/web/test_vendor_refresh_web_
+fu2.py`, reusing the pinned parent + FU1 helpers):
+TestWrongMpnObservation (4 — a codec-valid wrong-MPN observation:
+the latest display fails closed with no price / no lookup status /
+no retrieval instant / no FX line and the bounded identity line;
+the recorded-NORMALIZED_EXACT-over-unrelated-MPN claim is refused
+the same way; the row is NEVER selected historically (an earlier
+legitimate quote stays the historical one, the wrong-MPN price never
+appears); a forged `completed` flag is not backed (bounded no-quote
+line, never success)); TestWrongParentChildBinding (3 — the
+persisted row's `requested_mpn` tampered to disagree with the
+parent: latest display fails closed; the row is never selected
+historically (the earlier parent-bound quote remains); a forged
+`completed` flag is not backed); TestLegitimateNormalizedExactQuote
+(4 — a legitimate NORMALIZED_EXACT observation (case variant of the
+requested MPN, recorded type NORMALIZED_EXACT) is STILL a usable
+quote: the correct price displays in the frozen convention, it backs
+the `completed` success flag, it is selected historically over a
+later FAILED attempt with its original retrieval timestamp +
+historical label; a recorded-EXACT overclaim (actual
+NORMALIZED_EXACT) fails closed); TestErrorNoticeNeutrality (4 —
+forged `error` over NO record: the neutral line, never the
+operation-failure assertion; forged `error` over a terminal record:
+the FU1 bounded line preserved; over an active record: preserved;
+DENIED forged `error`: total zero-knowledge, no line of either
+kind). **Mutation checks of record**: disabling the F4 identity
+verification makes exactly the 8 F4 fail-closed nodes fail (the
+legitimate + F5 nodes still pass — the check bites where intended);
+reverting the F5 neutral branch makes exactly 3 nodes fail (the new
+F5 no-record node + the two corrected FU1 nodes).
+
+**Validation (exact).** (1) Collection 8,651 -> **8,666 (+15; 0
+removed / 0 renamed)** — node-level diff of record (`tmp_fu2_cur_
+nodes.txt` vs `tmp_fu2_base_nodes.txt`; additions = exactly the 15
+FU2 nodes, removals = empty). (2) Focused batch (tests/web/ +
+`tests/runs/test_vendor_refresh_trigger_service.py` +
+`tests/runs/test_vendor_refresh_command.py` +
+`tests/runs/test_vendor_refresh_claims.py` +
+`tests/execution/test_vendor_refresh_network_boundary.py`): baseline
+at the base **1,061 passed, 0 failed**; post-change **1,076 passed,
+0 failed, 0 errors, 0 skipped**, exit 0 (junit-verified).
+(3) The 8 genuine file-backed C concurrency nodes:
+**8 passed, exit 0** (unchanged). (4) FULL pytest suite ONE RUN over
+the 8,666 collection (`tmp_fu2_full_junit.xml` /
+`tmp_fu2_full_run.txt`): **junit 8,729 test cases, 8,686 passed +
+43 failed + 0 errors + 0 skipped, exit 1, 516.6 s**. The 43 = the
+IDENTICAL node-for-node 32 pre-existing AD-092 workstation class
+(empty "gone" diff of record vs `tmp_fu1_failed_nodes.txt`: raw-byte
+digest pins over CRLF worktree bytes on this `core.autocrlf=true`
+checkout + the `tests/scripts/test_preview_fixtures_safety.py`
+suite, none naming a file changed in this phase) PLUS 11 load-
+sensitive subprocess-launch flakes of the documented WinError
+50/6 class (10 module-level import-isolation boundary nodes:
+1 domain + 3 providers + 5 research + 1 runs; + 1 preview-fixtures
+subprocess node) — each fails in `subprocess.run` BEFORE any
+project code executes; isolated re-run of the 11: **10 pass**
+(211-node isolated batch: 210 passed + 1 failed — the one failure
+is the pre-existing PERSISTENT preview-fixtures node already inside
+the 32, which fails on this workstation under any schedule). No
+failure of the 43 names a web file, a refresh module, a template,
+or a changed test; the full run is NOT described as green.
+(5) `python manage.py check` — System check identified no issues
+(0 silenced), exit 0. (6) `python manage.py makemigrations --check
+--dry-run` — No changes detected, exit 0. (7) `git diff --check` —
+clean (the pre-existing autocrlf warnings only).
+
+**Invariance (this phase).** No frozen execution core / claims /
+codec / adapter / orchestration surface changed (the frozen
+nine-file digest pin passes byte-identical; the changed files are
+not among the nine); the shared trigger/claim service, the
+command's bounded stdout contract + exit codes, the migrations, the
+five-minute cooldown safeguard, concurrency ownership, and the
+Oracle boundaries are untouched (none of those files appears in the
+diff); no research / domain / providers / runs module changed; no
+new model, no new command, no recovery surface. GET remains
+read-only (queries only; the identity verification is pure
+in-memory re-derivation over already-loaded rows); DENIED pages
+render nothing about refresh (armed no-query pin + the new DENIED
+neutral-line node pass); the original report sections, Machine
+Price, Reviewed Price, matching decisions, human-review state, and
+the original vendor snapshot are never mutated by the refresh path
+(the central regression + the original-region pin pass unchanged);
+the legitimate-quote display (EXACT and NORMALIZED_EXACT) is
+preserved (the pinned prior suites + the new legitimate
+NORMALIZED_EXACT nodes). No restore / reset / checkout / stash /
+clean / amend / rebase / force-push used. Unrelated pre-existing
+worktree artifacts + untracked ledgers preserved.
+
+**Next.** ChatGPT reviews the actual source diff + the test evidence
+(independent review of the final corrections). Do not merge or
+deploy until the independent review completes.
+
+
+
 **PRODUCT-INTEL.VENDOR-REFRESH-WEB-FU1 (Status truthfulness and last
 usable vendor quote — F1/F2/F3 corrective)
 

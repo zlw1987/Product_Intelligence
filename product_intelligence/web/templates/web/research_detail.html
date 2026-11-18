@@ -284,7 +284,7 @@
 </section>
 {% endif %}
 
-{# VENDOR-REFRESH-WEB (+ FU1): the vendor refresh, displayed SEPARATELY from the original vendor snapshot (the Quote & Market Summary vendor rows + status notice above remain projections of the ORIGINAL persisted artifacts, unchanged). ALLOWED connections only (the view sets these context values in the ALLOWED branch for COMPLETED parents only; a DENIED page renders nothing here — zero-knowledge). Refreshed prices are historical evidence as of the recorded retrieval instant and never enter Machine Price, Reviewed Price, matching decisions, or the original report statistics. FU1 F1: the transient ?vendor_refresh= notice is a client-supplied CANDIDATE that the view validates against the persisted refresh state before it renders — a forged flag creates no success, failure, or in-progress claim. FU1 F2: the latest refresh attempt and the last usable vendor quote are presented separately; a later failed attempt never hides an earlier usable quote (labeled historical, with its original retrieval timestamp, never described as current). #}
+{# VENDOR-REFRESH-WEB (+ FU1 + FU2): the vendor refresh, displayed SEPARATELY from the original vendor snapshot (the Quote & Market Summary vendor rows + status notice above remain projections of the ORIGINAL persisted artifacts, unchanged). ALLOWED connections only (the view sets these context values in the ALLOWED branch for COMPLETED parents only; a DENIED page renders nothing here — zero-knowledge). Refreshed prices are historical evidence as of the recorded retrieval instant and never enter Machine Price, Reviewed Price, matching decisions, or the original report statistics. FU1 F1: the transient ?vendor_refresh= notice is a client-supplied CANDIDATE that the view validates against the persisted refresh state before it renders — a forged flag creates no success, failure, or in-progress claim. FU1 F2: the latest refresh attempt and the last usable vendor quote are presented separately; a later failed attempt never hides an earlier usable quote (labeled historical, with its original retrieval timestamp, never described as current). FU2 F4: a codec-valid payload is displayed as this run's vendor result only when its identity binding (the row's requested MPN vs the parent, and every observation vs the requested MPN) is re-established with the frozen 2A comparator — otherwise it fails closed with no payload fact. FU2 F5: the error notice is neutral (no operation-failure assertion) when no persisted refresh attempt establishes that an operation occurred. #}
 {% if vendor_refresh_section %}
 <section class="pi-card pi-vendor-refresh" aria-label="Vendor refresh">
   <h2>Vendor refresh</h2>
@@ -316,6 +316,10 @@
   {% elif vendor_refresh_notice == "error" %}
     <div class="pi-alert pi-alert-error" role="status">
       <p>The vendor refresh could not be completed for this request. The latest recorded refresh state is shown below. Please try again later or contact support.</p>
+    </div>
+  {% elif vendor_refresh_notice == "error_no_record" %}
+    <div class="pi-alert pi-alert-info" role="status">
+      <p>No vendor refresh is recorded for this run, so no refresh result is available. To refresh vendor prices, use the button below.</p>
     </div>
   {% endif %}
 
@@ -355,6 +359,8 @@
 
     {% if vendor_refresh.unreadable %}
       <p class="notice">A refresh result was recorded but could not be read, so no vendor result is shown for it.</p>
+    {% elif vendor_refresh.identity_unverified %}
+      <p class="notice">A refresh result was recorded, but its part-number identity could not be verified against this run, so no vendor result is shown for it.</p>
     {% elif vendor_refresh.failure_label %}
       <p class="notice">{{ vendor_refresh.failure_label }}</p>
     {% else %}

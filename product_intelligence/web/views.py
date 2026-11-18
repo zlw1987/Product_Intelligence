@@ -171,17 +171,95 @@ def _decode_refresh_payload(payload):
         return None, True
 
 
-def _decoded_result_has_usable_quote(decoded) -> bool:
-    """VENDOR-REFRESH-WEB FU1 (F2; design §8.3 concept 3): a
-    codec-validated supplement result carries a usable identity-bound
-    vendor quote only when it records a vendor commercial result, the
-    lookup is SUCCESS or PARTIAL, and at least one observation survived
-    the frozen codec (every decoded observation is identity-bound by
-    construction: the codec admits only EXACT / NORMALIZED_EXACT match
-    types with a non-empty MPN and a finite nonnegative price). A
-    FAILED lookup, a zero-observation result, or a missing vendor
-    result is NOT a usable quote."""
+def _refresh_payload_is_identity_bound(
+    *,
+    parent_mpn,
+    requested_mpn,
+    decoded,
+) -> bool:
+    """VENDOR-REFRESH-WEB FU2 (F4): the read-side identity verification
+    at the authorized refresh presentation boundary.
+
+    The frozen supplement codec is NOT an identity authority for this
+    ResearchRun: it admits only EXACT / NORMALIZED_EXACT match types
+    per observation, but it does not establish that the payload
+    belongs to the current run. A codec-valid payload can carry an
+    unrelated part number, and the persisted row's ``requested_mpn``
+    can disagree with the parent. Before any vendor price is shown,
+    the binding is re-established here with the frozen 2A comparator
+    (the same semantics the execution core binds with):
+
+    * the row's ``requested_mpn`` must agree with the parent
+      ResearchRun's MPN — an actually established EXACT /
+      NORMALIZED_EXACT match (an empty side or an UNKNOWN comparison
+      is refused);
+    * EVERY price observation's ``explicit_candidate_mpn`` must be an
+      actually established EXACT / NORMALIZED_EXACT match against the
+      row's requested MPN, consistent with the observation's recorded
+      ``vendor_mpn_match_type`` (the recorded type must equal the type
+      the frozen comparator actually establishes — an over-claim or an
+      under-claim is refused, not silently downgraded).
+
+    Fail-closed: any missing value, any unestablished comparison, or
+    any recorded/actual mismatch returns False — no payload fact
+    (price, lookup status, retrieval instant, issue) from an
+    unverified payload is displayed. The frozen codec, binder,
+    scoring, and persistence contracts are not modified.
+    """
+    from product_intelligence.domain.enums import ESTABLISHED_MATCH_TYPES
+    from product_intelligence.research.identity import compare_part_numbers
+
     if decoded is None:
+        return False
+    parent = (parent_mpn or "").strip()
+    requested = (requested_mpn or "").strip()
+    if not parent or not requested:
+        return False
+    # 1. The persisted row's binding must agree with the parent.
+    if (
+        compare_part_numbers(parent, requested).match_type
+        not in ESTABLISHED_MATCH_TYPES
+    ):
+        return False
+    # 2. Every price observation must be actually bound to the
+    #    requested MPN, consistent with its recorded match type.
+    vcr = getattr(decoded, "vendor_commercial_result", None)
+    if vcr is None:
+        return False
+    for obs in tuple(getattr(vcr, "observations", ())):
+        candidate = getattr(obs, "explicit_candidate_mpn", None)
+        recorded = getattr(obs, "vendor_mpn_match_type", None)
+        if not isinstance(candidate, str) or not candidate.strip():
+            return False
+        if recorded not in ("EXACT", "NORMALIZED_EXACT"):
+            return False
+        actual = compare_part_numbers(requested, candidate)
+        if actual.match_type not in ESTABLISHED_MATCH_TYPES:
+            return False
+        if actual.match_type.value != recorded:
+            return False
+    return True
+
+
+def _decoded_result_has_usable_quote(
+    decoded, *, parent_mpn, requested_mpn
+) -> bool:
+    """VENDOR-REFRESH-WEB FU1 (F2; design §8.3 concept 3) + FU2 (F4):
+    a codec-validated supplement result carries a usable identity-bound
+    vendor quote only when it records a vendor commercial result, the
+    lookup is SUCCESS or PARTIAL, at least one observation survived
+    the frozen codec, AND the payload's identity binding is actually
+    re-established against this parent by the frozen 2A comparator
+    (FU2 F4: codec validity alone does not bind the payload to the
+    current ResearchRun — a codec-valid payload with an unrelated MPN
+    is never a usable quote). A FAILED lookup, a zero-observation
+    result, a missing vendor result, or an unverified binding is NOT
+    a usable quote."""
+    if not _refresh_payload_is_identity_bound(
+        parent_mpn=parent_mpn,
+        requested_mpn=requested_mpn,
+        decoded=decoded,
+    ):
         return False
     vcr = getattr(decoded, "vendor_commercial_result", None)
     if vcr is None:
@@ -238,6 +316,12 @@ def _backed_vendor_refresh_notice(
       trigger input).
     * ``error`` — bounded transient line only; its wording asserts no
       recorded fact (FU1 F3), so no persistence backing is claimed.
+      FU2 (F5): an actual operation is established ONLY by a persisted
+      refresh attempt (an active or a terminal child). With NO
+      persisted attempt the client-controlled flag alone must not
+      assert that a refresh occurred, failed, or was rolled back: the
+      neutral ``error_no_record`` line renders instead (it states only
+      the established persisted truth: no record).
 
     Returns the backed notice state (or ``None``: render nothing).
     """
@@ -272,6 +356,12 @@ def _backed_vendor_refresh_notice(
             return "not_eligible"
         return None
     if flag == "error":
+        # FU2 (F5): without any persisted refresh attempt no actual
+        # operation can be established from the client-controlled flag
+        # alone: render the neutral no-record line, never the
+        # operation-failure assertion.
+        if active_row is None and not terminal_rows:
+            return "error_no_record"
         return "error"
     return None
 
@@ -932,7 +1022,13 @@ def research_detail(request: HttpRequest, run_id: uuid.UUID) -> HttpResponse:
         # SUCCESS or PARTIAL lookup and at least one identity-bound
         # observation. A later FAILED / in-progress / no-quote attempt
         # never hides it; malformed or unreadable rows are skipped,
-        # never fabricated.
+        # never fabricated. FU2 (F4): "identity-bound" is re-
+        # established here against THIS parent with the frozen 2A
+        # comparator (codec validity alone does not bind the payload
+        # to the current ResearchRun): a row whose requested MPN
+        # disagrees with the parent, or whose any observation is not
+        # actually an established EXACT / NORMALIZED_EXACT match
+        # consistent with its recorded type, is never selected.
         last_usable_row = None
         last_usable_decoded = None
         for row in terminal_rows:
@@ -941,7 +1037,11 @@ def research_detail(request: HttpRequest, run_id: uuid.UUID) -> HttpResponse:
             decoded_candidate, unreadable_candidate = _decoded_refresh_row(row)
             if unreadable_candidate:
                 continue
-            if _decoded_result_has_usable_quote(decoded_candidate):
+            if _decoded_result_has_usable_quote(
+                decoded_candidate,
+                parent_mpn=run.manufacturer_part_number,
+                requested_mpn=row.requested_mpn,
+            ):
                 last_usable_row = row
                 last_usable_decoded = decoded_candidate
                 break
@@ -949,10 +1049,29 @@ def research_detail(request: HttpRequest, run_id: uuid.UUID) -> HttpResponse:
         if refresh_row is not None:
             decoded_refresh = None
             refresh_unreadable = False
+            refresh_identity_unverified = False
             if refresh_row.state == VendorRefreshState.COMPLETED:
                 decoded_refresh, refresh_unreadable = _decoded_refresh_row(
                     refresh_row
                 )
+                # FU2 (F4): the latest display is fail-closed over a
+                # decoded payload whose identity binding could not be
+                # re-established against THIS parent (requested MPN
+                # disagreeing with the run, or any observation not an
+                # actually established match consistent with its
+                # recorded type): no payload fact — price, lookup
+                # status, retrieval instant, or issue — is displayed.
+                if not refresh_unreadable and not _refresh_payload_is_identity_bound(
+                    parent_mpn=run.manufacturer_part_number,
+                    requested_mpn=refresh_row.requested_mpn,
+                    decoded=decoded_refresh,
+                ):
+                    logger.warning(
+                        "Vendor refresh payload identity unverified "
+                        "for run %s: no vendor result displayed", run.id
+                    )
+                    decoded_refresh = None
+                    refresh_identity_unverified = True
             vendor_refresh = build_vendor_refresh_presentation(
                 state=refresh_row.state,
                 operator=refresh_row.operator,
@@ -964,6 +1083,7 @@ def research_detail(request: HttpRequest, run_id: uuid.UUID) -> HttpResponse:
                 failure_reason=refresh_row.failure_reason,
                 decoded=decoded_refresh,
                 unreadable=refresh_unreadable,
+                identity_unverified=refresh_identity_unverified,
             )
 
         # FU1 (F2): the last usable vendor quote is displayed
@@ -998,7 +1118,12 @@ def research_detail(request: HttpRequest, run_id: uuid.UUID) -> HttpResponse:
         # (the section still shows the persisted truth: the latest
         # attempt, the last usable quote, or "no record yet"). The
         # error candidate renders its bounded line, which asserts no
-        # recorded fact (FU1 F3).
+        # recorded fact (FU1 F3); with NO persisted refresh attempt it
+        # renders the neutral no-record line instead (FU2 F5: the flag
+        # alone never asserts that an operation occurred). The success
+        # claim requires the latest attempt to BE the identity-bound
+        # last usable quote (FU2 F4: the binding is re-established
+        # against this parent, not assumed from codec validity).
         flag = request.GET.get("vendor_refresh")
         if flag in _VENDOR_REFRESH_NOTICE_STATES:
             vendor_refresh_notice = _backed_vendor_refresh_notice(

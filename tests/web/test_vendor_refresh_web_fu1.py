@@ -27,7 +27,11 @@ untouched):
   and the DENIED zero-knowledge boundary remain untouched.
 * **F3 — error assurance.** The bounded error notice no longer
   claims "No vendor data was changed"; it asserts no rollback and no
-  terminal outcome.
+  terminal outcome. FU2 (F5) corrects the forged-no-record case in
+  place: with NO persisted refresh attempt the error flag renders the
+  neutral no-record line instead of the operation-failure assertion
+  (the two affected nodes keep their names and contracts; their
+  expectations are strengthened, not weakened).
 
 Class discipline: deterministic D nodes over the in-memory suite
 database with pinned terminal instants (``at=`` on the CAS
@@ -95,6 +99,10 @@ LINE_IN_PROGRESS = "already in progress"
 LINE_COOLDOWN = "Refreshes are limited to one per five minutes"
 LINE_NOT_ELIGIBLE = "not eligible"
 LINE_ERROR = "The vendor refresh could not be completed for this request"
+LINE_ERROR_NEUTRAL = (
+    "No vendor refresh is recorded for this run, so no refresh result "
+    "is available"
+)
 LINE_NO_RECORD = "No vendor refresh has been recorded for this run yet."
 LINE_OLD_ASSURANCE = "No vendor data was changed"  # FU1 F3: must be GONE
 
@@ -272,9 +280,13 @@ class TestForgedGetFlagsNoRecord(TestCase):
     def test_forged_error_flag_with_no_record_renders_only_the_bounded_transient_line(self):
         run = _make_completed_run()
         html = self._html_for_flag(run, "error")
-        # The bounded transient line renders (it asserts no recorded
-        # fact) and makes no success / failure / in-progress claim.
-        assert LINE_ERROR in html
+        # FU2 (F5): with NO persisted refresh attempt the forged flag
+        # renders the NEUTRAL no-record line — it must not assert that
+        # a refresh occurred, failed, or was rolled back (the
+        # operation-failure line is reserved for an established
+        # attempt). It makes no success / failure / in-progress claim.
+        assert LINE_ERROR_NEUTRAL in html
+        assert LINE_ERROR not in html
         _no_claim_lines(html)
         assert LINE_OLD_ASSURANCE not in html  # FU1 F3
         assert LINE_NO_RECORD in html
@@ -684,7 +696,10 @@ class TestErrorNoticeWording(TestCase):
     """The bounded error notice no longer claims 'No vendor data was
     changed' (not established for every error or outcome-unknown
     path); it asserts no rollback and no terminal outcome, and points
-    to the persisted record shown below."""
+    to the persisted record shown below. FU2 (F5): over NO persisted
+    refresh attempt the notice is the neutral no-record line — the
+    client-controlled flag alone never asserts that an operation
+    occurred, failed, or was rolled back."""
 
     def test_error_notice_makes_no_unchanged_data_claim_after_real_post_error(self):
         """A real POST whose executor raises a non-bounded error
@@ -722,6 +737,9 @@ class TestErrorNoticeWording(TestCase):
         run = _make_completed_run()
         with _with_settings(CIDRS):
             html = _get_flag(_allowed_client(), run, "error")
-        assert LINE_ERROR in html
+        # FU2 (F5): no persisted attempt -> the neutral no-record
+        # line, never the operation-failure assertion.
+        assert LINE_ERROR_NEUTRAL in html
+        assert LINE_ERROR not in html
         assert LINE_OLD_ASSURANCE not in html
         _no_claim_lines(html)

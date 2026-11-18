@@ -52,6 +52,10 @@ Display states (exactly one primary state per call):
   lookup status, the prices retrieved instant (where recorded), the
   identity-bound observations (source, price, currency,
   availability), and the bounded per-source issues.
+* ``completed`` with ``identity_unverified`` — a recorded result whose
+  identity binding could not be re-established against this run (FU2
+  F4): fail-closed; no vendor fact (price, lookup status, retrieval
+  instant, or issue) from the unverified payload is shown.
 * ``failed`` — the refresh machinery defect with its bounded
   display label; no vendor result is claimed.
 """
@@ -148,6 +152,11 @@ class VendorRefreshPresentation:
         issue_lines: Bounded per-source issue lines.
         unreadable: True for a COMPLETED record whose payload failed
             the frozen codec (displayed fail-closed; no data shown).
+        identity_unverified: True for a COMPLETED record whose decoded
+            payload's identity binding could not be re-established
+            against this run by the view's FU2 (F4) check (displayed
+            fail-closed: no payload fact shown; the caller passes
+            ``decoded=None`` with this flag set).
         failure_label: Bounded display label for a FAILED record.
     """
 
@@ -165,6 +174,7 @@ class VendorRefreshPresentation:
     observations: tuple[VendorRefreshObservationPresentation, ...]
     issue_lines: tuple[str, ...]
     unreadable: bool
+    identity_unverified: bool
     failure_label: "str | None"
 
 
@@ -274,11 +284,16 @@ def build_vendor_refresh_presentation(
     failure_reason: Any,
     decoded: Any,
     unreadable: bool,
+    identity_unverified: bool = False,
 ) -> VendorRefreshPresentation:
     """Build the bounded display payload for ONE persisted refresh
     record. Never raises for structurally persisted input; a
     structurally unexpected value fails closed to the most
-    conservative label."""
+    conservative label. ``identity_unverified`` (FU2 F4) marks a
+    COMPLETED record whose decoded payload was refused by the view's
+    read-side identity verification: the caller passes
+    ``decoded=None`` with this flag, so no payload fact is displayed.
+    """
     state = _enum_value(state)
 
     lookup_status = None
@@ -329,5 +344,6 @@ def build_vendor_refresh_presentation(
         observations=observations,
         issue_lines=issue_lines,
         unreadable=bool(unreadable),
+        identity_unverified=bool(identity_unverified),
         failure_label=failure_label,
     )
