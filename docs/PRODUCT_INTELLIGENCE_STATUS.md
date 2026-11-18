@@ -6,6 +6,159 @@
 
 
 
+**PRODUCT-INTEL.VENDOR-REFRESH-WEB-FINAL-CORRECTION (F5
+display-truthfulness — the error notice is neutral in both shapes)
+
+— IMPLEMENTED / PENDING CHATGPT INDEPENDENT REVIEW (feature branch
+`feature/vendor-refresh-web` over the FU2 branch endpoint
+`13fdff8d1d776ab48220e8c826cc6f8d6c6582cb`; NOT merged, NOT
+deployed)**
+
+Bounded FINAL CORRECTIVE phase on the endpoint above (focused
+baseline collection **1,059, re-verified at the endpoint**) resolving
+the one remaining F5 display-truthfulness finding after the
+ChatGPT-independent approval of the FU2 identity-binding
+implementation (F4). **NO redesign**: the shared trigger/claim
+service, the command, the migrations, the five-minute cooldown
+semantics, concurrency ownership, authentication, the Vendor API
+adapter, the Oracle boundaries, and the frozen codec / binder /
+scoring / persistence contracts are UNCHANGED (none of those files
+appears in the diff; the frozen nine-file digest pin passes
+byte-identical). **NO architecture changes, NO new migration, NO new
+features** (`manage.py check` 0 issues; `makemigrations --check
+--dry-run` No changes detected).
+
+**Problem (of record).** The FU2 `error` notice was neutral only in
+the NO-record shape: with ANY historical refresh row present —
+including a successfully COMPLETED one — a forged
+`GET ?vendor_refresh=error` rendered the FU1 line "The vendor
+refresh could not be completed for this request..." — an
+operation-failure assertion for the current browser request based
+solely on client-controlled input. A historical row is not proof
+that the current browser request failed.
+
+**Scope (of record).**
+
+1. **The with-record `error` line is reworded in place (web notice
+   wording only, `web/templates/web/research_detail.html`).** It is
+   now NEUTRAL and non-assertive: "The page reports a vendor refresh
+   error. The latest persisted refresh state is shown below. Please
+   inspect the recorded result; if it is not a successful refresh,
+   you can try again later or contact support." — it reports the
+   page's error indication and directs the user to the ACTUAL
+   persisted refresh state (rendered below in the section); it never
+   claims that this particular request failed. The existing no-record
+   wording (`error_no_record`: "No vendor refresh is recorded for
+   this run, so no refresh result is available. To refresh vendor
+   prices, use the button below.") is PRESERVED unchanged. The
+   backing rule in `web/views.py::_backed_vendor_refresh_notice`
+   is UNCHANGED (docstring + branch comment updated to record the
+   correction): `error_no_record` when no active AND no terminal row
+   exists, else `error`; the latest persisted attempt status display,
+   the historical last-usable-quote selection, and ALL price/MPN
+   identity checks (FU2 F4) remain byte-identical in behavior.
+2. **No other surface touched.** POST/Redirect/GET, CSRF, the
+   corporate REMOTE_ADDR/CIDR gate, DENIED total zero-knowledge, and
+   the GET read-only property are unchanged (the changed production
+   lines are the one template notice sentence + its comment block and
+   two comment/docstring regions in `web/views.py`).
+
+**Test-preservation record (exact).** **ZERO pre-existing node
+deleted / renamed / skipped / xfailed / deselected**; **7 recorded
+in-place expectation adjustments** (names + original safety
+contracts preserved; contracts STRENGTHENED by the new
+"must-never-render-again" pin `LINE_ERROR_OLD_ASSERTION` = "could
+not be completed for this request") — the task's explicitly
+authorized F1/FU2 error-notice adjustments:
+`tests/web/test_vendor_refresh_web_fu1.py::TestForgedGetFlagsNo
+Record::test_forged_error_flag_with_no_record_renders_only_the_
+bounded_transient_line` (no-record neutral line + absence of the
+with-record neutral line + absence of the old assertion),
+`::TestErrorNoticeWording::test_error_notice_makes_no_unchanged_
+data_claim_after_real_post_error` (real POST outcome-unknown: the
+NEUTRAL line + the inspect directive + absence of the old assertion;
+no old data assurance; persisted in-progress state still shown),
+`::TestErrorNoticeWording::test_error_notice_line_over_forged_flag_
+makes_no_unchanged_data_claim` (no-record neutral line + absence of
+the old assertion; no old data assurance; no claim lines),
+`tests/web/test_vendor_refresh_web_fu2.py::TestErrorNoticeNeutral
+ity::test_forged_error_flag_with_no_record_is_neutral` (absences
+strengthened), `::test_forged_error_flag_over_terminal_record_
+keeps_the_bounded_line` (the bounded error line still renders over
+a terminal record — now pinned NEUTRAL + inspect directive +
+absence of the old assertion), `::test_forged_error_flag_over_
+active_record_keeps_the_bounded_line` (likewise over an active
+record), `::test_denied_forged_error_flag_learns_nothing` (DENIED
+zero-knowledge: no line of any kind incl. the old assertion).
+**ONE NEW web node** (the task-mandated adversarial test):
+`::TestErrorNoticeNeutrality::test_forged_error_flag_over_
+completed_success_never_claims_failure` — a successfully COMPLETED
+refresh (a usable identity-bound quote: $1,999.99 USD, In Stock)
+followed by a forged `?vendor_refresh=error` GET: the bounded
+error line renders (the persisted attempt establishes the
+operation) — NEUTRAL, with the inspect directive — and the old
+operation-failure assertion NEVER renders; no success NOTICE line
+(the flag is error, not completed) and no claim line of any other
+kind; the actual persisted state is displayed undimmed (Latest
+refresh attempt, Completed, the identity-bound quote price +
+availability, no identity-unverified line). **Mutation check of
+record**: reverting the template line to the FU1 operation-failure
+wording fails EXACTLY the 4 with-record error-notice nodes (the
+real-POST node + the terminal / active / completed-success FU2
+nodes, incl. the new adversarial node); the 6 no-record / DENIED
+nodes still pass under the mutation (the old wording never renders
+in those shapes) — the check bites where intended.
+
+**Validation (exact; the task's strict scope directs focused web +
+boundary tests).** (1) Focused set = tests/web/ +
+`tests/runs/test_vendor_refresh_trigger_service.py` +
+`tests/runs/test_vendor_refresh_command.py` +
+`tests/runs/test_vendor_refresh_claims.py` +
+`tests/execution/test_vendor_refresh_network_boundary.py`:
+collection 1,059 -> **1,060 (+1; 0 removed / 0 renamed)** —
+node-level diff of record (`tmp_fc_cur_nodes.txt` vs
+`tmp_fc_base_nodes.txt`: the single addition = exactly the new
+adversarial node). (2) Focused batch over the final bytes
+(`tmp_fc_final.xml`): **1,060 test cases, 0 failed, 0 errors, 0
+skipped, exit 0**. (3) The 8 genuine file-backed C concurrency
+nodes (`tests/runs/test_vendor_refresh_concurrency.py`):
+**8 test cases, 0 failed, exit 0** (unchanged files). (4) The
+frozen nine-file digest pin passes byte-identical (the network-
+boundary suite in (2); none of the nine is a changed file). (5)
+`python manage.py check` — System check identified no issues (0
+silenced), exit 0. (6) `python manage.py makemigrations --check
+--dry-run` — No changes detected, exit 0. (7) `git diff --check` —
+clean (the pre-existing autocrlf warnings only).
+
+**Invariance (this phase).** No frozen execution core / claims /
+codec / adapter / orchestration surface changed; the shared
+trigger/claim service, the command's bounded stdout contract + exit
+codes, the migrations, the five-minute cooldown safeguard,
+concurrency ownership, the Vendor API adapter, and the Oracle
+boundaries untouched (none of those files appears in the diff);
+no research / domain / providers / runs module changed; no new
+model, no new command, no new authentication or session
+infrastructure, no recovery surface. GET remains read-only (the
+change is one rendered sentence + comments); DENIED pages render
+nothing about refresh (the armed zero-knowledge nodes pass,
+incl. the strengthened old-assertion absence); the latest
+persisted attempt status display, the historical last-usable-quote
+selection, the FU2 F4 price/MPN identity checks, and the no-record
+wording are unchanged; the original report sections, Machine
+Price, Reviewed Price, matching decisions, human-review state, and
+the original vendor snapshot are never mutated. No test deleted,
+renamed, skipped, xfailed, deselected, or weakened (0 / 0 / 0
+skips; the 7 in-place adjustments preserve names + safety
+contracts and add absence pins). No restore / reset / checkout /
+stash / clean / amend / rebase / force-push used. Unrelated
+pre-existing worktree artifacts + untracked ledgers preserved.
+
+**Next.** ChatGPT reviews the actual source diff + the test
+evidence (independent review of the final correction). Do not
+merge or deploy until the independent review completes.
+
+
+
 **PRODUCT-INTEL.VENDOR-REFRESH-WEB-FU2 (Final review corrections —
 persisted quote identity verification + neutral error notice,
 F4/F5)

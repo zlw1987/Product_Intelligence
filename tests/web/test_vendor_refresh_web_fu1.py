@@ -31,7 +31,14 @@ untouched):
   place: with NO persisted refresh attempt the error flag renders the
   neutral no-record line instead of the operation-failure assertion
   (the two affected nodes keep their names and contracts; their
-  expectations are strengthened, not weakened).
+  expectations are strengthened, not weakened). FINAL-CORRECTION (F5
+  truthfulness) rewords the with-record error line in place: it is
+  NEUTRAL in both shapes — it reports the page's error indication and
+  directs the user to the actual persisted refresh state shown below,
+  never claiming that the particular request failed (a historical row
+  — even a successfully COMPLETED one — is not proof of that); the
+  affected error-notice nodes keep their names and safety contracts;
+  their expectations are adjusted/strengthened, not weakened.
 
 Class discipline: deterministic D nodes over the in-memory suite
 database with pinned terminal instants (``at=`` on the CAS
@@ -98,7 +105,14 @@ LINE_FAILED = "The vendor refresh did not complete successfully"
 LINE_IN_PROGRESS = "already in progress"
 LINE_COOLDOWN = "Refreshes are limited to one per five minutes"
 LINE_NOT_ELIGIBLE = "not eligible"
-LINE_ERROR = "The vendor refresh could not be completed for this request"
+# FINAL-CORRECTION (F5 truthfulness): the with-record error line is
+# NEUTRAL — it reports the page's error indication and directs the
+# user to the actual persisted refresh state shown below; it never
+# claims that the particular request failed.
+LINE_ERROR = "The page reports a vendor refresh error"
+LINE_ERROR_INSPECT = "The latest persisted refresh state is shown below"
+# The FU1 operation-failure assertion — must NEVER render again.
+LINE_ERROR_OLD_ASSERTION = "could not be completed for this request"
 LINE_ERROR_NEUTRAL = (
     "No vendor refresh is recorded for this run, so no refresh result "
     "is available"
@@ -280,13 +294,15 @@ class TestForgedGetFlagsNoRecord(TestCase):
     def test_forged_error_flag_with_no_record_renders_only_the_bounded_transient_line(self):
         run = _make_completed_run()
         html = self._html_for_flag(run, "error")
-        # FU2 (F5): with NO persisted refresh attempt the forged flag
-        # renders the NEUTRAL no-record line — it must not assert that
-        # a refresh occurred, failed, or was rolled back (the
-        # operation-failure line is reserved for an established
-        # attempt). It makes no success / failure / in-progress claim.
+        # FU2 (F5) + FINAL-CORRECTION (F5 truthfulness): with NO
+        # persisted refresh attempt the forged flag renders the
+        # NEUTRAL no-record line — it must not assert that a refresh
+        # occurred, failed, or was rolled back, and the operation-
+        # failure assertion no longer renders in ANY shape. It makes
+        # no success / failure / in-progress claim.
         assert LINE_ERROR_NEUTRAL in html
         assert LINE_ERROR not in html
+        assert LINE_ERROR_OLD_ASSERTION not in html
         _no_claim_lines(html)
         assert LINE_OLD_ASSURANCE not in html  # FU1 F3
         assert LINE_NO_RECORD in html
@@ -699,12 +715,19 @@ class TestErrorNoticeWording(TestCase):
     to the persisted record shown below. FU2 (F5): over NO persisted
     refresh attempt the notice is the neutral no-record line — the
     client-controlled flag alone never asserts that an operation
-    occurred, failed, or was rolled back."""
+    occurred, failed, or was rolled back. FINAL-CORRECTION (F5
+    truthfulness): over a persisted attempt the error line is NEUTRAL
+    too — it reports the page's error indication and directs the user
+    to the actual persisted refresh state shown below; it never claims
+    that the particular request failed (a historical row — even a
+    successfully COMPLETED one — is not proof of that)."""
 
     def test_error_notice_makes_no_unchanged_data_claim_after_real_post_error(self):
         """A real POST whose executor raises a non-bounded error
         (outcome unknown; the child stays RUNNING) renders the
-        reworded bounded line — with no data-assurance claim."""
+        bounded NEUTRAL error line (FINAL-CORRECTION F5 truthfulness:
+        no operation-failure assertion for this request) — with no
+        data-assurance claim."""
         run = _make_completed_run()
 
         def _boom(child_id):
@@ -723,9 +746,12 @@ class TestErrorNoticeWording(TestCase):
         ):
             client = _allowed_client()
             html = _post_refresh(client, run).content.decode()
-        # The reworded bounded line (F3).
+        # The bounded NEUTRAL line (FU1 F3 + FINAL-CORRECTION F5):
+        # it directs to the actual persisted state, never claims this
+        # request failed, and asserts no unchanged data.
         assert LINE_ERROR in html
-        assert "The latest recorded refresh state is shown below" in html
+        assert LINE_ERROR_INSPECT in html
+        assert LINE_ERROR_OLD_ASSERTION not in html
         # The old unestablished assurance is gone.
         assert LINE_OLD_ASSURANCE not in html
         # The persisted truth is shown: the child is RUNNING (outcome
@@ -737,9 +763,11 @@ class TestErrorNoticeWording(TestCase):
         run = _make_completed_run()
         with _with_settings(CIDRS):
             html = _get_flag(_allowed_client(), run, "error")
-        # FU2 (F5): no persisted attempt -> the neutral no-record
-        # line, never the operation-failure assertion.
+        # FU2 (F5) + FINAL-CORRECTION (F5 truthfulness): no persisted
+        # attempt -> the neutral no-record line; the operation-failure
+        # assertion renders never, in any shape.
         assert LINE_ERROR_NEUTRAL in html
         assert LINE_ERROR not in html
+        assert LINE_ERROR_OLD_ASSERTION not in html
         assert LINE_OLD_ASSURANCE not in html
         _no_claim_lines(html)

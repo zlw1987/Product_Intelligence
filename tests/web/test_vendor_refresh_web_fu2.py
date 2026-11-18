@@ -22,12 +22,18 @@ VENDOR-REFRESH-WEB (``test_vendor_refresh_web.py``) and FU1
   shown) and the row is never selected as the last usable vendor
   quote (historical). A legitimate NORMALIZED_EXACT observation is
   still a usable quote (correct-price behavior preserved).
-* **F5 — the error notice is neutral without an established
-  operation.** A standalone ``GET ?vendor_refresh=error`` with NO
-  persisted refresh attempt must not assert that a refresh occurred,
-  failed, or was rolled back: the neutral no-record line renders
-  instead. With a persisted attempt (active or terminal) the bounded
-  operation-failure line is preserved (truthful POST/Redirect/GET).
+* **F5 — the error notice is neutral in every shape.** A standalone
+  ``GET ?vendor_refresh=error`` must never claim that the particular
+  request failed: with NO persisted refresh attempt the neutral
+  no-record line renders (no refresh asserted to have occurred,
+  succeeded, failed, or rolled back); with a persisted attempt
+  (active or terminal — including a successfully COMPLETED one) the
+  NEUTRAL error line renders: it reports the page's error indication
+  and directs the user to the actual persisted refresh state shown
+  below (FINAL-CORRECTION: the old "could not be completed for this
+  request" operation-failure assertion no longer renders in any
+  shape; a historical row is not proof that the current browser
+  request failed).
 
 Class discipline: deterministic D nodes over the in-memory suite
 database, reusing the pinned parent + FU1 helpers; pinned terminal
@@ -57,7 +63,9 @@ from tests.web.test_vendor_refresh_web import (
 from tests.web.test_vendor_refresh_web_fu1 import (
     LINE_COMPLETED_NO_QUOTE,
     LINE_ERROR,
+    LINE_ERROR_INSPECT,
     LINE_ERROR_NEUTRAL,
+    LINE_ERROR_OLD_ASSERTION,
     LINE_NO_RECORD,
     LINE_SUCCESS,
     T1,
@@ -364,11 +372,13 @@ class TestLegitimateNormalizedExactQuote(_DetailMixin, TestCase):
 
 
 class TestErrorNoticeNeutrality(_DetailMixin, TestCase):
-    """A standalone GET ?vendor_refresh=error with NO persisted
-    refresh attempt renders the neutral no-record line: it asserts no
-    refresh occurred, succeeded, failed, or rolled back. With a
-    persisted attempt (active or terminal) the bounded
-    operation-failure line is preserved; a DENIED connection learns
+    """A standalone GET ?vendor_refresh=error never claims that the
+    particular request failed: with NO persisted refresh attempt the
+    neutral no-record line renders (it asserts no refresh occurred,
+    succeeded, failed, or rolled back); with a persisted attempt
+    (active or terminal — including a successfully COMPLETED one) the
+    NEUTRAL error line renders, directing the user to the actual
+    persisted refresh state shown below. A DENIED connection learns
     nothing."""
 
     def test_forged_error_flag_with_no_record_is_neutral(self):
@@ -376,14 +386,17 @@ class TestErrorNoticeNeutrality(_DetailMixin, TestCase):
         with _with_settings(CIDRS):
             html = _get_flag(_allowed_client(), run, "error")
         assert LINE_ERROR_NEUTRAL in html
-        assert LINE_ERROR not in html  # no operation-failure assertion
+        assert LINE_ERROR not in html  # the with-record neutral line too
+        assert LINE_ERROR_OLD_ASSERTION not in html  # no failure assertion
         _no_claim_lines(html)
         assert LINE_NO_RECORD in html  # the persisted truth remains
 
     def test_forged_error_flag_over_terminal_record_keeps_the_bounded_line(self):
         """A persisted terminal attempt establishes an actual
-        operation: the FU1 bounded line renders (truthful
-        POST/Redirect/GET behavior preserved)."""
+        operation: the bounded error line still renders — but
+        NEUTRAL (FINAL-CORRECTION F5 truthfulness): it reports the
+        page's error indication and directs to the actual persisted
+        state, never claiming that this request failed."""
         run = _make_completed_run()
         _completed_child(
             run,
@@ -394,26 +407,75 @@ class TestErrorNoticeNeutrality(_DetailMixin, TestCase):
         with _with_settings(CIDRS):
             html = _get_flag(_allowed_client(), run, "error")
         assert LINE_ERROR in html
-        assert LINE_ERROR_NEUTRAL not in html
+        assert LINE_ERROR_INSPECT in html
+        assert LINE_ERROR_OLD_ASSERTION not in html
+        assert LINE_ERROR_NEUTRAL not in html  # a record exists
         assert LINE_NO_RECORD not in html
 
     def test_forged_error_flag_over_active_record_keeps_the_bounded_line(self):
         """A persisted active attempt likewise establishes an actual
-        operation: the FU1 bounded line renders."""
+        operation: the bounded error line renders — NEUTRAL (FINAL-
+        CORRECTION F5 truthfulness), never an operation-failure
+        assertion for this request."""
         run = _make_completed_run()
         _active_child(run, claimed=False)
         with _with_settings(CIDRS):
             html = _get_flag(_allowed_client(), run, "error")
         assert LINE_ERROR in html
+        assert LINE_ERROR_INSPECT in html
+        assert LINE_ERROR_OLD_ASSERTION not in html
         assert LINE_ERROR_NEUTRAL not in html
 
+    def test_forged_error_flag_over_completed_success_never_claims_failure(self):
+        """FINAL-CORRECTION (F5 truthfulness): a successfully
+        COMPLETED refresh (a usable identity-bound quote) followed by
+        a forged ?vendor_refresh=error GET must NOT claim that that
+        request failed — a historical row is not proof that the
+        current browser request failed. The bounded error line
+        renders (the persisted attempt establishes the operation) —
+        NEUTRAL, directing the user to the actual persisted state
+        shown below — and the old operation-failure assertion never
+        renders; the successful result (its state + identity-bound
+        quote) is displayed undimmed by the forged flag."""
+        run = _make_completed_run()
+        _completed_child(
+            run,
+            at=T1,
+            observations=(_original_observation("CDW", Decimal("1999.99"), "USD"),),
+        )
+        with _with_settings(CIDRS):
+            html = _get_flag(_allowed_client(), run, "error")
+        # The bounded error line renders (a persisted attempt
+        # exists)...
+        assert LINE_ERROR in html
+        assert LINE_ERROR_INSPECT in html
+        # ...but never the operation-failure assertion for this
+        # request, and never the no-record line (a record exists).
+        assert LINE_ERROR_OLD_ASSERTION not in html
+        assert LINE_ERROR_NEUTRAL not in html
+        assert LINE_NO_RECORD not in html
+        # No success NOTICE line (the flag is error, not completed)
+        # and no claim line of any other kind.
+        assert LINE_SUCCESS not in html
+        _no_claim_lines(html)
+        # The actual persisted refresh state is displayed: the
+        # successful result with its identity-bound quote, undimmed
+        # by the forged flag.
+        section = _refresh_section(html)
+        assert "Latest refresh attempt" in section
+        assert "Completed" in section
+        assert "$1,999.99 USD" in section
+        assert "In Stock" in section
+        assert LINE_IDENTITY_UNVERIFIED not in section
+
     def test_denied_forged_error_flag_learns_nothing(self):
-        """DENIED zero-knowledge holds for the neutral line too: the
+        """DENIED zero-knowledge holds for the neutral lines too: the
         section (and every refresh fact) never renders."""
         run = _make_completed_run()
         with _with_settings(None):
             html = _get_flag(Client(REMOTE_ADDR=ALLOWED_ADDR), run, "error")
         assert "Vendor refresh" not in html
         assert LINE_ERROR not in html
+        assert LINE_ERROR_OLD_ASSERTION not in html
         assert LINE_ERROR_NEUTRAL not in html
         assert LINE_NO_RECORD not in html

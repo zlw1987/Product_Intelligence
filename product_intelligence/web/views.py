@@ -315,13 +315,19 @@ def _backed_vendor_refresh_notice(
       ``invalid_trigger_source`` are unreachable over the fixed web
       trigger input).
     * ``error`` — bounded transient line only; its wording asserts no
-      recorded fact (FU1 F3), so no persistence backing is claimed.
-      FU2 (F5): an actual operation is established ONLY by a persisted
-      refresh attempt (an active or a terminal child). With NO
-      persisted attempt the client-controlled flag alone must not
-      assert that a refresh occurred, failed, or was rolled back: the
-      neutral ``error_no_record`` line renders instead (it states only
-      the established persisted truth: no record).
+      recorded fact (FU1 F3) and never claims that the particular
+      request failed (FINAL-CORRECTION F5 truthfulness). The line is
+      NEUTRAL in both shapes: with NO persisted refresh attempt the
+      neutral ``error_no_record`` line renders (the client-controlled
+      flag alone must not assert that a refresh occurred, succeeded,
+      failed, or was rolled back — it states only the established
+      persisted truth: no record); with a persisted attempt (an
+      active or a terminal child — the operation is established) the
+      neutral ``error`` line renders: it reports the page's error
+      indication and directs the user to the actual persisted refresh
+      state shown below (a historical row — even a successfully
+      COMPLETED one — is not proof that the current browser request
+      failed).
 
     Returns the backed notice state (or ``None``: render nothing).
     """
@@ -356,10 +362,16 @@ def _backed_vendor_refresh_notice(
             return "not_eligible"
         return None
     if flag == "error":
-        # FU2 (F5): without any persisted refresh attempt no actual
-        # operation can be established from the client-controlled flag
-        # alone: render the neutral no-record line, never the
-        # operation-failure assertion.
+        # FINAL-CORRECTION (F5 truthfulness): the notice line is
+        # neutral in both shapes and never claims that this
+        # particular request failed. Without any persisted refresh
+        # attempt no actual operation can be established from the
+        # client-controlled flag alone: the neutral no-record line
+        # states only the persisted truth (no record). With a
+        # persisted attempt the neutral line directs the user to the
+        # actual persisted refresh state shown below (a historical
+        # row — even a successfully COMPLETED one — is not proof
+        # that the current request failed).
         if active_row is None and not terminal_rows:
             return "error_no_record"
         return "error"
