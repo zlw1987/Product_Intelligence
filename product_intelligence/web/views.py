@@ -20,11 +20,12 @@ Query flags used for transient error notices:
 from logging import getLogger
 
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from django.core.exceptions import ObjectDoesNotExist
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone as dj_timezone
 from django.views.decorators.http import require_POST
 import logging
 
@@ -127,10 +128,14 @@ _VENDOR_REFRESH_PERSISTED_FAILURE_REASONS = frozenset(
     }
 )
 
-# VENDOR-REFRESH-WEB: the bounded transient notice states carried by
-# the ?vendor_refresh= query flag (client-supplied; only these
-# vocabulary members render, each with a fixed bounded line — the
-# flag never carries vendor data).
+# VENDOR-REFRESH-WEB: the bounded transient notice STATES the
+# ?vendor_refresh= query flag may carry (client-supplied CANDIDATES).
+# VENDOR-REFRESH-WEB FU1 (F1): a candidate renders only when the ACTUAL
+# persisted refresh state of the parent backs it — see
+# ``_backed_vendor_refresh_notice``. An arbitrary GET flag never creates
+# a success, failure, or in-progress claim. Only fixed vocabulary
+# members are considered; each renders a bounded fixed line; the flag
+# never carries vendor data.
 _VENDOR_REFRESH_NOTICE_STATES = frozenset(
     {
         "completed",
@@ -141,6 +146,134 @@ _VENDOR_REFRESH_NOTICE_STATES = frozenset(
         "error",
     }
 )
+
+# VENDOR-REFRESH-WEB FU1 (F1): the transient cooldown notice mirrors the
+# shared decision service's five-minute repeat safeguard window (STRICT
+# ``< 300 s`` over the latest terminal child's ``finished_at`` — the same
+# persisted fact the service's [c]/[D2] step uses, in the same
+# ``finished_at DESC, id DESC`` order). This constant backs the NOTICE
+# claim only; the safeguard itself remains in the shared service
+# (unchanged).
+_VENDOR_REFRESH_COOLDOWN_NOTICE_SECONDS = 300
+
+
+def _decode_refresh_payload(payload):
+    """Decode one persisted refresh payload with the frozen supplement
+    codec (the view's ALLOWED branch is the sole decoder for this
+    phase). Returns ``(decoded, unreadable)``: ``unreadable`` is True
+    for any payload that did not pass the frozen codec (non-dict or
+    codec error) — fail-closed; no numeric fabrication, ever."""
+    if not isinstance(payload, dict):
+        return None, True
+    try:
+        return decode_research_supplement_result(payload), False
+    except SupplementCodecError:
+        return None, True
+
+
+def _decoded_result_has_usable_quote(decoded) -> bool:
+    """VENDOR-REFRESH-WEB FU1 (F2; design §8.3 concept 3): a
+    codec-validated supplement result carries a usable identity-bound
+    vendor quote only when it records a vendor commercial result, the
+    lookup is SUCCESS or PARTIAL, and at least one observation survived
+    the frozen codec (every decoded observation is identity-bound by
+    construction: the codec admits only EXACT / NORMALIZED_EXACT match
+    types with a non-empty MPN and a finite nonnegative price). A
+    FAILED lookup, a zero-observation result, or a missing vendor
+    result is NOT a usable quote."""
+    if decoded is None:
+        return False
+    vcr = getattr(decoded, "vendor_commercial_result", None)
+    if vcr is None:
+        return False
+    if getattr(vcr, "lookup_status", None) not in ("SUCCESS", "PARTIAL"):
+        return False
+    return len(tuple(getattr(vcr, "observations", ()))) >= 1
+
+
+def _backed_vendor_refresh_notice(
+    *,
+    flag,
+    active_row,
+    latest_terminal_row,
+    last_usable_row,
+    terminal_rows,
+    parent_has_snapshot,
+    parent_mpn,
+):
+    """VENDOR-REFRESH-WEB FU1 (F1): back the client-supplied
+    ``?vendor_refresh=`` candidate against the ACTUAL persisted refresh
+    state of this parent.
+
+    The POST/Redirect/GET flow hands the transient candidate to the
+    next GET; the candidate is never trusted. A success, failure,
+    in-progress, cooldown, or not-eligible claim renders ONLY when the
+    persisted state above backs it; a forged flag over absent or
+    conflicting persisted state renders NO claim (the section still
+    shows the persisted truth — the latest attempt record, the last
+    usable quote, or "no record yet").
+
+    Backing rules (each mirrors the shared decision service's own
+    persisted facts, never the client):
+
+    * ``completed`` — the latest refresh attempt must be a terminal
+      COMPLETED record. The "prices were refreshed" success line
+      renders only when that record IS the last usable vendor quote
+      (concept 3); a COMPLETED lookup that recorded no usable quote is
+      reported as such (``completed_no_quote``), never as success.
+    * ``failed`` — the latest refresh attempt must be a durably FAILED
+      terminal record.
+    * ``in_progress`` — a persisted active (PENDING/RUNNING) child
+      must exist.
+    * ``cooldown`` — the latest terminal child (``finished_at DESC, id
+      DESC`` — the service's [c] order) must have finished STRICT
+      ``< 300 s`` ago (the service's [D2] fact, re-checked on this
+      GET; the safe direction is to render nothing).
+    * ``not_eligible`` — the section renders only for a COMPLETED
+      parent; over such a parent the service's bounded ineligibility
+      is exactly the trigger's defensive checks: no price snapshot or
+      no MPN (``parent_not_found`` / ``parent_not_completed`` are
+      excluded by the section gate; ``invalid_operator`` /
+      ``invalid_trigger_source`` are unreachable over the fixed web
+      trigger input).
+    * ``error`` — bounded transient line only; its wording asserts no
+      recorded fact (FU1 F3), so no persistence backing is claimed.
+
+    Returns the backed notice state (or ``None``: render nothing).
+    """
+    if flag == "completed":
+        if active_row is not None or latest_terminal_row is None:
+            return None
+        if latest_terminal_row.state != VendorRefreshState.COMPLETED:
+            return None
+        if (
+            last_usable_row is not None
+            and last_usable_row.id == latest_terminal_row.id
+        ):
+            return "completed"
+        return "completed_no_quote"
+    if flag == "failed":
+        latest = active_row or latest_terminal_row
+        if latest is not None and latest.state == VendorRefreshState.FAILED:
+            return "failed"
+        return None
+    if flag == "in_progress":
+        return "in_progress" if active_row is not None else None
+    if flag == "cooldown":
+        finished = [r for r in terminal_rows if r.finished_at is not None]
+        if finished:
+            latest_finished = max(finished, key=lambda r: (r.finished_at, r.id))
+            age = dj_timezone.now() - latest_finished.finished_at
+            if age < timedelta(seconds=_VENDOR_REFRESH_COOLDOWN_NOTICE_SECONDS):
+                return "cooldown"
+        return None
+    if flag == "not_eligible":
+        if not parent_has_snapshot or not parent_mpn:
+            return "not_eligible"
+        return None
+    if flag == "error":
+        return "error"
+    return None
 
 
 def _format_fx_retrieved_at(value: str | None) -> str | None:
@@ -730,6 +863,7 @@ def research_detail(request: HttpRequest, run_id: uuid.UUID) -> HttpResponse:
     # existence, not state, not operator, not price, not error — and
     # the DENIED page queries no refresh row at all.
     vendor_refresh = None
+    vendor_refresh_last_usable_quote = None
     vendor_refresh_notice = None
     vendor_refresh_section = False
     if vendor_commercial_access_allowed and run.state == "COMPLETED":
@@ -737,54 +871,88 @@ def research_detail(request: HttpRequest, run_id: uuid.UUID) -> HttpResponse:
         # parent shape; a DENIED context and a non-COMPLETED parent
         # carry no refresh fact of any kind.
         vendor_refresh_section = True
-        # Bounded transient notice from the last POST (client-supplied
-        # flag; only the fixed vocabulary renders, each with a bounded
-        # fixed line — the flag carries no vendor data).
-        notice = request.GET.get("vendor_refresh")
-        if notice in _VENDOR_REFRESH_NOTICE_STATES:
-            vendor_refresh_notice = notice
 
-        # The one displayed record: an active child (PENDING/RUNNING —
-        # the in-progress state takes display precedence) or, absent
-        # one, the latest terminal child (the latest completed refresh
-        # result, or the latest bounded failure). Deterministic order
-        # (created_at DESC, id DESC tie-break — the frozen history
-        # ordering); a later failed attempt never erases an earlier
-        # record from the database (append-only).
-        refresh_row = (
+        # Persisted refresh state for this parent (the ONLY source of
+        # every refresh fact rendered below). Deterministic ordering:
+        # terminal rows by ``finished_at DESC, id DESC`` — the same
+        # canonical latest-terminal-child order the shared decision
+        # service's [c] step uses (VREF O7; refresh attempts are
+        # serialized: at most one active child per parent). A later
+        # attempt never erases an earlier record from the database
+        # (append-only).
+        active_row = (
             VendorRefreshExecution.objects.filter(
                 parent_run=run,
                 state__in=sorted(VendorRefreshState.ACTIVE_STATES),
             )
             .order_by("-created_at", "-id")
             .first()
-            or VendorRefreshExecution.objects.filter(parent_run=run)
-            .order_by("-created_at", "-id")
-            .first()
         )
+        terminal_rows = list(
+            VendorRefreshExecution.objects.filter(
+                parent_run=run,
+                state__in=sorted(VendorRefreshState.TERMINAL_STATES),
+            ).order_by("-finished_at", "-id")
+        )
+        latest_terminal_row = terminal_rows[0] if terminal_rows else None
+
+        # The latest refresh attempt (displayed first): an active
+        # child (PENDING/RUNNING — the in-progress state takes display
+        # precedence) or, absent one, the latest terminal child (the
+        # latest completed refresh result, or the latest bounded
+        # failure).
+        refresh_row = active_row or latest_terminal_row
+
+        # One decode per persisted COMPLETED payload (the view's
+        # ALLOWED branch is the sole decoder of refresh payloads for
+        # this phase); unreadable payloads fail closed and are never
+        # fabricated.
+        _refresh_decode_cache: dict = {}
+
+        def _decoded_refresh_row(row):
+            if row.id not in _refresh_decode_cache:
+                decoded, unreadable = _decode_refresh_payload(
+                    row.result_payload
+                )
+                if unreadable:
+                    # Fail-closed: the record exists but its payload
+                    # did not pass the frozen codec — displayed as
+                    # "recorded but unreadable"; the rest of the
+                    # report is unaffected and no numeric fabrication
+                    # occurs.
+                    logger.warning(
+                        "Vendor refresh payload unreadable for "
+                        "run %s: codec error", run.id
+                    )
+                _refresh_decode_cache[row.id] = (decoded, unreadable)
+            return _refresh_decode_cache[row.id]
+
+        # FU1 (F2): the last usable vendor quote (design §8.3 concept
+        # 3) — the newest codec-validated COMPLETED refresh with a
+        # SUCCESS or PARTIAL lookup and at least one identity-bound
+        # observation. A later FAILED / in-progress / no-quote attempt
+        # never hides it; malformed or unreadable rows are skipped,
+        # never fabricated.
+        last_usable_row = None
+        last_usable_decoded = None
+        for row in terminal_rows:
+            if row.state != VendorRefreshState.COMPLETED:
+                continue
+            decoded_candidate, unreadable_candidate = _decoded_refresh_row(row)
+            if unreadable_candidate:
+                continue
+            if _decoded_result_has_usable_quote(decoded_candidate):
+                last_usable_row = row
+                last_usable_decoded = decoded_candidate
+                break
 
         if refresh_row is not None:
             decoded_refresh = None
             refresh_unreadable = False
             if refresh_row.state == VendorRefreshState.COMPLETED:
-                if isinstance(refresh_row.result_payload, dict):
-                    try:
-                        decoded_refresh = decode_research_supplement_result(
-                            refresh_row.result_payload
-                        )
-                    except SupplementCodecError:
-                        # Fail-closed: the record exists but its
-                        # payload did not pass the frozen codec —
-                        # displayed as "recorded but unreadable"; the
-                        # rest of the report is unaffected and no
-                        # numeric fabrication occurs.
-                        refresh_unreadable = True
-                        logger.warning(
-                            "Vendor refresh payload unreadable for "
-                            "run %s: codec error", run.id
-                        )
-                else:
-                    refresh_unreadable = True
+                decoded_refresh, refresh_unreadable = _decoded_refresh_row(
+                    refresh_row
+                )
             vendor_refresh = build_vendor_refresh_presentation(
                 state=refresh_row.state,
                 operator=refresh_row.operator,
@@ -796,6 +964,51 @@ def research_detail(request: HttpRequest, run_id: uuid.UUID) -> HttpResponse:
                 failure_reason=refresh_row.failure_reason,
                 decoded=decoded_refresh,
                 unreadable=refresh_unreadable,
+            )
+
+        # FU1 (F2): the last usable vendor quote is displayed
+        # SEPARATELY, labeled historical, with its ORIGINAL retrieval
+        # timestamp — but ONLY when the latest attempt is not itself
+        # that quote (when it is, the first block already presents it
+        # as the latest record, never as historical).
+        if (
+            last_usable_row is not None
+            and (refresh_row is None or last_usable_row.id != refresh_row.id)
+        ):
+            vendor_refresh_last_usable_quote = (
+                build_vendor_refresh_presentation(
+                    state=last_usable_row.state,
+                    operator=last_usable_row.operator,
+                    trigger_source=last_usable_row.trigger_source,
+                    requested_mpn=last_usable_row.requested_mpn,
+                    created_at=last_usable_row.created_at,
+                    started_at=last_usable_row.started_at,
+                    finished_at=last_usable_row.finished_at,
+                    failure_reason=last_usable_row.failure_reason,
+                    decoded=last_usable_decoded,
+                    unreadable=False,
+                )
+            )
+
+        # FU1 (F1): bounded transient notice from the POST/Redirect/
+        # GET flow. The client-supplied ?vendor_refresh= flag is a
+        # CANDIDATE only: a success / failure / in-progress / cooldown
+        # / not-eligible claim renders solely when the persisted
+        # refresh state above backs it; a forged flag renders NO claim
+        # (the section still shows the persisted truth: the latest
+        # attempt, the last usable quote, or "no record yet"). The
+        # error candidate renders its bounded line, which asserts no
+        # recorded fact (FU1 F3).
+        flag = request.GET.get("vendor_refresh")
+        if flag in _VENDOR_REFRESH_NOTICE_STATES:
+            vendor_refresh_notice = _backed_vendor_refresh_notice(
+                flag=flag,
+                active_row=active_row,
+                latest_terminal_row=latest_terminal_row,
+                last_usable_row=last_usable_row,
+                terminal_rows=terminal_rows,
+                parent_has_snapshot=snapshot is not None,
+                parent_mpn=run.manufacturer_part_number,
             )
 
     # --- PRODUCT-INTEL.8A-FX-A1: FX freshness display (additive) ---
@@ -953,15 +1166,28 @@ def research_detail(request: HttpRequest, run_id: uuid.UUID) -> HttpResponse:
         # no prices, no raw payload, and no fact beyond the persisted,
         # codec-validated vendor supplement result of this run.
         "vendor_api_status": vendor_api_status,
-        # VENDOR-REFRESH-WEB: bounded display payload for the latest
-        # refresh record (ALLOWED + COMPLETED parents only; None on
+        # VENDOR-REFRESH-WEB: bounded display payload for the LATEST
+        # refresh attempt (ALLOWED + COMPLETED parents only; None on
         # every DENIED context and for non-COMPLETED parents — the
-        # DENIED page renders no refresh section at all) and the
-        # bounded transient notice state from the last POST (one of
-        # the fixed vocabulary members, or None). Neither value
-        # carries raw payload content, exception text, or untrusted
-        # input.
+        # DENIED page renders no refresh section at all). Carries no
+        # raw payload content, exception text, or untrusted input.
         "vendor_refresh": vendor_refresh,
+        # VENDOR-REFRESH-WEB FU1 (F2): bounded display payload for the
+        # LAST USABLE VENDOR QUOTE (design §8.3 concept 3: the newest
+        # codec-validated COMPLETED refresh with a SUCCESS/PARTIAL
+        # lookup and at least one identity-bound observation) —
+        # displayed separately from the latest attempt, labeled
+        # historical, with its ORIGINAL retrieval timestamp; only set
+        # when the latest attempt is not itself that quote. None for
+        # DENIED contexts, non-COMPLETED parents, and when no usable
+        # quote exists (never fabricated).
+        "vendor_refresh_last_usable_quote": vendor_refresh_last_usable_quote,
+        # VENDOR-REFRESH-WEB FU1 (F1): the bounded transient notice
+        # state, BACKED by the persisted refresh state above (one of
+        # the fixed vocabulary members — including the derived
+        # ``completed_no_quote`` line — or None when the client-
+        # supplied flag is absent, outside the vocabulary, or not
+        # backed by persisted state; a forged flag renders no claim).
         "vendor_refresh_notice": vendor_refresh_notice,
         # True only in the ALLOWED + COMPLETED context: the template
         # renders the bounded "Vendor refresh" section (latest record

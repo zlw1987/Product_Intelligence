@@ -4,7 +4,14 @@ Pure display-only module. Consumes the already-loaded facts of ONE
 persisted ``VendorRefreshExecution`` record plus its already-decoded
 refresh payload (or ``None``) as handed over by the ALLOWED-branch
 research detail view, and produces the bounded "Vendor refresh"
-section content rendered on the report page.
+section content rendered on the report page. (VENDOR-REFRESH-WEB FU1:
+the view calls this formatter for up to TWO records — the latest
+refresh attempt, and, when the latest attempt is not itself a usable
+quote, the last usable vendor quote, which the template presents
+separately and labels historical with its original retrieval
+timestamp. The per-row facts below are identical either way; the
+historical framing is template-owned. This module remains stateless
+per row.)
 
 This module MUST NOT:
 * read the database (no runs/execution/Django imports)

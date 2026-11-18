@@ -284,7 +284,7 @@
 </section>
 {% endif %}
 
-{# VENDOR-REFRESH-WEB: the latest vendor refresh, displayed SEPARATELY from the original vendor snapshot (the Quote & Market Summary vendor rows + status notice above remain projections of the ORIGINAL persisted artifacts, unchanged). ALLOWED connections only (the view sets these context values in the ALLOWED branch for COMPLETED parents only; a DENIED page renders nothing here — zero-knowledge). Refreshed prices are historical evidence as of the recorded retrieval instant and never enter Machine Price, Reviewed Price, matching decisions, or the original report statistics. #}
+{# VENDOR-REFRESH-WEB (+ FU1): the vendor refresh, displayed SEPARATELY from the original vendor snapshot (the Quote & Market Summary vendor rows + status notice above remain projections of the ORIGINAL persisted artifacts, unchanged). ALLOWED connections only (the view sets these context values in the ALLOWED branch for COMPLETED parents only; a DENIED page renders nothing here — zero-knowledge). Refreshed prices are historical evidence as of the recorded retrieval instant and never enter Machine Price, Reviewed Price, matching decisions, or the original report statistics. FU1 F1: the transient ?vendor_refresh= notice is a client-supplied CANDIDATE that the view validates against the persisted refresh state before it renders — a forged flag creates no success, failure, or in-progress claim. FU1 F2: the latest refresh attempt and the last usable vendor quote are presented separately; a later failed attempt never hides an earlier usable quote (labeled historical, with its original retrieval timestamp, never described as current). #}
 {% if vendor_refresh_section %}
 <section class="pi-card pi-vendor-refresh" aria-label="Vendor refresh">
   <h2>Vendor refresh</h2>
@@ -292,6 +292,10 @@
   {% if vendor_refresh_notice == "completed" %}
     <div class="pi-alert pi-alert-info" role="status">
       <p>Vendor prices were refreshed. The latest refresh result is shown below.</p>
+    </div>
+  {% elif vendor_refresh_notice == "completed_no_quote" %}
+    <div class="pi-alert pi-alert-warn" role="status">
+      <p>The vendor refresh completed but did not record a usable vendor quote. The latest refresh result is shown below.</p>
     </div>
   {% elif vendor_refresh_notice == "failed" %}
     <div class="pi-alert pi-alert-warn" role="status">
@@ -311,7 +315,7 @@
     </div>
   {% elif vendor_refresh_notice == "error" %}
     <div class="pi-alert pi-alert-error" role="status">
-      <p>The vendor refresh could not be completed. No vendor data was changed. Please try again later or contact support.</p>
+      <p>The vendor refresh could not be completed for this request. The latest recorded refresh state is shown below. Please try again later or contact support.</p>
     </div>
   {% endif %}
 
@@ -319,6 +323,7 @@
     <p class="notice">
       Refreshed vendor prices are separate from the original vendor snapshot above. They are evidence as of the recorded retrieval time and do not affect Machine Price, Reviewed Price, or matching.
     </p>
+    <h3>Latest refresh attempt</h3>
     <dl class="pi-summary">
       <dt>Status</dt>
       <dd>{{ vendor_refresh.state_label }}</dd>
@@ -386,6 +391,72 @@
     {% endif %}
   {% else %}
     <p class="notice">No vendor refresh has been recorded for this run yet.</p>
+  {% endif %}
+
+  {# FU1 F2: the last usable vendor quote (design §8.3 concept 3),
+     shown separately and explicitly HISTORICAL whenever the latest
+     attempt above is not itself a usable quote (in progress, failed,
+     or completed without one). It carries its ORIGINAL retrieval
+     timestamp and is never described as current. #}
+  {% if vendor_refresh_last_usable_quote %}
+    <h3>Last usable vendor quote (historical)</h3>
+    <p class="notice">
+      The latest refresh attempt above is not a usable vendor quote. The prices below are from an earlier refresh and are historical: they are evidence as of the original retrieval time shown, not the current vendor prices.
+    </p>
+    <dl class="pi-summary">
+      <dt>Status</dt>
+      <dd>{{ vendor_refresh_last_usable_quote.state_label }}</dd>
+      <dt>Part number</dt>
+      <dd><code>{{ vendor_refresh_last_usable_quote.requested_mpn }}</code></dd>
+      <dt>Triggered by</dt>
+      <dd>{{ vendor_refresh_last_usable_quote.triggered_by }} ({{ vendor_refresh_last_usable_quote.operator }})</dd>
+      {% if vendor_refresh_last_usable_quote.created_at %}
+        <dt>Recorded</dt>
+        <dd>{{ vendor_refresh_last_usable_quote.created_at }}</dd>
+      {% endif %}
+      {% if vendor_refresh_last_usable_quote.started_at %}
+        <dt>Started</dt>
+        <dd>{{ vendor_refresh_last_usable_quote.started_at }}</dd>
+      {% endif %}
+      {% if vendor_refresh_last_usable_quote.finished_at %}
+        <dt>Finished</dt>
+        <dd>{{ vendor_refresh_last_usable_quote.finished_at }}</dd>
+      {% endif %}
+      {% if vendor_refresh_last_usable_quote.lookup_status_label %}
+        <dt>Vendor lookup</dt>
+        <dd>{{ vendor_refresh_last_usable_quote.lookup_status_label }}</dd>
+      {% endif %}
+      {% if vendor_refresh_last_usable_quote.retrieved_at %}
+        <dt>Prices retrieved (original)</dt>
+        <dd>{{ vendor_refresh_last_usable_quote.retrieved_at }}</dd>
+      {% endif %}
+    </dl>
+    <div class="spec-table-wrapper">
+      <table class="spec-table">
+        <thead>
+          <tr>
+            <th>Source</th>
+            <th class="pi-num">Price</th>
+            <th>Currency</th>
+            <th>Availability</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for obs in vendor_refresh_last_usable_quote.observations %}
+          <tr>
+            <td>{{ obs.source }}</td>
+            <td class="pi-num">{{ obs.price }}</td>
+            <td>{{ obs.currency }}</td>
+            <td>{{ obs.availability }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="notice">Not converted — no FX acquired for this refresh.</p>
+    {% for line in vendor_refresh_last_usable_quote.issue_lines %}
+      <p class="notice">{{ line }}</p>
+    {% endfor %}
   {% endif %}
 
   <form method="post" action="{% url 'research-vendor-refresh' run_id=run.id %}" style="margin-top: 1rem;">

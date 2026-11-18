@@ -6,6 +6,171 @@
 
 
 
+**PRODUCT-INTEL.VENDOR-REFRESH-WEB-FU1 (Status truthfulness and last
+usable vendor quote — F1/F2/F3 corrective)
+
+— IMPLEMENTED / PENDING CHATGPT INDEPENDENT REVIEW (feature branch
+`feature/vendor-refresh-web` over the AD-092 branch endpoint
+`35d0146ac619e18f2a9a82876a4ab51095edfefc`; NOT merged, NOT deployed)**
+
+Bounded CORRECTIVE phase on the endpoint above (baseline collection
+**8,623, re-verified at the endpoint**) resolving the THREE blockers of
+the independent GitHub review of record for PRODUCT-INTEL.VENDOR-
+REFRESH-WEB. **NO redesign**: the shared trigger/claim service, the
+command, the migrations, the five-minute cooldown semantics,
+concurrency ownership, authentication, Windows auditing, and the
+Oracle boundaries are UNCHANGED (none of those files appears in the
+diff; the frozen nine-file digest pin passes).
+
+**Scope (of record).**
+
+1. **F1 — URL-controlled success claims, corrected.** In
+   `web/views.py` the `?vendor_refresh=` flag carried by the
+   POST/Redirect/GET redirect is now a client-supplied CANDIDATE,
+   never rendered directly. `web/views.py::
+   _backed_vendor_refresh_notice` renders a success / failure /
+   in-progress / cooldown / not-eligible claim ONLY when the ACTUAL
+   persisted refresh state of the parent backs it: `completed` — the
+   latest attempt is a terminal COMPLETED record, and the "Vendor
+   prices were refreshed" line only when that record IS the last
+   usable vendor quote (design §8.3 concept 3); otherwise the new
+   bounded `completed_no_quote` line ("The vendor refresh completed
+   but did not record a usable vendor quote. The latest refresh
+   result is shown below."). `failed` — the latest attempt is a
+   durably FAILED terminal record. `in_progress` — a persisted active
+   (PENDING/RUNNING) child exists. `cooldown` — the latest terminal
+   child (the service's `finished_at DESC, id DESC` order) finished
+   STRICT `< 300 s` ago (the service's own [c]/[D2] persisted fact,
+   re-checked on this GET — notice-backing only; the safeguard stays
+   in the shared service, unchanged). `not_eligible` — the trigger's
+   defensive ineligibility over a COMPLETED parent (no price snapshot
+   / no MPN). `error` — bounded transient line only, asserting no
+   recorded fact. A forged flag over absent or conflicting persisted
+   state renders NO claim (the section still shows the persisted
+   truth: the latest attempt, the last usable quote, or "no record
+   yet"). POST/Redirect/GET, the standard CSRF middleware, and the
+   corporate REMOTE_ADDR/CIDR gate are unchanged; DENIED pages
+   remain total zero-knowledge and query no refresh row (armed pin
+   passes unchanged).
+2. **F2 — the last usable vendor quote stays visible.** The section
+   (ALLOWED + COMPLETED parents) now presents SEPARATELY: (a)
+   **Latest refresh attempt** — the actual persisted record (an
+   active child takes display precedence, else the latest terminal
+   child) with its state, its failure notice PRESERVED, or its
+   unreadable fail-closed display; and (b) **Last usable vendor quote
+   (historical)** — the newest codec-validated COMPLETED refresh with
+   a SUCCESS/PARTIAL lookup and at least one identity-bound
+   observation (concept 3) — rendered in a separate, explicitly
+   labeled block ONLY when the latest attempt is not itself that
+   quote. It carries its ORIGINAL retrieval timestamp ("Prices
+   retrieved (original)") and is labeled historical / "not the
+   current vendor prices" — a previous quote is never called
+   "current", and a failed lookup is never implied to have succeeded.
+   Malformed or unreadable records are never selected and never
+   fabricate prices (the corrupted-only case renders no price at
+   all). The display's terminal ordering moves from `created_at
+   DESC` to the service's canonical `finished_at DESC, id DESC`
+   (attempts are serialized — at most one active child per parent —
+   so the orders coincide in production; the service's order is the
+   deterministic one under the pinned-clock regression world).
+   The original research report + the original vendor supplement
+   region remain byte-identical (pinned, incl. with the historical
+   quote displayed), and the DENIED page renders nothing about
+   refresh, incl. the dual display.
+3. **F3 — no unestablished error assurance.** The error line's "No
+   vendor data was changed." is REMOVED (not established for every
+   error or outcome-unknown path); the bounded line is now "The
+   vendor refresh could not be completed for this request. The latest
+   recorded refresh state is shown below. Please try again later or
+   contact support." — no rollback implied, no terminal outcome
+   claimed (pinned over BOTH a real POST whose executor raises a
+   non-bounded error [outcome unknown; the child stays RUNNING and
+   is shown as in-progress] and a forged `?vendor_refresh=error`).
+
+**Test-preservation record (exact).** ZERO pre-existing node touched
+/ deleted / renamed / skipped / xfailed / deselected / weakened (0 /
+0 / 0 / 0 / 0 / 0 skips); the prior phase's 25 web nodes pass
+unchanged over the correction. **28 NEW web nodes** (all in
+`tests/web/test_vendor_refresh_web_fu1.py`, reusing the pinned
+parent suite's helpers): TestForgedGetFlagsNoRecord (7 — forged
+completed / failed / in_progress / cooldown / not_eligible over NO
+record -> no claim, each; forged error -> only the reworded bounded
+line + no data assurance; out-of-vocabulary flag incl. a script-tag
+value -> no notice + no reflection), TestForgedGetFlagsConflicting
+State (9 — cooldown over a 600 s-old terminal -> no claim; backed
+not_eligible over the defensive shape; completed over a latest FAILED
+-> no success; failed over a latest usable COMPLETED -> no failure
+claim; completed over an active latest attempt -> no success;
+in_progress over an active row -> backed; failed over a latest FAILED
+-> backed; completed over a no-quote COMPLETED -> the bounded
+`completed_no_quote` line; the STRICT `< 300 s` cooldown boundary:
+299 s backed / 300 s not / 301 s not), TestLastUsableQuoteVisibility
+(10 — a FAILED attempt never hides the earlier usable quote [original
+retrieval timestamp + explicit historical label + failure notice
+preserved]; an in-progress attempt keeps it visible; the latest
+attempt that IS the usable quote shows no historical block; a no-quote
+COMPLETED latest shows the earlier quote historically; a corrupted
+COMPLETED row is never selected; a corrupted-only row fabricates no
+price; newest-usable wins over older-usable; a zero-observation
+SUCCESS lookup is not usable; the original region byte-identical with
+the historical quote displayed + the DB row untouched; a DENIED
+connection stays total zero-knowledge over the dual display),
+TestErrorNoticeWording (2).
+
+**Validation (exact).** (1) Collection 8,623 -> **8,651 (+28; 0
+removed / 0 renamed)** — node-level diff of record (`tmp_wrw_nodes_
+after.txt` vs `tmp_fu1_nodes.txt`; `comm` additions = exactly the 28
+FU1 nodes, removals = empty). (2) Focused batch (tests/web/ +
+`tests/runs/test_vendor_refresh_trigger_service.py` +
+`tests/runs/test_vendor_refresh_command.py` +
+`tests/runs/test_vendor_refresh_claims.py` +
+`tests/execution/test_vendor_refresh_network_boundary.py`): **1,044
+passed, 0 failed**, exit 0. (3) The 8 genuine file-backed C
+concurrency nodes (`tests/runs/test_vendor_refresh_concurrency.py`):
+**8 passed**, exit 0 (unchanged). (4) FULL pytest suite ONE RUN over
+the 8,651 collection (`tmp_fu1_full_junit.xml` /
+`tmp_fu1_full_run.txt`): **8,619 passed + 32 failed + 63 subtests
+passed, exit 1** — the 32 failures are the IDENTICAL node-for-node
+set of the pre-existing AD-092 workstation class (empty diff of
+record `tmp_wrw_failed_nodes.txt` vs `tmp_fu1_failed_nodes.txt`):
+raw-byte digest pins over semantic-family / bundle-authority files
+whose WORKTREE bytes carry CRLF on this `core.autocrlf=true` Windows
+checkout vs the committed LF pin bytes (22 nodes) + the
+tests/scripts/test_preview_fixtures_safety.py subprocess suite (10
+nodes); none names a file changed in this phase. (5) `python
+manage.py check` — System check identified no issues (0 silenced),
+exit 0. (6) `python manage.py makemigrations --check --dry-run` — No
+changes detected, exit 0. (7) `git diff --check` — clean (the
+pre-existing autocrlf warnings only).
+
+**Invariance (this phase).** No frozen execution core / claims /
+codec / adapter / orchestration surface changed (the frozen nine-file
+digest pin passes byte-identical); the shared trigger/claim service,
+the single-claim-site invariant, the command's bounded stdout
+contract + exit codes + `--force-repeat` semantics, the migrations,
+the five-minute cooldown safeguard, concurrency ownership, and the
+Oracle boundaries are untouched; no research / domain / providers /
+runs module changed; no new model, no new command, no recovery
+surface (the reserved EXECUTION_INTERRUPTED writer still does not
+exist); GET remains read-only (queries only, zero mutation);
+DENIED pages and non-COMPLETED pages render nothing about refresh
+(incl. the dual display); the original report sections, Machine
+Price, Reviewed Price, matching decisions, human-review state, and
+the original vendor snapshot are never mutated by the refresh path
+(central regression + the new original-region pin pass). No restore /
+reset / checkout / stash / clean / amend / rebase / force-push used.
+Unrelated pre-existing worktree artifacts + untracked ledgers
+preserved.
+
+**Next.** ChatGPT reviews the actual source diff + the test evidence
+(independent review of the correction). The AD-092 review remains
+outstanding over the unchanged surfaces (shared decision service,
+endpoint, provenance, execution ownership, invariants); the F1-F3
+blockers are resolved for re-verification. Do not merge or deploy
+until the independent review completes.
+
+
+
 **PRODUCT-INTEL.VENDOR-REFRESH-WEB (user-facing Refresh Vendor Prices
 action on the research detail page)
 
