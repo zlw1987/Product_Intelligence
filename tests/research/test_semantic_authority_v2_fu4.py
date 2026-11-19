@@ -356,6 +356,23 @@ Q_UNDETERMINED = BundleQuantityAxisStateV2FU4.UNDETERMINED
 # and SUITE_FILE_PINS tables are unchanged — the committed 1.0.0 /
 # 1.1.0 artifacts and the DRAFT policy stay byte-frozen under their own
 # bindings; the NEW 1.2.0 artifacts are pinned by the R2 suite.
+#
+# SEMANTIC-V2-PERF Phase 0-FU1 re-pin (approved, recorded): the SINGLE
+# row `product_intelligence/semantic/runtime_v2.py` moves from
+# e0791384a218409a1e390e304cfc6da1d0e002b404955722b94d557b8c02cc36 to
+# 3fdf76ba3d169231d7271f4bc17166b38a02c6215b604409abeccb60454578a8 —
+# the committed LF Git-blob SHA-256 at 447fb589325d8c441180555f49eab58a356c148e.
+# Changed purpose: the authorized instrumentation-only exception to the
+# previous byte freeze — the V2 runtime's per-attempt capture of the
+# provider-reported token usage + bounded finish reason on each
+# successful transport call (failure attempts carry explicit
+# unknowns); routing, evaluation, and fallback behavior are unchanged.
+# Approval scope: SEMANTIC-V2-PERF-PHASE0-FU1 task section B (bounded
+# correction of the Phase 0 implementation; the actual source diff was
+# verified to contain ONLY the approved telemetry capture). Every other
+# row of this table, and every CORPUS_ARTIFACT_PINS / SUITE_FILE_PINS
+# entry, is unchanged — no other frozen module, corpus, benchmark, or
+# qualification digest moved.
 # ---------------------------------------------------------------------------
 
 FROZEN_MODULE_PINS: dict[str, str] = {
@@ -381,7 +398,7 @@ FROZEN_MODULE_PINS: dict[str, str] = {
         "d1a69692f57ece6bab8362e77c7067a9642f214d2b115403c1638fe537aa7492"
     ),
     "product_intelligence/semantic/runtime_v2.py": (
-        "e0791384a218409a1e390e304cfc6da1d0e002b404955722b94d557b8c02cc36"
+        "3fdf76ba3d169231d7271f4bc17166b38a02c6215b604409abeccb60454578a8"
     ),
     "product_intelligence/evaluation/semantic_v2/capture.py": (
         "4da8b79a33ffc86363fb01af1b6b5ff0533191374da53a46ecf5b137e00f73fd"
@@ -1338,9 +1355,11 @@ class TestA2TokenAndDelegationIdentity:
 
 class TestA4RegistriesAndReachability:
     def test_the_production_codec_registry_is_unchanged(self) -> None:
-        """A4 (Q3-B5-P5 R1 re-pinned, recorded, design §1.7): the
-        production codec knows exactly the V1 + 2.0/FU2 + 2.1/FU4
-        bindings; the replay registry is the same union.
+        """A4 (Q3-B5-P5 R1 re-pinned, recorded, design §1.7;
+        SEMANTIC-V2-PERF Phase 0 re-pinned, recorded): the production
+        codec knows exactly the V1 + 2.0/FU2 + 2.1/FU4 + 2.0-FU2/
+        output-schema-2 (PERF) bindings; the replay registry is the
+        same union.
 
         PREVIOUS assertion (contract phase, Q3-B5-P4 through Q3-B5-P5
         design): ``supported_contract_bindings() == (V1, 2.0/FU2)`` and
@@ -1354,16 +1373,40 @@ class TestA4RegistriesAndReachability:
         — unchanged); the replay union is the same. The name is
         preserved; the intent is strengthened — the pin now asserts a
         STRICTLY MORE exact registry state (exactly three, no more, no
+        cross-binding combination).
+
+        SEMANTIC-V2-PERF Phase 0 recorded correction: the codec /
+        replay union gains EXACTLY the versioned per-attempt
+        instrumentation successor binding (V2, 2.0, 1, 2, the SAME
+        frozen FU2 authority token) as its fourth entry (in
+        registration order V1, 2.0/FU2, 2.1/FU4, 2.0-FU2/output-
+        schema-2). The PERF binding is a codec / replay persistence
+        extension: it carries NO new model qualification or authority
+        (its authority axis is the frozen FU2 token — the authority-
+        axis membership assertion below therefore holds UNCHANGED), and
+        the qualification harness seals are NOT expanded for it
+        (test_the_harness_registries_are_unchanged pins the harness at
+        exactly the three production seals). The 2.1/FU3 harness-only
+        binding is STILL not registered. The name and the
+        anti-reinterpretation intent are preserved; the pin asserts a
+        STRICTLY MORE exact registry state (exactly four, no more, no
         cross-binding combination)."""
-        from product_intelligence.research import V2_FU4_CONTRACT_BINDING
+        from product_intelligence.research import (
+            V2_FU4_CONTRACT_BINDING,
+            V2_PERF_CONTRACT_BINDING,
+        )
 
         assert supported_contract_bindings() == (
             V1_CONTRACT_BINDING,
             V2_CONTRACT_BINDING,
             V2_FU4_CONTRACT_BINDING,
+            V2_PERF_CONTRACT_BINDING,
         )
         assert V2_FU4_CONTRACT_BINDING == (
             "V2", "2.1", 1, 1, AUTHORITY_CONTRACT_VERSION_V2_FU4
+        )
+        assert V2_PERF_CONTRACT_BINDING == (
+            "V2", "2.0", 1, 2, AUTHORITY_CONTRACT_VERSION_V2
         )
         from product_intelligence.research.semantic_decision_replay import (
             SUPPORTED_CONTRACT_BINDINGS,
@@ -1373,6 +1416,7 @@ class TestA4RegistriesAndReachability:
             V1_CONTRACT_BINDING,
             V2_CONTRACT_BINDING,
             V2_FU4_CONTRACT_BINDING,
+            V2_PERF_CONTRACT_BINDING,
         )
         # The harness-only 2.1/FU3 binding is still NOT a registered
         # record binding (unchanged by R1 — it is the separately gated
@@ -4909,7 +4953,8 @@ class TestD3CeilingInvariants:
 class TestE1ContractPhaseRegistries:
     def test_the_registries_are_exactly_as_frozen(self) -> None:
         # A4 / E1 (Q3-B5-P5 R1 re-pinned, recorded, design §1.7; R2
-        # re-pinned in place, recorded): the production codec + replay
+        # re-pinned in place, recorded; SEMANTIC-V2-PERF Phase 0
+        # re-pinned, recorded): the production codec + replay
         # registries, the live record pin, the harness registries, and
         # the qualification marker.
         #
@@ -4920,16 +4965,29 @@ class TestE1ContractPhaseRegistries:
         # R2 assertion: the HARNESS registries are now the three-
         # binding state as well (the separately gated R2 step has
         # happened: the seal registry gains exactly 2.1/FU4 -> 1.2.0).
+        # SEMANTIC-V2-PERF Phase 0 assertion: the codec / replay union
+        # is now exactly (V1, 2.0/FU2, 2.1/FU4,
+        # 2.0-FU2/output-schema-2) — the versioned per-attempt
+        # instrumentation successor registration (a codec / replay
+        # persistence extension: NO new model qualification or
+        # authority, authority axis = the frozen FU2 token). The
+        # HARNESS registries are UNCHANGED by it — the qualification
+        # harness seals are NOT expanded to accommodate the new codec
+        # adapter (they stay exactly the three production seals).
         # The committed 2.1 binding (the FU3 constant) and the
         # qualification marker are still exactly as frozen. The name
         # and intent are preserved; the pin asserts a strictly more
         # exact state.
-        from product_intelligence.research import V2_FU4_CONTRACT_BINDING
+        from product_intelligence.research import (
+            V2_FU4_CONTRACT_BINDING,
+            V2_PERF_CONTRACT_BINDING,
+        )
 
         assert supported_contract_bindings() == (
             V1_CONTRACT_BINDING,
             V2_CONTRACT_BINDING,
             V2_FU4_CONTRACT_BINDING,
+            V2_PERF_CONTRACT_BINDING,
         )
         from product_intelligence.semantic.contract_v2_1 import (
             V2_1_CONTRACT_BINDING,

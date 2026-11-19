@@ -197,6 +197,15 @@ class TestProductionAdapterUnchanged:
         # versioned FU4 record / replay binding is the only registered
         # addition; the 2.1/FU3 binding is STILL not registered
         # (harness-only — unchanged by R1).
+        # SEMANTIC-V2-PERF Phase 0 (re-pinned, recorded): the codec /
+        # replay union is now STRICTLY MORE exact still — exactly
+        # (V1, 2.0/FU2, 2.1/FU4, 2.0-FU2/output-schema-2): the versioned
+        # per-attempt instrumentation successor binding is appended as
+        # the fourth entry (a codec / replay persistence extension —
+        # the SAME semantic contract / prompt / input schema / authority
+        # axes as the frozen 2.0/FU2 binding, NO new model
+        # qualification or authority); the 2.1/FU3 harness-only binding
+        # is STILL not registered (unchanged).
         assert tuple(V2_1_CONTRACT_BINDING) not in {
             tuple(b) for b in SUPPORTED_CONTRACT_BINDINGS
         }
@@ -212,6 +221,7 @@ class TestProductionAdapterUnchanged:
             ("V1", "1.1", 1, 1, "SEMANTIC_AUTHORITY_V2_S2A_FU2"),
             tuple(V2_CONTRACT_BINDING),
             tuple(V2_FU4_CONTRACT_BINDING),
+            ("V2", "2.0", 1, 2, "SEMANTIC_AUTHORITY_V2_S2A_FU2"),
         )
 
     def test_the_live_v2_record_type_still_pins_the_frozen_binding(self) -> None:

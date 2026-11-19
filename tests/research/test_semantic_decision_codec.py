@@ -627,13 +627,18 @@ class TestEnvelopeIndependence:
             supported_contract_bindings,
         )
 
-        # The three registered adapters (Q3-B5-P5 R1): envelope v1 x
-        # semantic contract V1, envelope v1 x semantic contract V2 (the
-        # final 2.0/FU2 binding), and envelope v1 x semantic contract
-        # V2 (the separately versioned FU4 binding) — all on the same
-        # universal envelope format. The single-adapter PAIR lookup
-        # KEEPS its historical first-match semantics (registration
-        # order V1, V2, V2-FU4 — (1, "V2") still resolves to the V2
+        # The four registered adapters (Q3-B5-P5 R1: the third —
+        # SEMANTIC-V2-PERF Phase 0, re-pinned, recorded: the fourth —
+        # the versioned per-attempt instrumentation successor, a codec
+        # / replay persistence extension, NO new model qualification or
+        # authority): envelope v1 x semantic contract V1, envelope v1 x
+        # semantic contract V2 (the final 2.0/FU2 binding), envelope v1
+        # x semantic contract V2 (the separately versioned FU4 binding),
+        # and envelope v1 x semantic contract V2 (the recorded
+        # output-schema-2 PERF binding) — all on the same universal
+        # envelope format. The single-adapter PAIR lookup KEEPS its
+        # historical first-match semantics (registration order V1, V2,
+        # V2-FU4, V2-PERF — (1, "V2") still resolves to the V2
         # adapter); the universal DECODE path disambiguates on the full
         # recorded five-axis binding (FIND-1 / DEC-9).
         assert (
@@ -653,11 +658,17 @@ class TestEnvelopeIndependence:
         # expected tuple was exactly the two historical bindings
         # (V1, 2.0/FU2); the registration appends the FU4 binding as
         # the third entry — the 2.1/FU3 harness-only binding is NOT in
-        # the union.)
+        # the union. SEMANTIC-V2-PERF Phase 0 re-pinned, recorded:
+        # the versioned instrumentation successor appends the
+        # output-schema-2 binding as the fourth entry — the SAME
+        # semantic contract / prompt / input schema / authority axes
+        # as the final V2 binding; the 2.1/FU3 harness-only binding is
+        # STILL not in the union.)
         assert supported_contract_bindings() == (
             ("V1", "1.1", 1, 1, "SEMANTIC_AUTHORITY_V2_S2A_FU2"),
             ("V2", "2.0", 1, 1, "SEMANTIC_AUTHORITY_V2_S2A_FU2"),
             ("V2", "2.1", 1, 1, "SEMANTIC_AUTHORITY_V2_S2A_FU4"),
+            ("V2", "2.0", 1, 2, "SEMANTIC_AUTHORITY_V2_S2A_FU2"),
         )
         assert SEMANTIC_V2_FU4_ADAPTER.supported_bindings == (
             ("V2", "2.1", 1, 1, "SEMANTIC_AUTHORITY_V2_S2A_FU4"),

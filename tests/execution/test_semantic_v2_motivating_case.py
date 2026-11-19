@@ -80,8 +80,8 @@ from product_intelligence.research.listings import (
     ExtractionMethod,
     ListingObservation,
 )
-from product_intelligence.research.semantic_decision_v2 import (
-    SemanticDecisionRecordV2,
+from product_intelligence.research.semantic_decision_v2_perf import (
+    SemanticDecisionRecordV2Perf,
 )
 from product_intelligence.research.semantic_v2 import (
     SemanticReasonCodeV2,
@@ -474,7 +474,12 @@ class TestCustomerRelationAndCeiling:
         assert records[0].authority_tier is AuthorityTier.NEEDS_REVIEW
         persist_semantic_decision_records_v2(run, records)
         loaded = load_semantic_decision(run.id, 0)
-        assert isinstance(loaded, SemanticDecisionRecordV2)
+        # SEMANTIC-V2-PERF Phase 0 (recorded): the live path persists
+        # the versioned per-attempt instrumentation successor of the
+        # V2 record — the expected record type is the only moved
+        # expectation of this node (the derived ceiling assertions
+        # below are unchanged).
+        assert isinstance(loaded, SemanticDecisionRecordV2Perf)
         assert loaded.decision is V2SemanticDecision.MATCH
         assert loaded.confidence is V2Confidence.HIGH
         assert loaded.relationship_authority is (
@@ -635,7 +640,9 @@ class TestNoMachinePriceContamination:
         records = list(SemanticDecisionRecordRow.objects.filter(run=result.run))
         assert len(records) == 1
         loaded = load_semantic_decision(result.run.id, records[0].assessment_index)
-        assert isinstance(loaded, SemanticDecisionRecordV2)
+        # SEMANTIC-V2-PERF Phase 0 (recorded): the versioned successor
+        # record type is the only moved expectation of this node.
+        assert isinstance(loaded, SemanticDecisionRecordV2Perf)
         assert loaded.decision is V2SemanticDecision.MATCH
         assert loaded.case.substate.value == "U5_NEAR_MISS_MPN"
         assert loaded.case.context_provenances == frozenset(
@@ -661,7 +668,9 @@ class TestNoMachinePriceContamination:
         records = list(SemanticDecisionRecordRow.objects.filter(run=result.run))
         assert len(records) == 1
         loaded = load_semantic_decision(result.run.id, records[0].assessment_index)
-        assert isinstance(loaded, SemanticDecisionRecordV2)
+        # SEMANTIC-V2-PERF Phase 0 (recorded): the versioned successor
+        # record type is the only moved expectation of this node.
+        assert isinstance(loaded, SemanticDecisionRecordV2Perf)
         reviewed = loaded.case.target.reviewed_context
         assert reviewed is not None
         assert reviewed.manufacturer == "Micron"

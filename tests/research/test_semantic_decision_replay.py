@@ -518,10 +518,19 @@ class TestContractBindingGate:
         # FU4 record / replay adapter is the third registered adapter;
         # the 2.1/FU3 harness-only binding is NOT in the union). Any
         # other binding is still refused.
+        # SEMANTIC-V2-PERF Phase 0 (re-pinned, recorded): the union
+        # gains the versioned per-attempt instrumentation successor
+        # binding (V2, 2.0, 1, 2, the SAME FU2 authority token) as its
+        # fourth entry (the PERF record / replay adapter is the fourth
+        # registered adapter). It is a codec / replay persistence
+        # extension: NO new model qualification or authority, and the
+        # 2.1/FU3 harness-only binding is STILL not in the union. Any
+        # other binding is still refused.
         assert SUPPORTED_CONTRACT_BINDINGS == (
             ("V1", "1.1", 1, 1, "SEMANTIC_AUTHORITY_V2_S2A_FU2"),
             ("V2", "2.0", 1, 1, "SEMANTIC_AUTHORITY_V2_S2A_FU2"),
             ("V2", "2.1", 1, 1, "SEMANTIC_AUTHORITY_V2_S2A_FU4"),
+            ("V2", "2.0", 1, 2, "SEMANTIC_AUTHORITY_V2_S2A_FU2"),
         )
 
     def test_gate_fires_for_unknown_binding(self, monkeypatch) -> None:
@@ -669,11 +678,13 @@ class TestReplayDispatch:
         # registered adapters' supported bindings (no drift between the
         # codec registry and the replay gate; S2-C: the V1 + V2
         # bindings, in registration order; Q3-B5-P5 R1: + the FU4
-        # binding as the third entry — re-pinned, recorded).
+        # binding as the third entry — re-pinned, recorded;
+        # SEMANTIC-V2-PERF Phase 0: + the versioned instrumentation
+        # successor binding as the fourth entry — re-pinned, recorded).
         from product_intelligence.research import supported_contract_bindings
 
         assert SUPPORTED_CONTRACT_BINDINGS == supported_contract_bindings()
-        assert len(SUPPORTED_CONTRACT_BINDINGS) == 3
+        assert len(SUPPORTED_CONTRACT_BINDINGS) == 4
 
 
 # ===========================================================================

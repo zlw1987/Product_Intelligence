@@ -72,9 +72,9 @@ from product_intelligence.research import (
 from product_intelligence.research.semantic_decision_codec import (
     SemanticDecisionCodecError,
 )
-from product_intelligence.research.semantic_decision_v2 import (
-    SemanticDecisionRecordV2,
-    V2_CONTRACT_BINDING,
+from product_intelligence.research.semantic_decision_v2_perf import (
+    SemanticDecisionRecordV2Perf,
+    V2_PERF_CONTRACT_BINDING,
 )
 from product_intelligence.runs.models import (
     AiAssistedReviewCandidate,
@@ -377,7 +377,10 @@ class TestV2OutcomesPersist:
         )
         assert record.decision is V2SemanticDecision.MATCH
         loaded = load_semantic_decision(run.id, 0)
-        assert isinstance(loaded, SemanticDecisionRecordV2)
+        # SEMANTIC-V2-PERF Phase 0 (recorded): the live path persists the
+        # versioned per-attempt instrumentation successor of the V2
+        # record; every other assertion of this node is unchanged.
+        assert isinstance(loaded, SemanticDecisionRecordV2Perf)
         assert loaded.decision is V2SemanticDecision.MATCH
 
     def test_no_match_stored(self) -> None:
@@ -462,13 +465,18 @@ class TestV2OutcomesPersist:
     def test_exact_v2_versions_stored(self) -> None:
         run, assessment = self._u1_run_and_assessment()
         record, _ = self._persist(run, assessment, _v2_runtime())
+        # SEMANTIC-V2-PERF Phase 0 (recorded): the live path records the
+        # versioned successor binding — the SAME semantic contract /
+        # prompt / input schema / authority axes, recorded output schema
+        # 2 (the bounded per-attempt instrumentation section). The
+        # expected binding is the ONLY moved expectation of this node.
         assert (
             record.semantic_contract_version,
             record.prompt_version,
             record.input_schema_version,
             record.output_schema_version,
             record.authority_contract_version,
-        ) == V2_CONTRACT_BINDING
+        ) == V2_PERF_CONTRACT_BINDING
         loaded = load_semantic_decision(run.id, 0)
         assert (
             loaded.semantic_contract_version,
@@ -476,7 +484,7 @@ class TestV2OutcomesPersist:
             loaded.input_schema_version,
             loaded.output_schema_version,
             loaded.authority_contract_version,
-        ) == V2_CONTRACT_BINDING
+        ) == V2_PERF_CONTRACT_BINDING
 
     def test_exact_v2_input_stored(self) -> None:
         run, assessment = self._u1_run_and_assessment()
@@ -634,13 +642,16 @@ class TestAuthorityFirewall:
             run=result.run
         ).count() == 0
 
-        # The V2 record persisted with the MATCH outcome...
+        # The V2 record persisted with the MATCH outcome... (SEMANTIC-
+        # V2-PERF Phase 0, recorded: as the versioned per-attempt
+        # instrumentation successor — the expected record type is the
+        # only moved expectation of this node.)
         records = list(
             SemanticDecisionRecordRow.objects.filter(run=result.run)
         )
         assert len(records) == 1
         loaded = load_semantic_decision(result.run.id, records[0].assessment_index)
-        assert isinstance(loaded, SemanticDecisionRecordV2)
+        assert isinstance(loaded, SemanticDecisionRecordV2Perf)
         assert loaded.decision is V2SemanticDecision.MATCH
         assert loaded.confidence is V2Confidence.HIGH
 
@@ -668,12 +679,15 @@ class TestAuthorityFirewall:
         assert candidates[0].prompt_version == "1.1"
 
         # The V2 record for the same candidate coexists in the ledger.
+        # (SEMANTIC-V2-PERF Phase 0, recorded: as the versioned
+        # per-attempt instrumentation successor — the expected record
+        # type is the only moved expectation of this node.)
         records = list(SemanticDecisionRecordRow.objects.filter(run=result.run))
         assert len(records) == 1
         loaded = load_semantic_decision(
             result.run.id, records[0].assessment_index
         )
-        assert isinstance(loaded, SemanticDecisionRecordV2)
+        assert isinstance(loaded, SemanticDecisionRecordV2Perf)
         assert loaded.decision is V2SemanticDecision.MATCH
 
     def test_u4_reaches_v2_without_any_v1_call(self) -> None:
@@ -879,7 +893,12 @@ class TestV2ReplayThroughService:
 
         replay = replay_semantic_decision_record(run.id, 0)
         assert replay.record.decision is V2SemanticDecision.MATCH
-        assert replay.contract_binding == V2_CONTRACT_BINDING
+        # SEMANTIC-V2-PERF Phase 0 (recorded): the live-path record is
+        # the versioned successor, so the service replay resolves its
+        # recorded output-schema-2 binding — the expected binding is
+        # the only moved expectation of this node (the historical
+        # byte-identical V2 replay is pinned separately).
+        assert replay.contract_binding == V2_PERF_CONTRACT_BINDING
         # The exact historical V2 input is reconstructed.
         assert replay.case == records[0].case
 

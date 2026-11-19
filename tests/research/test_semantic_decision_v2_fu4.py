@@ -92,6 +92,7 @@ from product_intelligence.research import (
     V2Confidence,
     V2SemanticDecision,
     V2_CONTRACT_BINDING,
+    V2_PERF_CONTRACT_BINDING,
     assess_listing_identity,
     build_semantic_match_case_v2,
     build_v2_product_evidence_profile,
@@ -111,6 +112,9 @@ from product_intelligence.research import semantic_authority_fu4 as fu4
 from product_intelligence.research import semantic_authority_fu3 as fu3
 from product_intelligence.research import semantic_decision_v1 as sdv1
 from product_intelligence.research import semantic_decision_v2 as sdv2
+from product_intelligence.research import (
+    semantic_decision_v2_perf as sdperf,
+)
 from product_intelligence.research.semantic_authority_fu4 import (
     AUTHORITY_CONTRACT_VERSION_V2_FU4,
     AuthorityDecisionV2FU4,
@@ -548,10 +552,19 @@ class TestA1RegistrationState:
         # R1 row 1: the codec registry knows EXACTLY (V1, 2.0/FU2,
         # 2.1/FU4); the replay union is the same; a forged fourth
         # binding (the harness-only 2.1/FU3) is refused by both.
+        # SEMANTIC-V2-PERF Phase 0 (re-pinned, recorded): the registry
+        # and the replay union gain EXACTLY the versioned per-attempt
+        # instrumentation successor binding (V2, 2.0, 1, 2, the SAME
+        # FU2 authority token) as the fourth entry — a codec / replay
+        # persistence extension (NO new model qualification or
+        # authority); the name is preserved (its "three" refers to the
+        # R1 state); the forged-2.1/FU3 refusal and every historical
+        # check are unchanged.
         assert supported_contract_bindings() == (
             V1_CONTRACT_BINDING,
             V2_CONTRACT_BINDING,
             sdv4.V2_FU4_CONTRACT_BINDING,
+            V2_PERF_CONTRACT_BINDING,
         )
         from product_intelligence.research.semantic_decision_replay import (
             SUPPORTED_CONTRACT_BINDINGS,
@@ -561,8 +574,9 @@ class TestA1RegistrationState:
         assert ("V2", "2.1", 1, 1, fu3.AUTHORITY_CONTRACT_VERSION_V2_FU3) not in (
             SUPPORTED_CONTRACT_BINDINGS
         )
-        # Registration order preserved: V1, V2, V2-FU4 — the public
-        # single-adapter pair lookup KEEPS its first-match semantics.
+        # Registration order preserved: V1, V2, V2-FU4, V2-PERF — the
+        # public single-adapter pair lookup KEEPS its first-match
+        # semantics.
         import product_intelligence.research.semantic_decision_codec as codec
 
         registry = codec._REGISTERED_SEMANTIC_CONTRACT_ADAPTERS
@@ -570,6 +584,7 @@ class TestA1RegistrationState:
             sdv1.SEMANTIC_V1_ADAPTER,
             sdv2.SEMANTIC_V2_ADAPTER,
             sdv4.SEMANTIC_V2_FU4_ADAPTER,
+            sdperf.SEMANTIC_V2_PERF_ADAPTER,
         )
         assert (
             registered_semantic_contract_adapter(1, "V1")

@@ -41,6 +41,8 @@ from __future__ import annotations
 
 import json
 import uuid
+from datetime import datetime, timezone
+from pathlib import Path
 
 import pytest
 
@@ -49,8 +51,11 @@ from product_intelligence.research import (
     AttemptOutcome,
     AttemptRole,
     AuthorityTier,
+    ConflictClass,
+    ContextProvenance,
     ExtractionMethod,
     ListingObservation,
+    RelationshipAuthority,
     SemanticDecisionAttempt,
     SemanticEvaluationStateV2,
     SemanticEvaluationV2,
@@ -1499,3 +1504,422 @@ class TestPerfAntiLeakage:
             "a" * (PERF_FINISH_REASON_MAX_LENGTH + 1),
         ):
             assert not is_bounded_perf_finish_reason(value)
+
+
+# ===========================================================================
+# 9. Differential V2 <-> PERF compatibility (Phase 0-FU1, Task C)
+# ===========================================================================
+
+
+def _v2_base_attempt(number, outcome):
+    """The frozen 5-key V2 recorded attempt for one call position."""
+    role = AttemptRole.PRIMARY if number == 1 else AttemptRole.FALLBACK
+    provider = PRIMARY_PROVIDER_V2 if number == 1 else FALLBACK_PROVIDER_V2
+    model = PRIMARY_MODEL_V2 if number == 1 else FALLBACK_MODEL_V2
+    return SemanticDecisionAttempt(role, number, provider, model, outcome)
+
+
+# The equivalent-outcome shapes of the differential matrix: the recorded
+# evaluation axes + the frozen 5-key V2 attempts + the per-attempt bounded
+# telemetry the PERF twin carries (latency_ms, prompt_tokens,
+# completion_tokens, finish_reason — explicit None = unknown, never
+# zero-filled, never invented).
+_DIFFERENTIAL_SHAPES = {
+    "match_primary": dict(
+        evaluation_state=SemanticEvaluationStateV2.EVALUATED,
+        decision=V2SemanticDecision.MATCH,
+        confidence=V2Confidence.HIGH,
+        reason_code=SemanticReasonCodeV2.MATCH_DESCRIPTION_AND_ATTRIBUTES,
+        conflict_classes=frozenset(),
+        attempts=(_v2_base_attempt(1, AttemptOutcome.OK),),
+        fallback_used=False,
+        fallback_reason=None,
+        error_type=None,
+        actual_provider=PRIMARY_PROVIDER_V2,
+        actual_model=PRIMARY_MODEL_V2,
+        telemetry=((84728, 1234, 2475, "stop"),),
+    ),
+    "match_fallback": dict(
+        evaluation_state=SemanticEvaluationStateV2.EVALUATED,
+        decision=V2SemanticDecision.MATCH,
+        confidence=V2Confidence.HIGH,
+        reason_code=SemanticReasonCodeV2.MATCH_DESCRIPTION_AND_ATTRIBUTES,
+        conflict_classes=frozenset(),
+        attempts=(
+            _v2_base_attempt(1, AttemptOutcome.RATE_LIMITED),
+            _v2_base_attempt(2, AttemptOutcome.OK),
+        ),
+        fallback_used=True,
+        fallback_reason=SemanticFallbackReason.RATE_LIMITED,
+        error_type=None,
+        actual_provider=FALLBACK_PROVIDER_V2,
+        actual_model=FALLBACK_MODEL_V2,
+        telemetry=((120, None, None, None), (45000, 900, 1500, "length")),
+    ),
+    "no_match_primary": dict(
+        evaluation_state=SemanticEvaluationStateV2.EVALUATED,
+        decision=V2SemanticDecision.NO_MATCH,
+        confidence=V2Confidence.HIGH,
+        reason_code=SemanticReasonCodeV2.NO_MATCH_CAPACITY,
+        conflict_classes=frozenset({ConflictClass.CAPACITY}),
+        attempts=(_v2_base_attempt(1, AttemptOutcome.OK),),
+        fallback_used=False,
+        fallback_reason=None,
+        error_type=None,
+        actual_provider=PRIMARY_PROVIDER_V2,
+        actual_model=PRIMARY_MODEL_V2,
+        telemetry=((60132, 1100, 300, "stop"),),
+    ),
+    "uncertain_primary": dict(
+        evaluation_state=SemanticEvaluationStateV2.EVALUATED,
+        decision=V2SemanticDecision.UNCERTAIN,
+        confidence=V2Confidence.MEDIUM,
+        reason_code=SemanticReasonCodeV2.UNCERTAIN_IDENTIFIER_RELATION,
+        conflict_classes=frozenset(),
+        attempts=(_v2_base_attempt(1, AttemptOutcome.OK),),
+        fallback_used=False,
+        fallback_reason=None,
+        error_type=None,
+        actual_provider=PRIMARY_PROVIDER_V2,
+        actual_model=PRIMARY_MODEL_V2,
+        telemetry=((30215, None, 140, "stop"),),
+    ),
+    "runtime_failure": dict(
+        evaluation_state=SemanticEvaluationStateV2.RUNTIME_FAILURE,
+        decision=None,
+        confidence=None,
+        reason_code=None,
+        conflict_classes=frozenset(),
+        attempts=(
+            _v2_base_attempt(1, AttemptOutcome.TIMEOUT),
+            _v2_base_attempt(2, AttemptOutcome.TIMEOUT),
+        ),
+        fallback_used=True,
+        fallback_reason=SemanticFallbackReason.TIMEOUT,
+        error_type=SemanticFailureClass.FALLBACK_TIMEOUT,
+        actual_provider=None,
+        actual_model=None,
+        telemetry=((300000, None, None, None), (300000, None, None, None)),
+    ),
+}
+
+
+def _differential_pair(case, shape_name):
+    """The equivalent historical V2 record + instrumented PERF record
+    built from the SAME semantic outcome over the SAME recorded case
+    (honestly derived audit snapshots for both)."""
+    shape = _DIFFERENTIAL_SHAPES[shape_name]
+    if shape["evaluation_state"] is SemanticEvaluationStateV2.EVALUATED:
+        evaluation = SemanticEvaluationV2.evaluated(
+            shape["decision"], shape["confidence"], shape["conflict_classes"]
+        )
+    elif shape["evaluation_state"] is SemanticEvaluationStateV2.RUNTIME_FAILURE:
+        evaluation = SemanticEvaluationV2.runtime_failure()
+    else:
+        evaluation = SemanticEvaluationV2.not_evaluated()
+    tier_decision = derive_authority_tier(
+        _context_of(case),
+        evaluation,
+        case.context_provenances,
+        case.product_evidence,
+    )
+    not_evaluated = shape["evaluation_state"] is (
+        SemanticEvaluationStateV2.NOT_EVALUATED
+    )
+    common = dict(
+        run_id=RUN_ID,
+        assessment_index=0,
+        source_url=case.candidate_source_url,
+        case=case,
+        evaluation_state=shape["evaluation_state"],
+        decision=shape["decision"],
+        confidence=shape["confidence"],
+        reason_code=shape["reason_code"],
+        conflict_classes=shape["conflict_classes"],
+        matched_attributes=(),
+        conflicting_attributes=(),
+        missing_critical_attributes=(),
+        fallback_used=shape["fallback_used"],
+        fallback_reason=shape["fallback_reason"],
+        error_type=shape["error_type"],
+        actual_provider=shape["actual_provider"],
+        actual_model=shape["actual_model"],
+        evaluation_started_at=None if not_evaluated else STARTED,
+        evaluation_finished_at=None if not_evaluated else FINISHED,
+        product_evidence_quality=tier_decision.product_evidence_quality,
+        relationship_authority=tier_decision.relationship_authority,
+        authority_tier=tier_decision.tier,
+        fired_rules=tier_decision.fired_rules,
+    )
+    v2_record = SemanticDecisionRecordV2.build(**common, attempts=shape["attempts"])
+    perf_attempts = tuple(
+        SemanticDecisionAttemptPerf(
+            role=v2.role,
+            attempt_number=v2.attempt_number,
+            provider=v2.provider,
+            model=v2.model,
+            outcome=v2.outcome,
+            latency_ms=telemetry[0],
+            prompt_tokens=telemetry[1],
+            completion_tokens=telemetry[2],
+            finish_reason=telemetry[3],
+        )
+        for v2, telemetry in zip(shape["attempts"], shape["telemetry"])
+    )
+    perf_record = SemanticDecisionRecordV2Perf.build(
+        **common, attempts=perf_attempts
+    )
+    return v2_record, perf_record
+
+
+def _assert_differential(v2, perf):
+    """The Phase 0-FU1 Task C contract: identical semantic content and
+    identical derived authority — differing ONLY on the explicitly
+    versioned output-contract axis (recorded output schema 1 -> 2) and
+    the added bounded per-attempt instrumentation."""
+    # -- identical recorded V2 input --
+    assert v2.case == perf.case
+    # -- identical recorded semantic output --
+    assert v2.evaluation_state is perf.evaluation_state
+    assert v2.decision is perf.decision
+    assert v2.confidence is perf.confidence
+    assert v2.reason_code is perf.reason_code
+    assert v2.conflict_classes == perf.conflict_classes
+    assert v2.matched_attributes == perf.matched_attributes
+    assert v2.conflicting_attributes == perf.conflicting_attributes
+    assert v2.missing_critical_attributes == perf.missing_critical_attributes
+    # -- identical recorded execution provenance --
+    assert v2.fallback_used == perf.fallback_used
+    assert v2.fallback_reason is perf.fallback_reason
+    assert v2.error_type is perf.error_type
+    assert v2.actual_provider == perf.actual_provider
+    assert v2.actual_model == perf.actual_model
+    assert v2.evaluation_started_at == perf.evaluation_started_at
+    assert v2.evaluation_finished_at == perf.evaluation_finished_at
+    # -- identical universal binding --
+    assert v2.run_id == perf.run_id
+    assert v2.assessment_index == perf.assessment_index
+    assert v2.source_url == perf.source_url
+    # -- identical derived authority (the instrumentation grants none) --
+    assert v2.product_evidence_quality is perf.product_evidence_quality
+    assert v2.relationship_authority is perf.relationship_authority
+    assert v2.authority_tier is perf.authority_tier
+    assert v2.fired_rules == perf.fired_rules
+    # -- identical base attempts (the frozen 5-key V2 attempt) --
+    assert len(v2.attempts) == len(perf.attempts)
+    for v2_attempt, perf_attempt in zip(v2.attempts, perf.attempts):
+        assert (
+            v2_attempt.role,
+            v2_attempt.attempt_number,
+            v2_attempt.provider,
+            v2_attempt.model,
+            v2_attempt.outcome,
+        ) == (
+            perf_attempt.role,
+            perf_attempt.attempt_number,
+            perf_attempt.provider,
+            perf_attempt.model,
+            perf_attempt.outcome,
+        )
+    # -- the ONLY moved contract axis: recorded output schema 1 -> 2 --
+    assert v2.output_schema_version == 1
+    assert perf.output_schema_version == 2
+    assert (
+        v2.semantic_contract_version,
+        v2.prompt_version,
+        v2.input_schema_version,
+        v2.authority_contract_version,
+    ) == (
+        perf.semantic_contract_version,
+        perf.prompt_version,
+        perf.input_schema_version,
+        perf.authority_contract_version,
+    ) == (
+        "V2",
+        "2.0",
+        1,
+        "SEMANTIC_AUTHORITY_V2_S2A_FU2",
+    )
+    # The versioned axis is what separates the self-verifying digests
+    # (a PERF artifact is never confused with its V2 twin).
+    assert v2.input_digest != perf.input_digest
+    assert v2.output_digest != perf.output_digest
+    # -- the added bounded instrumentation lives only on the PERF side --
+    for perf_attempt in perf.attempts:
+        assert isinstance(perf_attempt.latency_ms, int)
+        assert perf_attempt.latency_ms >= 0
+        for tokens in (
+            perf_attempt.prompt_tokens,
+            perf_attempt.completion_tokens,
+        ):
+            assert tokens is None or (
+                isinstance(tokens, int) and tokens >= 0
+            )
+        assert perf_attempt.finish_reason is None or (
+            is_bounded_perf_finish_reason(perf_attempt.finish_reason)
+        )
+
+
+class TestV2PerfDifferentialCompatibility:
+    """Differential compatibility (Phase 0-FU1, Task C): a historical V2
+    record and the instrumented V2 PERF record built from equivalent
+    semantic outcomes have IDENTICAL semantic content and IDENTICAL
+    derived authority — excluding only the explicitly versioned
+    output-contract axis (recorded output schema 1 -> 2) and the added
+    bounded instrumentation (which is never a derivation input and
+    grants no authority)."""
+
+    @pytest.mark.parametrize("shape_name", sorted(_DIFFERENTIAL_SHAPES))
+    def test_equivalent_records_differ_only_on_the_versioned_axes(
+        self, shape_name
+    ) -> None:
+        case, _, _ = _case()
+        v2, perf = _differential_pair(case, shape_name)
+        _assert_differential(v2, perf)
+        # The universal zero-live replay agrees on every authority
+        # surface (the re-derivation runs over the case / evaluation —
+        # identical for both records; the instrumentation is excluded).
+        rv = replay_semantic_decision(v2)
+        rp = replay_semantic_decision(perf)
+        assert rv.contract_binding == V2_CONTRACT_BINDING
+        assert rp.contract_binding == V2_PERF_CONTRACT_BINDING
+        assert rv.case == rp.case
+        assert rv.identity_context == rp.identity_context
+        assert rv.semantic_evaluation == rp.semantic_evaluation
+        assert rv.context_provenances == rp.context_provenances
+        assert rv.product_evidence == rp.product_evidence
+        assert rv.product_evidence_quality is rp.product_evidence_quality
+        assert rv.relationship_requirement is rp.relationship_requirement
+        assert rv.relationship_authority is rp.relationship_authority
+        assert rv.authority_decision == rp.authority_decision
+
+    @pytest.mark.parametrize("shape_name", sorted(_DIFFERENTIAL_SHAPES))
+    def test_historical_v2_replay_remains_byte_identical(self, shape_name):
+        case, _, _ = _case()
+        v2, _ = _differential_pair(case, shape_name)
+        original = _raw_bytes(v2)
+        decoded = decode_semantic_decision_record(
+            json.loads(original.decode("utf-8")), schema_version=1
+        )
+        # The historical artifact still decodes to the FROZEN V2 record
+        # type (NOT the PERF successor) and re-encodes to the SAME
+        # bytes — the registry extension changes nothing for it.
+        assert type(decoded) is SemanticDecisionRecordV2
+        assert _raw_bytes(decoded) == original
+        replay = replay_semantic_decision(decoded)
+        assert replay.contract_binding == V2_CONTRACT_BINDING
+        assert replay.case == v2.case
+
+    def test_reviewed_micron_alias_case_is_differentially_equivalent(self):
+        # The reviewed Micron alias case (the S2-C motivating shape):
+        # the U5 near-miss candidate, the customer retrieval provenance,
+        # and the ESTABLISHED 4D-D alias acquisition's reviewed
+        # manufacturer TARGET context (zero identity authority — the
+        # frozen ceiling applies exactly as S2-A defines it). The
+        # historical V2 and the instrumented PERF records built from
+        # this equivalent outcome are differentially identical.
+        from product_intelligence.execution.micron_alias_authority import (
+            acquire_micron_alias_eligibility,
+        )
+        from product_intelligence.execution.semantic_decision_v2_execution import (
+            reviewed_target_context_from_alias_result,
+        )
+        from product_intelligence.research.micron_packaging_alias import (
+            MicronAliasEligibilityStatus,
+        )
+        from product_intelligence.providers.page import FetchedPage
+
+        request = ResearchRequest(
+            "MTFDKCC3T8TGP-1BK1DABYYR",
+            "Micron 7500 PRO 3840GB U.3 15mm SSD",
+        )
+        candidate_mpn = "MTFDKCC3T8TGP-1BK1DABYY"
+        observation = ListingObservation(
+            source_url="https://example.com/7500-pro",
+            extraction_method=ExtractionMethod.JSON_LD,
+            product_title=(
+                "Micron 7500 PRO 3840GB U.3 15mm SSD " + candidate_mpn
+            ),
+            brand_text=None,
+            manufacturer_part_number_text=candidate_mpn,
+            sku_text=None,
+            price_text="2000",
+            currency_text="USD",
+            availability_text="In stock",
+            condition_text="New",
+            seller_text=None,
+        )
+        assessment = assess_listing_identity(
+            request, normalize_listing_observation(observation)
+        )
+        context = derive_identity_state_v2(assessment)
+        provenances = frozenset(
+            {ContextProvenance.CUSTOMER_RETRIEVAL_RELATION}
+        )
+        profile = build_v2_product_evidence_profile(
+            observation=assessment.normalized_listing.observation,
+            context_provenances=provenances,
+            matched_facts=frozenset(),
+        )
+
+        class _CatalogFetcher:
+            """Offline PageFetcher: serves the recorded Micron 7500
+            part catalog (the reviewed 4D-D source)."""
+
+            def fetch(self, fetch_request):
+                body = (
+                    Path(__file__).resolve().parents[1]
+                    / "fixtures"
+                    / "pages"
+                    / "micron_7500_part_catalog.json"
+                ).read_text(encoding="utf-8")
+                return FetchedPage(
+                    requested_url=fetch_request.url,
+                    final_url=fetch_request.url,
+                    retrieved_at=datetime.now(tz=timezone.utc),
+                    status_code=200,
+                    body_text=body,
+                    content_type="application/json",
+                    body_byte_count=len(body.encode("utf-8")),
+                    redirect_count=0,
+                    fetcher_id="test",
+                )
+
+        alias_result = acquire_micron_alias_eligibility(
+            request=request, page_fetcher=_CatalogFetcher()
+        )
+        assert alias_result.status is MicronAliasEligibilityStatus.ESTABLISHED
+        reviewed = reviewed_target_context_from_alias_result(alias_result)
+        assert reviewed is not None
+        case = build_semantic_match_case_v2(
+            case_id="candidate-differential-micron-0",
+            request=request,
+            assessment=assessment,
+            context=context,
+            product_evidence=profile,
+            context_provenances=provenances,
+            reviewed_target_context=reviewed,
+        )
+        # The recorded V2 input carries the reviewed Micron alias
+        # context (target-side; zero identity authority).
+        assert case.target.reviewed_context == reviewed
+        assert case.context_provenances == provenances
+
+        v2, perf = _differential_pair(case, "match_primary")
+        _assert_differential(v2, perf)
+        # The reviewed context grants nothing: the derived snapshots
+        # show the frozen ceiling under customer retrieval only.
+        assert v2.relationship_authority is (
+            RelationshipAuthority.NOT_ESTABLISHED
+        )
+        assert perf.relationship_authority is (
+            RelationshipAuthority.NOT_ESTABLISHED
+        )
+        assert v2.authority_tier is AuthorityTier.NEEDS_REVIEW
+        assert perf.authority_tier is AuthorityTier.NEEDS_REVIEW
+        rv = replay_semantic_decision(v2)
+        rp = replay_semantic_decision(perf)
+        assert rv.authority_decision == rp.authority_decision
+        assert rv.relationship_authority is (
+            RelationshipAuthority.NOT_ESTABLISHED
+        )

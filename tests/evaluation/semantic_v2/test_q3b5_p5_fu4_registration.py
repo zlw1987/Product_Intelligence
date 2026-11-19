@@ -257,6 +257,7 @@ from product_intelligence.research import (  # noqa: E402
     V1_CONTRACT_BINDING,
     V2_AUTHORITY_QUALIFIED,
     V2_CONTRACT_BINDING,
+    V2_PERF_CONTRACT_BINDING,
 )
 from product_intelligence.research import semantic_authority_fu4 as fu4  # noqa: E402
 from product_intelligence.research import semantic_authority_fu3 as fu3  # noqa: E402
@@ -339,20 +340,31 @@ class TestRegistryAndSeal:
         assert sdv4.V2_FU4_CONTRACT_BINDING == (
             "V2", "2.1", 1, 1, AUTHORITY_CONTRACT_VERSION_V2_FU4
         )
-        # Codec / replay union: exactly (V1, 2.0/FU2, 2.1/FU4); the
-        # harness-only 2.1/FU3 binding is NOT registered (unchanged by
-        # R2); no fourth production binding exists.
+        # Codec / replay union: exactly (V1, 2.0/FU2, 2.1/FU4,
+        # 2.0-FU2/output-schema-2); the harness-only 2.1/FU3 binding is
+        # NOT registered (unchanged by R2).
+        # SEMANTIC-V2-PERF Phase 0 (re-pinned, recorded): the versioned
+        # per-attempt instrumentation successor binding is appended as
+        # the fourth production entry — a codec / replay persistence
+        # extension (the SAME semantic contract / prompt / input schema
+        # / authority axes as the frozen 2.0/FU2 binding; NO new model
+        # qualification or authority). The QUALIFICATION HARNESS seals
+        # are NOT expanded for it (below: the harness registry stays
+        # exactly the three production seals, and the PERF binding is
+        # pinned to be one of the ones it does NOT contain).
         assert supported_contract_bindings() == (
             V1_CONTRACT_BINDING,
             V2_CONTRACT_BINDING,
             tuple(V2_1_FU4_CONTRACT_BINDING),
+            V2_PERF_CONTRACT_BINDING,
         )
         assert SUPPORTED_CONTRACT_BINDINGS == supported_contract_bindings()
         assert tuple(V2_1_CONTRACT_BINDING) not in {
             tuple(b) for b in SUPPORTED_CONTRACT_BINDINGS
         }
         # Harness seal registry: exactly the three production bindings,
-        # each to its own corpus version.
+        # each to its own corpus version (UNCHANGED by the Phase 0
+        # registration — a codec adapter is not a harness seal).
         assert BINDING_CORPUS_VERSIONS == {
             tuple(V2_CONTRACT_BINDING): "1.0.0",
             tuple(V2_1_CONTRACT_BINDING): "1.1.0",
@@ -362,6 +374,12 @@ class TestRegistryAndSeal:
         # V1 is never a harness seal (historical V1, codec / replay
         # only - unchanged).
         assert tuple(V1_CONTRACT_BINDING) not in BINDING_CORPUS_VERSIONS
+        # The PERF binding is never a harness seal either (Phase 0
+        # extension: no qualification, no authority).
+        assert tuple(V2_PERF_CONTRACT_BINDING) not in BINDING_CORPUS_VERSIONS
+        assert tuple(V2_PERF_CONTRACT_BINDING) not in (
+            KNOWN_PRODUCTION_BINDINGS
+        )
         # Unknown / mixed-axis bindings fail closed at the seal level
         # (no fallback to a nearby binding).
         for forged in (
