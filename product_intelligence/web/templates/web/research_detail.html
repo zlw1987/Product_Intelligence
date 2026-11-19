@@ -399,11 +399,6 @@
     <p class="notice">No vendor refresh has been recorded for this run yet.</p>
   {% endif %}
 
-  {# FU1 F2: the last usable vendor quote (design §8.3 concept 3),
-     shown separately and explicitly HISTORICAL whenever the latest
-     attempt above is not itself a usable quote (in progress, failed,
-     or completed without one). It carries its ORIGINAL retrieval
-     timestamp and is never described as current. #}
   {% if vendor_refresh_last_usable_quote %}
     <h3>Last usable vendor quote (historical)</h3>
     <p class="notice">

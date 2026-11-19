@@ -704,6 +704,68 @@ class TestLastUsableQuoteVisibility(TestCase):
 
 
 # ---------------------------------------------------------------------------
+# F2 (LOCAL-UAT-PERF-01) — development template comments must not render
+# ---------------------------------------------------------------------------
+
+
+class TestDevelopmentAnnotationNotRendered(TestCase):
+    """LOCAL-UAT-PERF-01: the development note above the historical
+    vendor quote block was a MULTILINE ``{# ... #}`` comment. Django
+    block comments are single-line only — an unclosed ``{#`` renders
+    literally, so the annotation appeared on the user's page. The
+    annotation is a development note, not user content: it must not
+    appear in the final response in ANY vendor-refresh section shape,
+    while the historical quote section itself stays intact.
+
+    The page's only ``{#`` / ``#}`` occurrences were template comments
+    (no data or CSS carries those tokens), so the absence of BOTH
+    delimiters in the rendered response is the tightest proof that no
+    development comment renders literally."""
+
+    def _detail_html(self, run) -> str:
+        with _with_settings(CIDRS):
+            return _get_detail(_allowed_client(), run)
+
+    def test_historical_quote_shape_renders_no_development_annotation(self):
+        """The UAT shape (a later FAILED attempt over an earlier usable
+        quote, so the historical block renders) shows the section
+        without the development annotation."""
+        run = _make_completed_run()
+        _completed_child(
+            run,
+            at=T1,
+            observations=(_original_observation("CDW", Decimal("1999.99"), "USD"),),
+        )
+        _failed_child(run, at=T2)
+        html = self._detail_html(run)
+        section = _refresh_section(html)
+        # No template comment renders literally, anywhere on the page.
+        assert "{#" not in html
+        assert "#}" not in html
+        # The specific development annotation text is absent.
+        assert "the last usable vendor quote (design" not in html
+        assert "never described as current" not in html
+        # The historical quote section is preserved and intact.
+        assert "Latest refresh attempt" in section
+        assert "Last usable vendor quote (historical)" in section
+        assert "not the current vendor prices" in section
+        assert "Prices retrieved (original)" in section
+        assert section.count("$1,999.99 USD") == 1
+
+    def test_no_record_shape_renders_no_development_annotation(self):
+        """The simplest section shape (ALLOWED + COMPLETED, no refresh
+        history) also renders no development annotation."""
+        run = _make_completed_run()
+        html = self._detail_html(run)
+        section = _refresh_section(html)
+        assert "{#" not in html
+        assert "#}" not in html
+        assert "the last usable vendor quote (design" not in html
+        assert LINE_NO_RECORD in section
+        assert "Last usable vendor quote" not in section
+
+
+# ---------------------------------------------------------------------------
 # F3 — the error notice makes no unestablished assurance
 # ---------------------------------------------------------------------------
 
