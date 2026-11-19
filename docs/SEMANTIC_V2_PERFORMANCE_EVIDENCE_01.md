@@ -1,9 +1,15 @@
 # SEMANTIC-V2-PERFORMANCE-DESIGN-01 — Performance Evidence of Record
 
-**Status:** DESIGN-ONLY companion to `docs/SEMANTIC_V2_PERFORMANCE_DESIGN_01.md`.
-Sanitized re-review of the LOCAL-UAT-PERF-01 latency evidence. No production
-code, prompt, route, output limit, fallback policy, authority, test, or
-persistence semantics are changed by this document.
+**Status:** DESIGN-ONLY companion to `docs/SEMANTIC_V2_PERFORMANCE_DESIGN_01.md`
+(**revision FU1, updated in place**). Sanitized re-review of the LOCAL-
+UAT-PERF-01 latency evidence. No production code, prompt, route, output
+limit, fallback policy, authority, test, or persistence semantics are
+changed by this document. FU1 additions of record: the [D] lease-
+consequence note in §3, the input-persistence pointer in §5, and the new
+§8 (V2 input persistence coverage, source-verified at the base for the
+design's B1/B2/B4/B5 corrections). The design's fixed 30-minute lease is
+superseded there by the configured-timeout lease formula `L(T) = 2T +
+M_EVAL + M_LEASE` (see §3, §8, design §4.2 FU1 B2).
 
 **Sanitization record.** This document contains no API keys, no provider base
 URLs, no environment variable values, no raw provider payloads, and no raw
@@ -250,9 +256,19 @@ All [M] from the current tree at base `33e7f42`:
   fallback. At most one primary + one fallback call per candidate.
 - Request timeout: env-configurable, default **300.0 s**, hard ceiling
   **3,600.0 s** (`DEFAULT_REQUEST_TIMEOUT_SECONDS` /
-  `MAX_REQUEST_TIMEOUT_SECONDS` in `semantic/runtime.py`); the qualified
-  capture manifest pins 300.0 s. The UAT call (84.73 s) did not approach
-  the ceiling. [M]
+  `MAX_REQUEST_TIMEOUT_SECONDS` in `semantic/runtime.py`, shared by the
+  V1 and V2 runtimes via `PI_SEMANTIC_REQUEST_TIMEOUT_SECONDS`);
+  `validate_runtime_config` / `validate_runtime_config_v2` reject any
+  non-finite, non-positive, or > ceiling value before any transport is
+  built; the qualified capture manifest pins 300.0 s. The UAT call
+  (84.73 s) did not approach the ceiling. [M]
+  **Consequence (FU1 B2, [D]):** one V2 evaluation is at most
+  `2·T + bookkeeping` (one primary + one fallback attempt, each bounded
+  by the configured T), so the design-01 fixed 30-minute lease (1800 s)
+  is safe only for `T ≤ 750 s`; the design now uses the formula
+  `L(T) = 2T + M_EVAL + M_LEASE` (900 s at the qualified default T =
+  300 s; 7500 s at the ceiling T = 3600 s) with the grant recorded on
+  the debt row + ownership generation + atomic fence (design §4.2).
 - `V2_AUTHORITY_QUALIFIED is False` (drift-pinned in the adapter and by
   architecture tests).
 - S2-C: every V2-eligible candidate is evaluated (no usable-title gate);
@@ -336,6 +352,16 @@ Measured consequence (UAT): the browser request waits for all of 1–3
 including every V2 call — 84.73 s (1 candidate) or 198.08 s (5 candidates)
 of the 105.688 s / 230.960 s run windows. [M]+[D]
 
+**Input-persistence coverage of the blocking path (FU1 B1, [M]+[D]):**
+of the synchronous V2 case's inputs, exactly one value is held only in
+memory — the per-assessment search-batch membership (which assessments
+originated from the alias-expanded paid-search batch vs. 4D-A direct
+acquisition); everything else (request identity, the full ordered
+assessment array, the alias acquisition, the case_id index) is persisted
+or purely derivable from persisted rows. The minimal bounded immutable
+data the design now persists per debt at publication is the recorded
+`context_provenance` field (design §4.13). Full coverage table: §8.
+
 ---
 
 ## 6. Source index (evidence of record)
@@ -363,6 +389,17 @@ of the 105.688 s / 230.960 s run windows. [M]+[D]
   evaluation/semantic_v2/{live_capture,report}.py}`;
   `docs/INTERNAL_PILOT_DEPLOYMENT.md` (Waitress launcher; "may take
   1-2 minutes"); `tools/codex/README.md` (B300 profiles).
+  FU1 additions (source-verified at the base for design §4.13/§8): 
+  `research/price_result_codec.py` (`_enc_assessment` — the full 
+  assessment persistence), `research/aggregation.py` 
+  (`aggregate_listing_prices` — the input-tuple order pass-through), 
+  `research/micron_alias_codec.py` (`encode/decode_micron_alias_
+  snapshot` — the alias round-trip), `research/semantic_v2.py` 
+  (`build_semantic_match_case_v2` — the frozen case builder), 
+  `scripts/run_internal_pilot.cmd` (the launcher surface), 
+  `web/views.py` (the ALLOWED/DENIED access branches), 
+  `providers/preferred_source_config.py` (`is_directmacro_enabled` —
+  the direct-acquisition gate).
 
 ## 7. Corrections to the untracked analysis document (of record)
 
@@ -388,3 +425,30 @@ incorporated version above:
    ratio is ≈2.6× (42.6 tok/s vs 111.9–114.8 tok/s); corrected above.
 6. Everything else (distributions, prompt sizes, frozen-contract values,
    stage table, decode rates) reproduced exactly.
+
+---
+
+## 8. V2 input reconstruction coverage (FU1 B1 — source-verified at
+the base)
+
+The design's §4.13 proof (reconstructing the exact synchronous
+`SemanticMatchCaseV2` from persisted data) rests on the following
+source-confirmed facts at the base. All [M] (read directly from the
+committed tree at the base) unless marked [D]. This section is the
+persistent-input inventory of record for the B1 correction.
+
+| # | Fact (source of record) | Class |
+| --- | --- | --- |
+| 8.1 | The synchronous case builder chain is `evaluate_semantic_matches_v2(request, total_assessments, context_provenances_by_assessment, reviewed_target_context)` → per eligible assessment: `derive_identity_state_v2(assessment)` → `build_v2_product_evidence_profile(observation, provenances, matched_facts=frozenset())` → `build_semantic_match_case_v2(case_id=_v2_candidate_case_id(assessment, idx), request, assessment, context, product_evidence, provenances, reviewed_target_context)`. Every function is pure over its arguments; the builder re-runs and verifies the deterministic derivation (a foreign context fails closed). (`execution/semantic_decision_v2_execution.py`, `research/semantic_v2.py`) | [M] |
+| 8.2 | The case_id scheme is `candidate-{sha256(source_url)[:8]}-{idx}` where `idx` is the enumeration position in `total_assessments` (the FULL ordered list, not just the eligible subset). (`execution/semantic_decision_v2_execution.py::_v2_candidate_case_id`, the `enumerate(assessments)` loop) | [M] |
+| 8.3 | The request identity (MPN + description) is persisted on the run row and rebuilt by `run.to_research_request()`; the case builder refuses an assessment whose `requested_part_number` != the request MPN. (`runs/models.py::ResearchRun.to_research_request`, `research/semantic_v2.py`) | [M] |
+| 8.4 | The full assessment array (every `ListingIdentityAssessment`, incl. the complete `normalized_listing.observation` — source URL, title, MPN field, SKU, brand, price/currency/availability/condition/seller text, offer URL, raw reference; the match type; the decision) is persisted in order in `PriceIntelligenceSnapshot.payload["assessments"]` by the frozen price codec; the decode round-trip is frozen and digest-anchored. (`research/price_result_codec.py::_enc_assessment` / `decode_price_aggregation_result`, `execution/orchestration.py::_encode_aggregation_result`) | [M] |
+| 8.5 | The published payload order IS the evaluation order: `aggregate_listing_prices` passes the input tuple through to `PriceAggregationResult.assessments` unchanged (same objects, same order; `build_semantic_decision_records_v2` indexes against that same tuple). Therefore the ledger `assessment_index` and the case_id `idx` both equal the array position. (`research/aggregation.py::aggregate_listing_prices`, `execution/semantic_decision_v2_execution.py::build_semantic_decision_records_v2`) | [M]+[D] |
+| 8.6 | The 4D-D alias acquisition (ESTABLISHED or bounded non-established) is persisted pre-search as `ResearchMicronAliasSnapshot` (bounded provenance: URLs, retrieved_at, body SHA-256, status, policy — never the catalog body) whenever a non-empty-MPN run's direct evidence was insufficient. Present ⇔ the alias fetch ran; `ESTABLISHED` ⇔ the search query was the alias-expanded form. (`execution/orchestration.py::_persist_alias_snapshot`, `research/micron_alias_codec.py::encode_micron_alias_snapshot`) | [M] |
+| 8.7 | `decode_micron_alias_snapshot` round-trips the persisted payload to the self-validating `MicronAliasEligibilityResult` (strict key set, fail-closed); `reviewed_target_context_from_alias_result` is pure over that result (non-ESTABLISHED → explicit None; ESTABLISHED missing a reviewed field → fails closed). So the reviewed manufacturer target context is reconstructable from the persisted snapshot alone. (`research/micron_alias_codec.py`, `execution/semantic_decision_v2_execution.py`) | [M]+[D] |
+| 8.8 | **The one input currently held only in memory:** the per-assessment search-batch membership (which assessments originated from the alias-expanded paid-search batch vs. 4D-A direct acquisition). The live path assigns `CUSTOMER_RETRIEVAL_RELATION` provenance exactly to `search_batch_assessments` when `alias_expanded`; but the snapshot payload records no direct/search boundary, the alias snapshot references no assessments, and the execution-evidence rows carry per-URL FETCH facts without batch membership. In a mixed run (direct enabled + direct-insufficient + alias ESTABLISHED) the membership is reconstructable from no durable row. (`execution/orchestration.py` step 3–4b: `search_batch_assessments`, `alias_expanded`, `v2_provenances_by_assessment`) | [M] |
+| 8.9 | For the observed UAT population the gap is latent: direct acquisition is disabled on the UAT host (the launcher environment sets no `PI_PREFERRED_DOMAINS`; `is_directmacro_enabled()` is False), so every published assessment came from the single search batch. (`scripts/run_internal_pilot.cmd`, `providers/preferred_source_config.py::is_directmacro_enabled`) | [M]+[D] |
+| 8.10 | **The minimal bounded immutable data that must be persisted at publication (the B1 correction):** exactly one field — the debt row's `context_provenance` (the bounded `ContextProvenance` vocabulary list for that assessment; ∅ or `[CUSTOMER_RETRIEVAL_RELATION]` in the live path), set in the atomic publication transaction from the in-memory membership and immutable thereafter. With it, every case input is persisted or purely derived (8.1–8.7); without it, 8.8 is unrecoverable. The rejected run-level `direct_assessment_count` alternative is recorded in design §4.13. | [D] (design decision, grounded in 8.1–8.9) |
+| 8.11 | The no-refetch rule: reconstruction reads only the run row, the snapshot payload, the alias snapshot, and the debt row. The catalog body (SHA-256 only, 8.6) and the candidate page (fully persisted observation, 8.4) are never re-fetched; no provider/search/FX/vendor call is made. | [D] |
+| 8.12 | The mandatory deterministic equivalence anchor for the ESTABLISHED Micron alias scenario is the existing motivating-run shape (`tests/execution/test_semantic_v2_motivating_case.py::TestNoMachinePriceContamination` — reviewed 4D-D catalog ESTABLISHED, alias-expanded search, the U5/NM-1 near-miss candidate carrying `CUSTOMER_RETRIEVAL_RELATION` + the reviewed target context). The reconstruction must equal the case that shape records. | [M] |
+| 8.13 | **The existing web access boundary (FU1 B5):** `web/views.py::research_detail` renders the standard report (the public market evidence, the V1 review-candidate presentation, the assessment table) for every connection that holds the run UUID — the pilot report-reachability model (the report UUID is never access control; full authentication is deferred to 8C). The 4D-C-SEC CIDR gate (`vendor_price_access_allowed` over `REMOTE_ADDR` / `PI_VENDOR_PRICE_ALLOWED_CIDRS`, fail-closed) scopes ONLY the vendor commercial regions: the compact-quote vendor rows, the Vendor API status notice, the vendor supplement replay, and the vendor refresh section — the DENIED branch takes the public-only replay and never reads the vendor artifacts (total zero-knowledge, the frozen D8 standard). The V2 work-status line is therefore standard report content (never CIDR-gated); the design-01 "DENIED pages render nothing new" wording is corrected accordingly (design §4.8). (`web/views.py::research_detail`, `web/commercial_access.py::vendor_price_access_allowed`) | [M] |
