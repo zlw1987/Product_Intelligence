@@ -1,15 +1,19 @@
 # SEMANTIC-V2-PERFORMANCE-DESIGN-01 — Performance Evidence of Record
 
 **Status:** DESIGN-ONLY companion to `docs/SEMANTIC_V2_PERFORMANCE_DESIGN_01.md`
-(**revision FU1, updated in place**). Sanitized re-review of the LOCAL-
-UAT-PERF-01 latency evidence. No production code, prompt, route, output
-limit, fallback policy, authority, test, or persistence semantics are
-changed by this document. FU1 additions of record: the [D] lease-
-consequence note in §3, the input-persistence pointer in §5, and the new
-§8 (V2 input persistence coverage, source-verified at the base for the
-design's B1/B2/B4/B5 corrections). The design's fixed 30-minute lease is
-superseded there by the configured-timeout lease formula `L(T) = 2T +
-M_EVAL + M_LEASE` (see §3, §8, design §4.2 FU1 B2).
+(**revision FU2, updated in place; the FU1 notes below remain**).
+Sanitized re-review of the LOCAL-UAT-PERF-01 latency evidence. No
+production code, prompt, route, output limit, fallback policy, authority,
+test, or persistence semantics are changed by this document. FU1
+additions of record: the [D] lease-consequence note in §3, the input-
+persistence pointer in §5, and the new §8 (V2 input persistence coverage,
+source-verified at the base for the design's B1/B2/B4/B5 corrections).
+FU2 additions of record: the §3 [D] overlapping-execution note (design
+C2), and the new §8.14 (runtime failure semantics — persistable vs.
+unpersistable, source-verified for design C1) + §8.15 (the one-at-a-time
+Scheduler service rate and queue — derived, for design C3). The design's
+fixed 30-minute lease is superseded there by the configured-timeout lease
+formula `L(T) = 2T + M_EVAL + M_LEASE` (see §3, §8, design §4.2 FU1 B2).
 
 **Sanitization record.** This document contains no API keys, no provider base
 URLs, no environment variable values, no raw provider payloads, and no raw
@@ -269,6 +273,13 @@ All [M] from the current tree at base `33e7f42`:
   `L(T) = 2T + M_EVAL + M_LEASE` (900 s at the qualified default T =
   300 s; 7500 s at the ceiling T = 3600 s) with the grant recorded on
   the debt row + ownership generation + atomic fence (design §4.2).
+  **Consequence 2 (FU2 C2, [D]):** the single-winner claim bounds
+  *ownership and publication*, not *execution*: under an expired lease,
+  a still-running wedged owner and a successor may execute the same
+  debt's transport calls simultaneously (duplicated execution, bounded
+  by the 3-attempt policy); only ONE fenced ledger publication succeeds
+  (the all-or-nothing fenced completion — design §4.2). The reconcile-
+  only startup pass claims nothing (design §4.10 FU2 C2).
 - `V2_AUTHORITY_QUALIFIED is False` (drift-pinned in the adapter and by
   architecture tests).
 - S2-C: every V2-eligible candidate is evaluated (no usable-title gate);
@@ -435,7 +446,10 @@ The design's §4.13 proof (reconstructing the exact synchronous
 `SemanticMatchCaseV2` from persisted data) rests on the following
 source-confirmed facts at the base. All [M] (read directly from the
 committed tree at the base) unless marked [D]. This section is the
-persistent-input inventory of record for the B1 correction.
+persistent-input inventory of record for the B1 correction (8.1–8.12)
+and the B5 access boundary (8.13); 8.14–8.15 are the FU2 C1/C3
+grounding. (The tree is code-identical across `33e7f42` → `0df5830` →
+`9b2103c` — the design-01 and FU1 commits are documentation-only.)
 
 | # | Fact (source of record) | Class |
 | --- | --- | --- |
@@ -452,3 +466,5 @@ persistent-input inventory of record for the B1 correction.
 | 8.11 | The no-refetch rule: reconstruction reads only the run row, the snapshot payload, the alias snapshot, and the debt row. The catalog body (SHA-256 only, 8.6) and the candidate page (fully persisted observation, 8.4) are never re-fetched; no provider/search/FX/vendor call is made. | [D] |
 | 8.12 | The mandatory deterministic equivalence anchor for the ESTABLISHED Micron alias scenario is the existing motivating-run shape (`tests/execution/test_semantic_v2_motivating_case.py::TestNoMachinePriceContamination` — reviewed 4D-D catalog ESTABLISHED, alias-expanded search, the U5/NM-1 near-miss candidate carrying `CUSTOMER_RETRIEVAL_RELATION` + the reviewed target context). The reconstruction must equal the case that shape records. | [M] |
 | 8.13 | **The existing web access boundary (FU1 B5):** `web/views.py::research_detail` renders the standard report (the public market evidence, the V1 review-candidate presentation, the assessment table) for every connection that holds the run UUID — the pilot report-reachability model (the report UUID is never access control; full authentication is deferred to 8C). The 4D-C-SEC CIDR gate (`vendor_price_access_allowed` over `REMOTE_ADDR` / `PI_VENDOR_PRICE_ALLOWED_CIDRS`, fail-closed) scopes ONLY the vendor commercial regions: the compact-quote vendor rows, the Vendor API status notice, the vendor supplement replay, and the vendor refresh section — the DENIED branch takes the public-only replay and never reads the vendor artifacts (total zero-knowledge, the frozen D8 standard). The V2 work-status line is therefore standard report content (never CIDR-gated); the design-01 "DENIED pages render nothing new" wording is corrected accordingly (design §4.8). (`web/views.py::research_detail`, `web/commercial_access.py::vendor_price_access_allowed`) | [M] |
+| 8.14 **(FU2 C1)** | **Runtime failure semantics — persistable vs. unpersistable (source-verified):** (a) a missing provider env does NOT fail runtime construction — `SemanticRuntimeV2._build_transport` catches the adapter's `ValueError` and returns a `None` transport (bounded warning); (b) `_attempt` over a `None` transport returns a NORMALIZED attempt (`status = PROVIDER_NOT_CONFIGURED`, `latency_ms = 0.0`) — not an exception; (c) `PROVIDER_NOT_CONFIGURED` is NOT in `PRIMARY_FALLBACK_ELIGIBLE_ERRORS` (the frozen V1/V2 shared allowlist) → `evaluate` fails closed after one attempt and `_failure` returns a VALID `SemanticRuntimeResultV2` (`response = None`, `error_type = PROVIDER_NOT_CONFIGURED`, one `PRIMARY` attempt, `fallback_used = false`); (d) `build_semantic_decision_records_v2` maps every `response = None` result to `evaluation_state = RUNTIME_FAILURE` with the bounded `SemanticFailureClass` (`PROVIDER_NOT_CONFIGURED` is a legal member) — a valid, PERSISTABLE ledger record. A provider-unconfigured evaluation is therefore a persistable semantic runtime failure → the debt terminalizes `COMPLETED` (design situation #5), NEVER a debt-level `FAILED` state. (e) UNPERSISTABLE failures: a construction/validation exception (invalid `PI_SEMANTIC_REQUEST_TIMEOUT_SECONDS` → `SemanticRuntimeConfigError`), a programming exception propagated by the transport (the runtime contract: never swallowed), or a fenced-completion commit failure (the result exists in memory; no row; the debt is not terminalized; the retry policy applies) → bounded debt-level `FAILED` (`EXECUTOR_ERROR` / `RETRY_EXHAUSTED`); a `RUNTIME_FAILURE` row is never fabricated for a non-semantic error. (`semantic/runtime_v2.py` `_build_transport`/`_attempt`/`evaluate`/`_failure`/`validate_runtime_config_v2`; `semantic/runtime.py` `PRIMARY_FALLBACK_ELIGIBLE_ERRORS`; `execution/semantic_decision_v2_execution.py` `_evaluation_from_result`/`build_semantic_decision_records_v2`; `research/semantic_decision_v2.py` `SemanticFailureClass`) | [M] |
+| 8.15 **(FU2 C3)** | **Scheduler one-at-a-time service rate and queue (derived):** with the design's parameters I = 60 s, O = 60 s, W(T = 300) = 660 s, the worst-case *service period* is `S = I + O + W = 780 s` per debt served; a 720 s (O + W) invocation overlaps ~12 of the 60 s triggers, skipped by the "do not start a new instance" policy — no OS-level queue (the queue is the debt table, FIFO). A debt claimed at position k (1-indexed, simultaneous publication) is bounded worst-case by k·S: k = 1 → **13 min** (inside the retained 15-minute target); k = 5 → **65 min** — the UAT N=5 shape (run `37826c4f`, 5 simultaneous debts, §1.2) exceeds the 15-minute target structurally for positions ≥ 2. The worst-case one-at-a-time service rate is `1/S ≈ 4.6 debts/h`; the measured per-evaluation windows (§1.2: 29.6–50.3 s; §2.1: p50 21.6 s, max 120.5 s) bound the practical service time the load gate (design §5.2 G1–G3) measures over the UAT population. | [D] (derived from the measured §1.2/§2.1 windows + the design's PROPOSED I/O/W parameters — not yet approved) |
