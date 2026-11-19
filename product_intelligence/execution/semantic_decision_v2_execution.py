@@ -68,6 +68,25 @@ adds no new ``ExecutionDetailCode`` vocabulary. The semantic-decision
 LEDGER record (per-attempt bounded provenance, failure class, fallback
 reason, evaluation instants) is the S2-B-designed audit surface for
 semantic calls.
+
+Bounded per-attempt performance instrumentation (SEMANTIC-V2-PERF
+Phase 0, A1): the live path now persists the VERSIONED SUCCESSOR of
+the frozen V2 ledger record — ``SemanticDecisionRecordV2Perf``
+(recorded output schema 2, the same semantic contract / prompt / input
+schema / authority axes; the fourth registered adapter at the codec's
+explicit extension point). The instrumented execution section carries,
+per recorded attempt: the measured latency in integer milliseconds,
+the provider-reported prompt / completion token counts (explicit null
+= the provider reported none — never zero, never invented), and the
+bounded finish reason (explicit null = unreported / out of the bounded
+grammar). The instrumentation is evidence-only: it changes no prompt,
+no route identity, no temperature, no max_tokens, no timeout, no
+fallback eligibility, no semantic decision, and no authority surface
+(``V2_PERF_AUTHORITY_QUALIFIED`` mirrors the frozen V2 marker, False).
+Historical output-schema-1 V2 records decode and replay
+byte-identically through the frozen V2 adapter (the claim-based
+dispatch keeps claiming them for that adapter alone); no migration —
+the same universal row is reused.
 """
 
 from __future__ import annotations
@@ -87,7 +106,6 @@ from product_intelligence.research import (
     ListingIdentityAssessment,
     ProductEvidenceProfileV2,
     ReviewedTargetContextV2,
-    SemanticDecisionAttempt,
     SemanticEvaluationStateV2,
     SemanticEvaluationV2,
     SemanticFallbackReason,
@@ -104,8 +122,9 @@ from product_intelligence.research.micron_packaging_alias import (
     MicronAliasEligibilityResult,
     MicronAliasEligibilityStatus,
 )
-from product_intelligence.research.semantic_decision_v2 import (
-    SemanticDecisionRecordV2,
+from product_intelligence.research.semantic_decision_v2_perf import (
+    SemanticDecisionAttemptPerf,
+    SemanticDecisionRecordV2Perf,
 )
 from product_intelligence.runs.models import ResearchRun
 from product_intelligence.execution.semantic_decision_persistence import (
@@ -426,21 +445,45 @@ def _evaluation_from_result(
 
 def _attempts_from_result(
     result: SemanticRuntimeResultV2,
-) -> tuple[SemanticDecisionAttempt, ...]:
+) -> tuple[SemanticDecisionAttemptPerf, ...]:
     """The bounded recorded attempts (call order; the V2 route pin is
-    re-validated by the record constructor)."""
-    attempts: list[SemanticDecisionAttempt] = []
+    re-validated by the record constructor) WITH the bounded
+    per-attempt instrumentation (SEMANTIC-V2-PERF Phase 0):
+
+    * ``latency_ms`` — the measured in-memory float latency in its
+      bounded persistence form: integer milliseconds (the canonical
+      encoding admits no float; the nearest whole millisecond —
+      sub-millisecond precision is not persisted);
+    * ``prompt_tokens`` / ``completion_tokens`` — the
+      provider-reported counts, or the explicit unknown (None) when
+      the provider reported no usage (never zero, never invented);
+    * ``finish_reason`` — the provider-reported stop reason already
+      bounded by the runtime's grammar projection (None = unreported /
+      out of grammar — never raw provider text).
+    """
+    attempts: list[SemanticDecisionAttemptPerf] = []
     for number, attempt in enumerate(result.attempts, start=1):
         role = (
             AttemptRole.PRIMARY if number == 1 else AttemptRole.FALLBACK
         )
+        usage = attempt.token_usage
         attempts.append(
-            SemanticDecisionAttempt(
+            SemanticDecisionAttemptPerf(
                 role=role,
                 attempt_number=number,
                 provider=attempt.provider,
                 model=attempt.model,
                 outcome=AttemptOutcome(attempt.status.value),
+                latency_ms=int(round(attempt.latency_ms)),
+                prompt_tokens=(
+                    usage.get("prompt_tokens") if usage is not None else None
+                ),
+                completion_tokens=(
+                    usage.get("completion_tokens")
+                    if usage is not None
+                    else None
+                ),
+                finish_reason=attempt.finish_reason,
             )
         )
     return tuple(attempts)
@@ -450,10 +493,19 @@ def build_semantic_decision_records_v2(
     run: ResearchRun,
     published_assessments: tuple[ListingIdentityAssessment, ...],
     outcomes: tuple[SemanticDecisionV2Outcome, ...],
-) -> tuple[SemanticDecisionRecordV2, ...]:
-    """Build one ``SemanticDecisionRecordV2`` per V2 outcome, bound to
-    the run's PUBLISHED assessment tuple (the stable
+) -> tuple[SemanticDecisionRecordV2Perf, ...]:
+    """Build one ``SemanticDecisionRecordV2Perf`` per V2 outcome, bound
+    to the run's PUBLISHED assessment tuple (the stable
     ``assessment_index`` the ledger and the replay binding use).
+
+    SEMANTIC-V2-PERF Phase 0: the live path records the VERSIONED
+    SUCCESSOR of the frozen V2 ledger record — same semantic contract,
+    prompt, input schema, and authority contract; recorded output
+    schema 2, whose execution section carries the bounded per-attempt
+    instrumentation (integer-millisecond latency, provider-reported
+    prompt / completion token counts with explicit null = unknown,
+    bounded finish reason). The record is a PERSISTENCE artifact:
+    nothing here grants authority.
 
     The derived audit snapshots (product evidence quality, relationship
     authority, authority tier, fired rules) are computed under the bound
@@ -478,7 +530,7 @@ def build_semantic_decision_records_v2(
     for idx, assessment in enumerate(published_assessments):
         index_by_assessment[assessment] = idx
 
-    records: list[SemanticDecisionRecordV2] = []
+    records: list[SemanticDecisionRecordV2Perf] = []
     for outcome in outcomes:
         idx = index_by_assessment.get(outcome.assessment)
         if idx is None:
@@ -521,7 +573,7 @@ def build_semantic_decision_records_v2(
                 SemanticFailureClass(result.error_type.value)
             )
         records.append(
-            SemanticDecisionRecordV2.build(
+            SemanticDecisionRecordV2Perf.build(
                 run_id=str(run.id),
                 assessment_index=idx,
                 source_url=outcome.case.candidate_source_url,
@@ -565,7 +617,7 @@ def build_semantic_decision_records_v2(
 
 def persist_semantic_decision_records_v2(
     run: ResearchRun,
-    records: tuple[SemanticDecisionRecordV2, ...],
+    records: tuple[SemanticDecisionRecordV2Perf, ...],
 ) -> int:
     """Persist every V2 record through the S2-B persistence service
     (append-only; never overwrites; the service owns no authority logic).

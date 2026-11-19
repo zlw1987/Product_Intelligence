@@ -104,6 +104,9 @@ from product_intelligence.research.semantic_decision_v2 import (
 from product_intelligence.research.semantic_decision_v2_fu4 import (
     SEMANTIC_V2_FU4_ADAPTER,
 )
+from product_intelligence.research.semantic_decision_v2_perf import (
+    SEMANTIC_V2_PERF_ADAPTER,
+)
 
 __all__ = [
     "SEMANTIC_DECISION_SCHEMA_VERSION",
@@ -141,16 +144,23 @@ other axis.
 
 
 #: The registered version-specific semantic contract adapters, in
-#: registration order. Currently exactly three: the Semantic V1 adapter
+#: registration order. Currently exactly four: the Semantic V1 adapter
 #: (envelope schema version 1, semantic contract V1 — the frozen FU3A
 #: production semantic contract), the final Semantic V2 adapter
 #: (envelope schema version 1, semantic contract V2 — the S2-C final V2
-#: contract, registered through this same explicit extension point), and
+#: contract, registered through this same explicit extension point),
 #: the FU4 record / replay adapter (envelope schema version 1, semantic
 #: contract V2 — the separately versioned FU4 authority binding,
 #: (V2, 2.1, 1, 1, the FU4 authority token), registered in Q3-B5-P5 R1
 #: through this same explicit extension point, appended AFTER the V2
-#: adapter). The envelope, the row, the migration, and the service did
+#: adapter), and the V2 PERF instrumentation adapter (envelope schema
+#: version 1, semantic contract V2 — the versioned per-attempt
+#: performance instrumentation successor of the final V2 record,
+#: registered in SEMANTIC-V2-PERF Phase 0 through this same explicit
+#: extension point, appended AFTER the FU4 adapter; it claims ONLY the
+#: recorded output-schema-2 binding, so every historical record stays
+#: claimed by its original adapter alone). The envelope, the row, the
+#: migration, and the service did
 #: not change. Registering a future semantic contract is a matter of
 #: adding its adapter here — the envelope, the row, the migration, and
 #: the service do not change. Frozen tuple of frozen adapter instances:
@@ -161,6 +171,7 @@ _REGISTERED_SEMANTIC_CONTRACT_ADAPTERS: Final[
     SEMANTIC_V1_ADAPTER,
     SEMANTIC_V2_ADAPTER,
     SEMANTIC_V2_FU4_ADAPTER,
+    SEMANTIC_V2_PERF_ADAPTER,
 )
 
 

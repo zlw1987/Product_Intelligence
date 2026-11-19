@@ -38,6 +38,13 @@ Programming defects are never converted into a transport failure: an
 unexpected exception raised by an injected transport propagates and never
 causes fallback. No raw provider body, no exception text, no API key, and
 no chain-of-thought ever reach a ``SemanticRuntimeResultV2``.
+
+Bounded per-attempt telemetry (SEMANTIC-V2-PERF Phase 0, A1): each
+successful transport call's provider-reported token usage and finish
+reason are carried on the attempt in bounded form only — out-of-contract
+values project to explicit ``None`` (an unknown is never zero-filled,
+invented, or persisted raw). Routing, evaluation, and fallback behavior
+are unchanged by the telemetry.
 """
 
 from __future__ import annotations
@@ -70,6 +77,8 @@ from product_intelligence.semantic.runtime import (
     SemanticRuntimeConfigError,
     SemanticRuntimeErrorType,
     SemanticRuntimeFallbackReason,
+    bounded_finish_reason,
+    bounded_token_usage,
 )
 
 logger = logging.getLogger(__name__)
@@ -939,6 +948,9 @@ class SemanticRuntimeV2:
         latency_ms = (time.perf_counter() - started) * 1000.0
 
         if hasattr(outcome, "error_type"):
+            # A normalized transport failure carries no successful
+            # completion: the provider reported no token usage and no
+            # finish reason (explicit unknowns, never invented).
             return None, SemanticAttempt(
                 provider=provider,
                 model=model,
@@ -952,6 +964,12 @@ class SemanticRuntimeV2:
             model=model,
             status=status,
             latency_ms=latency_ms,
+            token_usage=bounded_token_usage(
+                getattr(outcome, "token_usage", None)
+            ),
+            finish_reason=bounded_finish_reason(
+                getattr(outcome, "finish_reason", None)
+            ),
         )
 
     def _attempt_status_for_error(self, error_type: Any) -> SemanticAttemptStatus:

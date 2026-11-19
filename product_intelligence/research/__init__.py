@@ -479,6 +479,32 @@ from product_intelligence.research.semantic_decision_v2_fu4 import (
     reconstruct_semantic_evaluation_v2_fu4,
     replay_v2_fu4_record,
 )
+from product_intelligence.research.semantic_decision_v2_perf import (
+    AUTHORITY_CONTRACT_VERSION_V2_PERF,
+    FALLBACK_MODEL_V2_PERF,
+    FALLBACK_PROVIDER_V2_PERF,
+    PERF_FINISH_REASON_MAX_LENGTH,
+    PRIMARY_MODEL_V2_PERF,
+    PRIMARY_PROVIDER_V2_PERF,
+    PROMPT_VERSION_V2_PERF,
+    SEMANTIC_CONTRACT_VERSION_V2_PERF,
+    SEMANTIC_INPUT_SCHEMA_VERSION_V2_PERF,
+    SEMANTIC_OUTPUT_SCHEMA_VERSION_V2_PERF,
+    SEMANTIC_V2_PERF_ADAPTER,
+    V2_PERF_AUTHORITY_QUALIFIED,
+    V2_PERF_CONTRACT_BINDING,
+    SemanticDecisionAttemptPerf,
+    SemanticDecisionReplayV2Perf,
+    SemanticDecisionRecordV2Perf,
+    SemanticV2PerfContractAdapter,
+    encode_v2_perf_payload,
+    is_bounded_perf_finish_reason,
+    record_input_digest_v2_perf,
+    record_output_digest_v2_perf,
+    reconstruct_identity_context_v2_perf,
+    reconstruct_semantic_evaluation_v2_perf,
+    replay_v2_perf_record,
+)
 from product_intelligence.research.semantic_authority_fu3 import (
     AUTHORITY_CONTRACT_VERSION_V2_FU3,
     AuthorityDecisionV2FU3,
@@ -747,6 +773,42 @@ __all__ = [
     "reconstruct_identity_context_v2_fu4",
     "reconstruct_semantic_evaluation_v2_fu4",
     "replay_v2_fu4_record",
+    # SEMANTIC-V2-PERF Phase 0 (A1): the versioned per-attempt
+    # performance-instrumentation successor of the final V2 record —
+    # the FOURTH registered adapter at the codec's explicit extension
+    # point, claiming ONLY the recorded output-schema-2 binding (the
+    # same semantic contract / prompt / input schema / authority axes;
+    # the instrumented execution section carries the bounded
+    # per-attempt latency, provider-reported token counts with
+    # explicit null = unknown, and the bounded finish reason).
+    # Registration is NOT qualification: V2_PERF_AUTHORITY_QUALIFIED
+    # stays False; the frozen V1 / V2 / FU4 adapters, the live
+    # routing, and every historical record (byte-identical decode +
+    # replay) are unchanged.
+    "AUTHORITY_CONTRACT_VERSION_V2_PERF",
+    "FALLBACK_MODEL_V2_PERF",
+    "FALLBACK_PROVIDER_V2_PERF",
+    "PERF_FINISH_REASON_MAX_LENGTH",
+    "PRIMARY_MODEL_V2_PERF",
+    "PRIMARY_PROVIDER_V2_PERF",
+    "PROMPT_VERSION_V2_PERF",
+    "SEMANTIC_CONTRACT_VERSION_V2_PERF",
+    "SEMANTIC_INPUT_SCHEMA_VERSION_V2_PERF",
+    "SEMANTIC_OUTPUT_SCHEMA_VERSION_V2_PERF",
+    "SEMANTIC_V2_PERF_ADAPTER",
+    "V2_PERF_AUTHORITY_QUALIFIED",
+    "V2_PERF_CONTRACT_BINDING",
+    "SemanticDecisionAttemptPerf",
+    "SemanticDecisionReplayV2Perf",
+    "SemanticDecisionRecordV2Perf",
+    "SemanticV2PerfContractAdapter",
+    "encode_v2_perf_payload",
+    "is_bounded_perf_finish_reason",
+    "record_input_digest_v2_perf",
+    "record_output_digest_v2_perf",
+    "reconstruct_identity_context_v2_perf",
+    "reconstruct_semantic_evaluation_v2_perf",
+    "replay_v2_perf_record",
     "AuthorityAttemptResult",
     "AuthorityAuditOutcomeKind",
     "CandidateDisposition",
