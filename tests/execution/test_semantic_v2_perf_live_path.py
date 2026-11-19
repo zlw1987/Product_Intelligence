@@ -73,7 +73,11 @@ from product_intelligence.semantic.runtime_v2 import (
     PRIMARY_MODEL_V2,
     SemanticRuntimeV2,
 )
-from product_intelligence.semantic.transport import FakeSemanticModelTransport
+from product_intelligence.semantic.transport import (
+    FakeSemanticModelTransport,
+    TransportFailure,
+    TransportResult,
+)
 
 
 REQUEST = ResearchRequest("ABC-123", "A test product")
@@ -298,6 +302,151 @@ class TestLivePathInstrumentedRecord:
         assert replay.contract_binding == V2_PERF_CONTRACT_BINDING
         assert replay.case == record.case
         assert replay.record == record
+
+
+# ===========================================================================
+# 1b. SEMANTIC-V2-PERF-PHASE0-FU2 F2 (PERF side) — the provider usage
+#     shapes reach the persisted PERF attempt undistorted
+# ===========================================================================
+
+
+class _UsageTransport:
+    """A bounded in-memory transport double whose provider-reported
+    token usage is configurable (no live work) — the record-builder
+    seam for the FU2 F2 usage shapes (the real-transport shapes are
+    pinned in tests/semantic/test_transport.py and
+    test_runtime_v2_perf.py)."""
+
+    def __init__(
+        self,
+        *,
+        token_usage: dict | None,
+        finish_reason: str | None = "stop",
+        model: str = PRIMARY_MODEL_V2,
+        error_type: str | None = None,
+    ) -> None:
+        self._token_usage = token_usage
+        self._finish_reason = finish_reason
+        self._model = model
+        self._error_type = error_type
+
+    def complete(self, **kwargs):
+        if self._error_type is not None:
+            return TransportFailure(error_type=self._error_type)
+        return TransportResult(
+            raw_output=_v2_response(),
+            latency_ms=1.5,
+            provider_status="200",
+            provider_id="amax-test",
+            model_id=self._model,
+            provider_reported_model=self._model,
+            finish_reason=self._finish_reason,
+            token_usage=self._token_usage,
+        )
+
+
+def _usage_runtime(token_usage: dict | None) -> SemanticRuntimeV2:
+    return SemanticRuntimeV2(
+        primary_transport=_UsageTransport(token_usage=token_usage),
+        fallback_transport=_UsageTransport(
+            token_usage=token_usage,
+            model=FALLBACK_MODEL_V2,
+            error_type="CONNECTION_ERROR",
+        ),
+    )
+
+
+class TestUsageShapesReachPersistenceUndistorted:
+    """The five FU2 F2 usage shapes through the live path into the
+    persisted PERF attempt: the explicit null is the unknown, the
+    explicit zero is the measurement, and no fabricated telemetry or
+    raw provider metadata is persisted."""
+
+    _PERSISTED_ATTEMPT_KEYS = {
+        "role",
+        "attempt_number",
+        "provider",
+        "model",
+        "outcome",
+        "latency_ms",
+        "prompt_tokens",
+        "completion_tokens",
+        "finish_reason",
+    }
+
+    def _persist_usage(self, token_usage: dict | None):
+        run, assessment = _u1_run_and_assessment()
+        record, _ = _persist_live(
+            run, assessment, _usage_runtime(token_usage)
+        )
+        row = SemanticDecisionRecordRow.objects.get(
+            run_id=run.id, assessment_index=0
+        )
+        return record, row
+
+    def test_missing_usage_persists_explicit_nulls(self):
+        record, row = self._persist_usage(None)
+        attempt = record.attempts[0]
+        assert attempt.prompt_tokens is None
+        assert attempt.completion_tokens is None
+        persisted = row.payload["execution"]["attempts"][0]
+        assert persisted["prompt_tokens"] is None
+        assert persisted["completion_tokens"] is None
+        assert set(persisted) == self._PERSISTED_ATTEMPT_KEYS
+
+    def test_partially_reported_usage_persists_reported_counts_only(self):
+        record, row = self._persist_usage(
+            {
+                "prompt_tokens": 100,
+                "completion_tokens": None,
+                "total_tokens": 150,
+            }
+        )
+        attempt = record.attempts[0]
+        assert attempt.prompt_tokens == 100
+        # The unreported count is the explicit unknown — never a
+        # fabricated zero, never inferred from total_tokens.
+        assert attempt.completion_tokens is None
+        assert attempt.completion_tokens != 0
+        assert attempt.completion_tokens != 50
+        persisted = row.payload["execution"]["attempts"][0]
+        assert persisted["prompt_tokens"] == 100
+        assert persisted["completion_tokens"] is None
+        assert set(persisted) == self._PERSISTED_ATTEMPT_KEYS
+
+    def test_explicit_zero_usage_persists_zero_not_null(self):
+        record, row = self._persist_usage(
+            {
+                "prompt_tokens": 0,
+                "completion_tokens": 0,
+                "total_tokens": 0,
+            }
+        )
+        attempt = record.attempts[0]
+        assert attempt.prompt_tokens == 0
+        assert attempt.completion_tokens == 0
+        persisted = row.payload["execution"]["attempts"][0]
+        assert persisted["prompt_tokens"] == 0
+        assert persisted["completion_tokens"] == 0
+        assert persisted["prompt_tokens"] is not None
+        assert persisted["completion_tokens"] is not None
+        assert set(persisted) == self._PERSISTED_ATTEMPT_KEYS
+
+    def test_valid_positive_usage_persists_verbatim(self):
+        record, row = self._persist_usage(
+            {
+                "prompt_tokens": 100,
+                "completion_tokens": 200,
+                "total_tokens": 300,
+            }
+        )
+        attempt = record.attempts[0]
+        assert attempt.prompt_tokens == 100
+        assert attempt.completion_tokens == 200
+        persisted = row.payload["execution"]["attempts"][0]
+        assert persisted["prompt_tokens"] == 100
+        assert persisted["completion_tokens"] == 200
+        assert set(persisted) == self._PERSISTED_ATTEMPT_KEYS
 
 
 # ===========================================================================

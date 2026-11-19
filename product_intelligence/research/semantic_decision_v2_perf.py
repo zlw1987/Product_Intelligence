@@ -289,6 +289,14 @@ V2_PERF_AUTHORITY_QUALIFIED: Final[bool] = V2_AUTHORITY_QUALIFIED
 #: before the attempt is recorded: the persisted value is the
 #: provider's own bounded identifier, or an explicit null — never
 #: raw provider text, never a reformatted or truncated value.
+#:
+#: FULL-STRING validation (SEMANTIC-V2-PERF-PHASE0-FU2 F3): applied
+#: with ``re.fullmatch`` — the entire value must BE the identifier.
+#: This mirrors the runtime's closure of the ``re.match``/``$``
+#: trailing-newline hole ("stop\n" is out of grammar): a trailing
+#: LF/CRLF, a space, or any other character outside ``[a-z0-9_]``
+#: refuses the value. The accepted lowercase-identifier vocabulary is
+#: unchanged.
 PERF_FINISH_REASON_MAX_LENGTH: Final[int] = 64
 
 _PERF_FINISH_REASON_PATTERN: Final[re.Pattern] = re.compile(
@@ -298,10 +306,11 @@ _PERF_FINISH_REASON_PATTERN: Final[re.Pattern] = re.compile(
 
 def is_bounded_perf_finish_reason(value: object) -> bool:
     """True when ``value`` matches the bounded finish-reason grammar
-    (the research mirror the V2 runtime drift-pins against)."""
+    (the research mirror the V2 runtime drift-pins against; matched
+    over the FULL string — a trailing newline is out of grammar)."""
     return isinstance(
         value, str
-    ) and _PERF_FINISH_REASON_PATTERN.match(value) is not None
+    ) and re.fullmatch(_PERF_FINISH_REASON_PATTERN, value) is not None
 
 
 # ---------------------------------------------------------------------------

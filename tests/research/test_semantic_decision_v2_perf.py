@@ -616,6 +616,72 @@ class TestPerfAttempt:
         assert canonical["prompt_tokens"] != 0
         assert canonical["completion_tokens"] != 0
 
+    @pytest.mark.parametrize(
+        "finish",
+        ["stop", "length", "content_filter", "a" * 64],
+    )
+    def test_lower_case_identifier_vocabulary_remains_valid(self, finish):
+        # F3: the accepted lowercase-identifier vocabulary is
+        # unchanged by the full-string validation.
+        from product_intelligence.semantic.runtime import (
+            is_bounded_finish_reason,
+        )
+
+        assert is_bounded_perf_finish_reason(finish)
+        assert is_bounded_finish_reason(finish)
+
+    @pytest.mark.parametrize(
+        "finish",
+        [
+            "stop\n",
+            "stop\r\n",
+            "length\n",
+            "content_filter\r\n",
+            "stop ",
+            " stop",
+            "stop\x0b",
+            "stop\x0c",
+            "stop!",
+            "STOP\n",
+        ],
+    )
+    def test_trailing_newline_and_stray_characters_are_out_of_grammar(
+        self, finish
+    ):
+        # F3: the grammar is FULL-STRING — a trailing LF/CRLF (the
+        # re.match/`$` newline hole) or any other character outside
+        # [a-z0-9_] is out of grammar, and the research mirror agrees
+        # with the runtime owner (no drift).
+        from product_intelligence.semantic.runtime import (
+            is_bounded_finish_reason,
+        )
+
+        assert not is_bounded_perf_finish_reason(finish)
+        assert is_bounded_perf_finish_reason(finish) == (
+            is_bounded_finish_reason(finish)
+        )
+
+    @pytest.mark.parametrize(
+        "finish", ["stop\n", "stop\r\n"]
+    )
+    def test_trailing_newline_finish_reason_is_refused_at_construction(
+        self, finish
+    ):
+        # F3: direct record construction rejects an invalid non-null
+        # finish reason (the explicit unknown None stays legal).
+        with pytest.raises(ValueError, match="finish_reason"):
+            SemanticDecisionAttemptPerf(
+                AttemptRole.PRIMARY,
+                1,
+                PRIMARY_PROVIDER_V2_PERF,
+                PRIMARY_MODEL_V2_PERF,
+                AttemptOutcome.OK,
+                10,
+                None,
+                None,
+                finish,
+            )
+
 
 # ===========================================================================
 # 3. The PERF typed record (positive)
@@ -1031,6 +1097,21 @@ class TestPerfInvalidTelemetry:
                 decode_semantic_decision_record(
                     self._payload_with(mutate), schema_version=1
                 )
+
+    @pytest.mark.parametrize(
+        "finish", ["stop\n", "stop\r\n", "length\n", "content_filter\n"]
+    )
+    def test_trailing_newline_finish_reason_is_refused_at_decode(self, finish):
+        # F3: codec decoding rejects an invalid non-null finish reason
+        # that carries a trailing newline — the full-string grammar is
+        # enforced at the decode seam as well (never reinterpreted,
+        # never trimmed into an accepted value).
+        def mutate(payload):
+            payload["execution"]["attempts"][0]["finish_reason"] = finish
+        with pytest.raises(SemanticDecisionCodecError):
+            decode_semantic_decision_record(
+                self._payload_with(mutate), schema_version=1
+            )
 
     def test_extra_attempt_key_is_refused(self):
         def mutate(payload):

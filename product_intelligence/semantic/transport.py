@@ -160,6 +160,23 @@ def _classify_http_error(status_code: int, error_body: dict[str, Any] | None = N
     return "HTTP_ERROR"
 
 
+def _bounded_usage_count(value: object) -> int | None:
+    """One provider-reported token count in its bounded form.
+
+    The exact non-negative int when the provider reported one (an
+    explicit zero REMAINS zero); explicit None (the explicit unknown)
+    when the count is missing or invalid (a non-int, a bool, a float,
+    a negative, or any other malformed provider value). A count is
+    never zero-filled and never inferred from any other count (e.g.
+    from ``total_tokens``).
+    """
+    if isinstance(value, bool) or not isinstance(value, int):
+        return None
+    if value < 0:
+        return None
+    return value
+
+
 @dataclass(frozen=True)
 class TransportResult:
     """Result from a semantic model transport call."""
@@ -169,7 +186,13 @@ class TransportResult:
     provider_status: str
     provider_id: str | None = None
     model_id: str | None = None
-    token_usage: dict[str, int] | None = None
+    # Provider-reported token usage. Values are bounded per count:
+    # the reported non-negative int (an explicit zero stays zero) or
+    # explicit None (the provider reported the usage object without
+    # that count — the explicit unknown; never a fabricated zero,
+    # never inferred from total_tokens). None (the whole field) = the
+    # provider reported no usage object at all.
+    token_usage: dict[str, int | None] | None = None
     # provider_reported_model is the model name returned by the provider
     # (may differ from requested model for thinking models, etc.)
     provider_reported_model: str | None = None
@@ -508,14 +531,28 @@ class OpenAISemanticTransport(SemanticModelTransport):
                 provider_reported_model = response_data.get("model")
                 finish_reason = choice.get("finish_reason")
 
-                # Extract token usage if available
+                # Extract token usage if available. Each count is
+                # bounded INDEPENDENTLY (the provider's own reported
+                # non-negative int, or the explicit unknown None when
+                # the count is missing or invalid — never a
+                # fabricated zero, never inferred from total_tokens).
+                # Only the three fixed bounded keys are recorded; no
+                # other provider metadata is carried. A non-mapping
+                # usage raises AttributeError on .get and fails closed
+                # as INVALID_PROVIDER_RESPONSE (unchanged).
                 token_usage = None
                 if "usage" in response_data:
                     usage = response_data["usage"]
                     token_usage = {
-                        "prompt_tokens": usage.get("prompt_tokens", 0),
-                        "completion_tokens": usage.get("completion_tokens", 0),
-                        "total_tokens": usage.get("total_tokens", 0),
+                        "prompt_tokens": _bounded_usage_count(
+                            usage.get("prompt_tokens")
+                        ),
+                        "completion_tokens": _bounded_usage_count(
+                            usage.get("completion_tokens")
+                        ),
+                        "total_tokens": _bounded_usage_count(
+                            usage.get("total_tokens")
+                        ),
                     }
             except (AttributeError, TypeError, KeyError, IndexError):
                 # The body was valid JSON with a "choices" list, but its

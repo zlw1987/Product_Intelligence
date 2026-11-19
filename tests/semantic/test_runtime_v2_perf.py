@@ -357,6 +357,210 @@ class TestOutOfContractProjection:
 
 
 # ===========================================================================
+# 3b. SEMANTIC-V2-PERF-PHASE0-FU2 F2 — the provider's usage object
+#     propagates as bounded telemetry through the REAL transport
+#     (HTTP body -> OpenAISemanticTransport -> V2 runtime ->
+#     SemanticAttempt), and F3 — the finish-reason grammar is
+#     full-string (a trailing newline is the explicit unknown, never
+#     a persisted value)
+# ===========================================================================
+
+
+class _RealTransportResp:
+    def __init__(self, body: bytes) -> None:
+        self.status = 200
+        self._body = body
+
+    def read(self):
+        return self._body
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        pass
+
+
+def _v2_body(usage: object | None, finish_reason: str | None = "stop") -> bytes:
+    body: dict = {
+        "model": PRIMARY_MODEL_V2,
+        "choices": [
+            {"message": {"content": RESPONSE}},
+        ],
+    }
+    if finish_reason is not None:
+        body["choices"][0]["finish_reason"] = finish_reason
+    if usage is not None:
+        body["usage"] = usage
+    return json.dumps(body).encode("utf-8")
+
+
+def _runtime_over_real_transport(
+    monkeypatch, usage: object | None, finish_reason: str | None = "stop"
+) -> object:
+    """A V2 runtime whose primary IS the real OpenAISemanticTransport
+    over a mocked HTTP 200 response carrying the given usage object
+    (end-to-end: provider JSON -> transport -> runtime attempt)."""
+    resp = _RealTransportResp(_v2_body(usage, finish_reason))
+
+    class _Opener:
+        def open(self, req, **kw):
+            return resp
+
+    monkeypatch.setattr(
+        "urllib.request.build_opener", lambda *a, **kw: _Opener()
+    )
+    transport = transport_module.OpenAISemanticTransport(
+        base_url="https://example.invalid/v1"
+    )
+    return _runtime(transport)
+
+
+class TestUsagePropagationEndToEnd:
+    """F2: the five provider usage shapes through the real transport
+    into the SemanticAttempt telemetry (never fabricated, never
+    inferred)."""
+
+    def test_usage_missing_entirely_is_none(self, monkeypatch):
+        result = _runtime_over_real_transport(monkeypatch, None).evaluate(
+            _case()
+        )
+        assert result.attempts[0].status is SemanticAttemptStatus.OK
+        assert result.attempts[0].token_usage is None
+
+    def test_empty_usage_object_is_all_explicit_none(self, monkeypatch):
+        result = _runtime_over_real_transport(monkeypatch, {}).evaluate(
+            _case()
+        )
+        assert result.attempts[0].token_usage == {
+            "prompt_tokens": None,
+            "completion_tokens": None,
+            "total_tokens": None,
+        }
+
+    def test_one_missing_token_field_stays_none_not_inferred_from_total(
+        self, monkeypatch
+    ):
+        # completion_tokens absent while total IS reported: the missing
+        # count reaches the attempt as the explicit unknown — never
+        # inferred from total_tokens, never a fabricated zero.
+        result = _runtime_over_real_transport(
+            monkeypatch, {"prompt_tokens": 100, "total_tokens": 150}
+        ).evaluate(_case())
+        assert result.attempts[0].token_usage == {
+            "prompt_tokens": 100,
+            "completion_tokens": None,
+            "total_tokens": 150,
+        }
+        assert result.attempts[0].token_usage["completion_tokens"] is None
+        assert result.attempts[0].token_usage["completion_tokens"] != 50
+
+    def test_explicit_zero_counts_remain_zero(self, monkeypatch):
+        result = _runtime_over_real_transport(
+            monkeypatch,
+            {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+        ).evaluate(_case())
+        assert result.attempts[0].token_usage == {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 0,
+        }
+
+    def test_valid_positive_counts_are_preserved_verbatim(self, monkeypatch):
+        result = _runtime_over_real_transport(
+            monkeypatch,
+            {
+                "prompt_tokens": 100,
+                "completion_tokens": 200,
+                "total_tokens": 300,
+            },
+        ).evaluate(_case())
+        assert result.attempts[0].token_usage == {
+            "prompt_tokens": 100,
+            "completion_tokens": 200,
+            "total_tokens": 300,
+        }
+
+
+class TestFinishReasonFullStringValidation:
+    """F3: the bounded grammar is full-string — a trailing newline
+    (LF/CRLF) or any other stray character is the explicit unknown,
+    and the accepted lowercase-identifier vocabulary is unchanged."""
+
+    @pytest.mark.parametrize(
+        "finish",
+        ["stop", "length", "content_filter"],
+    )
+    def test_accepted_identifiers_remain_valid_and_recorded_verbatim(
+        self, finish
+    ):
+        assert is_bounded_finish_reason(finish)
+        assert bounded_finish_reason(finish) == finish
+        result = _runtime(
+            _TelemetryTransport(finish_reason=finish)
+        ).evaluate(_case())
+        assert result.attempts[0].finish_reason == finish
+
+    @pytest.mark.parametrize(
+        "finish",
+        ["stop\n", "stop\r\n", "length\n", "content_filter\r\n", "stop "],
+    )
+    def test_trailing_newline_and_stray_characters_are_out_of_grammar(
+        self, finish
+    ):
+        assert not is_bounded_finish_reason(finish)
+        assert bounded_finish_reason(finish) is None
+
+    def test_runtime_projects_a_trailing_newline_finish_reason_to_none(
+        self, monkeypatch
+    ):
+        # End-to-end: the provider's "stop\n" reaches the real
+        # transport, and the attempt carries the explicit unknown —
+        # the raw value is never carried or reformatted.
+        result = _runtime_over_real_transport(
+            monkeypatch, None, finish_reason="stop\n"
+        ).evaluate(_case())
+        assert result.attempts[0].status is SemanticAttemptStatus.OK
+        assert result.attempts[0].finish_reason is None
+        assert "stop\n" not in repr(result)
+
+    def test_attempt_constructor_refuses_a_trailing_newline_finish_reason(self):
+        for finish in ("stop\n", "stop\r\n"):
+            with pytest.raises(ValueError, match="finish_reason"):
+                SemanticAttempt(
+                    provider=PRIMARY_PROVIDER_V2,
+                    model=PRIMARY_MODEL_V2,
+                    status=SemanticAttemptStatus.OK,
+                    latency_ms=1.0,
+                    finish_reason=finish,
+                )
+        # The accepted vocabulary still constructs cleanly.
+        for finish in ("stop", "length", "content_filter"):
+            attempt = SemanticAttempt(
+                provider=PRIMARY_PROVIDER_V2,
+                model=PRIMARY_MODEL_V2,
+                status=SemanticAttemptStatus.OK,
+                latency_ms=1.0,
+                finish_reason=finish,
+            )
+            assert attempt.finish_reason == finish
+
+    def test_bounded_helpers_accept_partial_usage_shapes(self):
+        # F2 at the projection seam: an explicit per-count None is IN
+        # contract (the provider's usage object reported without that
+        # count) — while an invalid count still refuses the whole
+        # mapping (never zero-filled, never coerced).
+        assert bounded_token_usage(
+            {"prompt_tokens": 100, "completion_tokens": None}
+        ) == {"prompt_tokens": 100, "completion_tokens": None}
+        assert bounded_token_usage(
+            {"prompt_tokens": 0, "completion_tokens": 0}
+        ) == {"prompt_tokens": 0, "completion_tokens": 0}
+        assert bounded_token_usage({"prompt_tokens": "100"}) is None
+        assert bounded_token_usage({"prompt_tokens": -1}) is None
+
+
+# ===========================================================================
 # 4. The V1 surface and the routing behavior are unchanged
 # ===========================================================================
 

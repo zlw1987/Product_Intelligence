@@ -607,3 +607,143 @@ class TestKnownSuccessPath:
 
         assert isinstance(result, TransportResult)
         assert result.finish_reason is None
+
+
+# =============================================================================
+# SEMANTIC-V2-PERF-PHASE0-FU2 F2 — the provider's usage object propagates
+# as bounded telemetry (no fabricated zeros, no inference from totals)
+# =============================================================================
+
+
+class TestUsageTelemetryBoundedProjection:
+    """Through the REAL ``OpenAISemanticTransport`` 200 path (urllib
+    patched), the provider's ``usage`` object must reach the result as
+    bounded per-count telemetry:
+
+    * an explicitly reported integer zero REMAINS zero;
+    * a missing or invalid count is the explicit unknown (None) —
+      never a fabricated measured zero;
+    * a missing count is never inferred from ``total_tokens``;
+    * only the three fixed bounded keys are carried (no raw provider
+      metadata).
+    """
+
+    def _usage_result(self, monkeypatch, usage: object | None) -> TransportResult:
+        body = {
+            "model": "nemotron-3-super",
+            "choices": [
+                {"message": {"content": "hi"}, "finish_reason": "stop"}
+            ],
+        }
+        if usage is not None:
+            body["usage"] = usage
+        resp = _MockResp(status=200, body=json.dumps(body).encode("utf-8"))
+
+        class _Opener:
+            def open(self, req, **kw):
+                return resp
+
+        monkeypatch.setattr(
+            "urllib.request.build_opener", lambda *a, **kw: _Opener()
+        )
+        result = _complete(_transport())
+        assert isinstance(result, TransportResult)
+        return result
+
+    def test_usage_missing_entirely_is_explicit_none(self, monkeypatch):
+        # No usage object at all: the whole telemetry is the explicit
+        # unknown (never an all-zero mapping).
+        result = self._usage_result(monkeypatch, None)
+        assert result.token_usage is None
+
+    def test_empty_usage_object_is_all_explicit_none(self, monkeypatch):
+        # A usage object with no counts: every count is the explicit
+        # unknown — the pre-FU2 fabrication of measured zeros is gone.
+        result = self._usage_result(monkeypatch, {})
+        assert result.token_usage == {
+            "prompt_tokens": None,
+            "completion_tokens": None,
+            "total_tokens": None,
+        }
+
+    def test_one_missing_token_field_is_explicit_none_not_inferred(
+        self, monkeypatch
+    ):
+        # completion_tokens absent while a total IS reported: the
+        # missing count stays the explicit unknown — it is never
+        # inferred from total_tokens (150 - 100 must not become 50).
+        result = self._usage_result(
+            monkeypatch, {"prompt_tokens": 100, "total_tokens": 150}
+        )
+        assert result.token_usage == {
+            "prompt_tokens": 100,
+            "completion_tokens": None,
+            "total_tokens": 150,
+        }
+
+    def test_explicit_zero_counts_remain_zero(self, monkeypatch):
+        # Provider-reported integer zeros are MEASUREMENTS, not
+        # unknowns: they stay exactly zero (the explicit-None shapes
+        # above are what distinguish them).
+        result = self._usage_result(
+            monkeypatch,
+            {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+        )
+        assert result.token_usage == {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 0,
+        }
+
+    def test_valid_positive_counts_are_preserved_verbatim(self, monkeypatch):
+        result = self._usage_result(
+            monkeypatch,
+            {
+                "prompt_tokens": 100,
+                "completion_tokens": 200,
+                "total_tokens": 300,
+            },
+        )
+        assert result.token_usage == {
+            "prompt_tokens": 100,
+            "completion_tokens": 200,
+            "total_tokens": 300,
+        }
+
+    def test_invalid_counts_become_explicit_none(self, monkeypatch):
+        # Malformed provider values (a string, a negative, a bool)
+        # are each, independently, the explicit unknown — never
+        # coerced into a number, and never rejected as a whole
+        # response (the 200 success path is unchanged).
+        result = self._usage_result(
+            monkeypatch,
+            {
+                "prompt_tokens": "100",
+                "completion_tokens": -5,
+                "total_tokens": True,
+            },
+        )
+        assert result.token_usage == {
+            "prompt_tokens": None,
+            "completion_tokens": None,
+            "total_tokens": None,
+        }
+
+    def test_no_other_provider_metadata_is_carried(self, monkeypatch):
+        # Only the three fixed bounded keys leave the transport: an
+        # extra usage key is malformed provider data, not telemetry.
+        result = self._usage_result(
+            monkeypatch,
+            {
+                "prompt_tokens": 100,
+                "completion_tokens": 200,
+                "total_tokens": 300,
+                "provider_internal_note": "do not persist me",
+            },
+        )
+        assert set(result.token_usage) == {
+            "prompt_tokens",
+            "completion_tokens",
+            "total_tokens",
+        }
+        assert "provider_internal_note" not in json.dumps(result.to_dict())

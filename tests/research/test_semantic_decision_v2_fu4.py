@@ -154,14 +154,34 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 PACKAGE_ROOT = REPO_ROOT / "product_intelligence"
 ADAPTER_PATH = PACKAGE_ROOT / "research" / "semantic_decision_v2_fu4.py"
 CODEC_PATH = PACKAGE_ROOT / "research" / "semantic_decision_codec.py"
-#: The codec's SHA-256 at the R1 endpoint (commit
-#: 60f548d404b39ac801f4c1963505ca36c160fea8) — the exact file the
-#: registration shipped (the DEC-9 claim-based disambiguation amendment
-#: + the registry's third entry). A LITERAL recorded at FU1 (verified
-#: against the committed content at that SHA); it is NOT computed from
-#: the file under test at run time.
+#: HISTORICAL AUDIT CONSTANT — the codec's SHA-256 at the R1 endpoint
+#: (commit 60f548d404b39ac801f4c1963505ca36c160fea8) — the exact file
+#: the registration shipped (the DEC-9 claim-based disambiguation
+#: amendment + the registry's third entry). A LITERAL recorded at FU1
+#: (verified against the committed content at that SHA); it is NOT
+#: computed from the file under test at run time. Superseded as the
+#: ACTIVE pin by CODEC_PHASE0_ENDPOINT_DIGEST (the recorded re-pin of
+#: SEMANTIC-V2-PERF-PHASE0-FU2 F1); it is preserved here so the R1
+#: endpoint content remains auditable and the re-pin event is
+#: distinguishable from a no-op.
 CODEC_R1_ENDPOINT_DIGEST = (
     "c0cef216d72e528ba8b17daa7adbb941f9ac328b42f02eb8dc4f00fdaa68bd3d"
+)
+
+#: THE ACTIVE PIN (the authorized, recorded re-pin of
+#: SEMANTIC-V2-PERF-PHASE0-FU2 F1) — the codec's SHA-256 as committed
+#: (LF-normalized blob) at the Phase 0 endpoint (commit
+#: 447fb589325d8c441180555f49eab58a356c148e; unchanged at the FU1
+#: endpoint 24857f64fbe34b253635fa4715f27b6779d03a00, which is
+#: test-only). Phase 0 amended the codec at its own explicit extension
+#: point — the registry's fourth entry (SEMANTIC_V2_PERF_ADAPTER) —
+#: and that amendment is the ONLY delta between the historical R1
+#: audit constant above and this successor literal. A LITERAL verified
+#: against the committed content at those SHAs; it is NOT computed from
+#: the file under test at run time. Any further edit to the codec now
+#: fails the pinned node and requires an explicit, recorded re-pin.
+CODEC_PHASE0_ENDPOINT_DIGEST = (
+    "106fea7b0e697afaf8c7e9affa317637721df2283abc16ee23ab435876aba161"
 )
 
 RUN_ID = str(uuid.uuid4())
@@ -903,21 +923,41 @@ class TestA1RegistrationState:
         claim-gate refusals), never the file's bytes. This node
         restores that exact safety contract at the R1 endpoint: it
         reads the actual codec file, calculates its SHA-256, and
-        compares it against the literal digest above (never computed
-        from the file under test). Any further edit to the codec now
-        fails this node and requires an explicit, recorded re-pin —
-        the same discipline the removed A1 row enforced for the
-        frozen codec.
+        compares it against a literal digest (never computed from the
+        file under test). Any further edit to the codec now fails
+        this node and requires an explicit, recorded re-pin — the
+        same discipline the removed A1 row enforced for the frozen
+        codec.
+
+        Recorded re-pin (SEMANTIC-V2-PERF-PHASE0-FU2 F1, authorized by
+        the independent review of the FU1 diff): Phase 0 amended the
+        codec at its explicit registry extension point (the fourth
+        adapter entry), so the ACTIVE pin moved from the historical
+        R1-endpoint audit constant (CODEC_R1_ENDPOINT_DIGEST, commit
+        60f548d — preserved above for audit) to the Phase 0
+        successor literal (CODEC_PHASE0_ENDPOINT_DIGEST, the committed
+        LF content at 447fb58 / 24857f6). The pin target is the
+        COMMITTED content, so on a CRLF-normalized worktree this node
+        belongs to the documented raw-byte workstation class and is
+        verified from a clean LF checkout.
         """
+        assert CODEC_PHASE0_ENDPOINT_DIGEST != CODEC_R1_ENDPOINT_DIGEST, (
+            "the recorded Phase 0 re-pin must differ from the "
+            "historical R1 audit constant — a no-op re-pin is not a "
+            "re-pin event"
+        )
         assert hashlib.sha256(CODEC_PATH.read_bytes()).hexdigest() == (
-            CODEC_R1_ENDPOINT_DIGEST
+            CODEC_PHASE0_ENDPOINT_DIGEST
         ), (
-            "semantic_decision_codec.py differs from its R1-endpoint "
-            "content (commit 60f548d, digest "
-            f"{CODEC_R1_ENDPOINT_DIGEST}); the codec is the one "
-            "production module R1 amended, and its file content is "
-            "pinned here at the R1 endpoint — a change requires an "
-            "explicit, recorded re-pin"
+            "semantic_decision_codec.py differs from its Phase 0 "
+            "endpoint content (commit 447fb58 / 24857f6, digest "
+            f"{CODEC_PHASE0_ENDPOINT_DIGEST}); the codec was amended "
+            "by Phase 0 at its explicit registry extension point "
+            "(the fourth adapter entry) and its file content is "
+            "pinned here at the Phase 0 endpoint (historical R1 "
+            f"audit constant {CODEC_R1_ENDPOINT_DIGEST}, commit "
+            "60f548d) — any further change requires an explicit, "
+            "recorded re-pin"
         )
 
 

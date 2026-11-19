@@ -390,6 +390,14 @@ _FALLBACK_STATUS_TO_ERROR_TYPE: dict[
 #: research persistence layer mirrors this grammar and drift-pins the two;
 #: a value outside the grammar is recorded as an explicit unknown (None),
 #: never coerced, never truncated, never persisted raw.
+#:
+#: FULL-STRING validation (SEMANTIC-V2-PERF-PHASE0-FU2 F3): the grammar
+#: is applied with ``re.fullmatch`` — the entire value must BE the
+#: identifier. This closes the ``re.match``/``$`` trailing-newline hole
+#: (``$`` also matches before a final "\n", so "stop\n" was once
+#: admitted): a trailing LF/CRLF, a space, or any other character outside
+#: ``[a-z0-9_]`` makes the whole value out of grammar. The accepted
+#: lowercase-identifier vocabulary is unchanged.
 FINISH_REASON_MAX_LENGTH: int = 64
 
 _FINISH_REASON_PATTERN = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
@@ -397,8 +405,12 @@ _FINISH_REASON_PATTERN = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
 
 def is_bounded_finish_reason(value: Any) -> bool:
     """True when ``value`` is a provider finish reason the bounded grammar
-    admits (a non-empty lowercase identifier, <= 64 characters)."""
-    return isinstance(value, str) and _FINISH_REASON_PATTERN.match(value) is not None
+    admits (a non-empty lowercase identifier, <= 64 characters, matched
+    over the FULL string — a trailing newline or any other stray
+    character is out of grammar)."""
+    return isinstance(
+        value, str
+    ) and re.fullmatch(_FINISH_REASON_PATTERN, value) is not None
 
 
 def bounded_finish_reason(value: Any) -> str | None:
@@ -411,13 +423,16 @@ def bounded_finish_reason(value: Any) -> str | None:
     return None
 
 
-def bounded_token_usage(value: Any) -> dict[str, int] | None:
+def bounded_token_usage(value: Any) -> dict[str, int | None] | None:
     """The bounded projection of a provider-reported token-usage mapping.
 
-    Admits None (the provider reported no usage) or a mapping whose keys
-    are non-empty strings and whose values are non-negative ints (bool is
-    not an int here). Any other shape is out of contract and projects to
-    explicit None — unknown usage is never invented, never zero-filled.
+    Admits None (the provider reported no usage) or a mapping whose
+    keys are non-empty strings and whose values are non-negative ints
+    (bool is not an int here) or explicit None (the provider reported
+    the usage object without that count — the explicit unknown). Any
+    other shape is out of contract and projects to explicit None —
+    unknown usage is never invented, and a missing count is never
+    zero-filled or inferred from any other count.
     """
     if value is None:
         return None
@@ -426,6 +441,8 @@ def bounded_token_usage(value: Any) -> dict[str, int] | None:
     for key, item in value.items():
         if not isinstance(key, str) or not key:
             return None
+        if item is None:
+            continue
         if isinstance(item, bool) or not isinstance(item, int):
             return None
         if item < 0:
@@ -444,18 +461,20 @@ class SemanticAttempt:
     The two optional telemetry fields (SEMANTIC-V2-PERF Phase 0) are the
     bounded provider-reported measurements of this one attempt: the
     token-usage mapping (None = the provider reported none — an explicit
-    unknown, never zero) and the finish reason (None = unreported or
-    outside the bounded grammar — never raw provider text). Both default
-    to None, so the V1 runtime and every pre-existing construction are
-    unchanged; the V1 serialization surface (``to_dict``) stays exactly
-    the four historical fields.
+    unknown, never zero; a count the provider's usage object reports
+    without is the explicit None for that count, never a fabricated
+    zero) and the finish reason (None = unreported or outside the
+    bounded grammar — never raw provider text). Both default to None,
+    so the V1 runtime and every pre-existing construction are unchanged;
+    the V1 serialization surface (``to_dict``) stays exactly the four
+    historical fields.
     """
 
     provider: str
     model: str
     status: SemanticAttemptStatus
     latency_ms: float
-    token_usage: dict[str, int] | None = None
+    token_usage: dict[str, int | None] | None = None
     finish_reason: str | None = None
 
     def __post_init__(self) -> None:
@@ -483,8 +502,10 @@ class SemanticAttempt:
                 raise ValueError(
                     "token_usage must be None (the provider reported no "
                     "usage) or a mapping of non-empty str keys to "
-                    "non-negative ints; out-of-contract usage is refused, "
-                    "never zero-filled or invented"
+                    "non-negative ints or explicit None (a count the "
+                    "provider reported without — the explicit unknown); "
+                    "out-of-contract usage is refused, never zero-filled "
+                    "or invented"
                 )
         if self.finish_reason is not None and not is_bounded_finish_reason(
             self.finish_reason
