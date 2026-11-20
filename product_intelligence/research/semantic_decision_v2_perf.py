@@ -85,6 +85,27 @@ Versioning discipline (the anti-reinterpretation rule, Phase 0):
   fallback eligibility, no semantic decision, no authority surface —
   ``V2_PERF_AUTHORITY_QUALIFIED`` mirrors the frozen V2 marker
   (False) and is drift-pinned by tests.
+* CANONICAL missing-attribute ordering (SEMANTIC-V2-PERF-PHASE0-UAT-
+  FU1, F-1): the shared frozen evaluation-section encoder writes
+  ``missing_critical_attributes`` in the order it is given, while the
+  shared set-value decoder requires the sorted canonical order — so a
+  record built from an unsorted model-output order persisted fine (its
+  digests were computed over that same order) but refused to decode
+  and replay. The PERF record builder boundary therefore normalizes
+  the list to the deterministic sorted tuple of the exact enum string
+  values BEFORE the section digests are computed (duplicate and
+  invalid dimensions refused, never silently deduplicated; all
+  dimensions preserved): the stored field, the computed digests, and
+  the decoded form of every future PERF record agree. The PERF
+  decoder carries one narrowly scoped legacy exception for the
+  pre-normalization output-schema-2 records: the same unique, valid
+  values in their ORIGINAL serialized order are accepted verbatim
+  (their stored digests were computed over exactly that order, and the
+  record constructor's digest self-verification proves it — a digest
+  mismatch is refused, never repaired by recomputation or replacement
+  of the stored digest). No other ordering or shape is accepted, and
+  the frozen V2 adapter, the V1 adapter, the universal decoder, the
+  frozen shared encoder, and the registry dispatch are all unchanged.
 
 The universal parts — the envelope framing, the adapter registry and
 claim-based dispatch, the row-level tamper anchor, the persistence
@@ -141,6 +162,7 @@ from product_intelligence.research import (
     substate_relationship_requirement,
 )
 from product_intelligence.research.semantic_decision_record import (
+    SemanticDecisionCodecError,
     SemanticDecisionContractAdapter,
     SemanticDecisionReplayError,
     _BINDING_KEYS,
@@ -474,6 +496,58 @@ def _v2_perf_execution_section(
         "evaluation_started_at": evaluation_started_at,
         "evaluation_finished_at": evaluation_finished_at,
     }
+
+
+# ---------------------------------------------------------------------------
+# The PERF builder boundary's canonical missing-attribute form (F-1)
+# ---------------------------------------------------------------------------
+
+
+def _canonical_perf_missing_critical_attributes(
+    values: object,
+) -> tuple[SemanticAttributeDimensionV2, ...]:
+    """The PERF builder boundary's canonical form of the recorded
+    missing-critical-attribute set (SEMANTIC-V2-PERF-PHASE0-UAT-FU1,
+    F-1).
+
+    The shared frozen evaluation-section encoder writes this list in
+    the order it is given, while the shared set-value decoder requires
+    the sorted canonical order: a record built from an unsorted model-
+    output order would persist (its digests computed over that same
+    order) but refuse to decode and replay. The builder therefore
+    normalizes to the deterministic sorted tuple of the EXACT enum
+    string values BEFORE the section digests are computed, so the
+    stored field, the computed digests, and the decoded form of every
+    future PERF record agree.
+
+    All dimensions are preserved; a duplicate dimension and a non-
+    member entry are refused (never silently deduplicated) — the
+    strict V2 response validator already refuses both upstream; this
+    is the record-boundary twin of that rule. No other field's
+    ordering semantics change.
+    """
+    if not isinstance(values, (tuple, list)):
+        raise TypeError(
+            "missing_critical_attributes must be a tuple of "
+            "SemanticAttributeDimensionV2 members, got "
+            f"{type(values).__name__}"
+        )
+    seen: set[str] = set()
+    for i, item in enumerate(values):
+        if not isinstance(item, SemanticAttributeDimensionV2):
+            raise TypeError(
+                f"missing_critical_attributes[{i}] must be a "
+                "SemanticAttributeDimensionV2 member, got "
+                f"{type(item).__name__}"
+            )
+        if item.value in seen:
+            raise ValueError(
+                f"missing_critical_attributes[{i}] {item.value!r} is a "
+                "duplicate dimension; the bounded set encoding records "
+                "each dimension once (no silent deduplication)"
+            )
+        seen.add(item.value)
+    return tuple(sorted(values, key=lambda dimension: dimension.value))
 
 
 # ---------------------------------------------------------------------------
@@ -1149,7 +1223,21 @@ class SemanticDecisionRecordV2Perf:
         authority contract): the builder takes no version parameters
         so a PERF artifact cannot be bound to a contract this adapter
         does not know.
+
+        F-1 canonical form: ``missing_critical_attributes`` is
+        normalized to the deterministic sorted tuple of exact enum
+        string values at this builder boundary, before the section
+        digests are computed (duplicate / invalid dimensions refused,
+        all dimensions preserved) — the stored field, the computed
+        digests, and the decoded form of every record built here
+        therefore agree, and the record decodes and replays through
+        the shared strict set encoding.
         """
+        missing_critical_attributes = (
+            _canonical_perf_missing_critical_attributes(
+                missing_critical_attributes
+            )
+        )
         input_digest = canonical_sha256(
             {
                 "binding": _binding_section(
@@ -1348,6 +1436,54 @@ def _dec_optional_int(raw: object, path: str) -> int | None:
     return _dec_int(raw, path)
 
 
+def _dec_v2_perf_missing_critical_attributes(
+    raw: object, path: str
+) -> tuple[SemanticAttributeDimensionV2, ...]:
+    """Decode the PERF evaluation section's recorded missing-critical-
+    attribute list.
+
+    The canonical form is the sorted list of unique exact enum string
+    values (the shared set encoding) — the PERF builder boundary (the
+    F-1 correction) guarantees it for every record built after
+    SEMANTIC-V2-PERF-PHASE0-UAT-FU1.
+
+    One narrowly scoped legacy exception (the same correction): a
+    PERF output-schema-2 record persisted BEFORE the builder
+    normalization carries the same unique, valid values in model-
+    output order. That ordering is the record's ORIGINAL serialized
+    form — its stored section digests were computed over exactly it —
+    so the original order is accepted verbatim here; the record
+    constructor's normal validation, including its digest
+    self-verification, then proves the stored digests against that
+    original order (a digest mismatch is refused — never repaired by
+    recomputation or replacement of the stored digest), and the zero-
+    live replay re-proves the derived agreement over the record.
+
+    Still refused, exactly as the canonical form refused them: a
+    non-list value, a non-string entry, an unknown dimension value, a
+    duplicate dimension, an absent key, and every other malformed
+    section field. The relaxation touches ONLY this field's ordering
+    and ONLY under the PERF decoder's exact five-axis binding (the
+    PERF adapter claims only ``V2_PERF_CONTRACT_BINDING``): the frozen
+    V2 adapter, the V1 adapter, the universal decoder, and the frozen
+    shared encoder are unchanged.
+    """
+    items = _dec_list(raw, path)
+    seen: set[str] = set()
+    out: list[SemanticAttributeDimensionV2] = []
+    for i, item in enumerate(items):
+        dimension = _dec_str_enum(
+            SemanticAttributeDimensionV2, item, f"{path}[{i}]"
+        )
+        if dimension.value in seen:
+            raise SemanticDecisionCodecError(
+                f"{path}[{i}]: set values must be unique"
+            )
+        seen.add(dimension.value)
+        out.append(dimension)
+    return tuple(out)
+
+
 def _decode_v2_perf_payload(
     payload: dict[str, object],
 ) -> SemanticDecisionRecordV2Perf:
@@ -1482,21 +1618,14 @@ def _decode_v2_perf_payload(
         ),
         "evaluation.conflicting_attributes",
     )
-    missing_critical_attributes = tuple(
-        _dec_str_enum(
-            SemanticAttributeDimensionV2,
-            value,
-            f"evaluation.missing_critical_attributes[{i}]",
-        )
-        for i, value in enumerate(
-            _dec_sorted_unique_str_list(
-                _dec_required(
-                    evaluation_data,
-                    "missing_critical_attributes",
-                    "evaluation",
-                ),
-                "evaluation.missing_critical_attributes",
-            )
+    missing_critical_attributes = (
+        _dec_v2_perf_missing_critical_attributes(
+            _dec_required(
+                evaluation_data,
+                "missing_critical_attributes",
+                "evaluation",
+            ),
+            "evaluation.missing_critical_attributes",
         )
     )
 
