@@ -21,8 +21,7 @@ NOT YET APPROVED; F-2 deployment security HOLD OPEN (feature branch
   Semantic V2 authority **unchanged and unqualified**
   (`V2_AUTHORITY_QUALIFIED` / `V2_PERF_AUTHORITY_QUALIFIED` = False;
   evidence-only).
-* **Phase 1 performance diagnostic** (`docs/LOCAL_SEMANTIC_V2_PERF_
-  PHASE1_DIAG.md` + the stable CSV
+* **Phase 1 performance diagnostic** (`docs/LOCAL_SEMANTIC_V2_PERF_PHASE1_DIAG.md` + the stable CSV
   `docs/LOCAL_SEMANTIC_V2_PERF_PHASE1_DIAG_CORRELATION_43.csv`)
   **APPROVED, subject to the documented evidence limitations** of
   the diagnostic itself: n=1 Phase-0-instrumented local UAT call only

@@ -95,7 +95,7 @@ no fallback data exists for this population.
 
 ## 3. Tokens and throughput
 
-| Population (route / model / prompt) | n | Prompt tokens | Completion tokens | Latency (s) | Implied decode |
+| Population (route / model / prompt) | n | Prompt tokens | Completion tokens | Latency (s) | Completion / end-to-end latency ratio |
 | --- | --- | --- | --- | --- | --- |
 | **Q3-B V2 qualification capture** (amax `qwen3.8-27b`, 2.0) [M] | 43 | 2,638–3,073 (p50 2,674) | 603–9,248 (p50 2,475, mean 3,052) | 7.630–120.499 (p50 21.559, p90 45.798) | ratio of median completion tokens to median end-to-end latency: p50 2,475 / 21.559 s ≈ 114.8; overall mean 3,052 / population-mean 28.538 s ≈ 107.0 (arithmetic ratios — not measured decode throughput) |
 | **V1 control** (same amax model, 1.1) [M] | 64 | 1,314–1,380 (p50 1,348) | 225–2,378 (p50 366.5) | 2.086–20.416 (p50 3.275) | ratio of median completion tokens to median end-to-end latency: p50 366.5 / 3.275 s ≈ 111.9 (arithmetic ratio — not measured decode throughput) |
@@ -209,13 +209,17 @@ runs (N = 1 for MPN `XP15360SE70005`, N = 1 for the same MPN on the
 PERF row, N = 5 for one anonymous MPN). What the evidence IS
 sufficient for: the causal direction of the user-visible cost (the
 synchronous, evidence-only V2 wait is the dominant share of every
-observed run window [M]); the derived finding that output-token volume
-is the dominant per-call cost within the measured Q3-B qualification
-population (V2 completions 6.75× larger than V1 with similar
-arithmetic completion-to-latency ratios; per-call phase split
-remaining [U]); and the decision that no frozen-contract parameter
-(prompt, max_tokens, temperature, timeout, fallback) may be changed
-inside this program to remove the wait.
+observed run window [M]); the derived observation that output-token
+volume is strongly associated with latency in the Q3-B population
+(Pearson r = 0.9599, n=43 [D — §3 provenance, re-derived in this
+review from the sanitized CSV]; V2 completions are 6.75× larger than
+V1 with similar arithmetic completion-to-latency ratios), consistent
+with output generation being an important latency driver —
+provider-side causal decomposition (queue / TTFT / prefill / decode
+split) remains unmeasured [U] (transport is non-streaming; per-call
+phase split is [U]); and the decision that no frozen-contract
+parameter (prompt, max_tokens, temperature, timeout, fallback) may
+be changed inside this program to remove the wait.
 
 ## 5. Ranked optimization candidates (≤3)
 
