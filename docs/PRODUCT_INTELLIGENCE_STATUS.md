@@ -6,6 +6,65 @@
 
 
 
+**PRODUCT-INTEL.SEMANTIC-V2-PERF — Phase 0 UAT-FU1 APPROVED;
+Phase 1 performance diagnostic APPROVED subject to documented
+evidence limitations; FU2 asynchronous implementation design
+NOT YET APPROVED; F-2 deployment security HOLD OPEN (feature branch
+`feature/vendor-refresh-web` @
+`01e937af19789d0a74bb1265acdab1d7dad1ebb5`)**
+
+* **Phase 0 (A1 instrumentation) is APPROVED at `01e937af`** (committed).
+  Performance instrumentation functional acceptance complete
+  (per-attempt V2 ledger record: `latency_ms` / `prompt_tokens` /
+  `completion_tokens` / `finish_reason`; decode + replay verified
+  read-only — UAT item 5 resolved, 21-check verification of record).
+  Semantic V2 authority **unchanged and unqualified**
+  (`V2_AUTHORITY_QUALIFIED` / `V2_PERF_AUTHORITY_QUALIFIED` = False;
+  evidence-only).
+* **Phase 1 performance diagnostic** (`docs/LOCAL_SEMANTIC_V2_PERF_
+  PHASE1_DIAG.md` + the stable CSV
+  `docs/LOCAL_SEMANTIC_V2_PERF_PHASE1_DIAG_CORRELATION_43.csv`)
+  **APPROVED, subject to the documented evidence limitations** of
+  the diagnostic itself: n=1 Phase-0-instrumented local UAT call only
+  (the 84.73 s call's token count is `[U]`, unrecoverable); queue /
+  prefill / decode split and TTFT are `[U]` (non-streaming transport);
+  the two single-candidate UAT runs are not a controlled before /
+  after; Q3-B is a qualification-corpus population, not production
+  traffic; the V2 / vLLM fallback never executed in the observed
+  population; the N=5 parallel-concurrency figure is a theoretical
+  full-parallel estimate, not a projection. Historical N=1 observations
+  do not establish a future lower bound on V2 call counts; per-run
+  latency and per-call token counts are recorded individually — a
+  comparable Pearson r across only three repeats is not a decision
+  criterion. The diagnostic's stated conclusions stand only within
+  those limitations; **no production / test / prompt / route /
+  temperature / max_tokens / timeout / fallback change was made**
+  (ChatGPT independent review of the FU2 evidence package:
+  CONDITIONALLY APPROVED, subject to the documentation corrections
+  now recorded in the diagnostic).
+* **FU2 asynchronous implementation design (Option B) is NOT YET
+  APPROVED.** Option B (nonblocking supplementary V2) remains the
+  **preferred architectural candidate** per the FU1 design review of
+  record (commit `9b2103c`; reaffirmed by the FU2 revision commit
+  `55ab0ee`, whose message states: "Option B remains the preferred
+  architecture; the FU1 design is NOT yet approved for
+  implementation"). The committed FU2 revision of
+  `docs/SEMANTIC_V2_PERFORMANCE_DESIGN_01.md` (incl. the §4.12
+  items 1–9 frozen-contract delta) **requires explicit final
+  approval before implementation**; the architecture-direction
+  approval is NOT an implementation approval. **No later explicit
+  approval record exists in the repository**: the later commits
+  `447fb58` / `24857f6` / `0db104d` / `01e937af` concern the Phase 0
+  (A1) implementation and its UAT-FU1 approval only and do not
+  approve the corrected FU2 design for implementation. The design's
+  Phase 1 debt-lifecycle implementation **must not begin** without
+  the explicit architecture approval gate; the diagnostic's
+  conditional approval is NOT that gate.
+* **F-2 deployment security HOLD remains OPEN** (ambient all-address
+  `PI_VENDOR_PRICE_ALLOWED_CIDRS`; must not be left as the UAT /
+  pilot host default).
+
+
 **PRODUCT-INTEL.VENDOR-REFRESH-WEB-FINAL-CORRECTION (F5
 display-truthfulness — the error notice is neutral in both shapes)
 
