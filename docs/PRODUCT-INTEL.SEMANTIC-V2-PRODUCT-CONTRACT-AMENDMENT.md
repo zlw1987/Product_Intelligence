@@ -62,6 +62,53 @@
 > FU3-named qualification gates (G-HR / G-CUT / G-AP, §4.10) are
 > specified but none is opened.
 >
+> **Final-gate review status.** ChatGPT final-gate review of commit
+> `6b7baf3c75625ca26b44e46dd6018eebc9783c86` returned
+> **CHANGES REQUESTED — DESIGN ONLY**. This document corrects in place
+> (R1–R6) without creating a replacement. It does not advance any
+> implementation, qualification, or authority flag, and does not activate
+> any gate: the versioned run-level review policy of record (§4.9)
+> remains `V1_FIRST`, the frozen V2 authority flags remain `False`,
+> P1–P8 / N1–N7 / PAG-V2 safety intent is preserved, and none of
+> G-HR / G-CUT / G-AP is opened.
+>
+> **Final-gate correction index.** R1 — policy-first confirm
+> authorization: the service verifies the persisted run policy BEFORE
+> branching on `v2_review_admission` (V1_FIRST+null ⇒ frozen V1 path;
+> V1_FIRST+V2 ⇒ refuse; V2_PRIMARY+null ⇒ refuse; V2_PRIMARY+V2 ⇒
+> mandatory V2 verification); no direct service caller bypasses the
+> guard; the attestation is an explicit input to the pure V2 binding
+> verifier — runs/execution owns the loads, pure research owns the
+> verification. R2 — the terminal ResearchRun state is NOT the debt
+> lease fence: the async fenced completion is bound to the Option B
+> debt's recorded claim owner / generation / live lease; a stale owner
+> never publishes ledger or candidate authority; ledger persistence +
+> candidate admission + debt terminalization are one all-or-nothing
+> fenced worker transaction. R3 — `ReviewedPriceIndexAuthorization` is
+> enforceable: the runs/execution-owned trusted persisted-state
+> verification boundary is the sole minting site; the pure
+> `reviewed-price/2` / `compact-quote/2` functions re-verify in memory
+> only (no Django model query, no ledger reload) and project the frozen
+> arithmetic; a bare index, a bare UUID, or a fabricated dataclass
+> gains no price authority; v1 price arithmetic and historical replay
+> are unchanged. R4 — N3 corrected without weakening safety: the frozen
+> legacy `derive_human_confirmed_assessment_indices` is NOT required to
+> behave differently when directly invoked on a `V2_PRIMARY` run;
+> instead no actual `V2_PRIMARY` live-report, public-replay, or
+> vendor-replay authority path calls it (enforced and tested); all
+> historical V1 tests are unchanged; zero variant leakage into
+> same-product price calculation is preserved. R5 — the SV2-B / SV2-C
+> dependency contradiction removed: SV2-B delivers the suspected-variant
+> functionality; SV2-C later adds the independently verified tier
+> (before SV2-C the attestation input is explicit `None`); G-HR's
+> synchronous qualification does not depend on unapproved Option B
+> async execution; N6 remains mandatory for any approved Option B async
+> implementation and cutover. R6 — the persisted RAW description
+> establishes source availability, not independently verified semantic
+> entailment: model agreement must be traceable and visible for human
+> judgment; the description-only human-review admission use case (N4)
+> is kept; no automatic pricing authority is granted.
+>
 > **FU3 correction index.** F1 — snapshot schema compatibility resolved
 > with ONE concrete versioned persistence design: the SV2-A description
 > field enters `PriceIntelligenceSnapshot` only under a new payload
@@ -115,7 +162,7 @@
 
 | Property | Value |
 | --- | --- |
-| Phase | Pre-design — product-contract amendment for ChatGPT review (FU1 corrections F1–F8, FU2 corrections C1–C7, and FU3 corrections F1–F7 applied in place) |
+| Phase | Pre-design — product-contract amendment for ChatGPT review (FU1 corrections F1–F8, FU2 corrections C1–C7, FU3 corrections F1–F7, and final-gate corrections R1–R6 applied in place) |
 | Implementation | **None.** No code, no test, no migration, no corpus label, no authority flag, no schema, no pricing wiring, no prompt, no model call, no seal artifact, no qualification. |
 | Dependents | None. This amendment does not modify `CLAUDE.md`, `PRODUCT_INTELLIGENCE_STATUS.md`, or `PRODUCT_INTELLIGENCE_PLAN.md`. Status / PLAN update happens only under a later approved implementation phase. |
 | Authority state of record (carried over, unchanged) | `V2_AUTHORITY_QUALIFIED = False`, `V2_PERF_AUTHORITY_QUALIFIED = False`, FU2 Option B **NOT YET APPROVED**, FU4 Bundle authority program state **UNAPPROVED / NOT EXECUTED**, C2 corpus state **DRAFT ACCEPTED / FINAL HOLD**, v1.0.0 seal **FINAL-HOLD**. |
@@ -123,6 +170,7 @@
 | FU1 review verdict | CHANGES REQUESTED — DESIGN ONLY. F1–F8 corrections applied in this document. |
 | FU2 review verdict | CHANGES REQUESTED — DESIGN ONLY (reviewed commit `f164730ba20117e76a76b0eb4a1a6b06088ec089`). C1–C7 corrections + the mandatory end-to-end proof specifications applied in this document. |
 | FU3 review verdict | CHANGES REQUESTED — DESIGN ONLY (reviewed commit `e798c4d26a0669e73a132a239e25b4dbb6fd2da5`). F1–F7 corrections applied in this document; P1–P8 retained; the mandatory negative checks N1–N7 and the product acceptance matrix (incl. the PAG-V2 coverage gate) added to §4.12; none of the gates G-HR / G-CUT / G-AP opened. |
+| Final-gate review verdict | CHANGES REQUESTED — DESIGN ONLY (reviewed commit `6b7baf3c75625ca26b44e46dd6018eebc9783c86`). R1–R6 corrections applied in this document; P1–P8, N1–N7, and PAG-V2 safety intent preserved; none of the gates G-HR / G-CUT / G-AP opened. |
 | Product requirement of record | Semantic V2 must eventually replace V1 as the **primary review engine** — not merely supplement V1 for otherwise-ineligible candidates — while increasing access to genuinely comparable products and preserving hard safety exclusions and price-result integrity. The versioned run-level review policy (§4.9) is the migration mechanism; this amendment designs it but does **not** activate it. |
 
 ---
@@ -551,7 +599,16 @@ axes, persisted together on the review candidate (§4.3):
       published and persisted": the frozen response vocabulary
       (`matched_attributes` dimension + detail, `reason_code`) carries the
       explanation; the derivation checks its traceability, never its
-      semantics.
+      semantics. The persisted RAW description / specification text
+      establishes SOURCE AVAILABILITY only — that the page-published text
+      was extracted and persisted in the recorded case — NOT independently
+      verified semantic entailment: the presence of generic RAW text does
+      NOT prove the truth of any matched attribute (R6). The recorded
+      model agreement must be traceable and VISIBLE for human judgment;
+      the truth of each matched attribute is the human's tier-2
+      determination (the G-HR review path) — never a conclusion of the
+      deterministic derivation, and never a basis for tier-3 automatic
+      pricing authority (G-AP — §4.10).
     The live builder carries no specification text and no product-
     dimension fact today, so (g1) is **not met until SV2-A is approved
     and live**; `U4_NO_MPN` same-product admission does not fire before
@@ -744,15 +801,21 @@ V1 binding/replay semantics the predicate guards. The corrected design:
   helpers. The V2 boundary is a separate function with separate inputs
   and a separate binding primitive:
   `is_v2_review_candidate_binding_valid(candidate, assessment,
-  ledger_record)` — verifies (a) the same 6 provenance-field binding as
-  the V1 primitive (reused structurally, unchanged), (b) the assessment
-  re-derives to the candidate's recorded admission provenance substate,
-  (c) the ledger record's universal binding
+  ledger_record, attestation)` — verifies (a) the same 6 provenance-
+  field binding as the V1 primitive (reused structurally, unchanged),
+  (b) the assessment re-derives to the candidate's recorded admission
+  provenance substate, (c) the ledger record's universal binding
   `(run, assessment_index, source_url)` agrees, (d) the persisted
-  candidate classification **equals** the classification re-derived from
-  the persisted, verified inputs (drift or tamper ⇒ fail closed), and
-  (e) for `V2_ADVISORY_VARIANT_VERIFIED` the bound attestation row still
-  exists and still binds. It does **not** call
+  candidate classification **equals** the classification re-derived
+  from the persisted, verified inputs (drift or tamper ⇒ fail closed),
+  and (e) for `V2_ADVISORY_VARIANT_VERIFIED` the bound attestation —
+  an EXPLICIT input (R1): the runs/execution-owned service loads it
+  for the candidate's persisted attestation reference; the pure
+  primitive performs no model query and no row reload — is non-null,
+  still binds the (target MPN, candidate MPN) pair, and carries an
+  independently verifiable provenance class (FU3 F6, N7). The
+  ownership split is the same as for confirmation: runs/execution owns
+  the loads, pure research owns the verification. It does **not** call
   `is_human_review_eligible_assessment` (the V2-admitted assessments are
   precisely the ones it excludes) — the two binding primitives are
   disjoint by construction and dispatched on the candidate's persisted
@@ -785,43 +848,86 @@ V1 binding/replay semantics the predicate guards. The corrected design:
     background worker then runs in a SEPARATE fenced, idempotent
     transaction:
     * (fence) the run must be in a terminal reviewable state
-      (COMPLETED / PARTIALLY_COMPLETED) — the worker loads the run
+      (COMPLETED / PARTIALLY_COMPLETED) — that state is the ADMISSION
+      precondition (a candidate is only meaningful on a terminal run)
+      and is NOT the debt lease fence (R2); the worker loads the run
       fresh; it does NOT assume, and does NOT use, the original
       ResearchRun publication transaction (already closed — mandatory
-      negative check N6, §4.12);
+      negative check N6, §4.12). The publication fence is the Option B
+      debt claim itself: the fenced completion transaction is bound to
+      the debt row's recorded `claim_owner` + `claim_generation` and
+      its live lease (`claim_lease_expires_at` — the Option B design
+      of record); the fenced terminalization update requires exactly
+      one affected row under that owner / generation / live lease; and
+      a stale or superseded owner may NEVER publish the ledger result,
+      the candidate admission, or the debt terminalization (its late
+      completion persists nothing);
     * (idempotency) the ledger row is persisted through the append-only
-      `persist_semantic_decision` — a crashed / retried worker finds the
-      existing row via the unique `(run, assessment_index)` binding +
-      `SemanticDecisionAlreadyRecordedError`, loads it, and proceeds;
-      the candidate is created iff the deterministic derivation says so
-      and no candidate row exists (the unique constraint guards
-      duplicates; a retry over the same persisted row yields the SAME
-      candidate or none);
-    * (atomicity) ledger row + candidate commit in the SAME worker
-      transaction — no candidate can reference an uncommitted row, and
-      no crash leaves an observable ledger-without-admission state.
+      `persist_semantic_decision` — the append-only guard + the unique
+      `(run, assessment_index)` binding remain the defense-in-depth
+      backstop (a second / duplicate persist fails closed with
+      `SemanticDecisionAlreadyRecordedError`; if a row is found, the
+      worker loads it and re-derives); the candidate is created iff the
+      deterministic derivation says so and no candidate row exists (the
+      unique constraint guards duplicates; a retry over the same
+      persisted row yields the SAME candidate or none);
+    * (atomicity) the legal atomicity relationship (R2) is ONE all-
+      or-nothing fenced worker transaction over all three: semantic
+      ledger persistence (the append-only `persist_semantic_decision`
+      insert), review candidate admission (where the deterministic
+      derivation says so and no candidate row exists), and debt
+      terminalization (the fenced conditional update over the recorded
+      owner / generation / live lease) — ordered append, candidate,
+      terminalize (Option B's append-precedes-terminalize order): a
+      fence failure or crash rolls back all three (no terminalized debt
+      without its ledger row, no candidate referencing an uncommitted
+      row, no observable ledger-without-admission state); the committed
+      shapes are exactly {row + candidate, where admitted} or {row, no
+      candidate — the bounded non-admission reason remains re-
+      derivable from the persisted row, §4.3}; debt terminalization is
+      a lifecycle marker — it publishes no ledger or candidate
+      authority of its own.
     All Option B debt-lifecycle invariants (durable states, recovery,
     retry, idempotency — the Option B design of record) are preserved;
     Option B remains NOT YET APPROVED (§4.9 / §8 item 11) — this
     boundary is specified, not activated.
-* **Confirmation (actual entry point `confirm_candidate`)**: for a
-  candidate with non-null `v2_review_admission`, the confirm path gains
-  one versioned re-verification step inside the existing transaction —
-  **the runs service is the authority-owning site (FU3 F2, frozen
-  decision)**; the web layer is supplementary (below). Inside
-  `_update_review_state`'s single `transaction.atomic()` block, BEFORE
-  the conditional state update, the service performs, for EVERY caller
-  (web or non-web): (1) **ledger binding** — the runs-owned ledger load
-  (below) returns a row whose `(run, assessment_index, source_url)`
-  binding agrees with the candidate and the assessment; (2) **admission-
-  class re-derivation** — the pure verifier re-derives the
-  classification and requires agreement with the persisted field
-  (drift / tamper ⇒ fail closed); (3) **attestation validation** — for a
-  persisted `V2_ADVISORY_VARIANT_VERIFIED` class, the bound attestation
-  row is loaded and its provenance class re-checked (only independently
-  verifiable authority supports VERIFIED — FU3 F6, N7). A failure maps
-  to a bounded `InvalidCandidateError` and mutates nothing (the
-  conditional update never runs).
+* **Confirmation (actual entry point `confirm_candidate` — policy-
+  first, final gate R1)**: **the runs service is the authority-owning
+  site (FU3 F2, frozen decision)**; the web layer is supplementary
+  (below). The confirm path gains one policy-first guard inside the
+  existing transaction (`_update_review_state`'s single
+  `transaction.atomic()` block): BEFORE any branch on the candidate's
+  persisted class and BEFORE the conditional state update, the service
+  loads and
+  verifies the run's **persisted** `review_engine_policy` (the runs-
+  owned policy load, below — the persisted column, never a caller-
+  supplied value) and branches on the (policy, class) pair, for EVERY
+  caller (web or non-web):
+  * `V1_FIRST` + null class (a V1 candidate): the **frozen V1 path**,
+    byte-identical to today (no ledger load, no verifier);
+  * `V1_FIRST` + non-null class: **refused** — out of contract (the V1
+    producer created no V2 candidates; N2);
+  * `V2_PRIMARY` + null class: **refused** — out of contract (a V1
+    candidate cannot exist on a `V2_PRIMARY` run — §4.9 coexistence
+    invariant (d); N2);
+  * `V2_PRIMARY` + non-null class: **mandatory V2 verification** —
+    (1) **ledger binding**: the runs-owned ledger load (below) returns
+    a row whose `(run, assessment_index, source_url)` binding agrees
+    with the candidate and the assessment; (2) **admission-class re-
+    derivation**: the pure verifier re-derives the classification and
+    requires agreement with the persisted field (drift / tamper ⇒ fail
+    closed); (3) **attestation validation**: for a persisted
+    `V2_ADVISORY_VARIANT_VERIFIED` class, the bound attestation row (the
+    runs-owned attestation load, below — an EXPLICIT verifier input)
+    is non-null, still binds, and its provenance class is re-checked
+    (only independently verifiable authority supports VERIFIED — FU3
+    F6, N7).
+  A failure — including any mixed policy/class pair — maps to a bounded
+  `InvalidCandidateError` and mutates nothing (the conditional update
+  never runs). No direct service caller — web or otherwise — can
+  bypass the guard: the policy load and the (policy, class) branch run
+  inside the service's transaction for EVERY invocation (mandatory
+  negative check N1, §4.12).
   **Pure-verifier input contract (FU3 F2, complete)** —
   `verify_v2_review_confirmation(candidate, assessment, ledger_record,
   attestation, run_policy) -> V2ConfirmationResult`, declared in
@@ -860,8 +966,12 @@ V1 binding/replay semantics the predicate guards. The corrected design:
   candidate is likewise refused (the V1 producer created no V2
   candidates). Result: `ok` or a bounded failure reason — never a
   silent pass.
-  **Runs-owned data-loading path (FU3 F2, complete)** — inside the same
-  transaction, BEFORE the pure-verifier call, the service loads:
+  **Runs-owned data-loading path (FU3 F2 + R1, complete)** — inside
+  the same transaction, BEFORE the (policy, class) branch, the service
+  loads the run's persisted `review_engine_policy` column (runs owns
+  `ResearchRun` — the policy is read from the persisted run, never
+  caller-supplied). In the `V2_PRIMARY` + non-null class case ONLY,
+  BEFORE the pure-verifier call, the service additionally loads:
   * the snapshot assessment — the existing `_validate_assessment_mapping`
     (runs-owned snapshot existence) + the version-dispatching
     `decode_price_aggregation_result` (FU3 F1) at
@@ -903,12 +1013,16 @@ V1 binding/replay semantics the predicate guards. The corrected design:
   index; their confirmed-index derivation partitions candidates by the
   persisted class and dispatches on the binding primitive (§4.7). A V1
   candidate replays through the **unchanged** `is_review_candidate_binding_valid`;
-  a V2 candidate through `is_v2_review_candidate_binding_valid` (which
-  re-verifies the ledger row via the execution-owned `load_semantic_
-  decision` wrapper — persisted, verified evidence at replay time, no
-  live I/O; the same pure rules the confirm service applies, FU3 F2).
-  The v2 same-product derivation PRODUCES the per-index
-  `ReviewedPriceIndexAuthorization` artifacts (§4.7, FU3 F6) — the
+  a V2 candidate through `is_v2_review_candidate_binding_valid` (the
+  execution-owned `load_semantic_decision` wrapper reloads the ledger
+  row and the runs/execution-owned load path reloads the attestation;
+  the pure binding primitive re-verifies the supplied typed inputs
+  only — persisted, verified evidence at replay time, no live I/O, no
+  model query inside the pure layer; the same pure rules the confirm
+  service applies, FU3 F2).
+  The v2 same-product derivation is the TRUSTED MINTING BOUNDARY that
+  produces the per-index `ReviewedPriceIndexAuthorization` artifacts
+  (verified persisted content embedded — §4.7, FU3 F6 / R3) — the
   replays never consume a bare caller-supplied index set. Historical V1
   runs (policy `V1_FIRST`, null class field) replay **byte-identical**.
 * **Idempotency / coexistence**: the existing
@@ -1039,9 +1153,11 @@ field. Concretely:
 * **Replay selection**: the confirmed-index derivation sites
   (live report, vendor-authorized replay, public replay — §4.7) select
   candidates **by the persisted class in this field** and verify it
-  through `is_v2_review_candidate_binding_valid` (which re-loads the
-  ledger row and re-derives the classification). V1 candidates (null
-  field) are selected by the unchanged V1 primitives. The ledger row
+  through `is_v2_review_candidate_binding_valid` (the site's owning
+  load path re-loads the ledger row + attestation; the pure primitive
+  re-derives the classification over the supplied typed inputs — no
+  model query inside the pure layer, R1). V1 candidates (null field)
+  are selected by the unchanged V1 primitives. The ledger row
   itself is selected by the existing universal codec dispatch — the
   advisory field changes nothing about how ledger rows decode.
 * **Evidence preservation / absence semantics (binding)**:
@@ -1306,7 +1422,13 @@ hard-identity term list (e.g. an `OTHER_MATERIAL_CONFLICT`-grounded
 variant, or an unfilled field). Its price then enters (a) the same-
 product Reviewed Price bucket as `HUMAN_CONFIRMED`, and (b) the
 "Human Confirmed" compact-quote row in BOTH replays — as if the variant
-were the same product. The frozen policy's term matching (it does
+were the same product. This defect is reachable only if the legacy
+derivation were INVOKED over a `V2_PRIMARY` run: the policy dispatch of
+the projection boundary forbids that invocation, and N3 pins its
+ABSENCE from every `V2_PRIMARY` live-report, vendor-replay, and
+public-replay authority path — the frozen legacy function does not
+understand V2 classes, is unchanged in behavior, and no historical V1
+test is modified (R4). The frozen policy's term matching (it does
 cover the common `REVISION_OR_SUFFIX` / `BRAND` / `CAPACITY` /
 `INTERFACE` dimension names) is a **secondary defense-in-depth layer
 only** — it is term-based, incomplete over the REVIEWABLE vocabulary,
@@ -1347,9 +1469,11 @@ presentation).**
   run's persisted policy, §4.9); it admits an index iff the candidate's
   persisted class is `V2_ADVISORY_SAME_PRODUCT` AND
   `is_v2_review_candidate_binding_valid` (ledger re-verified) AND the
-  hard-conflict policy disposition is CONFIRMED, and it PRODUCES the
-  per-index `ReviewedPriceIndexAuthorization` artifact for each admitted
-  index (§4.7 below, FU3 F6). For `V1_FIRST` runs the frozen
+  hard-conflict policy disposition is CONFIRMED; it is the TRUSTED
+  MINTING BOUNDARY that produces the per-index
+  `ReviewedPriceIndexAuthorization` artifact for each admitted index
+  (verified persisted content embedded — §4.7 below, FU3 F6 / R3). For
+  `V1_FIRST` runs the frozen
   `derive_human_confirmed_assessment_indices` is used byte-identically
   (its V1 candidates have null class fields); a null-class candidate
   found on a `V2_PRIMARY` run is out-of-contract and refused, not
@@ -1371,22 +1495,56 @@ presentation).**
   handling, same low / median / high, same market-range-at-≥3 rule,
   same exclusions, same verification status, same "Human Confirmed" row
   shape) over the authorized index set. **Verified authorization
-  artifact (FU3 F6 — no bare caller-supplied indices):** the v2
-  boundaries do NOT accept a bare `frozenset[int]`. They accept a
-  tuple of per-index artifacts — `ReviewedPriceIndexAuthorization`
-  (frozen research-layer dataclass, contract `reviewed-price/2`):
-  `assessment_index`, `advisory_class` (SAME_PRODUCT only — the
-  boundary re-checks), `candidate_id` (the persisted candidate row),
-  `ledger_row_id` (the verified V2-PERF row), and the recorded five-
-  axis binding. The derivation above PRODUCES these by re-verifying
-  each confirmed candidate; the boundary RE-VERIFIES each artifact
-  (index in range; the candidate's provenance fields bind the
-  assessment; the persisted class is SAME_PRODUCT; the ledger row
-  binds (run, index, source URL) and digests) and refuses anything
-  that does not re-verify (TypeError / fail closed). A bare integer
-  can never mint reviewed-price authority at the v2 boundary — the
-  §26.11.2 lineage ("a bare integer can never mint HUMAN_CONFIRMED
-  authority") extended to the versioned surface. **Equivalence
+  artifact (FU3 F6 + R3 — enforceable: no bare caller-supplied indices,
+  no bare UUIDs, no fabricated dataclass):** the v2 boundaries do NOT
+  accept a bare `frozenset[int]`, a bare row UUID, or any caller-minted
+  substitute. Price authority is a tuple of per-index artifacts —
+  `ReviewedPriceIndexAuthorization` (frozen research-layer dataclass,
+  contract `reviewed-price/2`) — CARRYING THE VERIFIED PERSISTED
+  CONTENT, not merely references: `assessment_index`, `advisory_class`
+  (SAME_PRODUCT only), the candidate's 6 structural provenance fields +
+  `candidate_id`, the ledger row's canonical payload + its
+  `payload_digest` + the typed decoded `SemanticDecisionRecordV2Perf` +
+  `ledger_row_id`, and the recorded five-axis binding. The trust is
+  established in TWO separated layers:
+  * **Trusted persisted-state verification boundary (runs/execution-
+    owned — the ONLY minting site):** the confirmed-index derivation at
+    each of the three sites — the execution-layer
+    `derive_v2_same_product_confirmed_indices` (vendor / public replay)
+    and the runs-owned service path (live report) — one minting rule,
+    site-specific load wrappers (FU3 F2) — loads the run's own persisted
+    state (snapshot assessment, the CONFIRMED candidate row, the ledger
+    row), verifies it AGAINST PERSISTED STATE (digest anchor
+    `canonical_payload_digest(row.payload) == row.payload_digest`; strict
+    codec dispatch; the universal `(run, assessment_index, source_url)`
+    binding; class re-derivation; attestation for the VERIFIED tier; the
+    hard-conflict disposition), and only then MINTS the artifact
+    embedding the verified content.
+  * **Pure research-layer validation and price projection (`reviewed-
+    price/2` / `compact-quote/2`):** consumes the artifact tuple + the
+    run's own snapshot assessments and performs IN-MEMORY re-validation
+    ONLY — no Django model query, no ledger-row reload, no live I/O: the
+    digest anchor over the embedded payload; strict decode of the
+    embedded payload equal to the embedded typed record; the five-axis
+    binding equal to the frozen V2-PERF claimed constant; the universal
+    binding consistent with the supplied run / assessment; the
+    candidate's provenance fields binding the assessment at
+    `assessment_index`; `advisory_class` = SAME_PRODUCT. Anything that
+    does not re-verify is refused (TypeError / fail closed). The pure
+    layer performs NO persisted-state verification of its own — row
+    existence and the digest-against-column check belong to the minting
+    boundary.
+  A caller supplying only an index, only row UUIDs, or a fabricated
+  authorization dataclass gains NO price authority: a bare index / UUID
+  is not an input type of the v2 boundaries (refused by signature); a
+  fabricated artifact fails the in-memory re-validation (digest anchor /
+  strict decode / five-axis constant / universal binding / provenance /
+  class); and in production the artifacts are minted ONLY by the
+  trusted boundary over the run's own persisted state (the lineage
+  pinned by P2 / P8 / N3). A bare integer can never mint reviewed-price
+  authority at the v2 boundary — the §26.11.2 lineage ("a bare integer
+  can never mint HUMAN_CONFIRMED authority") extended to the versioned
+  surface. **Equivalence
   property (test-enforced, FU3 F6 clarified)**: for any index set on
   which the frozen v1 guard passes, the `reviewed-price/2` /
   `compact-quote/2` outputs are equivalent to the frozen v1 outputs on
@@ -1540,10 +1698,12 @@ design is the **smallest versioned run-level review policy**:
   two candidate-creation transaction boundaries are specified in §4.2
   (FU3 F3): the SYNCHRONOUS boundary (admission after ledger
   persistence in the final publication transaction — the default and
-  the Option B rejection path) and the ASYNCHRONOUS boundary (admission
-  after ledger persistence in a SEPARATE fenced / idempotent worker
-  transaction — the worker loads the run fresh; it never assumes the
-  original ResearchRun publication transaction remains open; N6).
+  the Option B rejection path) and the ASYNCHRONOUS boundary (ledger
+  persistence, candidate admission, and debt terminalization in ONE
+  SEPARATE fenced / idempotent worker transaction — the fenced
+  completion bound to the debt's recorded claim owner / generation /
+  live lease (R2); the worker loads the run fresh; it never assumes
+  the original ResearchRun publication transaction remains open; N6).
   Both run the same pure admission contract. If Option B is approved in
   its own gate, its durable states / recovery / retry / idempotency
   apply to the V2 ledger records and to the pending-state display rule
@@ -1575,7 +1735,7 @@ other or the third:
 
 | Gate | Qualifies (authority tier, §4.1) | Independent evidence required | Explicit approval required | Status of record |
 | --- | --- | --- | --- | --- |
-| **G-HR — human-in-the-loop V2 review** | tier 1 (review admission) + tier 2 (human-confirmed same-product overlay) — the V2 review path for humans | SV2-A published + persisted grounded evidence; the P1–P8 + N1–N7 acceptance evidence over independently labeled held-out cases (§4.12 matrix); the §5 recall / false-inclusion measurements at recorded thresholds | a separate ChatGPT independent review record over the SV2-A / SV2-B implementation + acceptance evidence (NOT this amendment; NOT the Option B approval) | NOT opened; NOT activated by this amendment |
+| **G-HR — human-in-the-loop V2 review** | tier 1 (review admission) + tier 2 (human-confirmed same-product overlay) — the V2 review path for humans | SV2-A published + persisted grounded evidence; the P1–P8 + N1–N5, N7 acceptance evidence over independently labeled held-out cases (§4.12 matrix) — the SYNCHRONOUS candidate-creation boundary only: G-HR does NOT depend on unapproved Option B async execution, and N6 is NOT part of its evidence (R5); the §5 recall / false-inclusion measurements at recorded thresholds | a separate ChatGPT independent review record over the SV2-A / SV2-B implementation + acceptance evidence (NOT this amendment; NOT the Option B approval) | NOT opened; NOT activated by this amendment |
 | **G-CUT — V2-primary cutover** | the §4.9 policy advancement (`CURRENT_REVIEW_POLICY_VERSION` ⇒ `V2_PRIMARY`) for NEW runs | G-HR closed + the PAG-V2 product acceptance gate (real customer variant coverage beyond NM-1/NM-2, §4.12) | SV2-D governance (FU4 Bundle authority program line) + a separate explicit independent cutover approval of record | NOT opened; NOT activated by this amendment |
 | **G-AP — automatic pricing authority (future)** | tier 3: machine-included pricing WITHOUT human confirmation | its own qualification program (the FU4 / C3 / E1 / E2 / P1 / Q1 / W1 line) over independently labeled cases; tier-1 / tier-2 history is at most INPUT evidence, never a substitute | a separate explicit approval record; this amendment neither opens nor schedules it | NOT opened; NO PATH TODAY |
 
@@ -1830,7 +1990,12 @@ review → confirmed comparison.**
   without a grounded recorded match admits nothing); (b) pin: routing
   the `U4` index through the frozen v1 `aggregate_reviewed_listing_prices`
   raises (its guard is unchanged) — the v2 boundary is the only path;
-  a bare index set presented to `reviewed-price/2` is refused (FU3 F6);
+  a bare index set, a bare row UUID, or a fabricated
+  `ReviewedPriceIndexAuthorization` dataclass presented to
+  `reviewed-price/2` / `compact-quote/2` is refused (the in-memory
+  re-validation — digest anchor / strict decode / five-axis constant /
+  universal binding / provenance / class — fails closed; the pure layer
+  performs no model query or ledger reload — FU3 F6 / R3);
   (c) `NONE` without a usable title ⇒ `E2_NO_CANDIDATE_EVIDENCE` ⇒ no V2
   execution at all ⇒ no ledger row ⇒ state "never V2-executed" (distinct
   from (a)).
@@ -1982,7 +2147,8 @@ assessment.**
 public or vendor-authorized replay.**
 
 * Source functions: `derive_human_confirmed_assessment_indices` (frozen
-  v1 — unchanged, and unreachable for v2-class candidates by dispatch);
+  v1 — unchanged in behavior and tests; no `V2_PRIMARY` authority path
+  calls it — policy dispatch, N3);
   `derive_v2_same_product_confirmed_indices` (v2 — admits only
   `V2_ADVISORY_SAME_PRODUCT`); the variant partition + the variant-offer
   projection; `replay_public_compact_quote_projection` +
@@ -2024,34 +2190,56 @@ source(s), the exact negative assertion, and the gate it enforces.
   (digest anchor mismatch); deleted ledger row (no row ⇒ explicit None);
   VERIFIED class with a self-reported-only attestation ⇒ the service
   fails closed INSIDE its transaction (bounded `InvalidCandidateError`;
-  zero state change; the conditional update never runs). Source:
-  `runs/ai_assisted_review.py` (service guard, FU3 F2), the runs-owned
-  ledger / attestation loads, `verify_v2_review_confirmation` (pure
-  verifier, §4.2). Enforces: the web checks supplement but do not
-  replace the service guard; every caller is guarded.
-* **N2 (F2) — `V2_PRIMARY` with a forged null-class V1 candidate.** A
-  DB-level `AiAssistedReviewCandidate` row with null
+  zero state change; the conditional update never runs); (c) a MIXED
+  (policy, class) pair — null class on a `V2_PRIMARY` run, non-null
+  class on a `V1_FIRST` run ⇒ refused POLICY-FIRST (the persisted
+  policy is verified before any class branch; no V2 load, no state
+  change — R1). Source: `runs/ai_assisted_review.py` (service guard,
+  FU3 F2; the runs-owned policy load + policy-first branch, R1), the
+  runs-owned ledger / attestation loads, `verify_v2_review_confirmation`
+  (pure verifier, §4.2). Enforces: the web checks supplement but do not
+  replace the service guard; NO direct service caller bypasses the
+  policy-first guard — every caller is guarded.
+* **N2 (F2, R1) — the mixed (policy, class) pairs are refused
+  policy-first.** A DB-level `AiAssistedReviewCandidate` row with null
   `v2_review_admission` on a `V2_PRIMARY` run (the V1 producer is
   suppressed there — such a row is out-of-contract, §4.9 invariant (d))
-  ⇒ the V2 confirm path refuses it (the pure verifier's policy/class
-  contract check); the v2 same-product derivation returns no index for
-  it; both replays exclude it; no `ReviewedPriceIndexAuthorization`
-  artifact is produced. The mirror shape (non-null class on a
-  `V1_FIRST` run) is refused the same way. The V1 byte-identical confirm
-  path is exercised ONLY over null-class candidates on `V1_FIRST` runs.
-  Source: `verify_v2_review_confirmation` (policy/class contract),
+  ⇒ the confirm service's POLICY-FIRST branch refuses it on the
+  persisted policy + the persisted class alone, before any state update
+  and before any V2 load (bounded `InvalidCandidateError`; the pure
+  verifier's policy/class contract check is the same rule re-affirmed
+  for the V2-class case); the v2 same-product derivation returns no
+  index for it; both replays exclude it; no
+  `ReviewedPriceIndexAuthorization` artifact is produced. The mirror
+  shape (non-null class on a `V1_FIRST` run) is refused the same way
+  (policy `V1_FIRST` + V2 class ⇒ refuse). The `V1_FIRST` + null path
+  is the frozen V1 confirm path, byte-identical, exercised ONLY over
+  null-class candidates on `V1_FIRST` runs; the `V2_PRIMARY` + non-null
+  path is the mandatory V2 verification. Source: the runs-owned policy
+  load + policy-first branch in `runs/ai_assisted_review.py` (R1),
+  `verify_v2_review_confirmation` (policy/class contract),
   `derive_v2_same_product_confirmed_indices` (refusal branch), the
   replay boundaries.
-* **N3 (F4 / P8) — a confirmed variant entering a legacy Reviewed Price
-  index set.** A confirmed variant-class candidate at a FU3B-ELIGIBLE
-  assessment (worst case: every legacy guard would pass, §4.7
-  demonstration) ⇒ NO index in the legacy v1
-  `derive_human_confirmed_assessment_indices` output, NO index in the
-  live-report `_validate_confirmed_candidates` output, NO index in the
-  v2 same-product artifact set — asserted on the live report AND both
-  replays (three surfaces, zero leak). Source: the partition rule at
-  all three derivation sites (§4.7), the variant partition, the
-  variant-offer projection.
+* **N3 (F4 / P8) — a confirmed variant entering the same-product
+  price calculation.** A confirmed variant-class candidate at a
+  FU3B-ELIGIBLE assessment (worst case: every legacy guard would pass,
+  §4.7 demonstration) ⇒ NO index in the v2 same-product artifact set,
+  NO index in the live-report `_validate_confirmed_candidates` v2
+  partition output, NO "Human Confirmed" quote row at that index in
+  either replay — asserted on the live report AND both replays (three
+  surfaces, zero leak). The frozen legacy
+  `derive_human_confirmed_assessment_indices` does not understand V2
+  classes: N3 does NOT assert — and does not require — that it returns
+  different results when directly invoked on a `V2_PRIMARY` run (its
+  historical V1 behavior and all historical V1 tests are unchanged
+  byte-identically). Instead, N3 enforces and tests the dispatch
+  property: NO `V2_PRIMARY` live-report, vendor-replay, or public-
+  replay authority path calls that legacy derivation (the derivation
+  sites partition by the persisted class and dispatch on the run's
+  persisted policy — §4.7), and the zero-leak assertion above holds on
+  all three surfaces via the v2 partition. Source: the partition rule
+  at all three derivation sites (§4.7) + the policy-dispatch pin (R4),
+  the variant partition, the variant-offer projection.
 * **N4 (F4) — a strong description-only missing-MPN review case.** A
   `U4_NO_MPN` candidate whose recorded case carries strong published
   description / specification text (SV2-A `description_text` persisted;
@@ -2080,25 +2268,36 @@ source(s), the exact negative assertion, and the gate it enforces.
   before/after the dispatcher exists (with P6). Source:
   `research/price_result_codec.py` (frozen V1 decoder; the version
   dispatcher, SV2-A).
-* **N6 (F3) — asynchronous V2 completion after the main ResearchRun
-  transaction has closed.** Fixture: the run reaches COMPLETED with the
-  publication transaction CLOSED (snapshot + V1 candidates committed,
-  NO V2 row — the §4.9 pending state is displayed). The Option B
-  worker's SEPARATE transaction then persists the V2-PERF row + (where
-  admissible) the candidate. Assertions: the run state is UNCHANGED
-  (COMPLETED; the worker never re-opens / re-claims the publication
-  transaction, never re-runs `complete_execution`); the candidate
-  (if any) references the committed row (no candidate can reference an
-  uncommitted row — a simulated crash between the two writes leaves
-  neither observable); a retry of the crashed worker is IDEMPOTENT
-  (`SemanticDecisionAlreadyRecordedError` ⇒ load existing row ⇒ re-
-  derive ⇒ no duplicate row, no duplicate candidate — the unique
-  `(run, assessment_index)` constraint guards; the deterministic
+* **N6 (F3, R2/R5) — asynchronous V2 completion after the main
+  ResearchRun transaction has closed.** Fixture: the run reaches
+  COMPLETED with the publication transaction CLOSED (snapshot + V1
+  candidates committed, NO V2 row — the §4.9 pending state is
+  displayed). The Option B worker's SEPARATE fenced completion
+  transaction then persists the V2-PERF row + (where admissible) the
+  candidate + the debt terminalization — all three, all-or-nothing
+  (R2). Assertions: the fenced completion is BOUND to the debt row's
+  recorded `claim_owner` + `claim_generation` and its live lease (the
+  terminalization update requires exactly one affected row under that
+  fence); a STALE or SUPERSEDED owner's late completion persists
+  NOTHING (no ledger row, no candidate, no terminalization — the
+  transaction rolls back); the run state is UNCHANGED (COMPLETED; the
+  worker never re-opens / re-claims the publication transaction, never
+  re-runs `complete_execution`); the candidate (if any) references the
+  committed row (no candidate can reference an uncommitted row — a
+  simulated crash leaves none of the three observable); a retry of the
+  crashed worker is IDEMPOTENT (the append-only guard + the unique
+  `(run, assessment_index)` binding: a duplicate persist fails closed
+  with `SemanticDecisionAlreadyRecordedError` ⇒ load existing row ⇒ re-
+  derive ⇒ no duplicate row, no duplicate candidate — the deterministic
   derivation yields the same candidate or none); the admission
   derivation is the SAME pure contract as the synchronous boundary
-  (§4.2). Source: the Option B worker boundary (specified, not
-  activated — Option B NOT YET APPROVED), `persist_semantic_decision`,
-  the runs-owned admission service.
+  (§4.2). N6 is NOT part of the synchronous G-HR qualification; it
+  remains MANDATORY for any approved Option B asynchronous
+  implementation and for any cutover using Option B (R5). Source: the
+  Option B worker boundary (specified, not activated — Option B NOT YET
+  APPROVED), the Option B design of record's claim / lease / fencing
+  contract, `persist_semantic_decision`, the runs-owned admission
+  service.
 * **N7 (F6) — self-reported attestation improperly producing a VERIFIED
   label.** An attestation row whose recorded provenance class is
   `OPERATOR_SELF_REPORTED` (bounded self-reported operator string only —
@@ -2133,11 +2332,11 @@ phases must pass and the independent reviewer must re-verify.
 | P7 | V1/V2 coexistence | one candidate per index; one partition per index across the three surfaces; `V1_FIRST` ledger rows mint no authority; tampered class re-derived fail-closed | §4.12 P7 | G-HR |
 | P8 | variant confirmation → no Reviewed Price index leakage | same-product set ∩ variant set = ∅ (and ∪ = confirmed set); zero leak on live report + both replays; cross-run forgery refused | §4.12 P8 | G-HR |
 | N1 | service-confirm without Web pre-validation | guard effective at the service for EVERY caller; forged / drifted / tampered shapes fail closed with zero mutation | runs service (F2) | G-HR |
-| N2 | `V2_PRIMARY` forged null-class V1 candidate | out-of-contract ⇒ confirm refused, no index, no artifact; mirror shape on `V1_FIRST` refused | verifier + derivation (F2) | G-CUT |
-| N3 | confirmed variant into the legacy index set | zero leak on all three surfaces | derivation partition (F4) | G-HR |
+| N2 | `V2_PRIMARY` forged null-class V1 candidate | out-of-contract ⇒ confirm refused policy-first (persisted policy verified before any class branch; no V2 load), no index, no artifact; mirror shape on `V1_FIRST` refused | policy-first service branch + verifier + derivation (F2, R1) | G-CUT |
+| N3 | confirmed variant into the same-product price calculation | zero leak on all three surfaces; the legacy derivation is invoked by NO `V2_PRIMARY` authority path (dispatch pin; its V1 behavior / tests unchanged) | derivation partition + policy dispatch (F4) | G-HR |
 | N4 | strong description-only missing-MPN case | ADMITTED (grounded description + explainable MATCH); title-only / ungrounded / hard-conflict mirrors refused with bounded reasons | §4.1 bar (F4) | G-HR |
 | N5 | extra `ListingObservation` field at the frozen schema-1 decoder | `PriceResultCodecError`; version dispatch is the only path; historical schema-1 byte-identical | price-result codec (F1) | SV2-A (feeds G-HR) |
-| N6 | async V2 completion after publication closed | separate fenced/idempotent worker transaction; run state unchanged; crash-safe atomicity; retry idempotent; same pure contract | Option B boundary (F3) | G-CUT (requires Option B approval) |
+| N6 | async V2 completion after publication closed | fenced completion bound to the debt's claim owner / generation / live lease (stale owner publishes nothing); one all-or-nothing transaction (ledger + candidate + debt terminalization); run state unchanged; retry idempotent; same pure contract; NOT part of G-HR evidence (R5) | Option B boundary (F3, R2) | G-CUT (requires Option B approval) |
 | N7 | self-reported attestation ⇒ no VERIFIED label | stays SUSPECTED; provenance labeled; forged VERIFIED over it fails closed; no immutable-rewrite | SV2-C guard (F6) | G-HR |
 | PAG-V2 | real customer variant coverage beyond NM-1/NM-2 | every named real customer suffix / cosmetic shape handled by an approved path (frozen mapping or separately approved SV2-G) with P3-class + P8-class results; no implicit S2-A bypass; no generic edit-distance identity authority | SV2-E cutover record (F5) | G-CUT |
 
@@ -2367,19 +2566,24 @@ document.
   `is_v2_review_candidate_binding_valid` (§4.2), dispatched on the
   persisted class; historical V1 replay is byte-identical.
 * `confirm_candidate` (the actual entry point; the FU1 text's
-  `confirm_review_candidate` name is corrected) gains ONE versioned
-  branch — **owned by the runs service (FU3 F2, frozen decision)**: for
-  non-null `v2_review_admission` rows, INSIDE its existing
-  transactional boundary, the service performs the runs-owned ledger
-  load (digest-verified, strictly decoded), the attestation load, and
-  the pure verifier `verify_v2_review_confirmation` (complete input
-  contract, §4.2) — ledger binding + admission-class re-derivation +
-  attestation validation — for EVERY caller, web or non-web. The web
-  8-step review-POST validation is preserved as a supplementary fail-
-  closed pre-filter (unchanged in strength) — it supplements but does
-  NOT replace the service guard (N1). Null-class (V1) rows on
-  `V1_FIRST` runs take the existing path byte-identically; a null-class
-  row on a `V2_PRIMARY` run is refused (out-of-contract, N2).
+  `confirm_review_candidate` name is corrected) gains ONE POLICY-FIRST
+  versioned guard — **owned by the runs service (FU3 F2, frozen
+  decision; R1)**: INSIDE its existing transactional boundary, BEFORE
+  any class branch and BEFORE the conditional state update, the service
+  loads and verifies the run's persisted `review_engine_policy` and
+  branches on (policy, persisted class), for EVERY caller, web or non-
+  web: `V1_FIRST` + null class ⇒ the frozen V1 path byte-identically
+  (no ledger load, no verifier); `V1_FIRST` + non-null class ⇒ refused;
+  `V2_PRIMARY` + null class ⇒ refused (out-of-contract, N2);
+  `V2_PRIMARY` + non-null class ⇒ the MANDATORY V2 verification — the
+  runs-owned ledger load (digest-verified, strictly decoded), the
+  attestation load, and the pure verifier `verify_v2_review_
+  confirmation` (complete input contract, §4.2) — ledger binding +
+  admission-class re-derivation + attestation validation. No direct
+  service caller can bypass the guard. The web 8-step review-POST
+  validation is preserved as a supplementary fail-closed pre-filter
+  (unchanged in strength) — it supplements but does NOT replace the
+  service guard (N1).
   `reject_candidate`, `undo_review`, and `remove_candidate_from_
   working_quote` are unchanged in behavior.
 * The 8-step review-POST validation is **preserved** in strength
@@ -2569,8 +2773,11 @@ evidence is the G-HR gate's evidence base (§4.10).
   verification + strict codec dispatch, no execution import); the
   execution-layer replay sites use `load_semantic_decision` — or the
   explicit absent / pending state (§4.9).
-* The SV2-C attestation guard read-side (for the VERIFIED tier —
-  provenance-class aware, FU3 F6).
+* The attestation as an EXPLICIT input to the pure classification /
+  binding / verifier functions (provenance-class aware, FU3 F6 / R1):
+  before SV2-C ships, the site's load wrappers supply explicit `None`
+  (no table exists — only the SUSPECTED tier is classified; SV2-B does
+  NOT depend on SV2-C, R5).
 * The run's persisted `review_engine_policy` — the column + migration
   are DELIVERED BY SV2-B (FU3 F6: the earliest phase that needs the
   representation; default `V1_FIRST`; activation stays SV2-E-gated).
@@ -2582,7 +2789,9 @@ evidence is the G-HR gate's evidence base (§4.10).
   `is_v2_review_candidate_binding_valid` + `verify_v2_review_confirmation`
   (contract `v2-review-admission/1`, §4.2 — the complete pure-verifier
   input contract) — pure research functions over persisted inputs, with
-  the attestation explicitly bound as a verifier input (FU3 F6).
+  the attestation explicitly bound as a verifier input (FU3 F6) and as
+  an explicit input to the binding primitive (R1): runs/execution owns
+  the loads, pure research owns the verification.
 * ONE additive immutable `v2_review_admission` JSONField on
   `AiAssistedReviewCandidate` (null for V1 / historical rows) + ONE
   additive migration; the versioned run-level policy column
@@ -2599,9 +2808,13 @@ evidence is the G-HR gate's evidence base (§4.10).
   N1 / N2 enforcement).
 * The partition rule + the versioned derivations / boundaries at ALL
   THREE confirmed-index sites (live report, vendor replay, public
-  replay): `derive_v2_same_product_confirmed_indices` producing the per-
-  index `ReviewedPriceIndexAuthorization` artifacts (FU3 F6 — no bare
-  caller-supplied index set at the v2 boundary), the `reviewed-price/2`
+  replay): `derive_v2_same_product_confirmed_indices` as the TRUSTED
+  MINTING BOUNDARY producing the per-index `ReviewedPriceIndexAuthorization`
+  artifacts (verified persisted content embedded; FU3 F6 / R3 — no bare
+  caller-supplied index set, no bare UUID, no fabricated dataclass at
+  the v2 boundary; the pure `reviewed-price/2` / `compact-quote/2`
+  functions re-verify in memory only — no model query, no ledger
+  reload), the `reviewed-price/2`
   aggregation boundary, the `compact-quote/2` projection, and the
   variant partition feeding the SV2-F offer projection — with the
   business-projection equivalence proofs over v1-guard-passing inputs
@@ -2790,7 +3003,7 @@ approval nor is it implied by it.
 SV2-A  ──►  SV2-B  ──►  SV2-F
    │            │           ▲
    │            │           │
-   │            ├──► SV2-C ─┤ (SV2-B reads the VERIFIED-tier guard)
+   │            ├──► SV2-C ─┤ (SV2-C LATER adds the VERIFIED tier — before SV2-C the attestation input is explicit None, SUSPECTED only; C6 / R5)
    │            │
    │            └──► SV2-E  (ACTIVATION of the SV2-B-shipped policy
    │                   column; needs SV2-B + G-HR + PAG-V2 (F5)
@@ -2803,16 +3016,19 @@ SV2-D (governance; G-HR / G-CUT / G-AP separation — FU3 F7)
 
 **Hard dependencies:**
 
-* SV2-B depends on **SV2-A** (the (g1)/(g2) grounded bar for
+* SV2-B depends on **SV2-A** ONLY (the (g1)/(g2) grounded bar for
   `U4_NO_MPN` same-product admission guards on the SV2-A-delivered
   published + persisted facts and on the SV2-A versioned snapshot decode
   for the runs-owned assessment load; before SV2-A the bar simply is not
-  met — execution and ledger evidence still happen, C1 / F1) and on
-  **SV2-C** (the VERIFIED tier; before SV2-C only the SUSPECTED tier is
-  classified — discovery is unaffected, C6). SV2-B SHIPS the default-
-  safe `review_engine_policy` column (FU3 F6) — the earliest phase that
-  needs the representation (partition / producer dispatch); the column
-  grants no authority by itself.
+  met — execution and ledger evidence still happen, C1 / F1). SV2-B
+  DELIVERS the suspected-variant functionality; **SV2-C LATER adds the
+  independently verified tier** (the table + read-side guard, R5):
+  before SV2-C ships, the attestation load wrappers supply explicit
+  `None` (no table exists), so only the SUSPECTED tier is classified —
+  discovery is unaffected (C6), and no SV2-B deliverable requires
+  SV2-C. SV2-B SHIPS the default-safe `review_engine_policy` column
+  (FU3 F6) — the earliest phase that needs the representation (partition
+  / producer dispatch); the column grants no authority by itself.
 * SV2-F depends on SV2-B (the offer / state projections need the
   partition and the persisted classification).
 * SV2-E depends on SV2-B (the V2_PRIMARY dispatch needs the boundaries
@@ -2993,14 +3209,21 @@ from this amendment. Each is traceable to a frozen rule.
     `is_review_candidate_binding_valid` stay byte-identical and carry no
     implicit V2 authority; V2 admission and binding run only through
     the versioned boundary (§4.2) over persisted, verified evidence.
-20. **Do not let a bare caller-supplied index set grant reviewed-price
-    authority at the versioned boundary** (FU3 F6). `reviewed-price/2` /
+20. **Do not let a bare caller-supplied index set, a bare row UUID, or a
+    fabricated authorization dataclass grant reviewed-price authority at
+    the versioned boundary** (FU3 F6, R3). `reviewed-price/2` /
     `compact-quote/2` accept ONLY the per-index
     `ReviewedPriceIndexAuthorization` artifact (verified class +
-    candidate + ledger references), re-verified fail-closed — the
-    §26.11.2 lineage ("a bare integer can never mint HUMAN_CONFIRMED
-    authority") extended to the versioned surface. The frozen v1
-    functions keep their bare-index-set contract unchanged.
+    embedded candidate provenance + ledger payload / digest / five-axis
+    binding), minted ONLY by the runs/execution-owned trusted
+    persisted-state verification boundary and re-verified IN MEMORY only
+    fail-closed (no Django model query, no ledger-row reload in the pure
+    layer — runs/execution owns verification against persisted state;
+    pure research owns validation and price projection) — the §26.11.2
+    lineage ("a bare integer can never mint HUMAN_CONFIRMED authority")
+    extended to the versioned surface. The frozen v1 functions keep
+    their bare-index-set contract unchanged (v1 price arithmetic and
+    historical replay are unchanged — R3).
 21. **Do not label a self-reported operator attestation VERIFIED**
     (FU3 F6, N7). Independently verifiable authority (the
     `MANUFACTURER_SOURCE` / `INDEPENDENTLY_AUDITABLE` provenance
@@ -3022,12 +3245,18 @@ from this amendment. Each is traceable to a frozen rule.
     tier-2 history is input evidence to a future G-AP qualification,
     never a substitute for it.
 24. **Do not assume the original ResearchRun publication transaction
-    remains open for background V2** (FU3 F3). The asynchronous
-    candidate-creation boundary runs in a SEPARATE fenced / idempotent
-    transaction over freshly loaded persisted state (terminal reviewable
-    run; append-only ledger; the unique candidate constraint) — N6.
-    Option B's independent approval gate and debt-lifecycle invariants
-    are preserved; the boundary is specified, not activated.
+    remains open for background V2, and do not treat the terminal
+    ResearchRun state as the debt lease fence** (FU3 F3, R2). The
+    asynchronous candidate-creation boundary runs in ONE SEPARATE fenced
+    / idempotent transaction over freshly loaded persisted state — the
+    fenced completion bound to the Option B debt's recorded claim owner
+    / generation / live lease (the terminal reviewable run is the
+    admission precondition only; a stale owner never publishes ledger or
+    candidate authority; append-only ledger; the unique candidate
+    constraint; ledger persistence + candidate admission + debt
+    terminalization all-or-nothing) — N6. Option B's independent
+    approval gate and debt-lifecycle invariants are preserved; the
+    boundary is specified, not activated.
 
 ---
 
@@ -3295,7 +3524,47 @@ coverage gate added to §4.12; no gate activated):
   independent evidence + explicit approval, none implying the others,
   none activated in this task (§4.10, §7 SV2-D).
 
-**Status: SEMANTIC-V2-PRODUCT-CONTRACT-FU3 — PENDING CHATGPT REVIEW.**
+Final-gate review verdict: **CHANGES REQUESTED — DESIGN ONLY** (commit
+`6b7baf3c75625ca26b44e46dd6018eebc9783c86`). R1–R6 corrections are
+applied in place in this document: R1 — the confirm service verifies the
+persisted run policy BEFORE branching on `v2_review_admission` (the four
+(policy, class) outcomes fixed; no direct service caller bypasses the
+guard; the attestation is an explicit input to the pure V2 binding
+verifier — runs/execution owns the loads, pure research owns the
+verification); R2 — the terminal ResearchRun state is NOT the debt lease
+fence: the async fenced completion is bound to the Option B debt's
+recorded claim owner / generation / live lease, a stale owner never
+publishes ledger or candidate authority, and the legal atomicity of
+ledger persistence + candidate admission + debt terminalization is one
+all-or-nothing fenced worker transaction (Option B's independent
+approval gate preserved); R3 — `ReviewedPriceIndexAuthorization` is
+enforceable: the runs/execution-owned trusted persisted-state
+verification boundary is the sole minting site, the pure `reviewed-
+price/2` / `compact-quote/2` functions perform in-memory validation and
+price projection only (no Django model query, no ledger-row reload), and
+a bare index, a bare UUID, or a fabricated dataclass gains no price
+authority (v1 price arithmetic and historical replay unchanged); R4 —
+N3 corrected without weakening safety: the frozen legacy `derive_human_
+confirmed_assessment_indices` is NOT required to behave differently when
+directly invoked on a `V2_PRIMARY` run — instead no actual `V2_PRIMARY`
+live-report, public-replay, or vendor-replay authority path calls it
+(enforced and tested), all historical V1 tests are unchanged, and zero
+variant leakage into same-product price calculation is preserved; R5 —
+the SV2-B / SV2-C dependency contradiction removed (SV2-B delivers the
+suspected-variant functionality; SV2-C later adds the independently
+verified tier; before SV2-C the attestation input is explicit `None`),
+and G-HR's synchronous qualification does not depend on unapproved
+Option B async execution (evidence: P1–P8 + N1–N5, N7; N6 remains
+mandatory for any approved Option B async implementation and cutover);
+R6 — the persisted RAW description establishes source availability, not
+independently verified semantic entailment: the model agreement must be
+traceable and visible for human judgment, the description-only human-
+review admission use case (N4) is kept, and no automatic pricing
+authority is granted. P1–P8, N1–N7, and PAG-V2 safety intent are
+preserved; no test is weakened, deleted, renamed, skipped, deselected,
+or xfailed; none of the gates G-HR / G-CUT / G-AP is opened.
+
+**Status: FINAL GATE PATCH — PENDING CHATGPT REVIEW.**
 
 The next step is ChatGPT independent review over this corrected
 document. Any implementation that descends from this amendment is
