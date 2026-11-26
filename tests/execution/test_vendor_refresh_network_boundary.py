@@ -548,8 +548,15 @@ _FROZEN_DIGESTS = {
     ),
     # Re-pinned (PRODUCT-INTEL.MAIN-MERGE-FU1) to the approved merged-main
     # baseline 5ead162: legitimate Semantic Authority S2-B/C changes.
+    # Re-pinned (SEMANTIC-V2-A1, approved bounded implementation): the
+    # ONE sanctioned change in this file is the versioned snapshot
+    # publication — _encode_aggregation_result selects the encoder + the
+    # recorded schema_version from the frozen codec constant
+    # CURRENT_PRICE_RESULT_SCHEMA_VERSION (advanced to 2 under the gated
+    # A1 approval; the sole-writer / atomic-publication ownership model is
+    # unchanged). Committed LF Git-blob SHA-256 of the final file.
     "product_intelligence/execution/orchestration.py": (
-        "29667958e499726b1aa1dfbb264b700cceb91311f5407b791d1b5b0a164bf8f9"
+        "132fd8002f07b557f14da76c66c998b4b3e5d51c56f3add86822d3b0593bf6ee"
     ),
     "product_intelligence/runs/vendor_refresh_claims.py": (
         "33c5a6434a2f724dbb54ba07a380e79f4d211fed2128edfc45a1344e2c46e8c9"
@@ -562,8 +569,16 @@ _FROZEN_DIGESTS = {
     # constraint over the widened bounded set). The protection contract
     # is unchanged: any future change to runs/models.py still fails
     # this pin until re-recorded as its own approved phase.
+    # Re-pinned again (SEMANTIC-V2-A1, approved bounded implementation):
+    # CLASS-DOCSTRING ONLY — the PriceIntelligenceSnapshot docstring's
+    # "only supported version is 1" updated to the versioned codec of
+    # record (supported versions 1 and 2; snapshots immutable; decode
+    # through the dispatcher). No field, no constraint, no help_text,
+    # NO migration (makemigrations --check: No changes detected); the
+    # ownership model is byte-identical. Committed LF Git-blob SHA-256
+    # of the final file.
     "product_intelligence/runs/models.py": (
-        "fb8ec8c3b66b3de9237e2af4115592df880e178a59c10dc8c8a147895908c917"
+        "bfb5afcdbaceabc3f0694b131f344b67894d0902f66d69c982f892a26df1012d"
     ),
     "product_intelligence/runs/errors.py": (
         "37231afca4d83eafd0bc966103830c4f178d182edc28ef732efe6cde6629b66e"

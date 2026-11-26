@@ -6,6 +6,201 @@
 
 
 
+**PRODUCT-INTEL.SEMANTIC-V2-A1 — RAW description evidence
+— IMPLEMENTED / PENDING CHATGPT IMPLEMENTATION REVIEW (feature branch
+`feature/vendor-refresh-web` over the FINAL-GATE design endpoint
+`66c6ab1a8238f3f164f5b93a97e8749828feb7db`; NOT merged, NOT
+deployed)**
+
+Bounded implementation phase per the ChatGPT approval of record (commit
+`66c6ab1` independently reviewed): **SV2-A1 APPROVED FOR BOUNDED
+IMPLEMENTATION** — raw page-published description evidence into the
+persisted ResearchRun evidence and the Semantic V2 input. NOT an approval
+of the complete Product Contract, SV2-B, Option B, V2_PRIMARY, or
+pricing-authority changes. Baseline collection **8,845** (203 files),
+re-verified at the endpoint. Deliverable: working extraction, persistence
+and replay — supporting the eventual missing-MPN, description-grounded
+human-review scenario.
+
+**Scope (of record).**
+1. **A1-1 Bounded RAW extraction** — ONE additive named RAW field on
+   `ListingObservation`: `description_text: str | None = None` (appended
+   after `raw_reference`; the same strip-or-None discipline as its
+   siblings; the frozen 3A contract addition of design §4.11). Extracted
+   under exactly ONE bounded structured position: the JSON-LD
+   `Product.description` property (the frozen never-a-number /
+   never-a-decision lift; a non-scalar publication stays absent; product-
+   scoped — every offer carries the product's description, an offer node
+   never contributes). The META mechanism is UNCHANGED (no recorded
+   fixture publishes a meta description key; page-scoped `og:description`
+   / SEO tags are not product-scoped structured publications). Unsupported
+   or missing text stays explicitly absent. `raw_reference` is never
+   parsed as business authority (AD-040); no specification is fabricated
+   and no structured attribute is derived from description text.
+2. **A1-2 Versioned snapshot persistence (design FU3 F1)** — the frozen
+   V1 encoder / decoder stay BYTE-IDENTICAL (schema-1 listing dict = the
+   fixed 13 keys; the V1 decoder still refuses ANY extra key — a
+   schema-1 payload containing an unexpected `description_text` fails
+   closed, N5); NEW schema-2 encoder / decoder under
+   `PRICE_RESULT_SCHEMA_VERSION_2 = 2` (13 keys + `description_text`,
+   nullable, ALWAYS present — no omission, no defaulting; V2 decode just
+   as strict); `decode_price_aggregation_result(payload, *,
+   schema_version)` is now the VERSION DISPATCHER (1 ⇒ frozen V1, 2 ⇒ V2,
+   else ⇒ `PriceResultCodecError` — cross-version presentation both ways
+   fails closed); NEW public `encode_price_aggregation_result_v2`; NEW
+   frozen publication constant `CURRENT_PRICE_RESULT_SCHEMA_VERSION`
+   advanced 1 → 2 under this gated approval ONLY; publication (the sole
+   snapshot writer, `execution/orchestration.py`) picks the encoder +
+   records `PriceIntelligenceSnapshot.schema_version` from the constant;
+   NO DB migration, NO model change (the `runs/models.py` touch is the
+   class docstring's "only supported version is 1" correction only — no
+   field / constraint / help_text moved), NO new ledger row, NO new
+   semantic codec adapter; the replay-facing decode entry point is the
+   SAME symbol (web / replay read-side allowlist unchanged); the
+   `PriceIntelligenceSnapshot` ownership model is preserved; snapshots
+   immutable — never re-encoded or rewritten.
+3. **A1-3 Semantic V2 RAW evidence** — `build_candidate_product_
+   evidence_v2` fills the EXISTING `raw_specification_text` channel from
+   `observation.description_text` (RAW observation text — no token is
+   parsed into a structured fact; description tokens yield ZERO
+   structured dimensions and cannot reach STRONG). Prompt 2.0, the
+   model-output enums, the authority rules, the contract binding, and
+   the semantic ledger codec are UNCHANGED; the recorded V2 case holds
+   the exact bounded RAW evidence supplied to the model (captured-prompt
+   pinned).
+4. **A1-4 Persisted replay integrity** — schema-2 description evidence
+   survives encoding → atomic-publication snapshot persistence →
+   dispatcher decoding → V2 case construction → semantic ledger
+   persistence → zero-live `replay_semantic_decision_record` (digest-
+   verified, binding-verified, no network, no re-fetch, no
+   `raw_reference` parse); historical schema-1 snapshots + V2 records
+   replay byte-identically through the frozen V1 path; the web report
+   renders a published schema-2 snapshot through the dispatcher.
+
+**Test-preservation record (exact).** ZERO pre-existing node deleted /
+renamed / skipped / xfailed / deselected / weakened. **78 NEW nodes**:
+`tests/research/test_price_result_codec_v2.py` (35: constants; the
+schema-1 GOLDEN byte-compatibility anchor — the V1 encoder reproduces
+the pinned 1,183 canonical-JSON bytes exactly, SHA-256
+`75ed287c…d95`; the 13 frozen keys; the lossless V1 round trip; the V1
+encoder never writes `description_text`; schema-1 extra-field refusal
+incl. a smuggled `description_text`; schema-2 encoding / round trip
+incl. explicit null + interior whitespace / newlines; schema-2 decode
+strictness; cross-version refusal both directions; the dispatcher over
+0 / 3 / 99 / -1 / bool / float / non-mapping),
+`tests/execution/test_semantic_v2_a1_evidence.py` (13: schema-2
+publication with the exact description + explicit null; the recorded V2
+case + captured model prompt carry the exact bounded RAW evidence with
+zero structured dimensions; zero-live replay over the schema-2 chain +
+historical schema-1 replay; deterministic invariance — no decision /
+match-type / evidence-source change, the Machine Price bucket identical
+with / without the description, the U5 V2 MATCH stays out of 4A with no
+review candidate; the V1 review candidate rows byte-identical with / without the description; AD-040 — a description-shaped `raw_reference`
+with an absent named field yields an absent channel, and 3B / 3C ignore
+the field), 5 new input-evidence nodes in
+`tests/research/test_semantic_v2_input_evidence.py` (RAW channel:
+published → verbatim in case + prompt; missing → explicit absence with
+the unchanged prompt line; tokens never parsed into facts; no STRONG
+promotion; the recorded case round-trips through the unchanged ledger
+codec + zero-live replay), 10 new extraction nodes in
+`tests/research/test_listing_extraction.py` (the bounded JSON-LD rule;
+absent / blank / non-scalar stay absent; a JSON number arrives as source
+text; product-scoped not offer-scoped; a meta-only page (incl.
+`og:description` / SEO `description`) carries none; the reference is
+never re-parsed), 3 new recorded-page nodes in
+`tests/research/test_listing_extraction_recorded_pages.py` (the real
+samsung / oempcworld descriptions pinned verbatim — incl. the doubled
+space, the embedded newlines, and the U+00AE trademark sign; the real
+exxactcorp meta-only page explicitly absent), 9 new contract nodes in
+`tests/research/test_listing_observation.py`, and 3 new web report nodes
+in `tests/web/test_semantic_v2_a1_report.py`. **3 recorded in-place
+evolutions** (contracts preserved / strengthened): (a)
+`test_listing_observation.py::TestTheFieldList::test_the_contract_is_
+exactly_these_fields` — the exact field list gains the additive
+`description_text` as the LAST field (the sanctioned 3A frozen-contract
+addition; every pre-existing field keeps its position); (b)
+`test_listing_extraction_recorded_pages.py::TestProvenance::
+test_the_raw_reference_preserves_material_the_contract_does_not_carry`
+— docstring-only correction (description is now ALSO a named field;
+GTIN / category remain opaque-only; every assertion unchanged); (c)
+`test_semantic_v2_input_evidence.py::_observation` — one strictly
+additive keyword (`description`, default None; every pre-existing call
+site unchanged). **3 recorded re-pin events** (each pin's own stated
+contract — an approved phase re-records the protected file; every other
+protected file byte-identical): `test_semantic_authority_v2_fu4.py::
+FROZEN_MODULE_PINS[semantic_v2.py]` → committed LF Git-blob SHA-256
+`ae9f63a8…fa288` of the final file (the ONE sanctioned change: the
+`raw_specification_text` mapping + recorded docstrings; per the file's
+runtime_v2.py re-pin convention this row passes on an LF checkout and,
+on this `core.autocrlf=true` CRLF worktree, joins the documented
+CRLF-workstation class — the node count is unchanged: the old parameter
+ID `[semantic_v2.py-d573d808…]` is the sole collection "removal" and the
+new ID `[semantic_v2.py-ae9f63a8…]` its sole twin "addition");
+`test_vendor_refresh_network_boundary.py::_FROZEN_DIGESTS[orchestration.
+py]` → `132fd800…bf6ee` (the versioned publication); `::[runs/models.py]`
+→ `bfb5afcd…12d` (class docstring only).
+
+**Validation (exact).** (1) Collection 8,845 → **8,923 (+78 net;
+node-level diff of record `tmp_sv2a1_col_base_nodes.txt` vs
+`tmp_sv2a1_col_cur_nodes.txt`: additions = exactly the 78 new test
+nodes + the re-pinned parameter ID; removals = exactly the re-pinned
+parameter ID — no test deleted, renamed, skipped, xfailed, or
+deselected).** (2) Focused batches: tests/research/ (excl. the two
+pre-existing pin suites) — 0 genuine failures (4 load-sensitive
+WinError 6 subprocess-guard nodes pass in isolation — the documented
+flake class); tests/execution/ — 1 failure =
+`test_4d_b_vendor_commercial.py::Test4DBNotInWebReport::
+test_historical_report_no_vendor_data`, **VERIFIED PRE-EXISTING at the
+pristine HEAD** in a detached worktree (fails there identically; not
+named by any A1 change; the worktree was removed after use); tests/web/
+— 0 failures; tests/runs/ — 0 failures; the frozen V1 codec suite
+(`tests/research/test_price_result_codec.py`) passes **UNCHANGED** (the
+byte-compatibility anchor). **FULL pytest suite ONE RUN over the 8,923
+collection (junit of record `tmp_sv2a1_full_junit.xml`): 8,986 junit test
+cases (8,923 items + 63 subtests), 8,941 passed + 45 failed + 0 errors
++ 0 skipped, exit 1** — the 45 = the IDENTICAL 32 pre-existing
+workstation-class nodes (node-for-node vs the pre-implementation
+baseline: zero recovered, zero new of that class) + 10 load-sensitive
+import-isolation subprocess-guard nodes of the documented WinError 6
+handle-exhaustion class (each passes in isolated execution — the same
+class recorded in prior phases) + the pre-existing
+`test_historical_report_no_vendor_data` assertion failure (verified at
+the pristine HEAD in a detached worktree; it also stood among the prior
+phase's non-baseline full-run failures) + the ONE re-pinned
+`semantic_v2.py` digest row (the committed-LF convention of the pin's
+own recorded precedent: passes on an LF checkout; on this
+`core.autocrlf=true` CRLF worktree it sits inside the documented CRLF
+class — the row's prior machine-dependent legacy CRLF value was not
+portable); no A1-delivered node fails, and no A1 file is named by any
+of the 32 pre-existing nodes. (3) `python manage.py
+check` — System check identified no issues (0 silenced), exit 0. (4)
+`python manage.py makemigrations --check --dry-run` — No changes
+detected, exit 0.
+
+**Invariance (this phase).** No provider / model call, no new live
+ResearchRun, no DB write outside the isolated test database; the frozen
+3C predicates (`research/identity.py`, `research/matching.py`) and the
+frozen 4B V1 codec path byte-untouched; no V2 review candidate
+admission, no `AiAssistedReviewCandidate` schema change, no V2_PRIMARY
+policy, no VariantSimilarityTable, no reviewed-price/2 or
+compact-quote/2, no Option B workers, no model qualification change,
+no Machine Price / Reviewed Price authority change (V2 stays
+persist-only / advisory; a U5 V2 MATCH over the new evidence shape
+still never enters 4A); historical schema-1 snapshots are never re-
+encoded and replay identically; structured capacity / interface /
+generation fact extraction is NOT delivered (SV2-A2). No restore / reset
+/ checkout / stash / clean / amend / rebase / force-push used.
+Unrelated pre-existing worktree artifacts + untracked ledgers
+preserved.
+
+**Next.** ChatGPT reviews the actual source diff + the test evidence
+(independent review of the bounded A1 implementation; the PLAN AD-096
+entry carries the full record). Do not merge or deploy until the
+independent review completes. SV2-A2 (structured dimension facts) and
+all later SV2 phases remain FUTURE gated work.
+
+
+
 **PRODUCT-INTEL.SEMANTIC-V2-PERF — Phase 0 UAT-FU1 APPROVED;
 Phase 1 performance diagnostic APPROVED subject to documented
 evidence limitations; FU2 asynchronous implementation design

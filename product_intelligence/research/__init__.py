@@ -57,6 +57,12 @@ PRODUCT-INTEL.4B added `price_result_codec`: versioned encode/decode of
 ``PriceAggregationResult`` as opaque JSON for persistence in
 ``PriceIntelligenceSnapshot``. Strict schema, Decimal preserved as strings,
 fail-closed decode wrapping constructor failures as ``PriceResultCodecError``.
+SEMANTIC-V2-A1 made it a version dispatcher: schema 1 (frozen, byte-
+identical: the 13-key observation) and schema 2 (the additive per-
+observation ``description_text`` key, nullable, always present); unknown
+versions fail closed; ``CURRENT_PRICE_RESULT_SCHEMA_VERSION`` is the
+frozen publication constant (advanced to 2 under the gated SV2-A1
+approval only).
 
 PRODUCT-INTEL.6A added `specifications`: the Product Specification Framework —
 deterministic, caller-independent, Django-free specification resolution. Defines
@@ -224,10 +230,13 @@ from product_intelligence.research.normalization import (
     normalize_listing_observations,
 )
 from product_intelligence.research.price_result_codec import (
+    CURRENT_PRICE_RESULT_SCHEMA_VERSION,
     PRICE_RESULT_SCHEMA_VERSION,
+    PRICE_RESULT_SCHEMA_VERSION_2,
     PriceResultCodecError,
     decode_price_aggregation_result,
     encode_price_aggregation_result,
+    encode_price_aggregation_result_v2,
 )
 from product_intelligence.research.enterprise_ssd import (
     ENTERPRISE_SSD_SCHEMA,
@@ -579,6 +588,7 @@ __all__ = [
     "CandidateProductEvidenceSource",
     "COMPATIBILITY_WORDING_VOCABULARY",
     "COMPARABLE_RESULT_SCHEMA_VERSION",
+    "CURRENT_PRICE_RESULT_SCHEMA_VERSION",
     "ConflictClass",
     "ConflictSeverity",
     "ConflictSubstateV2",
@@ -603,6 +613,7 @@ __all__ = [
     "PRESERVED_SEPARATORS",
     "PRICE_DIMENSION_ONLY_CONFLICT_CLASSES",
     "PRICE_RESULT_SCHEMA_VERSION",
+    "PRICE_RESULT_SCHEMA_VERSION_2",
     "PRICING_ELIGIBLE_SUMMARY_TEMPLATE",
     "PRICING_ELIGIBLE_TIERS",
     "ProductEvidenceDimension",
@@ -863,6 +874,7 @@ __all__ = [
     "deduplicate_candidate_assessments",
     "encode_comparable_result",
     "encode_price_aggregation_result",
+    "encode_price_aggregation_result_v2",
     "extract_enterprise_ssd_candidate_observations",
     "extract_enterprise_ssd_specification_observations",
     "extract_listing_observations",

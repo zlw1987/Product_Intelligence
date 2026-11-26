@@ -277,9 +277,11 @@ class TestProvenance:
     ) -> None:
         """The contract stays small without discarding evidence.
 
-        This page publishes a GTIN, a category, and a long description, none of
-        which is a `ListingObservation` field. All three survive in the raw
-        reference for a later phase that needs them.
+        This page publishes a GTIN and a category, neither of which is a
+        `ListingObservation` field (SEMANTIC-V2-A1: the long description
+        is NOW also carried as the named RAW `description_text` field —
+        see TestPublishedDescriptionText; it still survives in the raw
+        reference too, which stays the human / test-only opaque record).
         """
         observation = _extract("oempcworld_pm9a3_mz_ql23t800.html", OEMPCWORLD_URL)[0]
         preserved = json.loads(observation.raw_reference or "{}")
@@ -307,3 +309,53 @@ class TestProvenance:
             "rank",
         ):
             assert forbidden not in names
+
+
+class TestPublishedDescriptionText:
+    """SEMANTIC-V2-A1: the recorded real pages through the bounded rule.
+
+    The two JSON-LD fixtures publish a `Product.description` property;
+    the meta-only fixture publishes no description material at all.
+    Every pinned value is copied verbatim from the recorded fixture.
+    """
+
+    def test_the_manufacturer_page_carries_its_published_description(self) -> None:
+        observation = _extract(
+            "samsung_us_pm9a3_mz_ql23t800.html", SAMSUNG_URL
+        )[0]
+
+        assert observation.description_text == (
+            "Explore Samsung's Enterprise SSD PM9A3 NVMe U.2 3.84TB, "
+            "enterprise storage delivering high speed, reliability and "
+            "data security for server applications."
+        )
+
+    def test_the_retailer_page_carries_its_published_description_verbatim(self) -> None:
+        """The published text keeps its doubled space, its embedded
+        newlines, and the page's own registered-mark character — 3A
+        rewrites no interior byte."""
+        observation = _extract(
+            "oempcworld_pm9a3_mz_ql23t800.html", OEMPCWORLD_URL
+        )[0]
+
+        description = observation.description_text
+        assert description is not None
+        assert description.startswith(
+            "The 3.84TB  Samsung PM9A3 SSD \nprovides big data centers "
+        )
+        assert description.endswith(
+            "prevented with power loss protection."
+        )
+        assert "6900/4100 MB/s" in description
+        # The page published the trademark sign as U+00AE after "NVMe".
+        assert "NVMe\u00ae" in description
+
+    def test_the_meta_only_page_carries_no_description(self) -> None:
+        """`exxactcorp` publishes its product record in flat meta tags and
+        no description material anywhere the bounded rule reads — the
+        field stays explicitly absent, never guessed from the title."""
+        observation = _extract(
+            "exxactcorp_pm9a3_mz_ql23t800.html", EXXACT_URL
+        )[0]
+
+        assert observation.description_text is None

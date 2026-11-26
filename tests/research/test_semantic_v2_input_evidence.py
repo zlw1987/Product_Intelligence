@@ -153,6 +153,7 @@ def _observation(
     price: str | None = "2000",
     currency: str | None = "USD",
     availability: str | None = "In stock",
+    description: str | None = None,
 ) -> ListingObservation:
     return ListingObservation(
         source_url="https://example.com/7500-pro",
@@ -166,6 +167,9 @@ def _observation(
         availability_text=availability,
         condition_text=condition,
         seller_text=None,
+        # SEMANTIC-V2-A1: the additive named RAW description field
+        # (default None — every pre-existing call site is unchanged).
+        description_text=description,
     )
 
 
@@ -451,6 +455,111 @@ class TestStructuredVsRawDistinction:
         prompt = build_semantic_prompt_v2(case)
         assert MOTIVATING_TITLE in prompt.user_prompt
         assert "- Grounded matched-attribute facts: (none)" in prompt.user_prompt
+
+
+# ===========================================================================
+# 5b. SEMANTIC-V2-A1 — the RAW description / specification channel
+# ===========================================================================
+
+
+A1_DESCRIPTION = (
+    "Micron 7500 PRO 3840GB U.3 15mm datacenter SSD, PCIe Gen4, 2.5 inch, "
+    "1 DWPD, 256-bit AES encryption."
+)
+
+
+class TestRawDescriptionChannel:
+    """SEMANTIC-V2-A1: the page-published description text maps onto the
+    EXISTING V2 ``raw_specification_text`` channel (RAW observation text).
+
+    Prompt 2.0, the model-output enums, the authority rules, and the
+    semantic ledger codec are UNCHANGED: only the channel's value is now
+    supplied by the extractor instead of being explicit None.
+    """
+
+    def test_a_published_description_reaches_the_model_as_raw_text(self) -> None:
+        case = _case(_observation(description=A1_DESCRIPTION))
+        product = case.candidate_product
+        assert product.raw_specification_text == A1_DESCRIPTION
+        prompt = build_semantic_prompt_v2(case)
+        # Rendered under the raw-observation label, verbatim ...
+        assert (
+            f'- Specification text: "{A1_DESCRIPTION}"'
+        ) in prompt.user_prompt
+        assert "Raw observation text" in prompt.user_prompt
+        assert "NOT structured evidence" in prompt.user_prompt
+        # ... and never rendered as a structured fact.
+        assert "[published structured field]" not in prompt.user_prompt.split(
+            "Raw observation text"
+        )[1].split("Commercial / packaging evidence")[0]
+
+    def test_a_missing_description_stays_explicitly_absent(self) -> None:
+        product = build_candidate_product_evidence_v2(_observation())
+        assert product.raw_specification_text is None
+        prompt = build_semantic_prompt_v2(_case(_observation()))
+        assert "- Specification text: (none carried by the extractor)" in (
+            prompt.user_prompt
+        )
+
+    def test_description_tokens_are_never_parsed_into_structured_facts(self) -> None:
+        """A description full of capacity / interface / form-factor tokens
+        produces ZERO structured facts: the tokens are RAW observation
+        evidence, and no unverified structured attribute is derived from
+        arbitrary description text (specification fabrication is refused)."""
+        product = build_candidate_product_evidence_v2(
+            _observation(description=A1_DESCRIPTION)
+        )
+        for name in (
+            "product_family",
+            "generation",
+            "capacity",
+            "interface",
+            "form_factor",
+            "product_role",
+            "accessory_relation",
+            "brand",
+            "revision_or_suffix",
+        ):
+            assert getattr(product, name) is None
+
+    def test_description_alone_cannot_reach_strong_authority(self) -> None:
+        """The authority-side profile is built ONLY from the frozen
+        evidence bar: a raw description (with zero grounded facts) leaves
+        the candidate at the same ceiling as a title alone."""
+        case = _case(_observation(description=A1_DESCRIPTION))
+        assert case.product_evidence.matched_facts == frozenset()
+        quality = derive_product_evidence_quality(
+            case.product_evidence, NO_CTX
+        )
+        assert quality is ProductEvidenceQuality.LIMITED
+
+    def test_the_recorded_case_carries_the_exact_bounded_raw_evidence(self) -> None:
+        """The recorded V2 case (what the ledger row persists) carries the
+        description verbatim — the exact bounded RAW evidence supplied to
+        the model — and round-trips through the UNCHANGED semantic ledger
+        codec (encode / decode / zero-live replay all preserve it)."""
+        case = _case(_observation(description=A1_DESCRIPTION))
+        assert (
+            case.canonical()["candidate"]["product"]["raw_specification_text"]
+            == A1_DESCRIPTION
+        )
+        record = _record_for(case, V2SemanticDecision.MATCH)
+        row = encode_semantic_decision_record(record)
+        decoded = decode_semantic_decision_record(
+            row, schema_version=SEMANTIC_DECISION_SCHEMA_VERSION
+        )
+        assert decoded == record
+        assert decoded.case == case
+        assert (
+            decoded.case.candidate_product.raw_specification_text
+            == A1_DESCRIPTION
+        )
+        replay = replay_semantic_decision(decoded)
+        assert replay.case == case
+        assert (
+            replay.case.candidate_product.raw_specification_text
+            == A1_DESCRIPTION
+        )
 
 
 # ===========================================================================

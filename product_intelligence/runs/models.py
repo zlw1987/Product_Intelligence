@@ -418,9 +418,14 @@ class PriceIntelligenceSnapshot(models.Model):
     keep consistent and means the snapshot is always found through the run.
 
     ``schema_version``
-        The codec version that produced ``payload``. The only supported
-        version is 1. An unsupported version causes the report to fail
-        closed rather than attempt best-effort migration.
+        The codec version that produced ``payload``. Supported versions
+        are 1 and 2 (SEMANTIC-V2-A1: schema 1 is the frozen V1 payload —
+        the fixed 13-key observation; schema 2 is the V1 payload plus the
+        additive per-observation ``description_text`` key). An
+        unsupported version causes the report to fail closed rather than
+        attempt best-effort migration. Historical rows keep their own
+        recorded version and are decoded through the version dispatcher;
+        snapshots are never re-encoded or rewritten.
 
     ``payload``
         A ``JSONField`` holding the codec-encoded ``PriceAggregationResult``.

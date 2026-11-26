@@ -30,6 +30,16 @@ class TestTheFieldList:
         The absent fields are the point: no `Decimal`, no currency enum, no
         quantity, no unit price, no condition or availability vocabulary, no
         accept/reject decision, no score, no confidence.
+
+        Recorded in-place evolution (SEMANTIC-V2-A1, approved bounded
+        implementation): ONE additive named RAW field —
+        `description_text` (the page-published description /
+        specification text; the same strip-or-None discipline as its
+        siblings; explicitly absent when the extractor's bounded rule
+        publishes none). It is appended AFTER `raw_reference`, so every
+        pre-existing field keeps its position; the design of record
+        (PRODUCT-INTEL.SEMANTIC-V2-PRODUCT-CONTRACT-AMENDMENT section
+        4.11, FU3 F1) records this as a 3A frozen-contract ADDITION.
         """
         assert [field.name for field in fields(ListingObservation)] == [
             "source_url",
@@ -45,6 +55,7 @@ class TestTheFieldList:
             "seller_text",
             "offer_url_text",
             "raw_reference",
+            "description_text",
         ]
 
     @pytest.mark.parametrize(
@@ -192,3 +203,36 @@ class TestExtractionMethod:
         assert not hasattr(ExtractionMethod, "confidence")
         for member in ExtractionMethod:
             assert isinstance(member.value, str)
+
+
+class TestDescriptionTextSemantics:
+    """SEMANTIC-V2-A1: the additive named RAW description field.
+
+    Same discipline as its siblings: untrusted external content, kept as
+    the page wrote it, explicitly absent when nothing is published.
+    """
+
+    def test_a_published_description_is_carried_as_raw_text(self) -> None:
+        observation = _observation(description_text="  3.84TB enterprise SSD.  ")
+
+        assert observation.description_text == "3.84TB enterprise SSD."
+
+    def test_interior_whitespace_is_never_rewritten(self) -> None:
+        observation = _observation(
+            description_text="Line one\nLine two   with gaps"
+        )
+
+        assert observation.description_text == "Line one\nLine two   with gaps"
+
+    def test_a_missing_description_is_explicitly_absent(self) -> None:
+        assert _observation().description_text is None
+
+    def test_a_blank_description_is_the_same_as_absent(self) -> None:
+        """"The page said nothing here" gets one representation."""
+        assert _observation(description_text="   ").description_text is None
+
+    @pytest.mark.parametrize("value", [199.0, 199, True, ["x"], {"v": "x"}])
+    def test_a_non_text_description_is_a_caller_defect(self, value: object) -> None:
+        """Converting on the way in is what this contract exists to prevent."""
+        with pytest.raises(TypeError):
+            _observation(description_text=value)

@@ -14,6 +14,34 @@ No ``dataclasses.asdict``, no pickle, no generic object framework, no float.
 The codec lives in ``research/`` because it transforms research-layer
 contracts to and from JSON. It is serialisation discipline, not persistence
 logic. The ``runs/`` layer stores the JSON; this layer interprets it.
+
+Schema versions (SEMANTIC-V2-A1, recorded 4B frozen-contract addition)
+----------------------------------------------------------------------
+
+* **Schema 1 (V1 — frozen).** The original payload: each listing
+  observation is the fixed 13-key dict, encoded by
+  ``encode_price_aggregation_result`` and decoded by the V1 decode path.
+  This path is the historical byte-compatibility anchor and is
+  unchanged: it still writes exactly the 13 keys and still refuses ANY
+  extra key (a schema-1 payload containing an unexpected
+  ``description_text`` fails closed, as before).
+* **Schema 2 (V2).** The V1 payload plus exactly ONE additive key per
+  listing observation: ``description_text`` (nullable — the key is always
+  present, null when absent; no omission, no defaulting). Encoded by
+  ``encode_price_aggregation_result_v2``, decoded by the V2 decode path,
+  which is just as strict as V1 (unknown keys, wrong types, unknown
+  enums, and invalid Decimals all fail closed).
+* ``decode_price_aggregation_result(payload, *, schema_version)`` is the
+  **version dispatcher**: 1 ⇒ frozen V1 decode, 2 ⇒ V2 decode, anything
+  else ⇒ ``PriceResultCodecError`` (fail closed, no best-effort
+  migration). Snapshots are immutable: a row is ALWAYS decoded with its
+  OWN recorded ``schema_version``; historical schema-1 payloads decode
+  byte-identically through the unchanged V1 path, and a schema-2 payload
+  can exist only on runs published after the constant advanced.
+* ``CURRENT_PRICE_RESULT_SCHEMA_VERSION`` is the frozen publication
+  constant: the encoder + recorded ``schema_version`` that the sole
+  snapshot writer (final publication) uses for NEW rows. It advanced
+  from 1 to 2 under the gated SEMANTIC-V2-A1 approval only.
 """
 
 from __future__ import annotations
@@ -56,7 +84,24 @@ from product_intelligence.research.normalization import (
 # ---------------------------------------------------------------------------
 
 PRICE_RESULT_SCHEMA_VERSION = 1
-"""Current (and only supported) V1 schema version."""
+"""The frozen V1 schema version (the historical byte-compatibility anchor)."""
+
+PRICE_RESULT_SCHEMA_VERSION_2 = 2
+"""The SEMANTIC-V2-A1 schema version: the V1 payload plus the additive
+per-observation ``description_text`` key (nullable, always present)."""
+
+CURRENT_PRICE_RESULT_SCHEMA_VERSION = 2
+"""The codec version NEW snapshots are published with.
+
+Frozen publication constant: the sole snapshot writer (the atomic final
+publication in ``execution/orchestration.py``) selects the encoder and
+records ``PriceIntelligenceSnapshot.schema_version`` from this constant.
+It was 1 from 4B through SEMANTIC-V2-PERF and advanced to 2 ONLY under
+the gated SEMANTIC-V2-A1 approval (the versioned snapshot persistence of
+design section 4.11, FU3 F1). Advancing it again is a separate gated
+decision; historical rows keep their own recorded version and are decoded
+through the dispatcher, never re-encoded.
+"""
 
 
 class PriceResultCodecError(ValueError):
@@ -388,6 +433,143 @@ def encode_price_aggregation_result(
         })
 
     # Exclusions reference assessments by global canonical index.
+    exclusions_encoded: list[dict[str, object]] = []
+    for excl in result.exclusions:
+        if excl.assessment not in assessments_by_value:
+            raise TypeError(
+                "exclusion references an assessment not present in the "
+                "top-level assessments tuple"
+            )
+        assessment_index = assessments_by_value[excl.assessment]
+        exclusions_encoded.append({
+            "assessment_index": assessment_index,
+            "reason": _enc_enum(excl.reason),
+        })
+
+    return {
+        "request": _enc_request(result.request),
+        "assessments": assessments_encoded,
+        "buckets": buckets_encoded,
+        "exclusions": exclusions_encoded,
+        "verification_status": _enc_enum(result.verification_status),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Encode — V2 (SEMANTIC-V2-A1: the V1 payload + the additive
+# per-observation description_text key; the frozen V1 chain above is
+# byte-identical and remains the historical anchor)
+# ---------------------------------------------------------------------------
+
+
+def _enc_listing_observation_v2(obs: ListingObservation) -> dict[str, object]:
+    """The schema-2 observation dict: the frozen 13 keys (built by the
+    unchanged V1 encoder, in the unchanged order) + ``description_text``
+    (nullable; the key is always present, null when absent)."""
+    encoded = _enc_listing_observation(obs)
+    encoded["description_text"] = obs.description_text
+    return encoded
+
+
+def _enc_normalized_listing_v2(
+    norm: NormalizedListingObservation,
+) -> dict[str, object]:
+    return {
+        "observation": _enc_listing_observation_v2(norm.observation),
+        "price_amount": str(norm.price_amount) if norm.price_amount is not None else None,
+        "currency_code": norm.currency_code,
+        "availability": _enc_enum(norm.availability),
+        "condition": _enc_enum(norm.condition),
+        "seller_name": norm.seller_name,
+        "normalization_issues": [
+            _enc_normalization_issue(i) for i in norm.normalization_issues
+        ],
+    }
+
+
+def _enc_assessment_v2(assess: ListingIdentityAssessment) -> dict[str, object]:
+    return {
+        "normalized_listing": _enc_normalized_listing_v2(assess.normalized_listing),
+        "requested_part_number": assess.requested_part_number,
+        "candidate_part_number_raw": assess.candidate_part_number_raw,
+        "candidate_part_number_compared": assess.candidate_part_number_compared,
+        "candidate_evidence_source": _enc_enum(assess.candidate_evidence_source),
+        "match_type": _enc_enum(assess.match_type),
+        "decision": _enc_enum(assess.decision),
+        "rejection_reason": (
+            _enc_enum(assess.rejection_reason)
+            if assess.rejection_reason is not None
+            else None
+        ),
+    }
+
+
+def encode_price_aggregation_result_v2(
+    result: PriceAggregationResult,
+) -> dict[str, object]:
+    """Encode a ``PriceAggregationResult`` into a V2 (schema-2)
+    JSON-serialisable dict.
+
+    The payload is the V1 payload plus exactly one additive key per
+    listing observation: ``description_text`` (nullable — always present,
+    null when absent; no omission, no defaulting). The top-level shape,
+    the 13 frozen observation keys, and the bucket / exclusion / request
+    sections are identical to V1 in content and order.
+
+    The returned dict contains only native JSON types: str, int, list,
+    dict, None. No ``Decimal``, ``Enum``, or dataclass objects leak into
+    the payload.
+
+    Raises ``TypeError`` if the input is not a ``PriceAggregationResult``
+    (caller defect).
+    """
+    if not isinstance(result, PriceAggregationResult):
+        raise TypeError(
+            f"expected PriceAggregationResult, got {type(result).__name__}"
+        )
+
+    # Build canonical assessment list and value→index mapping — the same
+    # value-based membership discipline as the frozen V1 encoder.
+    assessments_encoded: list[dict[str, object]] = []
+    assessments_by_value: dict[ListingIdentityAssessment, int] = {}
+    for i, assess in enumerate(result.assessments):
+        assessments_encoded.append(_enc_assessment_v2(assess))
+        assessments_by_value[assess] = i
+
+    buckets_encoded: list[dict[str, object]] = []
+    for bucket in result.buckets:
+        bucket_indexes: list[int] = []
+        for assess in bucket.assessments:
+            if assess not in assessments_by_value:
+                # This can happen if a bucket references an assessment
+                # not in the top-level tuple — should not occur for a
+                # valid PriceAggregationResult, but fail clearly.
+                raise TypeError(
+                    "bucket references an assessment not present in the "
+                    "top-level assessments tuple"
+                )
+            bucket_indexes.append(assessments_by_value[assess])
+        buckets_encoded.append({
+            "currency_code": bucket.currency_code,
+            "condition": _enc_enum(bucket.condition),
+            "assessment_indexes": bucket_indexes,
+            "count": bucket.count,
+            "low": str(bucket.low),
+            "median": str(bucket.median),
+            "high": str(bucket.high),
+            "market_range_low": (
+                str(bucket.market_range_low)
+                if bucket.market_range_low is not None
+                else None
+            ),
+            "market_range_high": (
+                str(bucket.market_range_high)
+                if bucket.market_range_high is not None
+                else None
+            ),
+            "confidence": _enc_enum(bucket.confidence),
+        })
+
     exclusions_encoded: list[dict[str, object]] = []
     for excl in result.exclusions:
         if excl.assessment not in assessments_by_value:
@@ -841,12 +1023,404 @@ def _decode_v1_payload(
     )
 
 
+# ---------------------------------------------------------------------------
+# Decode — V2 (SEMANTIC-V2-A1: the V1 payload + the additive
+# per-observation description_text key; the frozen V1 decode chain above
+# is byte-identical and remains the historical anchor, including its
+# extra-key strictness — a schema-1 payload with an unexpected
+# description_text still fails closed through the V1 path)
+# ---------------------------------------------------------------------------
+
+
+def _dec_listing_observation_v2(
+    data: dict[str, object], path: str
+) -> ListingObservation:
+    _check_no_extra_keys(
+        data,
+        {
+            "source_url", "extraction_method", "product_title",
+            "manufacturer_part_number_text", "sku_text", "brand_text",
+            "price_text", "currency_text", "availability_text",
+            "condition_text", "seller_text", "offer_url_text",
+            "raw_reference", "description_text",
+        },
+        path,
+    )
+    # V2 requires all 14 keys to be present; nullable means value is
+    # null, not absent (no omission, no defaulting).
+    return ListingObservation(
+        source_url=_dec_str(_dec_required_key(data, "source_url", path), f"{path}.source_url"),
+        extraction_method=_dec_enum(
+            ExtractionMethod,
+            _dec_required_key(data, "extraction_method", path),
+            f"{path}.extraction_method",
+        ),
+        product_title=_dec_optional_str(
+            _dec_required_key(data, "product_title", path),
+            f"{path}.product_title",
+        ),
+        manufacturer_part_number_text=_dec_optional_str(
+            _dec_required_key(data, "manufacturer_part_number_text", path),
+            f"{path}.manufacturer_part_number_text",
+        ),
+        sku_text=_dec_optional_str(
+            _dec_required_key(data, "sku_text", path),
+            f"{path}.sku_text",
+        ),
+        brand_text=_dec_optional_str(
+            _dec_required_key(data, "brand_text", path),
+            f"{path}.brand_text",
+        ),
+        price_text=_dec_optional_str(
+            _dec_required_key(data, "price_text", path),
+            f"{path}.price_text",
+        ),
+        currency_text=_dec_optional_str(
+            _dec_required_key(data, "currency_text", path),
+            f"{path}.currency_text",
+        ),
+        availability_text=_dec_optional_str(
+            _dec_required_key(data, "availability_text", path),
+            f"{path}.availability_text",
+        ),
+        condition_text=_dec_optional_str(
+            _dec_required_key(data, "condition_text", path),
+            f"{path}.condition_text",
+        ),
+        seller_text=_dec_optional_str(
+            _dec_required_key(data, "seller_text", path),
+            f"{path}.seller_text",
+        ),
+        offer_url_text=_dec_optional_str(
+            _dec_required_key(data, "offer_url_text", path),
+            f"{path}.offer_url_text",
+        ),
+        raw_reference=_dec_optional_str(
+            _dec_required_key(data, "raw_reference", path),
+            f"{path}.raw_reference",
+        ),
+        description_text=_dec_optional_str(
+            _dec_required_key(data, "description_text", path),
+            f"{path}.description_text",
+        ),
+    )
+
+
+def _dec_normalized_listing_v2(
+    data: dict[str, object], path: str
+) -> NormalizedListingObservation:
+    _check_no_extra_keys(
+        data,
+        {
+            "observation", "price_amount", "currency_code",
+            "availability", "condition", "seller_name",
+            "normalization_issues",
+        },
+        path,
+    )
+    observation = _dec_listing_observation_v2(
+        _dec_mapping(_dec_required_key(data, "observation", path), f"{path}.observation"),
+        f"{path}.observation",
+    )
+    price_amount = _dec_optional_decimal(
+        _dec_required_key(data, "price_amount", path),
+        f"{path}.price_amount",
+    )
+    currency_code = _dec_optional_str(
+        _dec_required_key(data, "currency_code", path),
+        f"{path}.currency_code",
+    )
+    availability = _dec_enum(
+        NormalizedAvailability,
+        _dec_required_key(data, "availability", path),
+        f"{path}.availability",
+    )
+    condition = _dec_enum(
+        NormalizedCondition,
+        _dec_required_key(data, "condition", path),
+        f"{path}.condition",
+    )
+    seller_name = _dec_optional_str(
+        _dec_required_key(data, "seller_name", path),
+        f"{path}.seller_name",
+    )
+    issues_raw = _dec_list(
+        _dec_required_key(data, "normalization_issues", path),
+        f"{path}.normalization_issues",
+    )
+    normalization_issues = tuple(
+        _dec_normalization_issue(
+            _dec_mapping(item, f"{path}.normalization_issues[{i}]"),
+            f"{path}.normalization_issues[{i}]",
+        )
+        for i, item in enumerate(issues_raw)
+    )
+
+    return NormalizedListingObservation(
+        observation=observation,
+        price_amount=price_amount,
+        currency_code=currency_code,
+        availability=availability,
+        condition=condition,
+        seller_name=seller_name,
+        normalization_issues=normalization_issues,
+    )
+
+
+def _dec_assessment_v2(
+    data: dict[str, object], path: str
+) -> ListingIdentityAssessment:
+    _check_no_extra_keys(
+        data,
+        {
+            "normalized_listing", "requested_part_number",
+            "candidate_part_number_raw", "candidate_part_number_compared",
+            "candidate_evidence_source", "match_type", "decision",
+            "rejection_reason",
+        },
+        path,
+    )
+    return ListingIdentityAssessment(
+        normalized_listing=_dec_normalized_listing_v2(
+            _dec_mapping(
+                _dec_required_key(data, "normalized_listing", path),
+                f"{path}.normalized_listing",
+            ),
+            f"{path}.normalized_listing",
+        ),
+        requested_part_number=_dec_str(
+            _dec_required_key(data, "requested_part_number", path),
+            f"{path}.requested_part_number",
+        ),
+        candidate_part_number_raw=_dec_str(
+            _dec_required_key(data, "candidate_part_number_raw", path),
+            f"{path}.candidate_part_number_raw",
+        ),
+        candidate_part_number_compared=_dec_str(
+            _dec_required_key(data, "candidate_part_number_compared", path),
+            f"{path}.candidate_part_number_compared",
+        ),
+        candidate_evidence_source=_dec_enum(
+            EvidenceSource,
+            _dec_required_key(data, "candidate_evidence_source", path),
+            f"{path}.candidate_evidence_source",
+        ),
+        match_type=_dec_enum(
+            IdentityMatchType,
+            _dec_required_key(data, "match_type", path),
+            f"{path}.match_type",
+        ),
+        decision=_dec_enum(
+            EvidenceDecision,
+            _dec_required_key(data, "decision", path),
+            f"{path}.decision",
+        ),
+        rejection_reason=(
+            _dec_enum(
+                IdentityRejectionReason,
+                _dec_required_key(data, "rejection_reason", path),
+                f"{path}.rejection_reason",
+            )
+            if _dec_required_key(data, "rejection_reason", path) is not None
+            else None
+        ),
+    )
+
+
+def _decode_v2_payload(
+    payload: dict[str, object],
+) -> PriceAggregationResult:
+    """Decode a V2 (schema-2) payload into a validated
+    ``PriceAggregationResult``.
+
+    Internal function. Structurally identical to the frozen V1 payload
+    decode; the ONLY difference is the observation leaf, which carries
+    the additive ``description_text`` key (required, nullable).
+
+    Raises ``PriceResultCodecError`` for any structural violation.
+    Raises ``TypeError``, ``ValueError``, or ``DomainValidationError``
+    when persisted data violates a constructor contract — the caller
+    (``decode_price_aggregation_result``) wraps those.
+    """
+
+    # --- Top-level structure (identical to V1) ---
+    _check_no_extra_keys(
+        payload,
+        {"request", "assessments", "buckets", "exclusions", "verification_status"},
+        "top-level",
+    )
+
+    # --- Request (identical to V1) ---
+    request_data = _dec_mapping(
+        _dec_required_key(payload, "request", "top-level"),
+        "request",
+    )
+    request = _dec_request(request_data, "request")
+
+    # --- Assessments (canonical list, stored once) ---
+    assessments_raw = _dec_list(
+        _dec_required_key(payload, "assessments", "top-level"),
+        "assessments",
+    )
+    assessments: list[ListingIdentityAssessment] = []
+    for i, item in enumerate(assessments_raw):
+        assessments.append(
+            _dec_assessment_v2(
+                _dec_mapping(item, f"assessments[{i}]"),
+                f"assessments[{i}]",
+            )
+        )
+
+    # --- Buckets (identical to V1) ---
+    buckets_raw = _dec_list(
+        _dec_required_key(payload, "buckets", "top-level"),
+        "buckets",
+    )
+    buckets: list[PriceAggregateBucket] = []
+    for i, bucket_data in enumerate(buckets_raw):
+        bd = _dec_mapping(bucket_data, f"buckets[{i}]")
+        _check_no_extra_keys(
+            bd,
+            {
+                "currency_code", "condition", "assessment_indexes",
+                "count", "low", "median", "high",
+                "market_range_low", "market_range_high", "confidence",
+            },
+            f"buckets[{i}]",
+        )
+
+        currency_code = _dec_str(
+            _dec_required_key(bd, "currency_code", f"buckets[{i}]"),
+            f"buckets[{i}].currency_code",
+        )
+        condition = _dec_enum(
+            NormalizedCondition,
+            _dec_required_key(bd, "condition", f"buckets[{i}]"),
+            f"buckets[{i}].condition",
+        )
+        assessment_indexes_raw = _dec_list(
+            _dec_required_key(bd, "assessment_indexes", f"buckets[{i}]"),
+            f"buckets[{i}].assessment_indexes",
+        )
+        assessment_indexes: list[int] = []
+        for j, idx in enumerate(assessment_indexes_raw):
+            assessment_indexes.append(
+                _validate_assessment_index(
+                    idx, len(assessments),
+                    f"buckets[{i}].assessment_indexes[{j}]",
+                )
+            )
+
+        if len(assessment_indexes) != len(set(assessment_indexes)):
+            raise PriceResultCodecError(
+                f"buckets[{i}]: duplicate assessment index in bucket"
+            )
+
+        count = _dec_int(_dec_required_key(bd, "count", f"buckets[{i}]"), f"buckets[{i}].count")
+        low = _dec_decimal(_dec_required_key(bd, "low", f"buckets[{i}]"), f"buckets[{i}].low")
+        median = _dec_decimal(
+            _dec_required_key(bd, "median", f"buckets[{i}]"),
+            f"buckets[{i}].median",
+        )
+        high = _dec_decimal(
+            _dec_required_key(bd, "high", f"buckets[{i}]"),
+            f"buckets[{i}].high",
+        )
+        market_range_low = _dec_optional_decimal(
+            _dec_required_key(bd, "market_range_low", f"buckets[{i}]"),
+            f"buckets[{i}].market_range_low",
+        )
+        market_range_high = _dec_optional_decimal(
+            _dec_required_key(bd, "market_range_high", f"buckets[{i}]"),
+            f"buckets[{i}].market_range_high",
+        )
+        confidence = _dec_enum(
+            ConfidenceLevel,
+            _dec_required_key(bd, "confidence", f"buckets[{i}]"),
+            f"buckets[{i}].confidence",
+        )
+
+        bucket_assessments = tuple(assessments[idx] for idx in assessment_indexes)
+
+        buckets.append(
+            PriceAggregateBucket(
+                currency_code=currency_code,
+                condition=condition,
+                assessments=bucket_assessments,
+                count=count,
+                low=low,
+                median=median,
+                high=high,
+                market_range_low=market_range_low,
+                market_range_high=market_range_high,
+                confidence=confidence,
+            )
+        )
+
+    # --- Exclusions (identical to V1) ---
+    exclusions_raw = _dec_list(
+        _dec_required_key(payload, "exclusions", "top-level"),
+        "exclusions",
+    )
+    exclusions: list[PriceAggregationExclusion] = []
+    for i, excl_data in enumerate(exclusions_raw):
+        ed = _dec_mapping(excl_data, f"exclusions[{i}]")
+        _check_no_extra_keys(
+            ed,
+            {"assessment_index", "reason"},
+            f"exclusions[{i}]",
+        )
+        assessment_index = _validate_assessment_index(
+            _dec_required_key(ed, "assessment_index", f"exclusions[{i}]"),
+            len(assessments),
+            f"exclusions[{i}].assessment_index",
+        )
+        reason = _dec_enum(
+            PriceAggregationExclusionReason,
+            _dec_required_key(ed, "reason", f"exclusions[{i}]"),
+            f"exclusions[{i}].reason",
+        )
+        exclusions.append(
+            PriceAggregationExclusion(
+                assessment=assessments[assessment_index],
+                reason=reason,
+            )
+        )
+
+    # --- Verification status (identical to V1) ---
+    verification_status = _dec_enum(
+        VerificationStatus,
+        _dec_required_key(payload, "verification_status", "top-level"),
+        "verification_status",
+    )
+
+    # --- Final construction through normal __post_init__ ---
+    # This re-validates all 4A invariants: duplicate assessment rules,
+    # bucket statistics, bucket membership, exclusions, multiplicity,
+    # request provenance, unique bucket keys, verification status.
+    return PriceAggregationResult(
+        request=request,
+        assessments=tuple(assessments),
+        exclusions=tuple(exclusions),
+        buckets=tuple(buckets),
+        verification_status=verification_status,
+    )
+
+
 def decode_price_aggregation_result(
     payload: object,
     *,
     schema_version: int,
 ) -> PriceAggregationResult:
     """Decode a persisted payload into a ``PriceAggregationResult``.
+
+    Version dispatcher (SEMANTIC-V2-A1): ``schema_version`` 1 decodes
+    through the frozen V1 path (byte-identical historical behavior,
+    incl. its 13-key extra-key strictness); 2 decodes through the V2
+    path (the additive per-observation ``description_text``); anything
+    else fails closed. A row is always decoded with its OWN recorded
+    schema version — this is the single replay-facing decode entry
+    point (the web / replay read-side allowlist is unchanged).
 
     The payload is treated as untrusted/corruptible state. Decoding is strict:
 
@@ -870,15 +1444,19 @@ def decode_price_aggregation_result(
     ``PriceResultCodecError``.
     """
 
-    # --- Schema version gate ---
+    # --- Schema version gate (version dispatcher) ---
     if isinstance(schema_version, bool) or not isinstance(schema_version, int):
         raise PriceResultCodecError(
             f"schema_version must be int, got {type(schema_version).__name__}"
         )
-    if schema_version != PRICE_RESULT_SCHEMA_VERSION:
+    if schema_version not in (
+        PRICE_RESULT_SCHEMA_VERSION,
+        PRICE_RESULT_SCHEMA_VERSION_2,
+    ):
         raise PriceResultCodecError(
-            f"unsupported schema_version {schema_version}; "
-            f"only version {PRICE_RESULT_SCHEMA_VERSION} is supported"
+            f"unsupported schema_version {schema_version}; only versions "
+            f"{PRICE_RESULT_SCHEMA_VERSION} and {PRICE_RESULT_SCHEMA_VERSION_2} "
+            "are supported"
         )
 
     # --- Payload structure ---
@@ -887,6 +1465,18 @@ def decode_price_aggregation_result(
             f"payload must be a mapping, got {type(payload).__name__}"
         )
 
+    if schema_version == PRICE_RESULT_SCHEMA_VERSION_2:
+        # --- Single validation boundary for all nested constructors ---
+        try:
+            return _decode_v2_payload(payload)
+        except PriceResultCodecError:
+            raise
+        except (DomainValidationError, TypeError, ValueError):
+            raise PriceResultCodecError(
+                "stored price result violates the V2 contract"
+            ) from None
+
+    # --- V1: the frozen decode path, byte-identical ---
     # --- Single validation boundary for all nested constructors ---
     try:
         return _decode_v1_payload(payload)

@@ -120,12 +120,24 @@ class ListingObservation:
     fields still came from JSON-LD/META; only the otherwise-missing MPN came
     from the bounded visible labeled-identity path.
 
+    `description_text` (SEMANTIC-V2-A1, recorded 3A frozen-contract
+    addition) carries the page-published description / specification text
+    when the extractor's bounded rule publishes it — today exactly the
+    JSON-LD `Product.description` position. It is RAW observation text,
+    kept as the page wrote it (the same strip-or-None discipline as its
+    siblings): it is data, not a structured attribute; no token of it is
+    parsed into a fact by this contract or any business rule, and a
+    missing or unsupported description is explicit `None`, never guessed.
+    The published node still survives in `raw_reference` — carrying the
+    description as a named field does not make the opaque reference
+    redundant, and it does not authorize parsing it.
+
     `raw_reference` preserves the structured node the observation came from, so
     a reviewer can check the mapping against the source. It follows AD-040: it
     is an opaque string, kept for humans and tests, and no business rule may
     parse it. Fields this contract deliberately does not carry — a GTIN, a
-    category, a description, a price-valid-until date — survive in here, which
-    is why the contract can stay small without discarding evidence.
+    category, a price-valid-until date — survive in here, which is why the
+    contract can stay small without discarding evidence.
 
     Deliberately absent: any numeric price, any currency enum, any quantity,
     pack size, or unit price, any condition or availability vocabulary, any
@@ -147,6 +159,7 @@ class ListingObservation:
     seller_text: str | None = None
     offer_url_text: str | None = None
     raw_reference: str | None = None
+    description_text: str | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.source_url, str):

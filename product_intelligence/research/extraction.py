@@ -24,6 +24,16 @@ offer/price record still comes from exactly the same two mechanisms, in order:
 2. flat `<meta>` tags — the `name="price"` / `name="mpn"` / `name="sku"`
    family and the OpenGraph `og:price:amount` / `og:price:currency` pair.
 
+The page-published description / specification text (`SEMANTIC-V2-A1`, a
+recorded 3A frozen-contract addition) comes from exactly ONE further
+structured position: the JSON-LD `Product.description` property. It is
+lifted as RAW text with the same never-a-number / never-a-decision
+discipline as every other field — a non-scalar publication stays absent,
+and the META mechanism is unchanged: no recorded fixture publishes a meta
+description key, and an unsupported or missing description is explicit
+absence, never guessed from rendered prose, a search snippet, or the opaque
+`raw_reference` (AD-040 stands: no business rule parses it).
+
 After one of those mechanisms has produced an observation, a deliberately
 narrow identity-only enrichment may fill a *missing* manufacturer part number
 from an exact visible field label such as `Model #:` or
@@ -657,6 +667,17 @@ def _observation_from_product(
         seller_text=seller_text,
         offer_url_text=offer_url_text,
         raw_reference=json.dumps(raw_node, ensure_ascii=False, sort_keys=True),
+        # SEMANTIC-V2-A1 (bounded description rule): the page-published
+        # description / specification text comes from exactly one structured
+        # position — the JSON-LD `Product.description` property, lifted with
+        # the same never-a-number / never-a-decision discipline as its
+        # siblings (a non-scalar publication stays absent). It is product-
+        # scoped: every offer of the same product node carries the same
+        # published description, and an offer node never contributes one.
+        # The META mechanism publishes no description key in any recorded
+        # fixture, so a meta-only page carries no description text —
+        # unsupported or missing stays explicitly absent, never guessed.
+        description_text=_text(product.get("description")),
     )
 
 

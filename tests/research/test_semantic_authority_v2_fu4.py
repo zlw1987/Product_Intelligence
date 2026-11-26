@@ -385,8 +385,18 @@ FROZEN_MODULE_PINS: dict[str, str] = {
     "product_intelligence/research/sales_unit_extraction.py": (
         "0dd6016503292a926d86f3dbafa97e59a713a4386df2a648882e4942cc6737b6"
     ),
+    # Re-pinned (SEMANTIC-V2-A1, approved bounded implementation): the
+    # ONE sanctioned production change in this file is the V2
+    # description-evidence mapping — build_candidate_product_evidence_v2
+    # now fills raw_specification_text from the additive
+    # ListingObservation.description_text field (the page-published
+    # description / specification text; RAW observation text only, never
+    # parsed into a structured fact) + the recorded docstring updates.
+    # Prompt 2.0, the model-output enums, the authority rules, the
+    # contract binding, and every other line of the module are
+    # unchanged. Committed LF Git-blob SHA-256 of the final file.
     "product_intelligence/research/semantic_v2.py": (
-        "d573d8086bc51db1653f99cebe42aa476ff954fc9d582f8f014ec2d4a97e7d7d"
+        "ae9f63a86967ed38798d744dabf928ae4f42f3ac9746fe10015f3f9c5affa288"
     ),
     "product_intelligence/research/semantic_decision_v2.py": (
         "9176380cc67090b1b799e7f9ad1640e5f2858ea1b9680897ff3cb7ad5f4cffeb"

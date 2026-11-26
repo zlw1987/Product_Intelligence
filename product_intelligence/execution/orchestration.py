@@ -658,8 +658,13 @@ def execute_research_run(
         #   2. Transition RUNNING -> COMPLETED
         # ================================================================
         # Encoding is done BEFORE the transaction so encoding failure is
-        # caught by this outer boundary, not rolled back inside a transaction
-        encoded_payload = _encode_aggregation_result(aggregation_result)
+        # caught by this outer boundary, not rolled back inside a transaction.
+        # SEMANTIC-V2-A1: the encoder + the recorded schema_version come
+        # from the frozen codec constant (publication is the sole writer;
+        # snapshots are immutable — never re-encoded or rewritten).
+        encoded_payload, price_snapshot_schema_version = _encode_aggregation_result(
+            aggregation_result
+        )
 
         # ================================================================
         # 4D-B: Vendor API commercial lookup (supplemental)
@@ -699,10 +704,11 @@ def execute_research_run(
         )
 
         with transaction.atomic():
-            # Create the snapshot
+            # Create the snapshot (the recorded schema version is the
+            # codec constant's value at publication — SEMANTIC-V2-A1)
             snapshot = PriceIntelligenceSnapshot.objects.create(
                 run=claimed_run,
-                schema_version=1,
+                schema_version=price_snapshot_schema_version,
                 payload=encoded_payload,
             )
 
@@ -849,13 +855,39 @@ def _create_review_candidates(
 
 
 
-def _encode_aggregation_result(result: PriceAggregationResult) -> dict:
-    """Encode aggregation result to JSON-serializable dict."""
+def _encode_aggregation_result(
+    result: PriceAggregationResult,
+) -> tuple[dict, int]:
+    """Encode the aggregation result with the CURRENT frozen schema version.
+
+    SEMANTIC-V2-A1: publication — the sole snapshot writer — picks the
+    encoder and the recorded ``schema_version`` from the frozen codec
+    constant ``CURRENT_PRICE_RESULT_SCHEMA_VERSION``. Snapshots are never
+    re-encoded: historical rows keep their own recorded version and decode
+    through the version dispatcher. Returns ``(payload, schema_version)``.
+    """
     from product_intelligence.research.price_result_codec import (
+        CURRENT_PRICE_RESULT_SCHEMA_VERSION,
+        PRICE_RESULT_SCHEMA_VERSION,
+        PRICE_RESULT_SCHEMA_VERSION_2,
         encode_price_aggregation_result,
+        encode_price_aggregation_result_v2,
     )
 
-    return encode_price_aggregation_result(result)
+    if CURRENT_PRICE_RESULT_SCHEMA_VERSION == PRICE_RESULT_SCHEMA_VERSION:
+        return encode_price_aggregation_result(result), PRICE_RESULT_SCHEMA_VERSION
+    if CURRENT_PRICE_RESULT_SCHEMA_VERSION == PRICE_RESULT_SCHEMA_VERSION_2:
+        return (
+            encode_price_aggregation_result_v2(result),
+            PRICE_RESULT_SCHEMA_VERSION_2,
+        )
+    # Defensive: the frozen publication constant may only name a
+    # published codec version; a future version must be wired explicitly.
+    raise ExecutionError(
+        "CURRENT_PRICE_RESULT_SCHEMA_VERSION names no published codec "
+        f"version ({CURRENT_PRICE_RESULT_SCHEMA_VERSION!r}); the snapshot "
+        "encoder selection fails closed"
+    )
 
 
 def _terminalize_run(run: ResearchRun) -> None:

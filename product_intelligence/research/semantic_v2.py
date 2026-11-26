@@ -94,8 +94,12 @@ Consequences for this input contract:
   structured fact: token occurrence in the title is RAW observation
   evidence, not bounded structured evidence.
 * The published title is carried as RAW observation text (labeled as
-  such); the main flow carries no specification text (it stays in the
-  opaque raw reference).
+  such). SEMANTIC-V2-A1: the page-published description / specification
+  text is likewise carried as RAW observation text when the 3A extractor
+  publishes it (the JSON-LD ``Product.description`` position, via the
+  named ``ListingObservation.description_text`` field); explicit absence
+  otherwise. Raw text is never parsed into a structured fact and never
+  becomes manufacturer authority.
 * The COMMERCIAL section carries the published commercial fields as
   bounded facts plus the bounded SALES-UNIT / PACKAGING channel whose
   state is always explicit: the extractor publishes no packaging field,
@@ -250,9 +254,12 @@ class CandidateEvidenceSourceV2(str, Enum):
       the live main-flow builder emits no title-derived facts — token
       occurrence in the raw title is not structured evidence);
     * SPECIFICATION_TEXT — a published specification / description text
-      field (reserved: the main flow carries no specification text — the
-      remaining JSON-LD material stays in the opaque raw reference, which
-      no business rule may parse);
+      field (reserved: the live main-flow builder emits no
+      specification-text-sourced STRUCTURED facts — structured
+      product-dimension extraction is SV2-A2; the page-published
+      description text is carried in the RAW ``raw_specification_text``
+      channel, and the remaining JSON-LD material stays in the opaque raw
+      reference, which no business rule may parse);
     * REVIEWED_PRODUCT_CONTEXT — a reviewed manufacturer product context
       carried by the main execution flow about the CANDIDATE (reserved:
       today the main flow carries no reviewed candidate-side product
@@ -357,9 +364,15 @@ class CandidateProductEvidenceV2:
       is NOT structured evidence and never becomes manufacturer authority:
       a token occurring in it is not a bounded fact;
     * ``raw_specification_text`` — RAW specification / description text
-      when the extractor carries it. The main flow carries none today
-      (the remaining JSON-LD material stays in the opaque raw reference,
-      which no business rule may parse) — the channel is explicit None.
+      when the extractor carries it. SEMANTIC-V2-A1: the main flow carries
+      the page-published description / specification text the 3A extractor
+      publishes in its bounded named position (today: the JSON-LD
+      ``Product.description`` property, via ``ListingObservation.
+      description_text``); when the page publishes none, the channel is
+      explicit None. Either way it stays RAW observation text: a token in
+      it is not a structured fact, and it never becomes manufacturer
+      authority (the remaining JSON-LD material still stays in the opaque
+      raw reference, which no business rule may parse).
 
     This section is MODEL-OBSERVATION evidence. It is not, and cannot
     become, the authority-side ``ProductEvidenceProfileV2`` (a separate
@@ -843,10 +856,14 @@ def build_candidate_product_evidence_v2(
     S2-C-FU1 corrects).
 
     The published title is carried as ``raw_title_text`` (RAW observation
-    text, labeled as such in the prompt); the main flow carries no
-    specification text (``raw_specification_text`` is explicit None — the
-    remaining JSON-LD material stays in the opaque raw reference, which no
-    business rule may parse).
+    text, labeled as such in the prompt). SEMANTIC-V2-A1: the published
+    description / specification text is carried as ``raw_specification_text``
+    — the exact bounded RAW evidence the 3A extractor publishes in its
+    named position (``ListingObservation.description_text``; today the
+    JSON-LD ``Product.description`` property), explicit None when the page
+    publishes none. It is RAW observation text: no token of it is parsed
+    into a structured fact, it never becomes manufacturer authority, and
+    nothing is inferred from the opaque raw reference (AD-040).
     """
     if not isinstance(observation, ListingObservation):
         raise TypeError(
@@ -864,7 +881,12 @@ def build_candidate_product_evidence_v2(
         brand=_published_fact(observation.brand_text),
         revision_or_suffix=None,
         raw_title_text=observation.product_title or None,
-        raw_specification_text=None,
+        # SEMANTIC-V2-A1: the exact bounded RAW evidence supplied to the
+        # model — the page-published description / specification text the
+        # extractor carries (or explicit None when absent). The semantic
+        # ledger codec, prompt 2.0, model-output enums, and authority
+        # rules are unchanged: only this channel is now supplied.
+        raw_specification_text=observation.description_text or None,
     )
 
 

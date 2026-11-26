@@ -928,3 +928,168 @@ class TestWhatIsNeverRead:
             "MZ-QL23T800", observation.manufacturer_part_number_text
         )
         assert assessment.match_type is IdentityMatchType.EXACT
+
+
+class TestDescriptionTextExtraction:
+    """SEMANTIC-V2-A1: the bounded page-published description rule.
+
+    Exactly ONE structured position publishes the RAW description /
+    specification text: the JSON-LD `Product.description` property. It is
+    lifted with the same never-a-number / never-a-decision discipline as
+    its siblings; the META mechanism is unchanged (no recorded fixture
+    publishes a meta description key); unsupported or missing text stays
+    explicitly absent; the opaque `raw_reference` is never parsed for it.
+    """
+
+    def test_a_published_product_description_is_carried_as_raw_text(self) -> None:
+        document = _page(
+            _json_ld(
+                {
+                    "@type": "Product",
+                    "name": "A drive",
+                    "sku": "S-1",
+                    "description": "3.84TB enterprise NVMe SSD.",
+                }
+            )
+        )
+
+        observation = _extract(document)[0]
+
+        assert observation.description_text == "3.84TB enterprise NVMe SSD."
+
+    def test_interior_whitespace_and_newlines_are_kept_as_published(self) -> None:
+        """The recorded oempcworld fixture publishes a multi-line
+        description with a doubled space; 3A rewrites no interior byte."""
+        document = _page(
+            _json_ld(
+                {
+                    "@type": "Product",
+                    "name": "A drive",
+                    "description": "The 3.84TB  SSD \nprovides speed.",
+                }
+            )
+        )
+
+        observation = _extract(document)[0]
+
+        assert observation.description_text == "The 3.84TB  SSD \nprovides speed."
+
+    def test_surrounding_whitespace_is_stripped_like_its_siblings(self) -> None:
+        document = _page(
+            _json_ld(
+                {"@type": "Product", "name": "T", "description": "  padded  "}
+            )
+        )
+
+        assert _extract(document)[0].description_text == "padded"
+
+    def test_a_blank_description_is_explicitly_absent(self) -> None:
+        document = _page(
+            _json_ld({"@type": "Product", "name": "T", "description": "   "})
+        )
+
+        assert _extract(document)[0].description_text is None
+
+    def test_a_missing_description_is_explicitly_absent(self) -> None:
+        """No `description` property: the field is absent, never guessed."""
+        document = _page(
+            _json_ld({"@type": "Product", "name": "T", "sku": "S1"})
+        )
+
+        assert _extract(document)[0].description_text is None
+
+    def test_a_non_scalar_description_publication_stays_absent(self) -> None:
+        """A list or object in the description position is not a value this
+        module knows how to read — guessing which element was meant is the
+        decision it must not make."""
+        for bad in (["a", "b"], {"text": "a"}):
+            document = _page(
+                _json_ld({"@type": "Product", "name": "T", "description": bad})
+            )
+
+            assert _extract(document)[0].description_text is None
+
+    def test_a_json_number_description_arrives_as_its_source_text(self) -> None:
+        """`parse_float=str` / `parse_int=str`: the page's own
+        representation, not a converted number."""
+        document = _page(
+            _json_ld(
+                '{"@type": "Product", "name": "T", "description": 3.84}'
+            )
+        )
+
+        assert _extract(document)[0].description_text == "3.84"
+
+    def test_the_description_is_product_scoped_not_offer_scoped(self) -> None:
+        """Every offer of the same product node carries the product's
+        published description; an offer node's own `description` never
+        contributes (offers price, they do not describe the product)."""
+        document = _page(
+            _json_ld(
+                {
+                    "@type": "Product",
+                    "name": "T",
+                    "description": "The product description",
+                    "offers": [
+                        {
+                            "@type": "Offer",
+                            "price": "1",
+                            "description": "offer-level text",
+                        },
+                        {"@type": "Offer", "price": "2"},
+                    ],
+                }
+            )
+        )
+
+        observations = _extract(document)
+
+        assert len(observations) == 2
+        assert all(o.description_text == "The product description" for o in observations)
+
+    def test_a_meta_only_page_carries_no_description_text(self) -> None:
+        """The META mechanism publishes no description key in any recorded
+        fixture (the og:title / flat product-meta family is unchanged); a
+        page-scoped `og:description` is not a product-scoped structured
+        publication, so the field stays explicitly absent."""
+        document = (
+            "<html><head>"
+            '<meta name="mpn" content="MZ-1">'
+            '<meta name="price" content="100">'
+            '<meta property="og:description" content="a page description">'
+            '<meta name="description" content="an seo description">'
+            "</head><body></body></html>"
+        )
+
+        observations = extract_listing_observations(
+            document, source_url=URL
+        )
+
+        assert len(observations) == 1
+        assert observations[0].extraction_method is ExtractionMethod.META
+        assert observations[0].description_text is None
+
+    def test_the_description_is_not_parsed_out_of_the_raw_reference(self) -> None:
+        """AD-040: the opaque reference preserves the node (incl. the
+        description material) for humans and tests — business extraction
+        reads the structured position, never re-parses the reference. This
+        pins that the extracted value equals the published property as the
+        parser decoded it, and that an unparseable sibling block does not
+        corrupt the reference-derived material."""
+        document = _page(
+            _json_ld("{ this is not json ]"),
+            _json_ld(
+                {
+                    "@type": "Product",
+                    "name": "T",
+                    "description": "good description",
+                }
+            ),
+        )
+
+        observations = _extract(document)
+
+        assert len(observations) == 1
+        assert observations[0].description_text == "good description"
+        # The reference still preserves the node opaquely ...
+        assert '"description": "good description"' in (observations[0].raw_reference or "")
